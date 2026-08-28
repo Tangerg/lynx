@@ -76,6 +76,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 		FrequencyPenalty: new(0.1),
 		MaxTokens:        new(int64(512)),
 		PresencePenalty:  new(0.2),
+		ReasoningEffort:  "high",
 		Stop:             []string{"END"},
 		Temperature:      new(0.3),
 		TopK:             new(int64(40)),

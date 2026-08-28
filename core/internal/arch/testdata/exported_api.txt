@@ -48,6 +48,7 @@ chat: func (r *ResponseAccumulator) Add(chunk *Response) error
 chat: func (r *ResponseAccumulator) Response() *Response
 chat: func (r *ResponseMetadata) Set(key string, value any) error
 chat: func (r *ResponseMetadata) UnmarshalJSON(data []byte) error
+chat: func (r ReasoningEffort) Validate() error
 chat: func (r Request) MarshalJSON() ([]byte, error)
 chat: func (r Response) MarshalJSON() ([]byte, error)
 chat: func (r ResponseMetadata) MarshalJSON() ([]byte, error)
@@ -85,13 +86,14 @@ chat: type FinishReason string
 chat: type Message struct { Role Role `json:"role"` Parts []Part `json:"parts"` Metadata metadata.Map `json:"metadata,omitzero"` }
 chat: type Model interface { Call(ctx context.Context, request *Request) (*Response, error) }
 chat: type ModelFunc func(ctx context.Context, request *Request) (*Response, error)
-chat: type Options struct { Model string `json:"model,omitempty"` OutputFormat *OutputFormat `json:"output_format,omitempty"` FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"` MaxTokens *int64 `json:"max_tokens,omitempty"` PresencePenalty *float64 `json:"presence_penalty,omitempty"` Stop []string `json:"stop,omitempty"` Temperature *float64 `json:"temperature,omitempty"` TopK *int64 `json:"top_k,omitempty"` TopP *float64 `json:"top_p,omitempty"` Extensions metadata.Map `json:"extensions,omitzero"` }
+chat: type Options struct { Model string `json:"model,omitempty"` OutputFormat *OutputFormat `json:"output_format,omitempty"` FrequencyPenalty *float64 `json:"frequency_penalty,omitempty"` MaxTokens *int64 `json:"max_tokens,omitempty"` PresencePenalty *float64 `json:"presence_penalty,omitempty"` ReasoningEffort ReasoningEffort `json:"reasoning_effort,omitempty"` Stop []string `json:"stop,omitempty"` Temperature *float64 `json:"temperature,omitempty"` TopK *int64 `json:"top_k,omitempty"` TopP *float64 `json:"top_p,omitempty"` Extensions metadata.Map `json:"extensions,omitzero"` }
 chat: type Output struct { Message *Message `json:"message,omitempty"` FinishReason FinishReason `json:"finish_reason,omitempty"` Metadata *OutputMetadata `json:"metadata,omitempty"` }
 chat: type OutputFormat struct { Type OutputFormatType `json:"type"` Name string `json:"name,omitempty"` Description string `json:"description,omitempty"` Schema json.RawMessage `json:"schema,omitempty"` }
 chat: type OutputFormatType string
 chat: type OutputMetadata struct { Extra metadata.Map `json:"extra,omitzero"` }
 chat: type Part struct { Kind PartKind `json:"kind"` Text string `json:"text,omitempty"` Media *media.Media `json:"media,omitempty"` Signature []byte `json:"signature,omitempty"` ToolCall *ToolCall `json:"tool_call,omitempty"` ToolResult *ToolResult `json:"tool_result,omitempty"` Metadata metadata.Map `json:"metadata,omitzero"` }
 chat: type PartKind string
+chat: type ReasoningEffort string
 chat: type Request struct { Messages []Message `json:"messages"` Tools []ToolDefinition `json:"tools,omitempty"` Options Options `json:"options,omitzero"` }
 chat: type Response struct { Output *Output `json:"output,omitempty"` Metadata *ResponseMetadata `json:"metadata,omitempty"` }
 chat: type ResponseAccumulator struct { metadata *ResponseMetadata output *accumulatedOutput seen bool }

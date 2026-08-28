@@ -44,6 +44,7 @@ func TestOptionsValidateBoundaries(t *testing.T) {
 		FrequencyPenalty: new(-2.0),
 		MaxTokens:        new(int64(1)),
 		PresencePenalty:  new(2.0),
+		ReasoningEffort:  "high",
 		Stop:             []string{"stop"},
 		Temperature:      new(0.0),
 		TopK:             new(int64(1)),
@@ -77,6 +78,7 @@ func TestOptionsClone(t *testing.T) {
 		FrequencyPenalty: new(0.1),
 		MaxTokens:        new(int64(10)),
 		PresencePenalty:  new(0.2),
+		ReasoningEffort:  "medium",
 		Stop:             []string{"END"},
 		Temperature:      new(0.3),
 		TopK:             new(int64(4)),
@@ -137,10 +139,11 @@ func TestOptionsResolve(t *testing.T) {
 	}
 
 	override := chat.Options{
-		Model:       "override-model",
-		MaxTokens:   new(int64(20)),
-		Stop:        []string{"OVERRIDE"},
-		Temperature: new(0.7),
+		Model:           "override-model",
+		MaxTokens:       new(int64(20)),
+		Stop:            []string{"OVERRIDE"},
+		Temperature:     new(0.7),
+		ReasoningEffort: "high",
 	}
 	overrideFormat, err := chat.NewOutputFormat(chat.OutputFormatJSON)
 	if err != nil {
@@ -152,6 +155,7 @@ func TestOptionsResolve(t *testing.T) {
 		t.Fatal(err)
 	}
 	if got.Model != "override-model" || got.OutputFormat == nil || got.OutputFormat.Type != chat.OutputFormatJSON || *got.MaxTokens != 20 ||
+		got.ReasoningEffort != "high" ||
 		got.Stop[0] != "OVERRIDE" || *got.Temperature != 0.7 {
 		t.Fatalf("Resolve did not apply set fields: %#v", got)
 	}
@@ -201,6 +205,7 @@ func TestOptionsValidateRejectsInvalidOverrides(t *testing.T) {
 		{name: "frequency NaN", options: chat.Options{FrequencyPenalty: new(math.NaN())}},
 		{name: "max tokens zero", options: chat.Options{MaxTokens: new(int64(0))}},
 		{name: "presence high", options: chat.Options{PresencePenalty: new(2.1)}},
+		{name: "reasoning whitespace", options: chat.Options{ReasoningEffort: " high"}},
 		{name: "empty stop", options: chat.Options{Stop: []string{""}}},
 		{name: "temperature high", options: chat.Options{Temperature: new(2.1)}},
 		{name: "temperature infinity", options: chat.Options{Temperature: new(math.Inf(1))}},

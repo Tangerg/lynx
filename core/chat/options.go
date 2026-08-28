@@ -29,16 +29,17 @@ const (
 // fields, merges namespaced extensions, snapshots mutable values, and leaves
 // both source values unchanged.
 type Options struct {
-	Model            string        `json:"model,omitempty"`
-	OutputFormat     *OutputFormat `json:"output_format,omitempty"`
-	FrequencyPenalty *float64      `json:"frequency_penalty,omitempty"`
-	MaxTokens        *int64        `json:"max_tokens,omitempty"`
-	PresencePenalty  *float64      `json:"presence_penalty,omitempty"`
-	Stop             []string      `json:"stop,omitempty"`
-	Temperature      *float64      `json:"temperature,omitempty"`
-	TopK             *int64        `json:"top_k,omitempty"`
-	TopP             *float64      `json:"top_p,omitempty"`
-	Extensions       metadata.Map  `json:"extensions,omitzero"`
+	Model            string          `json:"model,omitempty"`
+	OutputFormat     *OutputFormat   `json:"output_format,omitempty"`
+	FrequencyPenalty *float64        `json:"frequency_penalty,omitempty"`
+	MaxTokens        *int64          `json:"max_tokens,omitempty"`
+	PresencePenalty  *float64        `json:"presence_penalty,omitempty"`
+	ReasoningEffort  ReasoningEffort `json:"reasoning_effort,omitempty"`
+	Stop             []string        `json:"stop,omitempty"`
+	Temperature      *float64        `json:"temperature,omitempty"`
+	TopK             *int64          `json:"top_k,omitempty"`
+	TopP             *float64        `json:"top_p,omitempty"`
+	Extensions       metadata.Map    `json:"extensions,omitzero"`
 }
 
 func NewOptions(model string) (Options, error) {
@@ -69,6 +70,7 @@ func (o Options) Clone() Options {
 		FrequencyPenalty: ptr.Clone(o.FrequencyPenalty),
 		MaxTokens:        ptr.Clone(o.MaxTokens),
 		PresencePenalty:  ptr.Clone(o.PresencePenalty),
+		ReasoningEffort:  o.ReasoningEffort,
 		Stop:             slices.Clone(o.Stop),
 		Temperature:      ptr.Clone(o.Temperature),
 		TopK:             ptr.Clone(o.TopK),
@@ -103,6 +105,9 @@ func (o *Options) applyOverride(override Options) error {
 	}
 	if override.PresencePenalty != nil {
 		o.PresencePenalty = ptr.Clone(override.PresencePenalty)
+	}
+	if override.ReasoningEffort != "" {
+		o.ReasoningEffort = override.ReasoningEffort
 	}
 	if override.Stop != nil {
 		o.Stop = slices.Clone(override.Stop)
@@ -141,6 +146,9 @@ func (o Options) Validate() error {
 	}
 	if err := validateFloat("presence_penalty", o.PresencePenalty, minimumPenalty, maximumPenalty); err != nil {
 		return err
+	}
+	if err := o.ReasoningEffort.Validate(); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidOptions, err)
 	}
 	for i, stop := range o.Stop {
 		if stop == "" {
