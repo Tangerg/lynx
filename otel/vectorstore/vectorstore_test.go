@@ -7,6 +7,8 @@ import (
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"go.opentelemetry.io/otel/trace"
@@ -28,21 +30,32 @@ func (s searcherFunc) Search(ctx context.Context, request *vectorstore.SearchReq
 	return s(ctx, request)
 }
 
-func newVectorStoreMiddleware(t *testing.T) (vectorotel.Middleware, *tracetest.SpanRecorder) {
+type telemetryRig struct {
+	spans  *tracetest.SpanRecorder
+	reader *sdkmetric.ManualReader
+}
+
+func newVectorStoreMiddleware(t *testing.T) (vectorotel.Middleware, *telemetryRig) {
 	t.Helper()
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
-	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	reader := sdkmetric.NewManualReader()
+	meters := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() {
+		_ = provider.Shutdown(context.Background())
+		_ = meters.Shutdown(context.Background())
+	})
 	middleware, err := vectorotel.NewMiddleware(vectorotel.MiddlewareConfig{
 		System:         "  Qdrant  ",
 		Collection:     "knowledge",
 		Namespace:      "tenant",
 		TracerProvider: provider,
+		MeterProvider:  meters,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return middleware, recorder
+	return middleware, &telemetryRig{spans: recorder, reader: reader}
 }
 
 func TestNewMiddlewareRequiresSystem(t *testing.T) {
@@ -76,7 +89,7 @@ func TestMiddlewarePreservesMissingCapabilities(t *testing.T) {
 }
 
 func TestIndexPreservesNarrowCapabilityAndError(t *testing.T) {
-	middleware, recorder := newVectorStoreMiddleware(t)
+	middleware, rig := newVectorStoreMiddleware(t)
 	want := errors.New("write failed")
 	var sawSpan bool
 	wrapped := middleware.Index(indexerFunc(func(ctx context.Context, request *vectorstore.IndexRequest) error {
@@ -91,7 +104,7 @@ func TestIndexPreservesNarrowCapabilityAndError(t *testing.T) {
 		t.Fatalf("Index() error/span = %v/%t", err, sawSpan)
 	}
 
-	span := recorder.Ended()[0]
+	span := rig.spans.Ended()[0]
 	if span.Name() != "index knowledge" || span.SpanKind() != trace.SpanKindClient || span.Status().Code != codes.Error {
 		t.Fatalf("span name/kind/status = %q/%v/%v", span.Name(), span.SpanKind(), span.Status())
 	}
@@ -103,10 +116,13 @@ func TestIndexPreservesNarrowCapabilityAndError(t *testing.T) {
 	if got := attrs["db.operation.batch.size"].AsInt64(); got != 2 {
 		t.Fatalf("db.operation.batch.size = %d, want 2", got)
 	}
+	metrics := collectMetrics(t, rig.reader)
+	assertMetricAttribute(t, metrics, "db.client.operation.duration", "db.operation.name", "index")
+	assertMetricAttribute(t, metrics, "db.client.operation.duration", "error.type", "*errors.errorString")
 }
 
 func TestSearchPreservesMatchesAndRecordsCount(t *testing.T) {
-	middleware, recorder := newVectorStoreMiddleware(t)
+	middleware, rig := newVectorStoreMiddleware(t)
 	want := &vectorstore.SearchResponse{Results: []*vectorstore.SearchResult{{Document: &document.Document{ID: "one", Text: "one"}, Score: 0.9}}}
 	wrapped := middleware.Search(searcherFunc(func(context.Context, *vectorstore.SearchRequest) (*vectorstore.SearchResponse, error) {
 		return want, nil
@@ -118,7 +134,7 @@ func TestSearchPreservesMatchesAndRecordsCount(t *testing.T) {
 	if err != nil || got != want {
 		t.Fatalf("Search() = %#v, %v", got, err)
 	}
-	attrs := spanAttributes(t, recorder.Ended()[0])
+	attrs := spanAttributes(t, rig.spans.Ended()[0])
 	if count := attrs["db.response.returned_rows"].AsInt64(); count != 1 {
 		t.Fatalf("db.response.returned_rows = %d, want 1", count)
 	}
@@ -127,6 +143,12 @@ func TestSearchPreservesMatchesAndRecordsCount(t *testing.T) {
 	}
 	if threshold := attrs["db.vector.query.similarity_threshold"].AsFloat64(); threshold != 0 {
 		t.Fatalf("db.vector.query.similarity_threshold = %v, want 0", threshold)
+	}
+	metrics := collectMetrics(t, rig.reader)
+	assertMetricAttribute(t, metrics, "db.client.operation.duration", "db.collection.name", "knowledge")
+	assertMetricLacksAttribute(t, metrics, "db.client.operation.duration", "db.vector.query.top_k")
+	if rows := histogramInt64Sum(t, metrics, "db.vector.search.returned_rows"); rows != 1 {
+		t.Fatalf("returned rows metric = %d, want 1", rows)
 	}
 }
 
@@ -144,4 +166,89 @@ func assertStringAttr(t *testing.T, attrs map[string]attribute.Value, key, want 
 	if got := attrs[key].AsString(); got != want {
 		t.Fatalf("attribute %s = %q, want %q", key, got, want)
 	}
+}
+
+func collectMetrics(t *testing.T, reader *sdkmetric.ManualReader) metricdata.ResourceMetrics {
+	t.Helper()
+	var metrics metricdata.ResourceMetrics
+	if err := reader.Collect(t.Context(), &metrics); err != nil {
+		t.Fatal(err)
+	}
+	return metrics
+}
+
+func assertMetricAttribute(
+	t *testing.T,
+	metrics metricdata.ResourceMetrics,
+	name string,
+	key attribute.Key,
+	want string,
+) {
+	t.Helper()
+	for _, scope := range metrics.ScopeMetrics {
+		for _, value := range scope.Metrics {
+			if value.Name != name {
+				continue
+			}
+			histogram, ok := value.Data.(metricdata.Histogram[float64])
+			if !ok {
+				t.Fatalf("metric %s is %T", name, value.Data)
+			}
+			for _, point := range histogram.DataPoints {
+				if attr, found := point.Attributes.Value(key); found && attr.AsString() == want {
+					return
+				}
+			}
+		}
+	}
+	t.Fatalf("metric %q has no %s=%q datapoint", name, key, want)
+}
+
+func histogramInt64Sum(t *testing.T, metrics metricdata.ResourceMetrics, name string) int64 {
+	t.Helper()
+	for _, scope := range metrics.ScopeMetrics {
+		for _, value := range scope.Metrics {
+			if value.Name != name {
+				continue
+			}
+			histogram, ok := value.Data.(metricdata.Histogram[int64])
+			if !ok {
+				t.Fatalf("metric %s is %T", name, value.Data)
+			}
+			var sum int64
+			for _, point := range histogram.DataPoints {
+				sum += point.Sum
+			}
+			return sum
+		}
+	}
+	t.Fatalf("metric %q not found", name)
+	return 0
+}
+
+func assertMetricLacksAttribute(
+	t *testing.T,
+	metrics metricdata.ResourceMetrics,
+	name string,
+	key attribute.Key,
+) {
+	t.Helper()
+	for _, scope := range metrics.ScopeMetrics {
+		for _, value := range scope.Metrics {
+			if value.Name != name {
+				continue
+			}
+			histogram, ok := value.Data.(metricdata.Histogram[float64])
+			if !ok {
+				t.Fatalf("metric %s is %T", name, value.Data)
+			}
+			for _, point := range histogram.DataPoints {
+				if _, found := point.Attributes.Value(key); found {
+					t.Fatalf("metric %q contains high-cardinality attribute %s", name, key)
+				}
+			}
+			return
+		}
+	}
+	t.Fatalf("metric %q not found", name)
 }

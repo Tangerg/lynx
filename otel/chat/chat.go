@@ -26,6 +26,9 @@ const (
 	instrumentationName            = "github.com/Tangerg/scope/otel/chat"
 	chatOperationName              = "chat"
 	firstTokenReceivedEvent        = "first_token_received"
+	timeToFirstTokenMetric         = "gen_ai.client.time_to_first_token"
+	timeToFirstTokenDescription    = "Time to the first generated content in a streaming response."
+	timeToFirstTokenUnit           = "s"
 	streamAccumulationFailureEvent = "gen_ai.stream.accumulation_error"
 	errorTypeContextCanceled       = "context.canceled"
 	errorTypeDeadlineExceeded      = "context.deadline_exceeded"
@@ -68,10 +71,11 @@ func (c MiddlewareConfig) Validate() error {
 // chat capabilities. It is immutable after construction and safe for
 // concurrent use.
 type Middleware struct {
-	provider string
-	tracer   trace.Tracer
-	duration genaiconv.ClientOperationDuration
-	tokens   genaiconv.ClientTokenUsage
+	provider           string
+	tracer             trace.Tracer
+	duration           genaiconv.ClientOperationDuration
+	tokens             genaiconv.ClientTokenUsage
+	firstTokenDuration metric.Float64Histogram
 }
 
 func NewMiddleware(config MiddlewareConfig) (Middleware, error) {
@@ -98,12 +102,21 @@ func NewMiddleware(config MiddlewareConfig) (Middleware, error) {
 	if err != nil {
 		return Middleware{}, fmt.Errorf("%w: create token histogram: %w", ErrInvalidConfig, err)
 	}
+	firstTokenDuration, err := meter.Float64Histogram(
+		timeToFirstTokenMetric,
+		metric.WithDescription(timeToFirstTokenDescription),
+		metric.WithUnit(timeToFirstTokenUnit),
+	)
+	if err != nil {
+		return Middleware{}, fmt.Errorf("%w: create first-token histogram: %w", ErrInvalidConfig, err)
+	}
 
 	return Middleware{
-		provider: provider,
-		tracer:   tracerProvider.Tracer(instrumentationName),
-		duration: duration,
-		tokens:   tokens,
+		provider:           provider,
+		tracer:             tracerProvider.Tracer(instrumentationName),
+		duration:           duration,
+		tokens:             tokens,
+		firstTokenDuration: firstTokenDuration,
 	}, nil
 }
 
@@ -157,6 +170,7 @@ func (m Middleware) Stream(next corechat.Streamer) corechat.Streamer {
 				}
 				if !firstToken && hasGeneratedContent(chunk) {
 					span.AddEvent(firstTokenReceivedEvent)
+					m.recordTimeToFirstToken(spanCtx, request, chunk, time.Since(started))
 					firstToken = true
 				}
 				if chunk != nil {
@@ -177,6 +191,24 @@ func (m Middleware) Stream(next corechat.Streamer) corechat.Streamer {
 			})
 		}
 	})
+}
+
+func (m Middleware) recordTimeToFirstToken(
+	ctx context.Context,
+	request *corechat.Request,
+	response *corechat.Response,
+	elapsed time.Duration,
+) {
+	attributes := metricAttributes(request, response)
+	attributes = append(attributes,
+		semconv.GenAIOperationNameChat,
+		semconv.GenAIProviderNameKey.String(m.provider),
+	)
+	m.firstTokenDuration.Record(
+		ctx,
+		elapsed.Seconds(),
+		metric.WithAttributes(attributes...),
+	)
 }
 
 func (m Middleware) start(

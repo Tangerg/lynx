@@ -277,6 +277,8 @@ func TestStreamIsLazyAndAggregatesForObservation(t *testing.T) {
 	if got := histogramInt64Sum(t, metrics, "gen_ai.client.token.usage", "gen_ai.token.type", "output"); got != 3 {
 		t.Fatalf("stream output metric = %d, want 3", got)
 	}
+	assertMetricAttribute(t, metrics, "gen_ai.client.time_to_first_token", "gen_ai.provider.name", "openai")
+	assertMetricAttribute(t, metrics, "gen_ai.client.time_to_first_token", "gen_ai.request.model", "gpt-request")
 }
 
 func TestStreamEndsSynchronouslyOnConsumerStop(t *testing.T) {

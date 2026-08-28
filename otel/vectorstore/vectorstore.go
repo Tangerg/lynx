@@ -6,10 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	apiotel "go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/metric"
 	semconv "go.opentelemetry.io/otel/semconv/v1.41.0"
 	"go.opentelemetry.io/otel/trace"
 
@@ -19,7 +21,17 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-const instrumentationName = "github.com/Tangerg/scope/otel/vectorstore"
+const (
+	instrumentationName           = "github.com/Tangerg/scope/otel/vectorstore"
+	operationDurationMetric       = "db.client.operation.duration"
+	operationDurationDescription  = "Vector store operation duration."
+	operationDurationUnit         = "s"
+	searchReturnedRowsMetric      = "db.vector.search.returned_rows"
+	searchReturnedRowsDescription = "Rows returned by a vector search."
+	searchReturnedRowsUnit        = "{row}"
+	errorTypeCanceled             = "context.canceled"
+	errorTypeDeadlineExceeded     = "context.deadline_exceeded"
+)
 
 type operationName string
 
@@ -42,6 +54,7 @@ type MiddlewareConfig struct {
 	Collection     string
 	Namespace      string
 	TracerProvider trace.TracerProvider
+	MeterProvider  metric.MeterProvider
 }
 
 func (c MiddlewareConfig) Validate() error {
@@ -58,6 +71,8 @@ type Middleware struct {
 	collection string
 	namespace  string
 	tracer     trace.Tracer
+	duration   metric.Float64Histogram
+	searchRows metric.Int64Histogram
 }
 
 func NewMiddleware(config MiddlewareConfig) (Middleware, error) {
@@ -70,11 +85,34 @@ func NewMiddleware(config MiddlewareConfig) (Middleware, error) {
 	if lo.IsNil(tracerProvider) {
 		tracerProvider = apiotel.GetTracerProvider()
 	}
+	meterProvider := config.MeterProvider
+	if lo.IsNil(meterProvider) {
+		meterProvider = apiotel.GetMeterProvider()
+	}
+	meter := meterProvider.Meter(instrumentationName)
+	duration, err := meter.Float64Histogram(
+		operationDurationMetric,
+		metric.WithDescription(operationDurationDescription),
+		metric.WithUnit(operationDurationUnit),
+	)
+	if err != nil {
+		return Middleware{}, fmt.Errorf("%w: create duration histogram: %w", ErrInvalidConfig, err)
+	}
+	searchRows, err := meter.Int64Histogram(
+		searchReturnedRowsMetric,
+		metric.WithDescription(searchReturnedRowsDescription),
+		metric.WithUnit(searchReturnedRowsUnit),
+	)
+	if err != nil {
+		return Middleware{}, fmt.Errorf("%w: create returned-rows histogram: %w", ErrInvalidConfig, err)
+	}
 	return Middleware{
 		system:     system,
 		collection: strings.TrimSpace(config.Collection),
 		namespace:  strings.TrimSpace(config.Namespace),
 		tracer:     tracerProvider.Tracer(instrumentationName),
+		duration:   duration,
+		searchRows: searchRows,
 	}, nil
 }
 
@@ -114,18 +152,24 @@ func (m Middleware) start(
 	ctx context.Context,
 	operation operationName,
 	extra ...attribute.KeyValue,
-) (context.Context, trace.Span) {
-	attrs := []attribute.KeyValue{
+) (context.Context, vectorStoreObservation) {
+	startedAt := time.Now()
+	metricAttributes := []attribute.KeyValue{
 		semconv.DBSystemNameKey.String(m.system),
 		semconv.DBOperationNameKey.String(string(operation)),
 	}
+	attrs := append([]attribute.KeyValue(nil), metricAttributes...)
 	target := ""
 	if m.collection != "" {
-		attrs = append(attrs, semconv.DBCollectionNameKey.String(m.collection))
+		collection := semconv.DBCollectionNameKey.String(m.collection)
+		attrs = append(attrs, collection)
+		metricAttributes = append(metricAttributes, collection)
 		target = m.collection
 	}
 	if m.namespace != "" {
-		attrs = append(attrs, semconv.DBNamespaceKey.String(m.namespace))
+		namespace := semconv.DBNamespaceKey.String(m.namespace)
+		attrs = append(attrs, namespace)
+		metricAttributes = append(metricAttributes, namespace)
 		if target == "" {
 			target = m.namespace
 		}
@@ -136,19 +180,61 @@ func (m Middleware) start(
 	if target != "" {
 		name += " " + target
 	}
-	return m.tracer.Start(ctx, name,
+	spanCtx, span := m.tracer.Start(ctx, name,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attrs...),
 	)
+	return spanCtx, vectorStoreObservation{
+		middleware:       m,
+		ctx:              spanCtx,
+		span:             span,
+		startedAt:        startedAt,
+		metricAttributes: metricAttributes,
+	}
 }
 
-func finishVectorStoreSpan(span trace.Span, err error) {
-	defer span.End()
-	if err == nil {
-		return
+type vectorStoreObservation struct {
+	middleware       Middleware
+	ctx              context.Context
+	span             trace.Span
+	startedAt        time.Time
+	metricAttributes []attribute.KeyValue
+}
+
+func (observation vectorStoreObservation) finish(err error) {
+	metricAttributes := observation.metricAttributes
+	if err != nil {
+		errorType := vectorStoreErrorType(err)
+		observation.span.RecordError(err)
+		observation.span.SetStatus(codes.Error, err.Error())
+		observation.span.SetAttributes(errorType)
+		metricAttributes = append(metricAttributes, errorType)
 	}
-	span.RecordError(err)
-	span.SetStatus(codes.Error, err.Error())
+	observation.span.End()
+	observation.middleware.duration.Record(
+		observation.ctx,
+		time.Since(observation.startedAt).Seconds(),
+		metric.WithAttributes(metricAttributes...),
+	)
+}
+
+func (observation vectorStoreObservation) recordReturnedRows(count int) {
+	observation.middleware.searchRows.Record(
+		observation.ctx,
+		int64(count),
+		metric.WithAttributes(observation.metricAttributes...),
+	)
+}
+
+func vectorStoreErrorType(err error) attribute.KeyValue {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return semconv.ErrorTypeKey.String(errorTypeCanceled)
+	case errors.Is(err, context.DeadlineExceeded):
+		return semconv.ErrorTypeKey.String(errorTypeDeadlineExceeded)
+	default:
+		return semconv.ErrorType(err)
+	}
 }
 
 type indexer struct {
@@ -161,9 +247,9 @@ func (i indexer) Index(ctx context.Context, request *corevectorstore.IndexReques
 	if request != nil && len(request.Documents) > 1 {
 		extra = append(extra, semconv.DBOperationBatchSizeKey.Int(len(request.Documents)))
 	}
-	ctx, span := i.middleware.start(ctx, operationIndex, extra...)
+	ctx, observation := i.middleware.start(ctx, operationIndex, extra...)
 	err := i.next.Index(ctx, request)
-	finishVectorStoreSpan(span, err)
+	observation.finish(err)
 	return err
 }
 
@@ -179,15 +265,16 @@ func (s searcher) Search(ctx context.Context, request *corevectorstore.SearchReq
 		topK = request.Options.TopK
 		minScore = request.Options.MinScore.Float64()
 	}
-	ctx, span := s.middleware.start(ctx, operationSearch,
+	ctx, observation := s.middleware.start(ctx, operationSearch,
 		queryTopKKey.Int(topK),
 		queryMinScoreKey.Float64(minScore),
 	)
 	response, err := s.next.Search(ctx, request)
 	if err == nil && response != nil {
-		span.SetAttributes(semconv.DBResponseReturnedRowsKey.Int(len(response.Results)))
+		observation.span.SetAttributes(semconv.DBResponseReturnedRowsKey.Int(len(response.Results)))
+		observation.recordReturnedRows(len(response.Results))
 	}
-	finishVectorStoreSpan(span, err)
+	observation.finish(err)
 	return response, err
 }
 
@@ -201,9 +288,9 @@ func (i idDeleter) DeleteIDs(ctx context.Context, ids []string) error {
 	if len(ids) > 1 {
 		extra = append(extra, semconv.DBOperationBatchSizeKey.Int(len(ids)))
 	}
-	ctx, span := i.middleware.start(ctx, operationDeleteIDs, extra...)
+	ctx, observation := i.middleware.start(ctx, operationDeleteIDs, extra...)
 	err := i.next.DeleteIDs(ctx, ids)
-	finishVectorStoreSpan(span, err)
+	observation.finish(err)
 	return err
 }
 
@@ -213,8 +300,8 @@ type filterDeleter struct {
 }
 
 func (f filterDeleter) DeleteWhere(ctx context.Context, predicate filter.Predicate) error {
-	ctx, span := f.middleware.start(ctx, operationDeleteWhere)
+	ctx, observation := f.middleware.start(ctx, operationDeleteWhere)
 	err := f.next.DeleteWhere(ctx, predicate)
-	finishVectorStoreSpan(span, err)
+	observation.finish(err)
 	return err
 }
