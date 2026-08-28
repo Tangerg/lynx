@@ -104,13 +104,13 @@ func (c *Client) search(ctx context.Context, request *searchRequest) (*searchRes
 	return &raw, nil
 }
 
-func (request *searchRequest) params() map[string]string {
-	parameters := map[string]string{queryParameterQuery: request.Q}
-	if request.Count > 0 {
-		parameters[queryParameterCount] = strconv.Itoa(request.Count)
+func (s *searchRequest) params() map[string]string {
+	parameters := map[string]string{queryParameterQuery: s.Q}
+	if s.Count > 0 {
+		parameters[queryParameterCount] = strconv.Itoa(s.Count)
 	}
-	if request.Freshness != "" {
-		parameters[queryParameterFreshness] = request.Freshness
+	if s.Freshness != "" {
+		parameters[queryParameterFreshness] = s.Freshness
 	}
 	return parameters
 }

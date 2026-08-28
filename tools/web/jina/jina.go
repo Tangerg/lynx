@@ -124,15 +124,15 @@ func (c *Client) search(ctx context.Context, request *searchRequest) (*searchRes
 	return &raw, nil
 }
 
-func (request *searchRequest) params() url.Values {
+func (s *searchRequest) params() url.Values {
 	parameters := make(url.Values)
-	if request.Count > 0 {
-		parameters.Set(queryParameterCount, strconv.Itoa(request.Count))
+	if s.Count > 0 {
+		parameters.Set(queryParameterCount, strconv.Itoa(s.Count))
 	}
-	if request.Page > 0 {
-		parameters.Set(queryParameterPage, strconv.Itoa(request.Page))
+	if s.Page > 0 {
+		parameters.Set(queryParameterPage, strconv.Itoa(s.Page))
 	}
-	for _, site := range request.Site {
+	for _, site := range s.Site {
 		parameters.Add(queryParameterSite, site)
 	}
 	return parameters
