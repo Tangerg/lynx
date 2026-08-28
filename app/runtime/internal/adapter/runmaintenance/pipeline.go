@@ -3,9 +3,8 @@ package runmaintenance
 import (
 	"context"
 
-	"github.com/Tangerg/scope/models/catalog"
-
 	"github.com/Tangerg/scope/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/modelcatalog"
 )
 
 // Pipeline composes the post-Run maintenance workers. It keeps the lifecycle
@@ -51,17 +50,16 @@ func (p *Pipeline) Maintain(ctx context.Context, input agentexec.RunMaintenanceI
 		return result
 	}
 
-	contextWindow := 0
-	maxInputTokens := 0
-	if info, ok := catalog.Default.Lookup(input.ModelSelection.Provider(), input.ModelSelection.Model()); ok {
-		contextWindow = int(info.Limits.ContextWindow)
-		maxInputTokens = int(info.Limits.MaxInputTokens)
+	limits, _, err := modelcatalog.LookupTokenLimits(input.ModelSelection)
+	if err != nil {
+		result.Errors = append(result.Errors, err)
+		return result
 	}
 	compaction, err := p.compactor.CompactIfNeeded(
 		ctx,
 		input.SessionID,
-		contextWindow,
-		maxInputTokens,
+		limits,
+		input.Options,
 		input.PreCompact,
 	)
 	if err != nil {

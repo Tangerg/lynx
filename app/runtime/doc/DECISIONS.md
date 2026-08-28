@@ -766,3 +766,11 @@
 - 背景：P191 已使请求体积可测量，但阈值仍只取模型 `ContextWindow` 的80%。实际 catalog 中有38个模型的 `MaxInputTokens` 小于该软阈值；例如 `openai/gpt-5.4-mini` 的总窗口为400,000，硬输入上限为272,000，旧逻辑却到320,000才触发压缩。这会让 Runtime 在必然被 provider拒绝之后才尝试收缩。
 - 决策：模型目录的总上下文窗口与硬输入上限是两个独立的 provider 事实。`Compactor` 的有效token阈值唯一定义为“显式阈值或总窗口80%的软阈值，再取不超过硬输入上限的值”。显式维护配置也不能越过provider硬限。只有当Run的model identity整体未知时才使用default model的两项fallback；已知selected model的context window但其input limit未知时，不借用另一模型的硬限。百分比计算使用具名scale与先商后余的饱和加法，不允许大窗口整数溢出。
 - 后果：每次主模型调用前仍执行同一次廉价预算检查；只有message或有效token阈值命中才进入 PreCompact、summary与SQLite rewrite，低于阈值的路径仍零副作用。真实selected-model回归证明体积介于272,000与320,000时已在provider硬限前压缩。没有引入图片token公式、安全倍率、provider分支map或第二阈值owner。
+
+## ADR-RT-108：显式输出预留与输入预算必须消费同一个模型限制值对象
+
+- 状态：已接受并实施，P193 完成；允许 Runtime internal compaction/config/maintenance API breaking change，公共 Runtime Protocol、Artifact、SQLite、Desktop binding、Agent Framework 与CLI不变。
+- 背景：P192只用context window与max input限制输入，但主请求的显式`MaxTokens`仍未从总窗口预留generation空间，也未在Run admission验证selected model的max output。catalog扫描发现463个已知context、未知max input且max output大于窗口20%的模型，以及6个input/output独立最大值之和超过context的模型。真实`alibaba/qwen-mt-plus`为16,384 context / 8,192 max output / unknown max input；旧80% trigger为13,107，而显式预留8,192输出后输入只能到8,192。`openai/gpt-5-pro`的400,000 context / 272,000 max input / 272,000 max output也证明两个最大值是独立能力，不能假设可以同时取满。
+- 决策：Domain `modelref.TokenLimits`不可变地拥有context window、max input与max output三项provider事实；零表示未知而非无限。它只验证每个独立最大值不越过已知总窗口，不错误要求两者之和小于窗口。`InputCeiling`把显式output reservation与独立max input取更紧者；未显式设置output ceiling时不猜provider默认值。catalog adapter只负责把exact selected identity映射为该值对象，私有compatible model的catalog miss仍合法。`runs.start`在任何durable Run/Item写入前拒绝超过已知max output或耗尽总窗口的显式请求；每次主调用与post-Run maintenance都消费相同selection、limits与options。
+- 决策：provider usage缺失与异常不引入第二估算真相。负数、整数溢出及非法response继续由core response validation fail closed；零input usage表示provider没有报告，本轮不更新校准；正数仍以P191的exact request reported/estimated pair校准同一Process下一调用。Runtime不添加margin、tokenizer、provider-specific比例或任意fallback adjustment。
+- 后果：真实qwen回归证明完整请求estimate介于8,192与旧13,107阈值时会在主provider调用前summary/rewrite；真实HTTP回归证明`gpt-5-pro`的272,001 output请求以既有`invalid_params`返回，且SQLite中没有Run或Item残留。低于有效阈值仍只检查而不压缩，压缩后不立即重复；未知私有model与未设置output ceiling不被伪造限制阻断。没有新增协议字段、持久化列、magic map、provider分支或第二budget ledger。

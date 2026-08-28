@@ -1,6 +1,6 @@
 # ScopeApp Runtime 能力台账
 
-> 状态：当前能力快照；P192 已完成。
+> 状态：当前能力快照；P193 已完成。
 >
 > 基线日期：2026-08-28。
 
@@ -62,6 +62,7 @@
 - P190 以retry-exhaustion与SIGKILL真实HTTP切点证明compaction只有一个durable winner：SQLite事务原子持有conversation replacement与Run watermarks；未结算的运行中Strategy generation不持久化，失败后分别结算failed/lost，下一Run只从summary恢复且不会立即重复压缩。没有compaction journal、checkpoint双写或两阶段提交。
 - P191 让`modelContextBudget`唯一拥有主请求的message/token trigger：instructions、history、pending tail、全部Part、metadata、Tools与Options一次估算，provider实际input usage只校准同一Process的下一次阈值判断。低于阈值仍零hook/summary/rewrite；waiting checkpoint以private schema v4原子保存校准，不改变SQLite或公共协议。
 - P192 让有效token trigger同时尊重selected model的context-window软阈值与provider硬输入上限；真实catalog中38个`MaxInputTokens < ContextWindow*80%`的模型不再等到必然拒绝后才压缩。每次调用前仍只检查，低于阈值时零PreCompact/summary/SQLite rewrite。
+- P193 让immutable `modelref.TokenLimits`统一拥有selected model的context、max input与max output；显式output reservation既在durable Run admission前校验，也从每次主调用和post-Run maintenance的输入预算中扣除。真实qwen反例在8,192 hard ceiling而非旧13,107软阈值处压缩；provider未报告input usage时不虚构校准，正值仍是同一Process的唯一校准事实。
 
 ## 2. 架构与所有权
 
@@ -443,6 +444,8 @@ P190 完成compaction durable commit与Agent settlement之间的崩溃裁决。�
 P191 完成主模型上下文token预算真实性闭环。失败优先反例证明旧transcript估算完全遗漏reasoning/signature与16KiB ToolCall arguments；配套反例又守住朴素完整JSON估算不能把2MiB inline image transport解释为文本token。现在完整`chat.Request`只由`modelContextBudget`一次估算，CJK/emoji按rune、ASCII按具名近似计数，所有Part/metadata/Tools/Options均参与；media只保留模态与identity metadata，provider成功响应再以exact request的input usage校准下一次阈值。校准不进入summary replacement可执行性判断，压缩后由新请求重建。waiting checkpoint private schema升至v4并严格验证Process/accounting关系。Runtime workspace/standalone full test/vet/build、full race、Staticcheck 2026.2.1、golangci-lint、45条真实HTTP E2E、Desktop workspace/standalone test/vet/build、Frontend 313 files / 1954 tests与全部静态/bundle门禁、tidy/generate零漂移全绿；公共Protocol、Artifact、SQLite、Desktop、Agent Framework与CLI不变，当前完成范围为P0–P191。
 
 P192 完成provider硬输入上限与压缩阈值的同值闭环。真实catalog扫描发现38个模型的`MaxInputTokens`低于`ContextWindow*80%`；`openai/gpt-5.4-mini`的400k/272k反例证明旧trigger为320k，必然晚于provider拒绝点。`Compactor`现在以selected model身份同时取context window与max input，有效阈值由软阈值受硬限封顶；显式配置不能越过硬限，部分已知selected model也不借用default model限制。真实model-context回归证明完整request estimate介于272k与320k时在主provider调用前完成summary/rewrite；既有below-threshold与post-compaction回归继续证明不会每调用压缩或立即二次压缩。Runtime workspace/standalone full test/vet/build、full race、Staticcheck 2026.2.1、golangci-lint、45条真实HTTP E2E、Desktop workspace/standalone test/vet/build与tidy/generate零漂移全绿；公共Protocol、Artifact、SQLite、Desktop、Agent Framework与CLI不变，当前完成范围为P0–P192。
+
+P193 完成显式output reservation、catalog limit identity与provider usage缺失语义的单一owner闭环。catalog扫描发现463个已知context、未知max input且max output大于窗口20%的模型，另有6个模型的独立input/output maxima之和超过context；`alibaba/qwen-mt-plus`与`openai/gpt-5-pro`分别证明旧trigger会晚于显式reservation输入上限，且独立最大值不能被误解为可同时取满。`modelref.TokenLimits`现在唯一验证并计算三项事实，selected model、exact options在pre-call与post-Run路径保持同值；超出已知max output的`runs.start`在durable admission前以`invalid_params`拒绝，catalog未知的私有model仍合法。zero provider input usage不制造校准，非法usage继续fail closed，正值仍权威。Runtime workspace/standalone full test/vet/build、full race、Staticcheck 2026.2.1、golangci-lint、46条真实HTTP E2E、Desktop workspace/standalone test/vet/build、Frontend targeted format/type/lint与tidy/generate零漂移全绿；公共Protocol、Artifact、SQLite、Desktop、Agent Framework与CLI不变，当前完成范围为P0–P193。
 
 P0–P164 已把已证明无 owner 的文档、设计资产、客户端风险推断、生命周期 facade、测试 convenience API、转发层、平行返回类型、无消费者订阅/selector、历史源码 marker 守卫，以及 added-then-abandoned 的条件解析、状态 patch、动态插件、内容渲染和独立 Codebase 向量索引纵切从生产面删除；Session 模型身份从分散的 model-only/global-default 推断收敛为一个可恢复 exact pair owner，workspace identity 也从裸 `cwd` 和多份 read-model 字段收敛为一个 exact Domain value 与一次 consumer projection，operation 带外元数据也从 binding 私有行为收敛为 Registry 单一方法事实，Agent Memory cache 从无身份裸 vector/curation backfill 收敛为 Search-owned exact-space/digest 条件缓存，recall corpus 从只消费 project scope 收敛为 exact-project + user 的单次联合 ranking，durable content、target cardinality、negative-history retention 与 prompt material 也有了 Domain/consumer 各自唯一且可证明一致的上限；Skill Proposal 也从 content-addressed pending history 收敛为 name-owned current revision、exact review CAS 与有限 document/queue envelope；Knowledge `SCOPEAPP.md` 也从无界管理/prompt material 收敛为 Domain-owned 1 MiB complete document；Lifecycle Hook config 从无界文件/集合/action 收敛为 Domain-owned complete policy cascade，Hook process 也从无界 buffer/孤儿后代/宽松 decode 收敛为 bounded output 与完整 cleanup owner；request-detached auxiliary model call 进一步统一到显式 input-byte/output-token envelope。两个 app module 的 Go 基线统一为 1.27.0，Bootstrap 关闭图不再把 terminal diagnostic 误当成可重试生命周期状态，也不再让 caller timeout 取消唯一 Host shutdown generation。Git/workspace source discovery 只在明确 non-repository/unavailable 时进入 filesystem fallback，取消和仓库故障保持可见。保留项都有生成入口、运行时消费者、动态入口、测试基础设施或发布兼容义务。
 

@@ -232,6 +232,13 @@ func newModelContextCompaction(
 			err,
 		)
 	}
+	if err := validateModelOutputReservation(selection, &options); err != nil {
+		return ModelContextCompaction{}, fmt.Errorf(
+			"%w: model output reservation: %w",
+			errInvalidModelContextCompaction,
+			err,
+		)
+	}
 	if err := calibration.Validate(); err != nil {
 		return ModelContextCompaction{}, err
 	}

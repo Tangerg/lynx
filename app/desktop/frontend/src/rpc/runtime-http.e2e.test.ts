@@ -999,6 +999,34 @@ for await (const line of lines) {
     await events.return?.();
   }, 30_000);
 
+  it("rejects an impossible model output reservation before durable Run admission", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const session = await client.sessions.create({
+      workspace: { path: root },
+      title: "HTTP output reservation admission",
+    });
+    const sessionId = asSessionId(session.id);
+
+    await expect(
+      client.runs.start({
+        sessionId,
+        input: [{ type: "text", text: "This Run must never become durable." }],
+        provider: "openai",
+        model: "gpt-5-pro",
+        params: { maxTokens: 272_001 },
+      }),
+    ).rejects.toSatisfy(
+      (error: unknown) => error instanceof RpcError && errorType(error.data) === "invalid_params",
+    );
+    await expect(client.runs.list({ sessionId })).resolves.toMatchObject({ data: [] });
+    await expect(
+      client.items.list({ scope: { type: "session", sessionId } }),
+    ).resolves.toMatchObject({ data: [] });
+
+    await client.sessions.delete(sessionId);
+  }, 30_000);
+
   it("converges unary mutations across pre-admission and post-commit disconnects", async () => {
     if (!client) throw new Error("runtime client was not initialized");
 

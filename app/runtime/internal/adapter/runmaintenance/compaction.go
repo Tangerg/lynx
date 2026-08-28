@@ -3,10 +3,12 @@ package runmaintenance
 import (
 	"context"
 	"fmt"
+	"math"
 
 	"github.com/Tangerg/scope/core/chat"
 
 	"github.com/Tangerg/scope/app/runtime/internal/adapter/utilitymodel"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 )
 
 // compactionStore is the worker's narrow conversation use-case view. The
@@ -32,8 +34,7 @@ type Compactor struct {
 	liveState         LiveStateSnapshotter // nil = no post-compaction live-state reminder
 	maxMessages       int
 	explicitMaxTokens int // cfg.MaxTokens override; 0 = derive from the run's model window
-	fallbackWindow    int // default model's context window; used when the run's window is unknown
-	fallbackMaxInput  int // default model's hard input limit; used when the run's limit is unknown
+	fallbackLimits    modelref.TokenLimits
 	keepRecent        int
 }
 
@@ -89,28 +90,31 @@ func NewCompactor(store compactionStore, client utilitymodel.Resolver, liveState
 		liveState:         liveState,
 		maxMessages:       maxMessages,
 		explicitMaxTokens: cfg.MaxTokens,
-		fallbackWindow:    cfg.ContextWindow,
-		fallbackMaxInput:  cfg.MaxInputTokens,
+		fallbackLimits:    cfg.FallbackTokenLimits,
 		keepRecent:        keep,
 	}
 }
 
 // tokenTrigger resolves the token-footprint compaction threshold for a run whose
-// model has contextWindow total tokens and maxInputTokens prompt tokens (0 =
-// unknown). An explicit MaxTokens config chooses the desired trigger; otherwise
-// it is window-relative to the RUN's model when known, else the default model's
-// window, else a coarse fixed fallback. The provider's hard input limit always
-// caps that result. Resolving both limits per run prevents a 400k context / 272k
-// input model from inheriting a 320k trigger it can never accept.
-func (c *Compactor) tokenTrigger(contextWindow, maxInputTokens int) int {
-	window := contextWindow
-	if window <= 0 {
-		window = c.fallbackWindow
+// model publishes limits. An explicit MaxTokens config chooses the desired
+// trigger; otherwise it is window-relative to the RUN's model when known, else
+// the default model's catalog fallback, else a coarse fixed fallback. The
+// hard input ceiling is the tighter of the provider's independent prompt
+// maximum and the total context remaining after an explicit output reservation.
+func (c *Compactor) tokenTrigger(limits modelref.TokenLimits, options chat.Options) (int, error) {
+	effectiveLimits := limits
+	if effectiveLimits.IsZero() {
+		effectiveLimits = c.fallbackLimits
 	}
-	inputLimit := maxInputTokens
-	if inputLimit <= 0 && contextWindow <= 0 {
-		inputLimit = c.fallbackMaxInput
+	requestedOutput := int64(0)
+	if options.MaxTokens != nil {
+		requestedOutput = *options.MaxTokens
 	}
+	inputLimit, _, err := effectiveLimits.InputCeiling(requestedOutput)
+	if err != nil {
+		return 0, err
+	}
+	window := tokenLimitInt(effectiveLimits.ContextWindow())
 
 	trigger := defaultCompactMaxTokens
 	if c.explicitMaxTokens > 0 {
@@ -121,9 +125,19 @@ func (c *Compactor) tokenTrigger(contextWindow, maxInputTokens int) int {
 		trigger = max(1, saturatedAdd(whole, fraction))
 	}
 	if inputLimit > 0 {
-		trigger = min(trigger, inputLimit)
+		trigger = min(trigger, tokenLimitInt(inputLimit))
 	}
-	return trigger
+	return trigger, nil
+}
+
+func tokenLimitInt(value int64) int {
+	if value <= 0 {
+		return 0
+	}
+	if uint64(value) > uint64(math.MaxInt) {
+		return math.MaxInt
+	}
+	return int(value)
 }
 
 // CompactIfNeeded inspects sessionID's history. When either trigger
@@ -148,14 +162,17 @@ func (c *Compactor) tokenTrigger(contextWindow, maxInputTokens int) int {
 func (c *Compactor) CompactIfNeeded(
 	ctx context.Context,
 	sessionID string,
-	contextWindow int,
-	maxInputTokens int,
+	limits modelref.TokenLimits,
+	options chat.Options,
 	preCompact func(context.Context) bool,
 ) (CompactionResult, error) {
 	if c == nil || sessionID == "" {
 		return CompactionResult{}, nil
 	}
-	maxTokens := c.tokenTrigger(contextWindow, maxInputTokens)
+	maxTokens, err := c.tokenTrigger(limits, options)
+	if err != nil {
+		return CompactionResult{}, fmt.Errorf("compactor: resolve token trigger: %w", err)
+	}
 	msgs, err := c.store.Read(ctx, sessionID)
 	if err != nil {
 		return CompactionResult{}, fmt.Errorf("compactor: read: %w", err)

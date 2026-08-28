@@ -210,8 +210,13 @@ func buildExecutionComposition(
 	if err != nil {
 		return executionComposition{}, fmt.Errorf("runtime: Tool authorizer: %w", err)
 	}
-	runMaintenance, modelContextCompactor := buildRunMaintenance(
+	defaultSelection, err := runtimeDefaultModelSelection(cfg)
+	if err != nil {
+		return executionComposition{}, err
+	}
+	runMaintenance, modelContextCompactor, err := buildRunMaintenance(
 		cfg,
+		defaultSelection,
 		conversation,
 		toolRuntime.tools.Shells,
 		workspaceServices.skills,
@@ -219,9 +224,8 @@ func buildExecutionComposition(
 		workspaceServices.memoryCuration,
 		modelServices.utilityClient,
 	)
-	defaultSelection, err := runtimeDefaultModelSelection(cfg)
 	if err != nil {
-		return executionComposition{}, err
+		return executionComposition{}, fmt.Errorf("runtime: build Run maintenance: %w", err)
 	}
 	interactionConfig := agentexec.InteractionExecutorConfig{
 		Lifetime:               lifetime.context,

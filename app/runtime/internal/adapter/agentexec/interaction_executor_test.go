@@ -57,6 +57,29 @@ func TestInteractionExecutorRequiresExactDefaultIdentity(t *testing.T) {
 	}
 }
 
+func TestInteractionExecutorRejectsOutputAboveSelectedModelLimit(t *testing.T) {
+	executor := newTestInteractionExecutorWithLifetime(
+		t,
+		t.Context(),
+		chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
+			return interactionTextResponse("unused"), nil
+		}),
+	)
+	selection, err := modelref.New("openai", "gpt-5-pro")
+	if err != nil {
+		t.Fatal(err)
+	}
+	maxTokens := int64(272_001)
+	start := interactionTestStart()
+	start.ModelSelection = selection
+	start.Options = &chat.Options{MaxTokens: &maxTokens}
+
+	err = executor.ValidateRootStart(start)
+	if !errors.Is(err, runs.ErrInvalidRunOptions) {
+		t.Fatalf("ValidateRootStart() error = %v, want ErrInvalidRunOptions", err)
+	}
+}
+
 func TestInteractionExecutorResolvesDefaultThroughResolverWithoutImplicitSelection(t *testing.T) {
 	client, err := chatclient.New(chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
 		return interactionTextResponse("unused"), nil

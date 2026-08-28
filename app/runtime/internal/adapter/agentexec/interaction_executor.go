@@ -21,6 +21,7 @@ import (
 	"github.com/Tangerg/scope/agent/interaction"
 	"github.com/Tangerg/scope/app/runtime/internal/adapter/agentexec/interactioninput"
 	"github.com/Tangerg/scope/app/runtime/internal/adapter/executionctx"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/modelcatalog"
 	"github.com/Tangerg/scope/app/runtime/internal/adapter/toolset"
 	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/accounting"
@@ -213,11 +214,34 @@ func (i *InteractionExecutor) ValidateRootStart(start runs.RootExecutionStart) e
 	if err := start.Validate(); err != nil {
 		return err
 	}
+	if err := validateModelOutputReservation(start.ModelSelection, start.Options); err != nil {
+		return err
+	}
 	if len(start.WorkingContext) == 0 {
 		return errors.New("agentexec: Interaction requires a complete working context")
 	}
 	_, err := i.maxModelCalls(start)
 	return err
+}
+
+func validateModelOutputReservation(
+	selection modelref.Selection,
+	options *corechat.Options,
+) error {
+	if options == nil || options.MaxTokens == nil {
+		return nil
+	}
+	limits, found, err := modelcatalog.LookupTokenLimits(selection)
+	if err != nil {
+		return fmt.Errorf("%w: %w", runs.ErrInvalidRunOptions, err)
+	}
+	if !found {
+		return nil
+	}
+	if _, _, err := limits.InputCeiling(*options.MaxTokens); err != nil {
+		return fmt.Errorf("%w: %w", runs.ErrInvalidRunOptions, err)
+	}
+	return nil
 }
 
 // StageRoot assembles one exact Interaction Deployment and independent Engine

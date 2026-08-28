@@ -1,5 +1,7 @@
 package runmaintenance
 
+import "github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
+
 // compactionDefaults govern the auto-compact trigger. Tunable via
 // [CompactionConfig]. Two independent triggers, OR-composed: a raw
 // message count and an estimated token footprint. The token trigger
@@ -16,8 +18,8 @@ const (
 	// defaultCompactMaxTokens is the estimated-token-footprint trigger used
 	// ONLY when the model's real context window is unknown (catalog miss). When
 	// the window IS known the trigger is window-relative instead — see
-	// [CompactionConfig.ContextWindow] / [windowTriggerPct], capped by
-	// [CompactionConfig.MaxInputTokens] when the provider publishes one.
+	// [CompactionConfig.FallbackTokenLimits] / [windowTriggerPct], capped by
+	// the provider's hard input envelope when one is known.
 	defaultCompactMaxTokens = 100_000
 
 	// windowTriggerPct is the share of the model's context window at which an
@@ -40,13 +42,7 @@ type CompactionConfig struct {
 	MaxMessages int // default: defaultCompactMaxMessages
 	MaxTokens   int // explicit token-footprint trigger; still capped by the provider's hard input limit
 	KeepRecent  int // default: defaultCompactKeepRecent
-	// ContextWindow is the model's context window in tokens (from the catalog).
-	// When > 0 and MaxTokens is unset, the token trigger becomes
-	// ContextWindow*windowTriggerPct% — relative to the real model instead of a
-	// fixed number. 0 (catalog miss) falls back to defaultCompactMaxTokens.
-	ContextWindow int
-	// MaxInputTokens is the provider's hard prompt limit. When positive it caps
-	// every derived or explicit trigger; a maintenance setting cannot authorize
-	// a request the selected model must reject.
-	MaxInputTokens int
+	// FallbackTokenLimits are the default model's complete context envelope,
+	// used only when the selected model is absent from the catalog.
+	FallbackTokenLimits modelref.TokenLimits
 }

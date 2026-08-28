@@ -1,7 +1,8 @@
-// Package modelref defines an explicit provider/model selection. Executions and
-// specialized runtime roles share the same invariant: a selection is either
-// unset (use the surrounding default) or names both values; provider inference
-// is deliberately unsupported.
+// Package modelref defines an explicit provider/model selection and the
+// immutable token-limit envelope attached to that exact identity. Executions
+// and specialized runtime roles share the same invariant: a selection is
+// either unset (use the surrounding default) or names both values; provider
+// inference is deliberately unsupported.
 package modelref
 
 import (

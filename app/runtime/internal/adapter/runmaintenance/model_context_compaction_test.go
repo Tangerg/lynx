@@ -309,6 +309,96 @@ func TestModelContextCompactionUsesSelectedModelHardInputLimit(t *testing.T) {
 	}
 }
 
+func TestModelContextCompactionReservesExplicitOutputWindow(t *testing.T) {
+	modelInfo, found := catalog.Default.Lookup("alibaba", "qwen-mt-plus")
+	if !found {
+		t.Fatal("catalog omitted alibaba/qwen-mt-plus")
+	}
+	if modelInfo.Limits.MaxInputTokens != 0 {
+		t.Fatalf("fixture max input = %d, want unknown", modelInfo.Limits.MaxInputTokens)
+	}
+	const sessionID = "session:output-reservation"
+	large := strings.Repeat("x", 7_000)
+	history := []chat.Message{
+		chat.NewUserMessage(chat.NewTextPart("q1" + large)),
+		chat.NewAssistantMessage(chat.NewTextPart("a1" + large)),
+		chat.NewUserMessage(chat.NewTextPart("q2" + large)),
+		chat.NewAssistantMessage(chat.NewTextPart("a2" + large)),
+		chat.NewUserMessage(chat.NewTextPart("q3" + large)),
+		chat.NewAssistantMessage(chat.NewTextPart("a3" + large)),
+	}
+	instructions := []chat.Message{chat.NewSystemMessage("frozen instructions")}
+	requestedOutput := modelInfo.Limits.MaxOutputTokens
+	options := chat.Options{MaxTokens: &requestedOutput}
+	rawEstimate, err := estimateModelContextTokens(
+		append(cloneMessages(instructions), history...),
+		nil,
+		options,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reservedInput := int(modelInfo.Limits.ContextWindow - requestedOutput)
+	contextTrigger := int(modelInfo.Limits.ContextWindow) / percentageScale * windowTriggerPct
+	if rawEstimate < reservedInput || rawEstimate >= contextTrigger {
+		t.Fatalf(
+			"fixture estimate = %d, want within [%d,%d)",
+			rawEstimate,
+			reservedInput,
+			contextTrigger,
+		)
+	}
+
+	store := newCompactionTestStore()
+	err = store.Write(t.Context(), sessionID, history...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := newTextStubModel("OUTPUT RESERVATION SUMMARY")
+	client, err := chatclient.New(model, chatclient.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	selection, err := modelref.New("alibaba", "qwen-mt-plus")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := agentexec.NewDurableModelContextCompaction(
+		sessionID,
+		selection,
+		instructions,
+		history,
+		nil,
+		options,
+		agentexec.ModelContextTokenCalibration{},
+		0,
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compactor := NewCompactor(
+		store,
+		constClient(client),
+		nil,
+		CompactionConfig{MaxMessages: 100, KeepRecent: 2},
+	)
+
+	result, err := compactor.CompactModelContext(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Changed() || !result.Summarized() || store.rewrites != 1 || len(model.requests) != 1 {
+		t.Fatalf(
+			"output-reserved compaction = changed:%t summarized:%t rewrites:%d summaries:%d",
+			result.Changed(),
+			result.Summarized(),
+			store.rewrites,
+			len(model.requests),
+		)
+	}
+}
+
 func TestFirstModelContextCompactionPreservesCurrentUserMessageVerbatim(t *testing.T) {
 	store := newCompactionTestStore()
 	const sessionID = "session:first-call"

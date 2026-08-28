@@ -7,9 +7,8 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/Tangerg/scope/models/catalog"
-
 	"github.com/Tangerg/scope/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/modelcatalog"
 	"github.com/Tangerg/scope/core/chat"
 )
 
@@ -72,20 +71,25 @@ func (c *Compactor) CompactModelContext(
 		ephemeral = cloneMessages(candidate[candidatePrefix:])
 	}
 
-	contextWindow := 0
-	maxInputTokens := 0
-	selection := request.ModelSelection()
-	if info, ok := catalog.Default.Lookup(selection.Provider(), selection.Model()); ok {
-		contextWindow = int(info.Limits.ContextWindow)
-		maxInputTokens = int(info.Limits.MaxInputTokens)
+	limits, _, err := modelcatalog.LookupTokenLimits(request.ModelSelection())
+	if err != nil {
+		return agentexec.ModelContextCompactionResult{}, err
+	}
+	options := request.Options()
+	trigger, err := c.tokenTrigger(limits, options)
+	if err != nil {
+		return agentexec.ModelContextCompactionResult{}, fmt.Errorf(
+			"runmaintenance: resolve model-context token trigger: %w",
+			err,
+		)
 	}
 	budget := newModelContextBudget(
 		c.maxMessages,
-		c.tokenTrigger(contextWindow, maxInputTokens),
+		trigger,
 		request.Instructions(),
 		ephemeral,
 		request.Tools(),
-		request.Options(),
+		options,
 		request.TokenEstimateAdjustment(),
 	)
 	plan, err := c.planCompactionWithProtectedTail(history, budget, protectedTail)

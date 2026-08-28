@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
+	corechat "github.com/Tangerg/scope/core/chat"
 )
 
 // CompactionResult reports one completed Run-boundary compaction sweep.
@@ -28,6 +29,7 @@ type RunMaintenanceInput struct {
 	SessionID      string
 	CWD            string
 	ModelSelection modelref.Selection
+	Options        corechat.Options
 	ToolCalls      int
 	PreCompact     func(context.Context) bool
 }
@@ -61,6 +63,7 @@ func (i *interactionSession) maintainCompletedRoot() {
 		SessionID:      i.start.SessionID,
 		CWD:            i.start.CWD,
 		ModelSelection: i.start.ModelSelection,
+		Options:        clonedOptions(i.start.Options),
 		ToolCalls:      toolCalls,
 		PreCompact:     preCompact,
 	})

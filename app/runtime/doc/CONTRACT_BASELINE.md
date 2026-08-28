@@ -43,6 +43,8 @@ P191 不改变 Runtime Protocol、Artifact v23、SQLite epoch 83、Desktop bindi
 
 P192 不改变 Runtime Protocol、Artifact v23、SQLite epoch 83、Desktop binding、Agent Framework release或CLI。Runtime internal `CompactionConfig` 与调用签名一次性增加provider catalog已有的`MaxInputTokens`事实；有效token阈值不超过selected model硬输入上限，且不从default model向部分已知的selected model借用硬限。低于阈值的路径语义、provider usage校准、checkpoint schema v4与所有公开合同保持不变。
 
+P193 不改变 Runtime Protocol、Artifact v23、SQLite epoch 83、Desktop binding、Agent Framework release、checkpoint schema v4或CLI。Runtime internal model-limit边界一次性收敛为immutable `modelref.TokenLimits`，把provider独立发布的context window、max input与max output事实映射到同一值对象；显式`runs.start.params.maxTokens`必须在durable Run admission前满足selected catalog model的output上限，并从总context中保留对应generation空间。catalog未知的私有兼容model仍允许通过，未显式设置output ceiling时不猜provider默认值。provider usage为零表示缺失，不产生虚构校准；负值、溢出与其他非法usage继续由既有`chat.Response`校验拒绝，正值仍是同一Process下一次调用的唯一校准事实。
+
 ## 2. Runtime Protocol Baseline 2
 
 机器真相源位于 [`../contract`](../contract)：
