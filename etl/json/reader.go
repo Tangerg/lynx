@@ -12,6 +12,7 @@ import (
 	"github.com/samber/lo"
 
 	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/etl"
 )
 
 // Reader parses a JSON payload into [*document.Document] entries. Top-level
@@ -22,17 +23,22 @@ import (
 //
 // Example:
 //
-//	r, err := json.NewReader(strings.NewReader(`[{"id":1},{"id":2}]`))
+//	r, err := json.NewReader(strings.NewReader(`[{"id":1},{"id":2}]`), json.ReaderConfig{})
 //	docs, err := r.Read(ctx) // 2 documents
 type Reader struct {
-	source io.Reader
+	source       io.Reader
+	sourceBudget etl.SourceBudget
 }
 
-func NewReader(source io.Reader) (*Reader, error) {
+type ReaderConfig struct {
+	SourceBudget etl.SourceBudget
+}
+
+func NewReader(source io.Reader, config ReaderConfig) (*Reader, error) {
 	if lo.IsNil(source) {
 		return nil, errors.New("json reader: source must not be nil")
 	}
-	return &Reader{source: source}, nil
+	return &Reader{source: source, sourceBudget: config.SourceBudget}, nil
 }
 
 // Read consumes the source and converts its top-level value to documents.
@@ -40,7 +46,7 @@ func (r *Reader) Read(ctx context.Context) ([]*document.Document, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	data, err := io.ReadAll(r.source)
+	data, err := r.sourceBudget.ReadAll(ctx, r.source)
 	if err != nil {
 		return nil, fmt.Errorf("json reader: read source: %w", err)
 	}

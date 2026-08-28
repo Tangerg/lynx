@@ -17,7 +17,7 @@
 - **Transform**：Formatter、Splitter、IDAssigner、TokenCountBatcher 各自拥有并校验自己的策略；不以魔法 map 或一次性 option closure 传配置。
 - **Load**：`TextFileWriter` 明确表达文本文件目标；向量库写入仍由 `core/vectorstore` contract 与 `vectorstores/*` provider 负责。
 - **元数据 key 带 reader 前缀**:各格式的元数据落在自己的命名空间,跨 reader 不冲突。
-- **全量读进内存,不做流式**:面向小文档;大文档的分块由调用方负责。
+- **有预算地全量读进内存，不做隐式截断**：whole-source reader 面向小文档，统一通过 `SourceBudget` 设定硬上限；零值使用有界默认值，超限返回 `ErrSourceTooLarge` 且不产出部分文档。大文档必须由调用方显式切分或提高预算。
 - **Markdown 单一 owner**：读取与结构感知切分共用 `etl/markdown`，不再由两个 module 重复拥有同一格式解析器。
 
 ## 模块特有反向不变量

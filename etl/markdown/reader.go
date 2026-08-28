@@ -15,6 +15,7 @@ import (
 
 	"github.com/Tangerg/scope/core/document"
 	coremetadata "github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/etl"
 )
 
 const (
@@ -32,6 +33,7 @@ type ReaderConfig struct {
 	HeadingSplitLevel int
 	SourceName        string
 	Metadata          coremetadata.Map
+	SourceBudget      etl.SourceBudget
 }
 
 // Reader extracts documents from Markdown.
@@ -41,6 +43,7 @@ type Reader struct {
 	headingSplitLevel int
 	sourceName        string
 	extraMetadata     coremetadata.Map
+	sourceBudget      etl.SourceBudget
 }
 
 func NewReader(source io.Reader, config ReaderConfig) (*Reader, error) {
@@ -53,6 +56,7 @@ func NewReader(source io.Reader, config ReaderConfig) (*Reader, error) {
 		headingSplitLevel: config.HeadingSplitLevel,
 		sourceName:        config.SourceName,
 		extraMetadata:     config.Metadata.Clone(),
+		sourceBudget:      config.SourceBudget,
 	}
 	if err := r.extraMetadata.Validate(); err != nil {
 		return nil, fmt.Errorf("markdown reader: invalid metadata: %w", err)
@@ -70,7 +74,7 @@ func (r *Reader) Read(ctx context.Context) ([]*document.Document, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	raw, err := io.ReadAll(r.source)
+	raw, err := r.sourceBudget.ReadAll(ctx, r.source)
 	if err != nil {
 		return nil, fmt.Errorf("markdown: read source: %w", err)
 	}

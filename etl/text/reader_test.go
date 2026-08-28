@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/scope/etl"
 	"github.com/Tangerg/scope/etl/text"
 )
 
@@ -15,7 +16,7 @@ type pointerReader struct{}
 func (*pointerReader) Read([]byte) (int, error) { return 0, io.EOF }
 
 func TestReader(t *testing.T) {
-	reader, err := text.NewReader(strings.NewReader("hello"))
+	reader, err := text.NewReader(strings.NewReader("hello"), text.ReaderConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -29,7 +30,7 @@ func TestReader(t *testing.T) {
 }
 
 func TestReaderEmptySourceReturnsNoDocuments(t *testing.T) {
-	reader, err := text.NewReader(strings.NewReader(" \n\t"))
+	reader, err := text.NewReader(strings.NewReader(" \n\t"), text.ReaderConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +44,7 @@ func TestReaderEmptySourceReturnsNoDocuments(t *testing.T) {
 }
 
 func TestReaderHonorsCanceledContext(t *testing.T) {
-	reader, err := text.NewReader(strings.NewReader("never read"))
+	reader, err := text.NewReader(strings.NewReader("never read"), text.ReaderConfig{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,12 +55,27 @@ func TestReaderHonorsCanceledContext(t *testing.T) {
 	}
 }
 
+func TestReaderRejectsSourceBeyondBudget(t *testing.T) {
+	budget, err := etl.NewSourceBudget(4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reader, err := text.NewReader(strings.NewReader("12345"), text.ReaderConfig{SourceBudget: budget})
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs, err := reader.Read(t.Context())
+	if docs != nil || !errors.Is(err, etl.ErrSourceTooLarge) {
+		t.Fatalf("Read = (%v, %v), want nil ErrSourceTooLarge", docs, err)
+	}
+}
+
 func TestNewReaderRejectsNil(t *testing.T) {
 	var typedNil *pointerReader
-	if _, err := text.NewReader(nil); err == nil {
+	if _, err := text.NewReader(nil, text.ReaderConfig{}); err == nil {
 		t.Fatal("nil reader must fail")
 	}
-	if _, err := text.NewReader(typedNil); err == nil {
+	if _, err := text.NewReader(typedNil, text.ReaderConfig{}); err == nil {
 		t.Fatal("typed nil reader must fail")
 	}
 }
