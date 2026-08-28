@@ -26,8 +26,8 @@ func (l *LocalExecutor) Glob(ctx context.Context, in GlobInput) (_ GlobResponse,
 	if in.Pattern == "" {
 		return GlobResponse{}, ErrEmptyPattern
 	}
-	if err := validateGlobPattern(in.Pattern); err != nil {
-		return GlobResponse{}, err
+	if validationErr := validateGlobPattern(in.Pattern); validationErr != nil {
+		return GlobResponse{}, validationErr
 	}
 	base, err := l.authorize(in.Path, true)
 	if err != nil {
@@ -69,8 +69,8 @@ func (l *LocalExecutor) Glob(ctx context.Context, in GlobInput) (_ GlobResponse,
 	)
 	pattern := path.Join(filepath.ToSlash(base), filepath.ToSlash(in.Pattern))
 	err = doublestar.GlobWalk(root.FS(), pattern, func(name string, _ fs.DirEntry) error {
-		if err := ctx.Err(); err != nil {
-			return err
+		if contextErr := ctx.Err(); contextErr != nil {
+			return contextErr
 		}
 		name = filepath.FromSlash(name)
 		index, exists := slices.BinarySearch(paths, name)

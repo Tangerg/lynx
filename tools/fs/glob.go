@@ -56,12 +56,7 @@ func (g *GlobTool) Call(ctx context.Context, arguments string) (string, error) {
 }
 
 func (g *GlobTool) glob(ctx context.Context, req GlobRequest) (GlobResponse, error) {
-	res, err := g.executor.Glob(ctx, GlobInput{
-		Pattern:    req.Pattern,
-		Path:       req.Path,
-		IgnoreCase: req.IgnoreCase,
-		MaxResults: req.MaxResults,
-	})
+	res, err := g.executor.Glob(ctx, GlobInput(req))
 	if err != nil {
 		return GlobResponse{}, fmt.Errorf("fs.glob: %w", err)
 	}
