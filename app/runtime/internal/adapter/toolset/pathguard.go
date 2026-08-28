@@ -8,7 +8,6 @@ import (
 
 	toolcontract "github.com/Tangerg/scope/core/tool"
 
-	"github.com/Tangerg/scope/app/runtime/internal/adapter/executionctx"
 	"github.com/Tangerg/scope/app/runtime/internal/infra/pathidentity"
 )
 
@@ -29,20 +28,18 @@ var protectedDirs = []string{".git"}
 // traversal or symlink that lands in a protected directory is caught too. Apply it as
 // the OUTERMOST wrap so the check gates before any staleness/diagnostics work.
 //
-// In an ISOLATED session it additionally confines writes to the workspace copy:
-// the fs executor is not an OS jail (an absolute path, "../", or "~" escapes its
-// root), so this guard is the boundary that keeps an isolated run from modifying
-// the real project tree. Non-isolated Runs keep the existing behavior (absolute
-// paths anywhere are allowed — that is the point of the fs tools).
+// It also translates the filesystem capability's immutable workspace boundary
+// into a model-facing refusal before any staleness or diagnostics work begins.
+// Shell/git capabilities remain the explicit route for operations outside the
+// workspace.
 func withPathGuard(inner toolcontract.Tool, cwd string) toolcontract.Tool {
 	return decorateCall(inner, func(ctx context.Context, arguments string) (string, error) {
-		isolated := executionctx.Isolated(ctx)
 		paths, err := mutationPaths(inner, arguments)
 		if err != nil {
 			return "", fmt.Errorf("inspect mutation paths: %w", err)
 		}
 		for _, path := range paths {
-			if refusal, ok := guardMutationPath(cwd, path, isolated); !ok {
+			if refusal, ok := guardMutationPath(cwd, path); !ok {
 				return refusal, nil
 			}
 		}
@@ -53,9 +50,9 @@ func withPathGuard(inner toolcontract.Tool, cwd string) toolcontract.Tool {
 // guardMutationPath decides whether a mutation of path (relative to cwd) is
 // allowed, returning ok=false plus a model-facing refusal otherwise. A path is
 // refused when it cannot be resolved, lands inside a [protectedDirs] directory,
-// or — for an isolated session — escapes the workspace copy. Pure (no ctx) so
-// the boundary decision is directly testable.
-func guardMutationPath(cwd, path string, isolated bool) (refusal string, ok bool) {
+// or escapes the workspace root. Pure (no ctx) so the boundary decision is
+// directly testable.
+func guardMutationPath(cwd, path string) (refusal string, ok bool) {
 	resolved, err := pathidentity.Resolve(cwd, path)
 	if err != nil {
 		return fmt.Sprintf("Refused: %q could not be resolved safely (%v).", path, err), false
@@ -63,14 +60,12 @@ func guardMutationPath(cwd, path string, isolated bool) (refusal string, ok bool
 	if dir := protectedDirHit(resolved); dir != "" {
 		return fmt.Sprintf("Refused: %q is inside the protected %q directory, which is read-only to the agent. Use the shell/git tooling if you need to change version-control state.", path, dir), false
 	}
-	if isolated {
-		inside, err := withinWorkspace(cwd, resolved)
-		if err != nil {
-			return fmt.Sprintf("Refused: %q could not be checked against the sandbox boundary (%v).", path, err), false
-		}
-		if !inside {
-			return fmt.Sprintf("Refused: %q is outside this isolated session's sandbox workspace. An isolated run may only modify files inside its workspace copy.", path), false
-		}
+	inside, err := withinWorkspace(cwd, resolved)
+	if err != nil {
+		return fmt.Sprintf("Refused: %q could not be checked against the workspace boundary (%v).", path, err), false
+	}
+	if !inside {
+		return fmt.Sprintf("Refused: %q is outside this workspace. Filesystem tools may only modify files inside their workspace root.", path), false
 	}
 	return "", true
 }

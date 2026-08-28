@@ -25,10 +25,10 @@ func directTools(root string) []toolcontract.Tool {
 	return []toolcontract.Tool{newRuntimeReadTool(root, executor), search.glob, search.grep}
 }
 
-// normalizeDirectArguments validates every filesystem path a direct tool
-// accepts, confines it to root, and rewrites it to a root-relative spelling
-// before the filesystem tool sees it. LocalExecutor deliberately is not a
-// security jail, so this adapter owns the direct-call trust boundary.
+// normalizeDirectArguments validates the direct-call protocol's paths and
+// rewrites them to the root-relative identity promised by the application
+// contract. LocalExecutor independently enforces the filesystem capability;
+// this adapter owns domain-error translation and protocol normalization.
 func normalizeDirectArguments(root, name, arguments string) (string, error) {
 	switch name {
 	case tool.Read:

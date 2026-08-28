@@ -382,7 +382,7 @@
 - 将 `read/write/edit` 输入和 `apply_patch` 文件结果统一为 `path`，同步 mutation guard、并发键、approval subject、diagnostics、展示投影和 server 测试；待删除的 `download` 不做过渡性重命名；
 - 从模型 `write` 删除 append，现有文件的完整替换一律执行 full-read guard；Executor 的 append 字段留在 filesystem SPI 内部，没有为了工具面收敛破坏非模型消费者；
 - 收敛 `grep` 参数为 `file_glob/file_type/before_context_lines/after_context_lines/output_mode/max_results`，删除 `context/head_limit/glob/type` 多义或重叠字段，并为 context、result cap 和 output enum 增加严格边界；
-- 文件工具外壳复用通用 `tool.Func` 的同一份 schema + decoder + result encoder，只额外实现 concurrency 与 mutation-path capability；没有把 runtime guard、working directory 或 permission 概念下沉到 `tool` 或 `tools/fs` Executor。
+- 文件工具外壳复用通用 `tool.Func` 的同一份 schema + decoder + result encoder，只额外实现 concurrency 与 mutation-path capability；`tool` 不感知 Runtime policy，而 `tools/fs` backend 以 immutable rooted capability 拥有本地路径 authority。Runtime decorators 只负责 read/staleness/product budget 与 model-facing refusal，不能自行打开路径或放大 authority。
 
 ### 批次 5b.4
 

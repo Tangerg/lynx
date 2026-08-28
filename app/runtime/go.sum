@@ -69,8 +69,8 @@ github.com/Tangerg/scope/otel v0.0.1 h1:jqKCcdCJcxMQ/1y+gOORAEzBedz5LjPd684cqQAb
 github.com/Tangerg/scope/otel v0.0.1/go.mod h1:Yx2RXhNaD8Ul96YegCLiy9UyMrqVi9VQy9B/h24HSDs=
 github.com/Tangerg/scope/skills v0.0.1 h1:AJATd6rXaRX9bOuhzJfY0vzg9tklPvpEQlWh+LUqlD4=
 github.com/Tangerg/scope/skills v0.0.1/go.mod h1:Z6mYUpbOuN447/teBHQ+NkhhCo2t99vGmZSG0kNwUB0=
-github.com/Tangerg/scope/tools v0.0.1 h1:KqZx7Tg3w9FGYrjbxufJiJlKFKp9AgN3TId3wt9u/Cg=
-github.com/Tangerg/scope/tools v0.0.1/go.mod h1:5tDXPRMWE9z8nyl90f7k+BhVVlVJY2csLcSMj/XnPtI=
+github.com/Tangerg/scope/tools v0.0.2-0.20260828195634-f382905a017c h1:6zbuCNgs6b6UKlbNswH7Gmay0/hTAOgXh/NAC/b1Fl4=
+github.com/Tangerg/scope/tools v0.0.2-0.20260828195634-f382905a017c/go.mod h1:5tDXPRMWE9z8nyl90f7k+BhVVlVJY2csLcSMj/XnPtI=
 github.com/Tangerg/sse v0.0.6 h1:8/Sf/fI6uNQzFms7VKYt02fs9p/cmOJKJl1lYdljC6I=
 github.com/Tangerg/sse v0.0.6/go.mod h1:+GPL/425WlIYRig6frpXeEk7GFYgcHaadIufk6pwe0I=
 github.com/a2aproject/a2a-go/v2 v2.5.0 h1:ZdcFoxv+nZTUV0i2ue5hES76YCANFPG9vjqd7vK8yWM=

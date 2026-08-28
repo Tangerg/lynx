@@ -1,8 +1,8 @@
 # ScopeApp Runtime 执行计划
 
-> 状态：P0–P196 已完成并发布。
+> 状态：P0–P197 已完成；发布基线停留在 P196。
 >
-> 最近基线：2026-08-29，P196 最终验收。
+> 最近基线：2026-08-29，P197 文件系统能力边界验收。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,6 +15,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
+- P197 已准入并完成：通用 `tools/fs` 不再以公开 `Root` 字符串和六方法 `Executor` 假装拥有 authority。六个单操作端口让 consumer 只依赖实际能力；Local backend 冻结构造根并经 `os.Root` 执行 read/write/edit/patch/glob，Grep 只接收 rooted validation 后的 relative no-follow/no-config operand。绝对根外路径、`..`、搜索 root override 与 escaping symlink 对所有操作 fail closed；Glob result、Read input/line/output、Edit/Patch source 与长期 path-lock registry 均有明确驻留边界。Runtime Read 只声明产品限额，复用提升到 `tools/textread` 的共享 scanner；所有 mutation 不再因 non-isolated mode 获得宿主机任意路径。Runtime public protocol/storage/Desktop/Agent/CLI/TUI 不变，本批不创建 release tag。
 - P196 已准入、完成并发布：把“模型 + 思考强度”作为一个端到端选择语义接线。Session、Run、Goal、Schedule/occurrence、Interrupt/checkpoint、Artifact 与主模型请求消费同一 exact selection；reasoning-only patch 保留 identity，切换 provider/model 而未显式给 effort 时清空旧 effort，已知模型按 catalog 等级 admission，私有 catalog miss 保持可用。Desktop 直接消费完整 limits/reasoning/modalities/execution capability；active Run Context gauge 使用 frozen Run selection。`runs.resume` 可选 input 与 HITL claim 共用 continuation 原子边界且不会重复投影。Artifact v24、SQLite epoch 84、private checkpoint schema v5；没有 UI-only 选项、provider 名称猜测、magic map、兼容字段或 TUI 改动。发布 DAG 已依次落为 `models/catalog/v0.0.2`、`app/runtime/localruntime/v0.0.1`、`app/runtime/v0.0.1` 与初始 `app/desktop/v0.0.1`；Wails Go/runtime/CLI 对齐 beta.15 后经 `gorelease` 裁决并替代发布为 `app/desktop/v0.0.2`。
 - P195 已准入并完成：Runtime `models.list` 原已发布 context/input/output limits、reasoning levels/default、input/output modalities、tool use、structured output 等完整能力，但 Desktop 投影只保留 image boolean 与 context window，Run admission 也不消费 exact model modality。现在 Desktop 以不可变 `SelectableModel` 领域对象完整保留能力，picker、Context gauge 与 attachment/paste/drop 共同消费；Runtime Runs Application 通过 `ModelInputAdmitter` 在 staging 前验证当前输入，并在 composed history 后再次验证切模历史，Steer 同样在 executor 前拒绝。已知 catalog model fail closed，私有 catalog miss 保持可用；未新增第二 catalog、provider 猜测或 TUI 变化。
 - P194 已准入并完成：首次含inline media的主调用在provider尚无usage校准时，provider-neutral占位估算无法证明真实input是否越过hard window。Runtime仍在每次主调用前做廉价完整请求预检；纯文本明显低于阈值时不发计数请求，只有本地估算达到阈值或请求含provider-priced media时才调用同一direct adapter的原生计数端点，并且只有精确值达到阈值才允许PreCompact、summary与原子rewrite。低于阈值或计数失败时SQLite durable history、Run watermarks与Agent Strategy state均不变。Direct OpenAI迁至Responses `/responses/input_tokens`，Anthropic使用`/messages/count_tokens`；compatible与Google不虚构能力，不猜像素公式、安全倍率、模态价格或第二ledger。Core及两份protocol、两份provider wrapper已按依赖顺序发布`v0.0.2`。
@@ -525,10 +526,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P194     | 首次multimodal主调用的provider-owned精确预算                                            | 每调用廉价预检；阈值/media才精确计数；阈值下零durable副作用；native-only capability；五个module `v0.0.2`                   |
 | P195     | 模型能力从 Runtime catalog 到 Desktop 与 Run admission 的同值闭环                       | immutable capability model；context/modality/reasoning可见；image交互门禁；current/history/steer pre-stage admission      |
 | P196     | Exact reasoning selection 与 Resume input 原子 continuation                            | Session/Run/Goal/Schedule/Artifact/checkpoint 同值；Core options；Desktop effort/capabilities；Resume answer+input safe boundary |
+| P197     | Filesystem capability root、最小端口与有界读取闭环                                      | immutable `os.Root` authority；六个 operation ports；shared bounded scanner；workspace-only model mutations                  |
 
 ## 5. 当前里程碑结论
 
-P113–P196 共同建立了以下不可回退的心智模型：
+P113–P197 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -602,4 +604,4 @@ P194 的provider-owned input count与阈值门禁通过Runtime workspace/standal
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P196 已从 exact Session model identity、catalog reasoning levels/default、Core request options 与 direct provider adapter 的断点贯穿到 Desktop 和恢复边界，并完成统一门禁与依赖 DAG 发布。开始新纵切时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P197 已把 filesystem root 从 caller convention 收回不可扩张 capability，并让最小端口、资源包络和 Runtime policy 各归唯一 owner；P196 的发布基线保持不变。开始新纵切时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

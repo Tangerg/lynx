@@ -10,8 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/Tangerg/scope/app/runtime/internal/adapter/textread"
 	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/tools/textread"
 )
 
 // Grep searches the same finite, ignore-aware file catalog exposed by the

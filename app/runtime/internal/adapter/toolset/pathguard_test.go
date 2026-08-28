@@ -149,12 +149,9 @@ func TestWithPathGuard(t *testing.T) {
 	}
 }
 
-// TestGuardMutationPathConfinesIsolatedWrites verifies the isolation boundary:
-// in an isolated session a write must land inside the workspace copy, so an
-// absolute path, a "../" escape, or a "~" path pointing at the real tree is
-// refused — while the same paths are allowed for a non-isolated turn (the fs
-// tools' normal absolute-path behavior).
-func TestGuardMutationPathConfinesIsolatedWrites(t *testing.T) {
+// TestGuardMutationPathConfinesWrites verifies the filesystem capability
+// boundary independently of Run isolation mode.
+func TestGuardMutationPathConfinesWrites(t *testing.T) {
 	work := t.TempDir()
 	outside := filepath.Join(t.TempDir(), "real-project", "main.go")
 	if err := os.MkdirAll(filepath.Dir(outside), 0o755); err != nil {
@@ -164,7 +161,7 @@ func TestGuardMutationPathConfinesIsolatedWrites(t *testing.T) {
 	cases := []struct {
 		name      string
 		path      string
-		wantBlock bool // when isolated
+		wantBlock bool
 	}{
 		{"relative inside", "pkg/main.go", false},
 		{"workspace root file", "main.go", false},
@@ -174,18 +171,13 @@ func TestGuardMutationPathConfinesIsolatedWrites(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			// Isolated: escapes are refused.
-			refusal, ok := guardMutationPath(work, tc.path, true)
+			refusal, ok := guardMutationPath(work, tc.path)
 			if tc.wantBlock {
-				if ok || !strings.Contains(refusal, "isolated session's sandbox") {
-					t.Fatalf("isolated %q: ok=%v refusal=%q, want blocked at the sandbox boundary", tc.path, ok, refusal)
+				if ok || !strings.Contains(refusal, "outside this workspace") {
+					t.Fatalf("%q: ok=%v refusal=%q, want blocked at the workspace boundary", tc.path, ok, refusal)
 				}
 			} else if !ok {
-				t.Fatalf("isolated %q wrongly blocked: %q", tc.path, refusal)
-			}
-			// Non-isolated: the same path is always allowed (absolute is fine).
-			if _, ok := guardMutationPath(work, tc.path, false); !ok {
-				t.Fatalf("non-isolated %q was blocked but should be allowed", tc.path)
+				t.Fatalf("%q wrongly blocked: %q", tc.path, refusal)
 			}
 		})
 	}

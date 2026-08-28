@@ -30,7 +30,7 @@ require (
 	github.com/Tangerg/scope/models/zhipu v0.0.1
 	github.com/Tangerg/scope/otel v0.0.1
 	github.com/Tangerg/scope/skills v0.0.1
-	github.com/Tangerg/scope/tools v0.0.1
+	github.com/Tangerg/scope/tools v0.0.2-0.20260828195634-f382905a017c
 	github.com/Tangerg/sse v0.0.6
 	github.com/fsnotify/fsnotify v1.10.1
 	github.com/go-chi/chi/v5 v5.3.2
