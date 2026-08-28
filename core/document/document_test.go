@@ -2,6 +2,7 @@ package document_test
 
 import (
 	"encoding/json"
+	"errors"
 	"reflect"
 	"testing"
 
@@ -19,6 +20,9 @@ func TestDocumentValidate(t *testing.T) {
 	}
 	if err := (&document.Document{Text: "hello"}).Validate(); err != nil {
 		t.Fatalf("text document: %v", err)
+	}
+	if err := (&document.Document{Text: "\xff"}).Validate(); !errors.Is(err, document.ErrInvalidDocument) {
+		t.Fatalf("invalid UTF-8 error = %v, want ErrInvalidDocument", err)
 	}
 }
 

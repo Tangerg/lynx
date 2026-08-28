@@ -5,12 +5,15 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/samber/lo"
 
 	"github.com/Tangerg/scope/core/document"
 	"github.com/Tangerg/scope/core/metadata"
 )
+
+var ErrInvalidTextEncoding = errors.New("etl: invalid text encoding")
 
 // Chunk-lineage metadata keys stamped by [Splitter] on every emitted chunk.
 const (
@@ -58,7 +61,17 @@ func (s *Splitter) SplitText(ctx context.Context, text string) ([]string, error)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if err := validateTextEncoding(text); err != nil {
+		return nil, err
+	}
 	return s.splitFunc(ctx, text)
+}
+
+func validateTextEncoding(text string) error {
+	if !utf8.ValidString(text) {
+		return fmt.Errorf("%w: text is not valid UTF-8", ErrInvalidTextEncoding)
+	}
+	return nil
 }
 
 // Split emits chunks for every input document. Input order and per-document

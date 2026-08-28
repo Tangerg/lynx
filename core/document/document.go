@@ -3,6 +3,7 @@ package document
 import (
 	"errors"
 	"fmt"
+	"unicode/utf8"
 
 	"github.com/Tangerg/scope/core/media"
 	"github.com/Tangerg/scope/core/metadata"
@@ -57,6 +58,9 @@ func (d *Document) Validate() error {
 	}
 	if d.Text == "" && d.Media == nil {
 		return fmt.Errorf("%w: text or media is required", ErrInvalidDocument)
+	}
+	if !utf8.ValidString(d.Text) {
+		return fmt.Errorf("%w: text is not valid UTF-8", ErrInvalidDocument)
 	}
 	if d.Media != nil {
 		if err := d.Media.Validate(); err != nil {

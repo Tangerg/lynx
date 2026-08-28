@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/samber/lo"
 	"github.com/yuin/goldmark"
@@ -85,6 +86,9 @@ func NewSplitter(config SplitterConfig) (*Splitter, error) {
 func (s *Splitter) SplitText(ctx context.Context, source string) ([]string, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	if !utf8.ValidString(source) {
+		return nil, fmt.Errorf("markdown splitter: %w: source is not valid UTF-8", etl.ErrInvalidTextEncoding)
 	}
 	if strings.TrimSpace(source) == "" {
 		return nil, nil
@@ -172,7 +176,8 @@ func (s *Splitter) parseSections(source []byte) []markdownSection {
 		}
 
 		if heading, ok := node.(*ast.Heading); ok {
-			if len(active.blocks) > 0 {
+			replacesActivePath := len(stack) > 0 && heading.Level <= stack[len(stack)-1].level
+			if len(active.blocks) > 0 || (len(active.headings) > 0 && replacesActivePath) {
 				sections = append(sections, active)
 			}
 			for len(stack) > 0 && stack[len(stack)-1].level >= heading.Level {
@@ -188,7 +193,7 @@ func (s *Splitter) parseSections(source []byte) []markdownSection {
 
 	if len(active.blocks) > 0 {
 		sections = append(sections, active)
-	} else if len(sections) == 0 && len(active.headings) > 0 {
+	} else if len(active.headings) > 0 {
 		sections = append(sections, active)
 	}
 	return sections

@@ -99,6 +99,9 @@ func (t *TokenSplitter) SplitText(ctx context.Context, text string) ([]string, e
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if err := validateTextEncoding(text); err != nil {
+		return nil, err
+	}
 	if strings.TrimSpace(text) == "" {
 		return nil, nil
 	}

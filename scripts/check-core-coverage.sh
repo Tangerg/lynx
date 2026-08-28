@@ -11,7 +11,7 @@ coverage_budget=(
   "./chat 89.1"
   "./chatclient 88.8"
   "./chatclient/safeguard 88.5"
-  "./document 89.7"
+  "./document 90.3"
   "./embedding 80.6"
   "./embeddingclient 91.9"
   "./history 88.9"

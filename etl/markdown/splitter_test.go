@@ -3,6 +3,7 @@ package markdown_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 
@@ -127,6 +128,39 @@ func TestSplitterUsesFullHeadingAncestry(t *testing.T) {
 	last := chunks[len(chunks)-1]
 	if !strings.HasPrefix(last, "# Guide\n\n## Install\n\n") {
 		t.Fatalf("nested heading ancestry missing: %q", last)
+	}
+}
+
+func TestSplitterPreservesTrailingHeadingWithoutBody(t *testing.T) {
+	const (
+		source    = "- first\n- second\n\n# Pending"
+		maxTokens = 32
+	)
+	splitter := newSplitter(t, maxTokens, 0)
+
+	chunks, err := splitter.SplitText(t.Context(), source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(chunks) != 2 || chunks[1] != "# Pending" {
+		t.Fatalf("chunks = %#v, want list and trailing heading", chunks)
+	}
+}
+
+func TestSplitterPreservesConsecutivePeerHeadings(t *testing.T) {
+	const (
+		source    = "# First\n# Second"
+		maxTokens = 16
+	)
+	splitter := newSplitter(t, maxTokens, 0)
+
+	chunks, err := splitter.SplitText(t.Context(), source)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{"# First", "# Second"}
+	if !slices.Equal(chunks, want) {
+		t.Fatalf("chunks = %#v, want %#v", chunks, want)
 	}
 }
 
