@@ -97,6 +97,52 @@ func TestObserverTracesRealProcessStepAndEffectLifecycle(t *testing.T) {
 	}
 }
 
+func TestObserverRecordsStableProcessFailureAttribution(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	reader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { _ = meterProvider.Shutdown(context.Background()) })
+	observer, err := agentotel.NewObserver(agentotel.ObserverConfig{
+		TracerProvider: provider, MeterProvider: meterProvider,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(observer.Close)
+	engine, err := agent.NewEngine(agent.EngineConfig{EventListeners: []agent.EventListener{observer}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := agent.EncodeInput(testInput{Value: "fail"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := engine.Run(t.Context(), testDeployment(t), input)
+	if err != nil || result.Status() != agent.StatusFailed {
+		t.Fatalf("result = %s, error = %v", result.Status(), err)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	process := spanByName(t, recorder.Ended(), "agent.process", 0)
+	if got := stringAttribute(process.Attributes(), "agent.failure.kind"); got != "execution" {
+		t.Fatalf("failure kind = %q", got)
+	}
+	if got := stringAttribute(process.Attributes(), "agent.failure.code"); got != "test.otel.failed" {
+		t.Fatalf("failure code = %q", got)
+	}
+	var metrics metricdata.ResourceMetrics
+	if err := reader.Collect(t.Context(), &metrics); err != nil {
+		t.Fatal(err)
+	}
+	exits := metricByName(t, metrics, "agent.process.exits")
+	assertSumAttribute(t, exits, "agent.failure.kind", "execution")
+	assertSumAttribute(t, exits, "agent.failure.code", "test.otel.failed")
+}
+
 func TestObserverRejectsTypedNilTracerProvider(t *testing.T) {
 	var provider *sdktrace.TracerProvider
 	observer, err := agentotel.NewObserver(agentotel.ObserverConfig{TracerProvider: provider})
@@ -200,6 +246,14 @@ type testExecution struct {
 }
 
 func (t *testExecution) Step(context.Context, []agent.Signal) (agent.Transition, error) {
+	if t.Phase == 0 && t.Value == "fail" {
+		failure, err := agent.NewFailure(agent.FailureKindExecution, "test.otel.failed", "test failure")
+		if err != nil {
+			return agent.Transition{}, err
+		}
+		t.Phase = 2
+		return agent.Fail(0, failure)
+	}
 	if t.Phase == 0 {
 		effect, err := agent.NewDispatcherEffect(json.RawMessage(`{"operation":"observe"}`))
 		if err != nil {
@@ -321,6 +375,21 @@ func int64Sum(t *testing.T, metric metricdata.Metrics) int64 {
 		total += point.Value
 	}
 	return total
+}
+
+func assertSumAttribute(t *testing.T, metric metricdata.Metrics, key, want string) {
+	t.Helper()
+	data, ok := metric.Data.(metricdata.Sum[int64])
+	if !ok {
+		t.Fatalf("metric %q data = %T, want int64 sum", metric.Name, metric.Data)
+	}
+	for _, point := range data.DataPoints {
+		value, found := point.Attributes.Value(attribute.Key(key))
+		if found && value.AsString() == want {
+			return
+		}
+	}
+	t.Fatalf("metric %q attribute %s = %q is missing", metric.Name, key, want)
 }
 
 func histogramCount(t *testing.T, metric metricdata.Metrics) uint64 {

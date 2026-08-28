@@ -41,6 +41,8 @@ const (
 	processDepthAttribute         attribute.Key = "agent.process.depth"
 	processStatusAttribute        attribute.Key = "agent.process.status"
 	processCauseAttribute         attribute.Key = "agent.process.cause"
+	processFailureKindAttribute   attribute.Key = "agent.failure.kind"
+	processFailureCodeAttribute   attribute.Key = "agent.failure.code"
 	processEventSequenceAttribute attribute.Key = "agent.process.event_sequence"
 	stepSequenceAttribute         attribute.Key = "agent.step.sequence"
 	stepStatusAttribute           attribute.Key = "agent.step.status"
@@ -278,14 +280,27 @@ func (o *Observer) finishProcess(ctx context.Context, event agent.Event) {
 		processStatusAttribute.String(payload.ProcessStatus.String()),
 		processCauseAttribute.String(payload.TerminationCause.String()),
 	)
+	if payload.FailureKind.Valid() && payload.FailureCode != "" {
+		attributes = append(attributes,
+			processFailureKindAttribute.String(payload.FailureKind.String()),
+			processFailureCodeAttribute.String(payload.FailureCode),
+		)
+	}
 	o.processExits.Add(ctx, 1, metric.WithAttributes(attributes...))
 	if !found {
 		return
 	}
-	record.span.SetAttributes(
+	spanAttributes := []attribute.KeyValue{
 		processStatusAttribute.String(payload.ProcessStatus.String()),
 		processCauseAttribute.String(payload.TerminationCause.String()),
-	)
+	}
+	if payload.FailureKind.Valid() && payload.FailureCode != "" {
+		spanAttributes = append(spanAttributes,
+			processFailureKindAttribute.String(payload.FailureKind.String()),
+			processFailureCodeAttribute.String(payload.FailureCode),
+		)
+	}
+	record.span.SetAttributes(spanAttributes...)
 	if processStatusIsError(payload.ProcessStatus) {
 		record.span.SetStatus(codes.Error, payload.TerminationCause.String())
 	}
@@ -441,6 +456,8 @@ func (o *Observer) addProcessEvent(event agent.Event) {
 type eventPayload struct {
 	ProcessStatus     agent.Status           `json:"process_status"`
 	TerminationCause  agent.TerminationCause `json:"termination_cause"`
+	FailureKind       agent.FailureKind      `json:"failure_kind"`
+	FailureCode       string                 `json:"failure_code"`
 	StepStatus        agent.StepStatus       `json:"step_status"`
 	EffectTarget      agent.EffectTarget     `json:"effect_target"`
 	SettlementStatus  agent.SettlementStatus `json:"settlement_status"`
