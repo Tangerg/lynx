@@ -73,13 +73,15 @@ func (c *Compactor) CompactModelContext(
 	}
 
 	contextWindow := 0
+	maxInputTokens := 0
 	selection := request.ModelSelection()
 	if info, ok := catalog.Default.Lookup(selection.Provider(), selection.Model()); ok {
 		contextWindow = int(info.Limits.ContextWindow)
+		maxInputTokens = int(info.Limits.MaxInputTokens)
 	}
 	budget := newModelContextBudget(
 		c.maxMessages,
-		c.tokenTrigger(contextWindow),
+		c.tokenTrigger(contextWindow, maxInputTokens),
 		request.Instructions(),
 		ephemeral,
 		request.Tools(),

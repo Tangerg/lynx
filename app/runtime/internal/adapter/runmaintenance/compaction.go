@@ -33,6 +33,7 @@ type Compactor struct {
 	maxMessages       int
 	explicitMaxTokens int // cfg.MaxTokens override; 0 = derive from the run's model window
 	fallbackWindow    int // default model's context window; used when the run's window is unknown
+	fallbackMaxInput  int // default model's hard input limit; used when the run's limit is unknown
 	keepRecent        int
 }
 
@@ -89,28 +90,40 @@ func NewCompactor(store compactionStore, client utilitymodel.Resolver, liveState
 		maxMessages:       maxMessages,
 		explicitMaxTokens: cfg.MaxTokens,
 		fallbackWindow:    cfg.ContextWindow,
+		fallbackMaxInput:  cfg.MaxInputTokens,
 		keepRecent:        keep,
 	}
 }
 
 // tokenTrigger resolves the token-footprint compaction threshold for a run whose
-// model has contextWindow tokens (0 = unknown). An explicit MaxTokens config wins;
-// otherwise the trigger is window-relative to the RUN's model when known, else the
-// default model's window, else a coarse fixed fallback. Resolving this per run
-// (not once at construction) is what lets a run pinning a smaller-context model
-// than the default still compact before it overflows that model's window.
-func (c *Compactor) tokenTrigger(contextWindow int) int {
-	if c.explicitMaxTokens > 0 {
-		return c.explicitMaxTokens
-	}
+// model has contextWindow total tokens and maxInputTokens prompt tokens (0 =
+// unknown). An explicit MaxTokens config chooses the desired trigger; otherwise
+// it is window-relative to the RUN's model when known, else the default model's
+// window, else a coarse fixed fallback. The provider's hard input limit always
+// caps that result. Resolving both limits per run prevents a 400k context / 272k
+// input model from inheriting a 320k trigger it can never accept.
+func (c *Compactor) tokenTrigger(contextWindow, maxInputTokens int) int {
 	window := contextWindow
 	if window <= 0 {
 		window = c.fallbackWindow
 	}
-	if window > 0 {
-		return window * windowTriggerPct / 100
+	inputLimit := maxInputTokens
+	if inputLimit <= 0 && contextWindow <= 0 {
+		inputLimit = c.fallbackMaxInput
 	}
-	return defaultCompactMaxTokens
+
+	trigger := defaultCompactMaxTokens
+	if c.explicitMaxTokens > 0 {
+		trigger = c.explicitMaxTokens
+	} else if window > 0 {
+		whole := window / percentageScale * windowTriggerPct
+		fraction := window % percentageScale * windowTriggerPct / percentageScale
+		trigger = max(1, saturatedAdd(whole, fraction))
+	}
+	if inputLimit > 0 {
+		trigger = min(trigger, inputLimit)
+	}
+	return trigger
 }
 
 // CompactIfNeeded inspects sessionID's history. When either trigger
@@ -132,11 +145,17 @@ func (c *Compactor) tokenTrigger(contextWindow int) int {
 // (no middleware), so it does NOT enter the chat history middleware
 // — otherwise the summarisation request itself would be appended
 // to the history and trigger another compaction round.
-func (c *Compactor) CompactIfNeeded(ctx context.Context, sessionID string, contextWindow int, preCompact func(context.Context) bool) (CompactionResult, error) {
+func (c *Compactor) CompactIfNeeded(
+	ctx context.Context,
+	sessionID string,
+	contextWindow int,
+	maxInputTokens int,
+	preCompact func(context.Context) bool,
+) (CompactionResult, error) {
 	if c == nil || sessionID == "" {
 		return CompactionResult{}, nil
 	}
-	maxTokens := c.tokenTrigger(contextWindow)
+	maxTokens := c.tokenTrigger(contextWindow, maxInputTokens)
 	msgs, err := c.store.Read(ctx, sessionID)
 	if err != nil {
 		return CompactionResult{}, fmt.Errorf("compactor: read: %w", err)

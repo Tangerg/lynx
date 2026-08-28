@@ -41,6 +41,8 @@ P190 不改变任何生产合同、wire或storage shape。真实retry-exhaustion
 
 P191 不改变 Runtime Protocol、Artifact v23、SQLite epoch 83、Desktop binding、Agent Framework release或CLI。主模型上下文预算改为完整provider-neutral request的单一估算：全部Message Part、metadata、Tool manifest与Options同属一个owner，media transport payload不冒充文本token；provider成功响应的input usage校准同一Process下一次调用的阈值判断。低于message/token阈值仍不运行hook、summary或rewrite。executor-owned opaque Interaction checkpoint envelope因新增per-Process calibration从schema v3一次性升至v4；这是Runtime internal recovery shape，旧schema确定拒绝且不双读。
 
+P192 不改变 Runtime Protocol、Artifact v23、SQLite epoch 83、Desktop binding、Agent Framework release或CLI。Runtime internal `CompactionConfig` 与调用签名一次性增加provider catalog已有的`MaxInputTokens`事实；有效token阈值不超过selected model硬输入上限，且不从default model向部分已知的selected model借用硬限。低于阈值的路径语义、provider usage校准、checkpoint schema v4与所有公开合同保持不变。
+
 ## 2. Runtime Protocol Baseline 2
 
 机器真相源位于 [`../contract`](../contract)：

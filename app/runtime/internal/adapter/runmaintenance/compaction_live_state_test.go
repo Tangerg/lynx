@@ -51,7 +51,7 @@ func TestCompactorAppendsLiveStateReminder(t *testing.T) {
 	}
 
 	c := NewCompactor(store, constClient(client), live, CompactionConfig{MaxMessages: total, KeepRecent: 4})
-	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, nil)
+	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +86,7 @@ func TestCompactorSkipsReminderWhenNoLiveState(t *testing.T) {
 
 	live := func(context.Context, string) LiveStateSnapshot { return LiveStateSnapshot{} }
 	c := NewCompactor(store, constClient(client), live, CompactionConfig{MaxMessages: total, KeepRecent: 4})
-	if _, err := c.CompactIfNeeded(context.Background(), sessID, 0, nil); err != nil {
+	if _, err := c.CompactIfNeeded(context.Background(), sessID, 0, 0, nil); err != nil {
 		t.Fatal(err)
 	}
 	after, _ := store.Read(context.Background(), sessID)

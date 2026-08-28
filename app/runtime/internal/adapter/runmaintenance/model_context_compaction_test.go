@@ -7,6 +7,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/scope/models/catalog"
+
 	"github.com/Tangerg/scope/app/runtime/internal/adapter/agentexec"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/scope/core/chat"
@@ -218,6 +220,91 @@ func TestModelContextCompactionCalibratesThresholdFromProviderUsage(t *testing.T
 		t.Fatalf(
 			"calibrated context = changed:%t summarized:%t rewrites:%d summaries:%d",
 			atThreshold.Changed(), atThreshold.Summarized(), store.rewrites, len(model.requests),
+		)
+	}
+}
+
+func TestModelContextCompactionUsesSelectedModelHardInputLimit(t *testing.T) {
+	modelInfo, found := catalog.Default.Lookup("openai", "gpt-5.4-mini")
+	if !found {
+		t.Fatal("catalog omitted openai/gpt-5.4-mini")
+	}
+	const sessionID = "session:hard-input-limit"
+	large := strings.Repeat("x", 190_000)
+	history := []chat.Message{
+		chat.NewUserMessage(chat.NewTextPart("q1" + large)),
+		chat.NewAssistantMessage(chat.NewTextPart("a1" + large)),
+		chat.NewUserMessage(chat.NewTextPart("q2" + large)),
+		chat.NewAssistantMessage(chat.NewTextPart("a2" + large)),
+		chat.NewUserMessage(chat.NewTextPart("q3" + large)),
+		chat.NewAssistantMessage(chat.NewTextPart("a3" + large)),
+	}
+	instructions := []chat.Message{chat.NewSystemMessage("frozen instructions")}
+	rawEstimate, err := estimateModelContextTokens(
+		append(cloneMessages(instructions), history...),
+		nil,
+		chat.Options{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	hardInput := int(modelInfo.Limits.MaxInputTokens)
+	contextTrigger := int(modelInfo.Limits.ContextWindow) / percentageScale * windowTriggerPct
+	if rawEstimate < hardInput || rawEstimate >= contextTrigger {
+		t.Fatalf(
+			"fixture estimate = %d, want within [%d,%d)",
+			rawEstimate,
+			hardInput,
+			contextTrigger,
+		)
+	}
+
+	store := newCompactionTestStore()
+	err = store.Write(t.Context(), sessionID, history...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := newTextStubModel("HARD INPUT SUMMARY")
+	client, err := chatclient.New(model, chatclient.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	selection, err := modelref.New("openai", "gpt-5.4-mini")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := agentexec.NewDurableModelContextCompaction(
+		sessionID,
+		selection,
+		instructions,
+		history,
+		nil,
+		chat.Options{},
+		agentexec.ModelContextTokenCalibration{},
+		0,
+		nil,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compactor := NewCompactor(
+		store,
+		constClient(client),
+		nil,
+		CompactionConfig{MaxMessages: 100, KeepRecent: 2},
+	)
+
+	result, err := compactor.CompactModelContext(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Changed() || !result.Summarized() || store.rewrites != 1 || len(model.requests) != 1 {
+		t.Fatalf(
+			"hard-input compaction = changed:%t summarized:%t rewrites:%d summaries:%d",
+			result.Changed(),
+			result.Summarized(),
+			store.rewrites,
+			len(model.requests),
 		)
 	}
 }

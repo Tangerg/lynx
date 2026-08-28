@@ -6,9 +6,12 @@ import (
 	"errors"
 	"fmt"
 	"iter"
+	"math"
 	"reflect"
 	"strings"
 	"testing"
+
+	"github.com/Tangerg/scope/models/catalog"
 
 	"github.com/Tangerg/scope/app/runtime/internal/testsupport/conversationfixture"
 	"github.com/Tangerg/scope/core/chat"
@@ -31,6 +34,50 @@ type compactionTestStore struct {
 
 func newCompactionTestStore() *compactionTestStore {
 	return &compactionTestStore{Store: conversationfixture.New()}
+}
+
+func TestCompactorTokenTriggerDoesNotExceedCatalogInputLimit(t *testing.T) {
+	model, found := catalog.Default.Lookup("openai", "gpt-5.4-mini")
+	if !found {
+		t.Fatal("catalog omitted openai/gpt-5.4-mini")
+	}
+	compactor := NewCompactor(nil, nil, nil, CompactionConfig{})
+	trigger := compactor.tokenTrigger(
+		int(model.Limits.ContextWindow),
+		int(model.Limits.MaxInputTokens),
+	)
+	if trigger != int(model.Limits.MaxInputTokens) {
+		t.Fatalf(
+			"token trigger = %d, want provider max input %d",
+			trigger,
+			model.Limits.MaxInputTokens,
+		)
+	}
+}
+
+func TestCompactorTokenTriggerKeepsLimitOwnershipExplicit(t *testing.T) {
+	t.Run("explicit trigger cannot exceed provider input", func(t *testing.T) {
+		compactor := NewCompactor(nil, nil, nil, CompactionConfig{MaxTokens: 300_000})
+		if trigger := compactor.tokenTrigger(400_000, 272_000); trigger != 272_000 {
+			t.Fatalf("token trigger = %d, want hard input cap 272000", trigger)
+		}
+	})
+
+	t.Run("selected model does not inherit unrelated fallback input", func(t *testing.T) {
+		compactor := NewCompactor(nil, nil, nil, CompactionConfig{
+			ContextWindow: 400_000, MaxInputTokens: 272_000,
+		})
+		if trigger := compactor.tokenTrigger(1_000_000, 0); trigger != 800_000 {
+			t.Fatalf("token trigger = %d, want selected model context trigger 800000", trigger)
+		}
+	})
+
+	t.Run("window percentage cannot overflow", func(t *testing.T) {
+		compactor := NewCompactor(nil, nil, nil, CompactionConfig{})
+		if trigger := compactor.tokenTrigger(math.MaxInt, 0); trigger <= 0 {
+			t.Fatalf("token trigger overflowed to %d", trigger)
+		}
+	})
 }
 
 func (c *compactionTestStore) RewriteForCompaction(
@@ -65,7 +112,7 @@ func TestCompactor_NopBelowThreshold(t *testing.T) {
 		chat.NewAssistantMessage(chat.NewTextPart("b")),
 	)
 	c := NewCompactor(store, nil /* never called */, nil, CompactionConfig{MaxMessages: 10})
-	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, nil)
+	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +138,7 @@ func TestCompactor_Compacts(t *testing.T) {
 	client, _ := chatclient.New(model, chatclient.Config{})
 
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: total, KeepRecent: 4})
-	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, nil)
+	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -157,7 +204,7 @@ func TestCompactor_CutBoundary(t *testing.T) {
 
 	client, _ := chatclient.New(newTextStubModel("BULLETS"), chatclient.Config{})
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: 6, KeepRecent: 4})
-	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, nil)
+	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,7 +240,7 @@ func TestCompactor_CutBoundaryKeepsFinalTurnWithoutLaterUser(t *testing.T) {
 	client, _ := chatclient.New(newTextStubModel("SUMMARY"), chatclient.Config{})
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: 6, KeepRecent: 2})
 
-	result, err := c.CompactIfNeeded(t.Context(), sessID, 0, nil)
+	result, err := c.CompactIfNeeded(t.Context(), sessID, 0, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -257,7 +304,7 @@ func TestCompactor_PreservesToolPairsAcrossCutoffs(t *testing.T) {
 			// MaxMessages == len forces the count trigger every run so the cutoff
 			// logic actually executes for each keepRecent.
 			c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: len(template), KeepRecent: keepRecent})
-			if _, err := c.CompactIfNeeded(t.Context(), sessID, 0, nil); err != nil {
+			if _, err := c.CompactIfNeeded(t.Context(), sessID, 0, 0, nil); err != nil {
 				t.Fatal(err)
 			}
 			after, _ := store.Read(t.Context(), sessID)
@@ -321,7 +368,7 @@ func TestCompactor_TokenTrigger(t *testing.T) {
 	// body, which the Tool-specific deterministic rung cannot trim. Only the
 	// token trigger can reach the summary rung.
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 2})
-	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, nil)
+	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -350,7 +397,7 @@ func TestCompactor_TokenTriggerShortHistory(t *testing.T) {
 	model := newTextStubModel("BULLETS")
 	client, _ := chatclient.New(model, chatclient.Config{})
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 6})
-	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, nil)
+	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -384,7 +431,7 @@ func TestCompactorShortHistoryKeepsLatestCompleteTurn(t *testing.T) {
 		MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 6,
 	})
 
-	result, err := c.CompactIfNeeded(t.Context(), sessID, 0, nil)
+	result, err := c.CompactIfNeeded(t.Context(), sessID, 0, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -407,7 +454,7 @@ func TestCompactorRejectsEmptySummaryWithoutReplacingHistory(t *testing.T) {
 	client, _ := chatclient.New(newTextStubModel(" \n\t "), chatclient.Config{})
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: 6, KeepRecent: 2})
 
-	if _, err := c.CompactIfNeeded(t.Context(), sessID, 0, nil); !errors.Is(err, errEmptyCompactionSummary) {
+	if _, err := c.CompactIfNeeded(t.Context(), sessID, 0, 0, nil); !errors.Is(err, errEmptyCompactionSummary) {
 		t.Fatalf("empty summary error = %v, want %v", err, errEmptyCompactionSummary)
 	}
 	after, _ := store.Read(t.Context(), sessID)
@@ -430,7 +477,7 @@ func TestCompactor_PreCompactVeto(t *testing.T) {
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: total, KeepRecent: 4})
 
 	called := false
-	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, func(context.Context) bool {
+	res, err := c.CompactIfNeeded(context.Background(), sessID, 0, 0, func(context.Context) bool {
 		called = true
 		return false // veto
 	})
@@ -457,7 +504,7 @@ func TestCompactor_PreCompactSkipsUnexecutablePlan(t *testing.T) {
 	c := NewCompactor(store, nil, nil, CompactionConfig{MaxMessages: 6, KeepRecent: 2})
 
 	called := false
-	if _, err := c.CompactIfNeeded(t.Context(), sessID, 0, func(context.Context) bool {
+	if _, err := c.CompactIfNeeded(t.Context(), sessID, 0, 0, func(context.Context) bool {
 		called = true
 		return true
 	}); err != nil {
@@ -492,7 +539,7 @@ func TestCompactor_LadderTrimsUnderBudgetSkippingLLM(t *testing.T) {
 	// only the token trigger fires, and the deterministic trim can clear it.
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: 1000, MaxTokens: 4000, KeepRecent: 2})
 
-	res, err := c.CompactIfNeeded(t.Context(), sessID, 0, nil)
+	res, err := c.CompactIfNeeded(t.Context(), sessID, 0, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -538,7 +585,7 @@ func TestCompactorLadderWidensWhenRecentTurnAloneExceedsBudget(t *testing.T) {
 		MaxMessages: 1000, MaxTokens: 10_000, KeepRecent: 2,
 	})
 
-	result, err := c.CompactIfNeeded(t.Context(), sessID, 0, nil)
+	result, err := c.CompactIfNeeded(t.Context(), sessID, 0, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -585,7 +632,7 @@ func TestCompactor_LadderStillOverGoesToLLM(t *testing.T) {
 	// Count trigger at the message count → a body trim can't clear it.
 	c := NewCompactor(store, constClient(client), nil, CompactionConfig{MaxMessages: 6, KeepRecent: 2})
 
-	res, err := c.CompactIfNeeded(t.Context(), sessID, 0, nil)
+	res, err := c.CompactIfNeeded(t.Context(), sessID, 0, 0, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

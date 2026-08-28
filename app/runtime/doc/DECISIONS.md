@@ -759,3 +759,10 @@
 - 决策：`modelContextBudget` 是 message/token trigger 与完整 provider-neutral `chat.Request` 的唯一 owner；instructions、可变 history、未提交 tail、全部 Part、metadata、Tools 与 Options 一次序列化、一次估算，不保留 fixed/history 双 ledger。ASCII bytes 使用具名 4:1 近似，非 ASCII rune逐个计数；media保留 MIME、identity、name、metadata 与 source kind，但把 transport bytes/URI/reference规范成最小合法占位，因为 provider按模态而非 base64 长度计价。每次成功主调用把 provider报告的 input tokens与该 exact request原始估算绑定，下一调用只沿用两者 delta；这等价于从已知真实窗口加上本轮新增请求差量，不建立 billing 真相或 tokenizer façade。
 - 决策：provider校准只参与调用前“是否达到阈值”的判断；protected tail、trim/summary replacement 与压缩后可执行性都用各自完整请求的未校准估算，避免把旧大窗口偏差错误施加到新 summary。低于阈值仍只做预算检查，不运行 PreCompact、摘要或 SQLite rewrite；阈值命中但任何不可折叠 material仍超预算时 fail closed。waiting Strategy checkpoint在同一 accounting/state snapshot中保存每个 Process的 reported/estimated pair，private envelope schema一次性从v3升至v4，旧schema不双读。
 - 后果：CJK/emoji、reasoning/signature、Tool arguments/results、Tool schema、Options与pending tail不能再绕过阈值；inline media传输体积也不会被误当文本 token。压缩后的下一调用从新请求重新校准，不会因旧 adjustment立刻二次压缩。没有安全倍率、provider-specific魔法常量、网络token-count旁路、配置旋钮、第二budget map或兼容checkpoint reader；新出现且尚未被 provider报告的媒体成本仍必须由未来 provider-owned可证估算准入，不能在provider-neutral Runtime猜像素公式。
+
+## ADR-RT-107：压缩阈值必须同时尊重上下文软窗口与 provider 硬输入上限
+
+- 状态：已接受并实施，P192 完成；允许 Runtime internal compaction API breaking change，公共 Runtime Protocol、Artifact、SQLite、Desktop binding、Agent Framework 与 CLI不变。
+- 背景：P191 已使请求体积可测量，但阈值仍只取模型 `ContextWindow` 的80%。实际 catalog 中有38个模型的 `MaxInputTokens` 小于该软阈值；例如 `openai/gpt-5.4-mini` 的总窗口为400,000，硬输入上限为272,000，旧逻辑却到320,000才触发压缩。这会让 Runtime 在必然被 provider拒绝之后才尝试收缩。
+- 决策：模型目录的总上下文窗口与硬输入上限是两个独立的 provider 事实。`Compactor` 的有效token阈值唯一定义为“显式阈值或总窗口80%的软阈值，再取不超过硬输入上限的值”。显式维护配置也不能越过provider硬限。只有当Run的model identity整体未知时才使用default model的两项fallback；已知selected model的context window但其input limit未知时，不借用另一模型的硬限。百分比计算使用具名scale与先商后余的饱和加法，不允许大窗口整数溢出。
+- 后果：每次主模型调用前仍执行同一次廉价预算检查；只有message或有效token阈值命中才进入 PreCompact、summary与SQLite rewrite，低于阈值的路径仍零副作用。真实selected-model回归证明体积介于272,000与320,000时已在provider硬限前压缩。没有引入图片token公式、安全倍率、provider分支map或第二阈值owner。

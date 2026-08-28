@@ -52,10 +52,18 @@ func (p *Pipeline) Maintain(ctx context.Context, input agentexec.RunMaintenanceI
 	}
 
 	contextWindow := 0
+	maxInputTokens := 0
 	if info, ok := catalog.Default.Lookup(input.ModelSelection.Provider(), input.ModelSelection.Model()); ok {
 		contextWindow = int(info.Limits.ContextWindow)
+		maxInputTokens = int(info.Limits.MaxInputTokens)
 	}
-	compaction, err := p.compactor.CompactIfNeeded(ctx, input.SessionID, contextWindow, input.PreCompact)
+	compaction, err := p.compactor.CompactIfNeeded(
+		ctx,
+		input.SessionID,
+		contextWindow,
+		maxInputTokens,
+		input.PreCompact,
+	)
 	if err != nil {
 		result.Errors = append(result.Errors, err)
 		return result

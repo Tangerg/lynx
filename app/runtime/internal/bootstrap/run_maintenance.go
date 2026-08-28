@@ -24,14 +24,16 @@ func buildRunMaintenance(
 	resolveUtility func(context.Context) *chatclient.Client,
 ) (agentexec.RunMaintenance, agentexec.ModelContextCompactor) {
 	window := 0
+	maxInputTokens := 0
 	if info, ok := catalog.Default.Lookup(cfg.Provider, cfg.Model); ok {
 		window = int(info.Limits.ContextWindow)
+		maxInputTokens = int(info.Limits.MaxInputTokens)
 	}
 	compactor := runmaintenance.NewCompactor(
 		conversationServices.messages,
 		resolveUtility,
 		runmaintenance.NewLiveStateSnapshotter(shells),
-		runmaintenance.CompactionConfig{ContextWindow: window},
+		runmaintenance.CompactionConfig{ContextWindow: window, MaxInputTokens: maxInputTokens},
 	)
 	if cfg.Maintenance != nil {
 		return cfg.Maintenance, compactor
