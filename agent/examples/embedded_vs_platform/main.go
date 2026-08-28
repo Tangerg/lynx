@@ -7,6 +7,7 @@ import (
 	"cmp"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -62,7 +63,7 @@ func run(ctx context.Context, output io.Writer) error {
 					return candidate.DeploymentRef(), nil
 				}
 			}
-			return agent.DeploymentRef{}, fmt.Errorf("root Definition is not active")
+			return agent.DeploymentRef{}, errors.New("root Definition is not active")
 		}),
 	)
 	if err != nil {

@@ -1,7 +1,7 @@
 package filter
 
 import (
-	"fmt"
+	"errors"
 
 	"github.com/samber/lo"
 )
@@ -23,7 +23,7 @@ func accept(predicate Predicate, visitor Visitor) error {
 		return err
 	}
 	if lo.IsNil(visitor) {
-		return fmt.Errorf("filter: accept visitor: visitor is nil")
+		return errors.New("filter: accept visitor: visitor is nil")
 	}
 	return visitor.Visit(predicate)
 }

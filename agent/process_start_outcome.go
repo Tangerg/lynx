@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 )
 
@@ -117,7 +118,7 @@ func acknowledgeProcessStartOutcome(
 		return nil
 	}
 	if !outcome.Valid() {
-		return fmt.Errorf("invalid Process start outcome")
+		return errors.New("invalid Process start outcome")
 	}
 	defer func() {
 		if recovered := recover(); recovered != nil {
