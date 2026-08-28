@@ -26,7 +26,8 @@ type LocalExecutor struct {
 	// Dir is the working directory commands run in. "" inherits the
 	// host process's cwd (os/exec's default). Set it to confine a
 	// command's relative-path resolution to a project root — the shell
-	// analog of [fs.LocalExecutor.Root]. It does NOT jail the command
+	// working directory policy for shell execution. Unlike the immutable rooted
+	// authority of fs.LocalExecutor, it does NOT jail the command
 	// (a command can still cd / touch absolute paths); jailing is the
 	// caller's job via OS sandbox / container.
 	Dir string

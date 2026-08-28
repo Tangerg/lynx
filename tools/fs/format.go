@@ -2,6 +2,9 @@ package fs
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,23 +42,36 @@ func restoreFormat(text string, hadBOM, hadCRLF bool) []byte {
 	return []byte(text)
 }
 
-// atomicWriteFile writes data to path through a sibling temp file +
+const (
+	temporaryWritePrefix       = ".write-"
+	temporaryWriteEntropyBytes = 16
+)
+
+// atomicWriteRootFile writes data to path through a sibling temp file +
 // rename. On POSIX the rename is atomic as long as both paths are on
 // the same filesystem — so partial writes never leave a half-written
 // file visible to readers.
-func atomicWriteFile(path string, data []byte, mode os.FileMode) (err error) {
+func atomicWriteRootFile(root *os.Root, path string, data []byte, mode os.FileMode) (err error) {
 	dir := filepath.Dir(path)
-	if err = os.MkdirAll(dir, defaultDirectoryMode); err != nil {
+	if err = root.MkdirAll(dir, defaultDirectoryMode); err != nil {
 		return err
 	}
-	tmp, err := os.CreateTemp(dir, ".write-*")
+	name, err := temporaryWriteName()
 	if err != nil {
 		return err
 	}
-	tmpPath := tmp.Name()
+	tmpPath := filepath.Join(dir, name)
+	tmp, err := root.OpenFile(
+		tmpPath,
+		os.O_CREATE|os.O_EXCL|os.O_WRONLY,
+		mode,
+	)
+	if err != nil {
+		return err
+	}
 	defer func() {
 		if err != nil {
-			os.Remove(tmpPath)
+			_ = root.Remove(tmpPath)
 		}
 	}()
 	if _, err = tmp.Write(data); err != nil {
@@ -69,8 +85,16 @@ func atomicWriteFile(path string, data []byte, mode os.FileMode) (err error) {
 	if err = tmp.Close(); err != nil {
 		return err
 	}
-	if err = os.Chmod(tmpPath, mode); err != nil {
+	if err = root.Chmod(tmpPath, mode); err != nil {
 		return err
 	}
-	return os.Rename(tmpPath, path)
+	return root.Rename(tmpPath, path)
+}
+
+func temporaryWriteName() (string, error) {
+	var entropy [temporaryWriteEntropyBytes]byte
+	if _, err := rand.Read(entropy[:]); err != nil {
+		return "", fmt.Errorf("fs: create temporary write name: %w", err)
+	}
+	return temporaryWritePrefix + hex.EncodeToString(entropy[:]), nil
 }

@@ -1,7 +1,8 @@
 package fs
 
 import (
-	"cmp"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,8 +16,9 @@ const (
 	defaultFileMode      os.FileMode = 0o644
 )
 
-// LocalExecutor is the reference [Executor] running against the host
-// filesystem.
+// LocalExecutor is the reference local filesystem backend. Its constructor
+// grants one immutable directory-tree authority; operation inputs may narrow
+// that authority but cannot replace or escape it.
 //
 //   - Glob uses the platform-neutral doublestar matcher and never follows
 //     directory symlinks while walking.
@@ -27,38 +29,68 @@ const (
 //   - Read normalises CRLF→LF and strips UTF-8 BOM; Write and Edit
 //     restore both when the existing file uses them.
 type LocalExecutor struct {
-	// Root, if set, anchors relative paths. "" = no confinement.
-	// This is not a security jail; callers that need confinement validate
-	// paths before invoking the executor.
-	Root string
+	root    string
+	rootErr error
 
 	pathLocksMu sync.Mutex
-	pathLocks   map[string]*sync.Mutex
+	pathLocks   map[string]*pathLock
 }
 
 func NewLocalExecutor(root string) *LocalExecutor {
-	return &LocalExecutor{Root: root}
+	if root == "" {
+		root = "."
+	}
+	root = expandHome(root)
+	absolute, err := filepath.Abs(root)
+	if err != nil {
+		err = fmt.Errorf("fs.NewLocalExecutor: resolve root %q: %w", root, err)
+	}
+	return &LocalExecutor{root: filepath.Clean(absolute), rootErr: err}
 }
 
-// resolve combines the executor's Root with a relative path. A leading ~ is
-// expanded to the home dir first; absolute paths pass through. Empty path is
-// rejected.
-func (l *LocalExecutor) resolve(path string) (string, error) {
+// authorize returns a root-relative path accepted by os.Root. Relative inputs
+// must be local. Absolute inputs are accepted only when they are lexically
+// beneath the immutable root, then reduced to the same relative identity.
+func (l *LocalExecutor) authorize(path string, allowRoot bool) (string, error) {
+	if l == nil {
+		return "", errors.New("fs: nil LocalExecutor")
+	}
+	if l.rootErr != nil {
+		return "", l.rootErr
+	}
 	if path == "" {
+		if allowRoot {
+			return ".", nil
+		}
 		return "", ErrEmptyPath
 	}
 	path = expandHome(path)
-	if l.Root == "" || filepath.IsAbs(path) {
-		return path, nil
+	if filepath.IsAbs(path) {
+		relative, err := filepath.Rel(l.root, filepath.Clean(path))
+		if err != nil {
+			return "", fmt.Errorf("fs: resolve %q beneath root: %w", path, err)
+		}
+		path = relative
 	}
-	return filepath.Join(l.Root, path), nil
+	path = filepath.Clean(path)
+	if !filepath.IsLocal(path) || (!allowRoot && path == ".") {
+		return "", fmt.Errorf("%w: %q", ErrPathOutsideRoot, path)
+	}
+	return path, nil
 }
 
-// rootDir returns the directory bulk queries (Glob/Grep) should start
-// from. Precedence: caller-supplied Root → executor's Root → CWD. A leading
-// ~ in the chosen dir is expanded to the home dir.
-func (l *LocalExecutor) rootDir(callerRoot string) string {
-	return expandHome(cmp.Or(callerRoot, l.Root, "."))
+func (l *LocalExecutor) openRoot() (*os.Root, error) {
+	if l == nil {
+		return nil, errors.New("fs: nil LocalExecutor")
+	}
+	if l.rootErr != nil {
+		return nil, l.rootErr
+	}
+	root, err := os.OpenRoot(l.root)
+	if err != nil {
+		return nil, fmt.Errorf("fs: open executor root %q: %w", l.root, err)
+	}
+	return root, nil
 }
 
 // expandHome expands a leading ~ — the shell convention an LLM routinely emits
@@ -81,21 +113,35 @@ func expandHome(path string) string {
 	return filepath.Join(home, path[len("~/"):])
 }
 
-// lockPath returns a per-path mutex unlock func. Used to serialize
-// Write and Edit on the same file. The map of locks grows monotonically
-// — bounded by the set of paths the agent touches — which is acceptable
-// for typical workspace sizes (a few thousand entries × 16 bytes).
+type pathLock struct {
+	mutex sync.Mutex
+	users int
+}
+
+// lockPath returns a per-path mutex unlock func. Entries are reference-counted
+// and removed after the last holder/waiter leaves, so a long-running executor
+// does not retain every path ever touched.
 func (l *LocalExecutor) lockPath(path string) func() {
 	l.pathLocksMu.Lock()
 	if l.pathLocks == nil {
-		l.pathLocks = map[string]*sync.Mutex{}
+		l.pathLocks = map[string]*pathLock{}
 	}
-	m, ok := l.pathLocks[path]
+	entry, ok := l.pathLocks[path]
 	if !ok {
-		m = &sync.Mutex{}
-		l.pathLocks[path] = m
+		entry = &pathLock{}
+		l.pathLocks[path] = entry
 	}
+	entry.users++
 	l.pathLocksMu.Unlock()
-	m.Lock()
-	return m.Unlock
+
+	entry.mutex.Lock()
+	return func() {
+		entry.mutex.Unlock()
+		l.pathLocksMu.Lock()
+		entry.users--
+		if entry.users == 0 {
+			delete(l.pathLocks, path)
+		}
+		l.pathLocksMu.Unlock()
+	}
 }

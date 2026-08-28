@@ -44,11 +44,11 @@ type GrepResponse struct {
 var _ toolcontract.Tool = (*GrepTool)(nil)
 
 type GrepTool struct {
-	executor Executor
+	executor Grepper
 	typed    toolcontract.Func[GrepRequest, GrepResponse]
 }
 
-func NewGrepTool(executor Executor) *GrepTool {
+func NewGrepTool(executor Grepper) *GrepTool {
 	if executor == nil {
 		executor = NewLocalExecutor("")
 	}
@@ -80,7 +80,7 @@ func (g *GrepTool) Call(ctx context.Context, arguments string) (string, error) {
 func (g *GrepTool) grep(ctx context.Context, req GrepRequest) (GrepResponse, error) {
 	res, err := g.executor.Grep(ctx, GrepInput{
 		Pattern:       req.Pattern,
-		Root:          req.Path,
+		Path:          req.Path,
 		Glob:          req.FileGlob,
 		FileType:      req.FileType,
 		IgnoreCase:    req.IgnoreCase,

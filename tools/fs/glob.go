@@ -23,11 +23,11 @@ type GlobResponse struct {
 var _ toolcontract.Tool = (*GlobTool)(nil)
 
 type GlobTool struct {
-	executor Executor
+	executor Globber
 	typed    toolcontract.Func[GlobRequest, GlobResponse]
 }
 
-func NewGlobTool(executor Executor) *GlobTool {
+func NewGlobTool(executor Globber) *GlobTool {
 	if executor == nil {
 		executor = NewLocalExecutor("")
 	}
@@ -58,7 +58,7 @@ func (g *GlobTool) Call(ctx context.Context, arguments string) (string, error) {
 func (g *GlobTool) glob(ctx context.Context, req GlobRequest) (GlobResponse, error) {
 	res, err := g.executor.Glob(ctx, GlobInput{
 		Pattern:    req.Pattern,
-		Root:       req.Path,
+		Path:       req.Path,
 		IgnoreCase: req.IgnoreCase,
 		MaxResults: req.MaxResults,
 	})

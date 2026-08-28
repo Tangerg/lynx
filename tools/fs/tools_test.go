@@ -110,7 +110,7 @@ func TestReadTool_OneBasedStartLineTranslation(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "line1\nline2\nline3\nline4\n")
 
-	tool := NewReadTool(nil)
+	tool := NewReadTool(NewLocalExecutor(dir))
 
 	// start_line=2 means "start at line 2"; max_lines=2 takes line2,line3.
 	body, err := tool.Call(t.Context(), `{"path":"`+path+`","start_line":2,"max_lines":2}`)
@@ -135,7 +135,7 @@ func TestReadTool_OneBasedStartLineTranslation(t *testing.T) {
 func TestReadTool_OmittedStartLineMeansFirstLine(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "a\nb\nc\n")
-	body, err := NewReadTool(nil).Call(t.Context(), `{"path":"`+path+`","max_lines":1}`)
+	body, err := NewReadTool(NewLocalExecutor(dir)).Call(t.Context(), `{"path":"`+path+`","max_lines":1}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -168,7 +168,7 @@ func TestReadTool_EmptyPath(t *testing.T) {
 func TestWriteTool_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "x.txt")
-	body, err := NewWriteTool(nil).Call(t.Context(), `{"path":"`+path+`","content":"hi"}`)
+	body, err := NewWriteTool(NewLocalExecutor(dir)).Call(t.Context(), `{"path":"`+path+`","content":"hi"}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -188,7 +188,7 @@ func TestWriteTool_RoundTrip(t *testing.T) {
 func TestEditTool_HappyPath(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "alpha beta\n")
-	body, err := NewEditTool(nil).Call(t.Context(),
+	body, err := NewEditTool(NewLocalExecutor(dir)).Call(t.Context(),
 		`{"path":"`+path+`","old_string":"beta","new_string":"BETA"}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
@@ -214,7 +214,7 @@ func TestApplyPatchTool_HappyPath(t *testing.T) {
 -beta
 +BETA
 `
-	body, err := NewApplyPatchTool(nil).Call(t.Context(), string(mustJSON(t, ApplyPatchRequest{Patch: patch})))
+	body, err := NewApplyPatchTool(NewLocalExecutor(dir)).Call(t.Context(), string(mustJSON(t, ApplyPatchRequest{Patch: patch})))
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}

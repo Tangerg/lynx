@@ -40,7 +40,7 @@ func writeTemp(t *testing.T, dir, name, content string) string {
 func TestLocalExecutor_Read_Whole(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "line1\nline2\nline3\n")
-	out, err := NewLocalExecutor("").Read(t.Context(), ReadInput{Path: path})
+	out, err := NewLocalExecutor(dir).Read(t.Context(), ReadInput{Path: path})
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestLocalExecutor_Read_Whole(t *testing.T) {
 func TestLocalExecutor_Read_LineRange(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "a\nb\nc\nd\ne\n")
-	out, err := NewLocalExecutor("").Read(t.Context(), ReadInput{
+	out, err := NewLocalExecutor(dir).Read(t.Context(), ReadInput{
 		Path:   path,
 		Offset: 1, // skip "a"
 		Limit:  2, // take "b", "c"
@@ -74,9 +74,8 @@ func TestLocalExecutor_Read_LineRange(t *testing.T) {
 func TestLocalExecutor_Read_MaxBytes(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "ab你cd")
-	out, err := NewLocalExecutor("").Read(t.Context(), ReadInput{
-		Path:     path,
-		MaxBytes: 4,
+	out, err := NewLocalExecutor(dir).Read(t.Context(), ReadInput{
+		Path: path, MaxOutputBytes: 4, PartialLine: true,
 	})
 	if err != nil {
 		t.Fatalf("Read: %v", err)
@@ -92,7 +91,7 @@ func TestLocalExecutor_Read_MaxBytes(t *testing.T) {
 func TestLocalExecutor_Read_BinaryRejected(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "bin", "hello\x00world")
-	_, err := NewLocalExecutor("").Read(t.Context(), ReadInput{Path: path})
+	_, err := NewLocalExecutor(dir).Read(t.Context(), ReadInput{Path: path})
 	if !errors.Is(err, ErrBinaryFile) {
 		t.Errorf("Read on binary: err = %v, want ErrBinaryFile", err)
 	}
@@ -101,7 +100,7 @@ func TestLocalExecutor_Read_BinaryRejected(t *testing.T) {
 func TestLocalExecutor_Read_NormalizesCRLFAndBOM(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "\xEF\xBB\xBFa\r\nb\r\nc\r\n")
-	out, err := NewLocalExecutor("").Read(t.Context(), ReadInput{Path: path})
+	out, err := NewLocalExecutor(dir).Read(t.Context(), ReadInput{Path: path})
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
@@ -116,7 +115,7 @@ func TestLocalExecutor_Read_NormalizesCRLFAndBOM(t *testing.T) {
 func TestLocalExecutor_Write_Overwrite(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "new", "x.txt")
-	out, err := NewLocalExecutor("").Write(t.Context(), WriteInput{Path: path, Content: "hi"})
+	out, err := NewLocalExecutor(dir).Write(t.Context(), WriteInput{Path: path, Content: "hi"})
 	if err != nil {
 		t.Fatalf("Write: %v", err)
 	}
@@ -132,7 +131,7 @@ func TestLocalExecutor_Write_Overwrite(t *testing.T) {
 func TestLocalExecutor_Write_Append(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "one\n")
-	_, err := NewLocalExecutor("").Write(t.Context(), WriteInput{
+	_, err := NewLocalExecutor(dir).Write(t.Context(), WriteInput{
 		Path: path, Content: "two\n", Append: true,
 	})
 	if err != nil {
@@ -147,7 +146,7 @@ func TestLocalExecutor_Write_Append(t *testing.T) {
 func TestLocalExecutor_Write_PreservesCRLF(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "old\r\ncontent\r\n")
-	_, err := NewLocalExecutor("").Write(t.Context(), WriteInput{
+	_, err := NewLocalExecutor(dir).Write(t.Context(), WriteInput{
 		Path: path, Content: "new\nstuff\n",
 	})
 	if err != nil {
@@ -162,7 +161,7 @@ func TestLocalExecutor_Write_PreservesCRLF(t *testing.T) {
 func TestLocalExecutor_Write_PreservesBOM(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "\xEF\xBB\xBFold")
-	_, err := NewLocalExecutor("").Write(t.Context(), WriteInput{
+	_, err := NewLocalExecutor(dir).Write(t.Context(), WriteInput{
 		Path: path, Content: "new",
 	})
 	if err != nil {
@@ -177,7 +176,7 @@ func TestLocalExecutor_Write_PreservesBOM(t *testing.T) {
 func TestLocalExecutor_Write_NULRejected(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "x.txt")
-	_, err := NewLocalExecutor("").Write(t.Context(), WriteInput{
+	_, err := NewLocalExecutor(dir).Write(t.Context(), WriteInput{
 		Path: path, Content: "abc\x00def",
 	})
 	if !errors.Is(err, ErrBinaryFile) {
@@ -188,7 +187,7 @@ func TestLocalExecutor_Write_NULRejected(t *testing.T) {
 func TestLocalExecutor_Write_ConcurrentSamePath(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "race.txt")
-	exec := NewLocalExecutor("")
+	exec := NewLocalExecutor(dir)
 	const N = 32
 	var wg sync.WaitGroup
 	for i := range N {
@@ -216,7 +215,7 @@ func TestLocalExecutor_Write_ConcurrentSamePath(t *testing.T) {
 func TestLocalExecutor_Edit_SingleOccurrence(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "alpha beta gamma\n")
-	out, err := NewLocalExecutor("").Edit(t.Context(), EditRequest{
+	out, err := NewLocalExecutor(dir).Edit(t.Context(), EditRequest{
 		Path: path, OldString: "beta", NewString: "BETA",
 	})
 	if err != nil {
@@ -234,7 +233,7 @@ func TestLocalExecutor_Edit_SingleOccurrence(t *testing.T) {
 func TestLocalExecutor_Edit_MultipleOccurrencesRejected(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "x x x\n")
-	_, err := NewLocalExecutor("").Edit(t.Context(), EditRequest{
+	_, err := NewLocalExecutor(dir).Edit(t.Context(), EditRequest{
 		Path: path, OldString: "x", NewString: "y",
 	})
 	if err == nil {
@@ -248,7 +247,7 @@ func TestLocalExecutor_Edit_MultipleOccurrencesRejected(t *testing.T) {
 func TestLocalExecutor_Edit_ReplaceAll(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "x x x\n")
-	out, err := NewLocalExecutor("").Edit(t.Context(), EditRequest{
+	out, err := NewLocalExecutor(dir).Edit(t.Context(), EditRequest{
 		Path: path, OldString: "x", NewString: "y", ReplaceAll: true,
 	})
 	if err != nil {
@@ -266,7 +265,7 @@ func TestLocalExecutor_Edit_ReplaceAll(t *testing.T) {
 func TestLocalExecutor_Edit_NoMatch(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "alpha\n")
-	_, err := NewLocalExecutor("").Edit(t.Context(), EditRequest{
+	_, err := NewLocalExecutor(dir).Edit(t.Context(), EditRequest{
 		Path: path, OldString: "beta", NewString: "BETA",
 	})
 	if err == nil {
@@ -280,7 +279,7 @@ func TestLocalExecutor_Edit_NoMatch(t *testing.T) {
 func TestLocalExecutor_Edit_PreservesCRLF(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "alpha\r\nbeta\r\n")
-	_, err := NewLocalExecutor("").Edit(t.Context(), EditRequest{
+	_, err := NewLocalExecutor(dir).Edit(t.Context(), EditRequest{
 		Path: path, OldString: "beta", NewString: "BETA",
 	})
 	if err != nil {
@@ -295,7 +294,7 @@ func TestLocalExecutor_Edit_PreservesCRLF(t *testing.T) {
 func TestLocalExecutor_Edit_BinaryRejected(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "bin", "hello\x00")
-	_, err := NewLocalExecutor("").Edit(t.Context(), EditRequest{
+	_, err := NewLocalExecutor(dir).Edit(t.Context(), EditRequest{
 		Path: path, OldString: "hello", NewString: "hi",
 	})
 	if !errors.Is(err, ErrBinaryFile) {

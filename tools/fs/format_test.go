@@ -76,9 +76,15 @@ func TestRestoreFormat_Roundtrip(t *testing.T) {
 
 func TestAtomicWriteFile_WritesAndPreservesMode(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "sub", "file.txt") // sub doesn't exist
-	if err := atomicWriteFile(path, []byte("hello"), 0o600); err != nil {
-		t.Fatalf("atomicWriteFile: %v", err)
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	const relativePath = "sub/file.txt"
+	path := filepath.Join(dir, relativePath) // sub doesn't exist
+	if err := atomicWriteRootFile(root, relativePath, []byte("hello"), 0o600); err != nil {
+		t.Fatalf("atomicWriteRootFile: %v", err)
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -98,9 +104,13 @@ func TestAtomicWriteFile_WritesAndPreservesMode(t *testing.T) {
 
 func TestAtomicWriteFile_NoLeftoverTemp(t *testing.T) {
 	dir := t.TempDir()
-	path := filepath.Join(dir, "file.txt")
-	if err := atomicWriteFile(path, []byte("x"), 0o644); err != nil {
-		t.Fatalf("atomicWriteFile: %v", err)
+	root, err := os.OpenRoot(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer root.Close()
+	if err := atomicWriteRootFile(root, "file.txt", []byte("x"), 0o644); err != nil {
+		t.Fatalf("atomicWriteRootFile: %v", err)
 	}
 	entries, err := os.ReadDir(dir)
 	if err != nil {

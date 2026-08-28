@@ -1,13 +1,43 @@
 package fs
 
-import "errors"
+import (
+	"errors"
+	"fmt"
+)
 
 var (
 	ErrEmptyPath = errors.New("fs: path must not be empty")
+
+	ErrPathOutsideRoot = errors.New("fs: path is outside the executor root")
 
 	ErrEmptyPattern = errors.New("fs: pattern must not be empty")
 
 	ErrRipgrepUnavailable = errors.New("fs: ripgrep is unavailable")
 
 	ErrBinaryFile = errors.New("fs: file appears to be binary; only text files are supported")
+
+	ErrFileTooLarge = errors.New("fs: file exceeds the operation input limit")
+
+	ErrLineTooLarge = errors.New("fs: line exceeds the operation line limit")
 )
+
+type lineLimitError struct {
+	path  string
+	line  int
+	limit int
+}
+
+func (l *lineLimitError) Error() string {
+	return fmt.Sprintf("%s: %s line %d exceeds %d bytes", ErrLineTooLarge, l.path, l.line, l.limit)
+}
+
+func (l *lineLimitError) Unwrap() error { return ErrLineTooLarge }
+
+// ReadLineNumber returns the one-based line attached to an
+// [ErrLineTooLarge] failure, or zero when the error is not line-specific.
+func ReadLineNumber(err error) int {
+	if target, ok := errors.AsType[*lineLimitError](err); ok {
+		return target.line
+	}
+	return 0
+}

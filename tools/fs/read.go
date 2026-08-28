@@ -29,11 +29,11 @@ type ReadResponse struct {
 var _ toolcontract.Tool = (*ReadTool)(nil)
 
 type ReadTool struct {
-	executor Executor
+	executor Reader
 	typed    toolcontract.Func[ReadRequest, ReadResponse]
 }
 
-func NewReadTool(executor Executor) *ReadTool {
+func NewReadTool(executor Reader) *ReadTool {
 	if executor == nil {
 		executor = NewLocalExecutor("")
 	}
@@ -42,7 +42,7 @@ func NewReadTool(executor Executor) *ReadTool {
 		toolcontract.FuncConfig{
 			Name: "read",
 			Description: "Read a text file from the filesystem. Returns the requested line range with the total line count and a truncation flag. " +
-				"By default returns the whole file; for a large file pass start_line and max_lines to page by 1-based line number. " +
+				"By default returns the admitted file up to the backend's input, line, and output bounds; pass start_line and max_lines to page by 1-based line number. " +
 				"Call this in parallel when you need several files at once. " +
 				"Binary files are rejected; use shell for non-text data, and use glob or grep to locate files or content rather than guessing paths.",
 		},

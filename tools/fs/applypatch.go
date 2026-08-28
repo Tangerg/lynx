@@ -35,11 +35,11 @@ type PatchFileResponse struct {
 var _ toolcontract.Tool = (*ApplyPatchTool)(nil)
 
 type ApplyPatchTool struct {
-	executor Executor
+	executor PatchApplier
 	typed    toolcontract.Func[ApplyPatchRequest, ApplyPatchResponse]
 }
 
-func NewApplyPatchTool(executor Executor) *ApplyPatchTool {
+func NewApplyPatchTool(executor PatchApplier) *ApplyPatchTool {
 	if executor == nil {
 		executor = NewLocalExecutor("")
 	}

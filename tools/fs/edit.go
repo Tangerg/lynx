@@ -25,15 +25,15 @@ type EditResponse struct {
 
 var _ toolcontract.Tool = (*EditTool)(nil)
 
-// EditTool is the thin LLM-facing adapter for [Executor.Edit]. The
+// EditTool is the thin LLM-facing adapter for [Editor.Edit]. The
 // match-and-replace logic lives in the executor so a backend upgrade
 // can swap match policy without changing the tool.
 type EditTool struct {
-	executor Executor
+	executor Editor
 	typed    toolcontract.Func[EditRequest, EditResponse]
 }
 
-func NewEditTool(executor Executor) *EditTool {
+func NewEditTool(executor Editor) *EditTool {
 	if executor == nil {
 		executor = NewLocalExecutor("")
 	}

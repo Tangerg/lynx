@@ -5,111 +5,183 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/Tangerg/scope/tools/textread"
+)
+
+const (
+	defaultReadInputBytes     int64 = 8 << 20
+	defaultReadLineBytes            = 1 << 20
+	defaultReadOutputBytes          = 1 << 20
+	defaultMutationInputBytes int64 = 8 << 20
+	formatDetectionBytes      int64 = 64 << 10
 )
 
 // Read does not lock — concurrent reads are fine and a slightly stale
 // read while another goroutine writes is acceptable (atomic-rename in
 // Write means the caller sees either the old file in full or the new file in
 // full, never a torn write).
-func (l *LocalExecutor) Read(_ context.Context, in ReadInput) (ReadOutput, error) {
-	path, err := l.resolve(in.Path)
+func (l *LocalExecutor) Read(ctx context.Context, in ReadInput) (_ ReadOutput, err error) {
+	path, err := l.authorize(in.Path, false)
 	if err != nil {
 		return ReadOutput{}, err
 	}
-	data, err := os.ReadFile(path)
+	root, err := l.openRoot()
 	if err != nil {
 		return ReadOutput{}, err
 	}
-	if looksBinary(data) {
-		return ReadOutput{}, ErrBinaryFile
+	defer func() {
+		err = errors.Join(err, root.Close())
+	}()
+	file, err := root.Open(path)
+	if err != nil {
+		return ReadOutput{}, err
+	}
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
+	info, err := file.Stat()
+	if err != nil {
+		return ReadOutput{}, err
+	}
+	if !info.Mode().IsRegular() {
+		return ReadOutput{}, fmt.Errorf("fs.LocalExecutor.Read: %s: unsupported file mode %s", in.Path, info.Mode().Type())
 	}
 
-	content, _, _ := normalizeText(data)
-	lines := strings.Split(content, "\n")
-	total := len(lines)
-
-	start := min(max(in.Offset, 0), total)
-	end := total
-	if in.Limit > 0 {
-		end = min(start+in.Limit, total)
+	limits := in.resolvedLimits()
+	if info.Size() > limits.inputBytes {
+		return ReadOutput{}, fmt.Errorf("%w: %s uses %d bytes; limit is %d", ErrFileTooLarge, in.Path, info.Size(), limits.inputBytes)
 	}
-	readContent := strings.Join(lines[start:end], "\n")
-	byteTruncated := false
-	if in.MaxBytes > 0 {
-		readContent, byteTruncated = truncateTextBytes(readContent, in.MaxBytes)
+	result, err := textread.Scan(ctx, file, textread.Options{
+		InputBytes: limits.inputBytes, LineBytes: limits.lineBytes,
+		OutputBytes: limits.outputBytes, StartLine: in.Offset, MaxLines: in.Limit,
+		PartialLine: in.PartialLine,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, textread.ErrInputTooLarge):
+			return ReadOutput{}, fmt.Errorf("%w: %s grew beyond %d bytes", ErrFileTooLarge, in.Path, limits.inputBytes)
+		case errors.Is(err, textread.ErrLineTooLarge):
+			return ReadOutput{}, &lineLimitError{
+				path: in.Path, line: textread.LineNumber(err), limit: limits.lineBytes,
+			}
+		case errors.Is(err, textread.ErrInvalidText):
+			return ReadOutput{}, ErrBinaryFile
+		default:
+			return ReadOutput{}, fmt.Errorf("fs.LocalExecutor.Read: scan %s: %w", in.Path, err)
+		}
 	}
 
 	return ReadOutput{
-		Content:    readContent,
-		StartLine:  start,
-		EndLine:    end,
-		TotalLines: total,
-		Truncated:  end < total || byteTruncated,
+		Content: result.Content, StartLine: result.StartLine, EndLine: result.EndLine,
+		TotalLines: result.TotalLines, Truncated: result.Truncated,
 	}, nil
 }
 
-func (l *LocalExecutor) Write(_ context.Context, in WriteInput) (WriteResponse, error) {
+type readLimits struct {
+	inputBytes  int64
+	lineBytes   int
+	outputBytes int
+}
+
+func (r ReadInput) resolvedLimits() readLimits {
+	return readLimits{
+		inputBytes:  positiveOr(r.MaxInputBytes, defaultReadInputBytes),
+		lineBytes:   positiveOr(r.MaxLineBytes, defaultReadLineBytes),
+		outputBytes: positiveOr(r.MaxOutputBytes, defaultReadOutputBytes),
+	}
+}
+
+func positiveOr[T ~int | ~int64](value, fallback T) T {
+	if value > 0 {
+		return value
+	}
+	return fallback
+}
+
+func (l *LocalExecutor) Write(ctx context.Context, in WriteInput) (_ WriteResponse, err error) {
 	if strings.ContainsRune(in.Content, 0) {
 		return WriteResponse{}, fmt.Errorf("fs.LocalExecutor.Write: %w", ErrBinaryFile)
 	}
-	path, err := l.resolve(in.Path)
+	path, err := l.authorize(in.Path, false)
 	if err != nil {
 		return WriteResponse{}, err
 	}
+	root, err := l.openRoot()
+	if err != nil {
+		return WriteResponse{}, err
+	}
+	defer func() {
+		err = errors.Join(err, root.Close())
+	}()
 
 	unlock := l.lockPath(path)
 	defer unlock()
+	if cause := context.Cause(ctx); cause != nil {
+		return WriteResponse{}, cause
+	}
 
 	// Detect existing format + permissions so an overwrite preserves
 	// CRLF / BOM / mode instead of silently flipping them.
 	mode := defaultFileMode
 	hadBOM, hadCRLF := false, false
-	if info, err := os.Stat(path); err == nil {
+	if info, statErr := root.Stat(path); statErr == nil {
 		mode = info.Mode().Perm()
 		if !in.Append {
-			if existing, err := os.ReadFile(path); err == nil {
-				hadBOM = bytes.HasPrefix(existing, []byte(utf8BOM))
-				hadCRLF = bytes.Contains(existing, []byte("\r\n"))
+			hadBOM, hadCRLF, err = detectRootFormat(ctx, root, path)
+			if err != nil {
+				return WriteResponse{}, err
 			}
 		}
 	}
 
 	if in.Append {
-		if err := os.MkdirAll(filepath.Dir(path), defaultDirectoryMode); err != nil {
+		if err := root.MkdirAll(filepath.Dir(path), defaultDirectoryMode); err != nil {
 			return WriteResponse{}, err
 		}
-		file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, mode)
+		file, err := root.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, mode)
 		if err != nil {
 			return WriteResponse{}, err
 		}
-		defer file.Close()
 		n, err := file.WriteString(in.Content)
 		if err != nil {
+			_ = file.Close()
+			return WriteResponse{}, err
+		}
+		if err := file.Close(); err != nil {
 			return WriteResponse{}, err
 		}
 		return WriteResponse{BytesWritten: n}, nil
 	}
 
 	out := restoreFormat(in.Content, hadBOM, hadCRLF)
-	if err := atomicWriteFile(path, out, mode); err != nil {
+	if err := atomicWriteRootFile(root, path, out, mode); err != nil {
 		return WriteResponse{}, err
 	}
 	return WriteResponse{BytesWritten: len(out)}, nil
 }
 
-func (l *LocalExecutor) Edit(_ context.Context, in EditRequest) (EditResponse, error) {
-	path, err := l.resolve(in.Path)
+func (l *LocalExecutor) Edit(ctx context.Context, in EditRequest) (_ EditResponse, err error) {
+	path, err := l.authorize(in.Path, false)
 	if err != nil {
 		return EditResponse{}, err
 	}
+	root, err := l.openRoot()
+	if err != nil {
+		return EditResponse{}, err
+	}
+	defer func() {
+		err = errors.Join(err, root.Close())
+	}()
 
 	unlock := l.lockPath(path)
 	defer unlock()
 
-	data, err := os.ReadFile(path)
+	data, err := readBoundedRootFile(ctx, root, path, defaultMutationInputBytes)
 	if err != nil {
 		return EditResponse{}, err
 	}
@@ -128,15 +200,78 @@ func (l *LocalExecutor) Edit(_ context.Context, in EditRequest) (EditResponse, e
 	}
 
 	mode := defaultFileMode
-	if info, err := os.Stat(path); err == nil {
+	if info, statErr := root.Stat(path); statErr == nil {
 		mode = info.Mode().Perm()
 	}
 
 	out := restoreFormat(updated, hadBOM, hadCRLF)
-	if err := atomicWriteFile(path, out, mode); err != nil {
+	if err := atomicWriteRootFile(root, path, out, mode); err != nil {
 		return EditResponse{}, err
 	}
 	return EditResponse{Replacements: replacements}, nil
+}
+
+func readBoundedRootFile(ctx context.Context, root *os.Root, path string, maxBytes int64) (_ []byte, err error) {
+	if cause := context.Cause(ctx); cause != nil {
+		return nil, cause
+	}
+	file, err := root.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
+	info, err := file.Stat()
+	if err != nil {
+		return nil, err
+	}
+	if !info.Mode().IsRegular() {
+		return nil, fmt.Errorf("fs: %s: unsupported file mode %s", path, info.Mode().Type())
+	}
+	if info.Size() > maxBytes {
+		return nil, fmt.Errorf("%w: %s uses %d bytes; limit is %d", ErrFileTooLarge, path, info.Size(), maxBytes)
+	}
+	source := io.LimitReader(contextReader{ctx: ctx, reader: file}, maxBytes+1)
+	data, err := io.ReadAll(source)
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maxBytes {
+		return nil, fmt.Errorf("%w: %s grew beyond %d bytes", ErrFileTooLarge, path, maxBytes)
+	}
+	return data, nil
+}
+
+func detectRootFormat(ctx context.Context, root *os.Root, path string) (hadBOM, hadCRLF bool, err error) {
+	file, err := root.Open(path)
+	if err != nil {
+		return false, false, err
+	}
+	defer func() {
+		err = errors.Join(err, file.Close())
+	}()
+	prefix, err := io.ReadAll(io.LimitReader(contextReader{ctx: ctx, reader: file}, formatDetectionBytes))
+	if err != nil {
+		return false, false, err
+	}
+	return bytes.HasPrefix(prefix, []byte(utf8BOM)), bytes.Contains(prefix, []byte("\r\n")), nil
+}
+
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (c contextReader) Read(buffer []byte) (int, error) {
+	if cause := context.Cause(c.ctx); cause != nil {
+		return 0, cause
+	}
+	read, err := c.reader.Read(buffer)
+	if cause := context.Cause(c.ctx); cause != nil {
+		return read, cause
+	}
+	return read, err
 }
 
 func (e editOperation) apply(content, path string) (string, int, error) {
@@ -184,18 +319,4 @@ func looksBinary(data []byte) bool {
 		sniff = sniff[:binarySniffLen]
 	}
 	return bytes.IndexByte(sniff, 0) >= 0
-}
-
-func truncateTextBytes(text string, maxBytes int) (string, bool) {
-	if maxBytes <= 0 || len(text) <= maxBytes {
-		return text, false
-	}
-	end := 0
-	for i := range text {
-		if i > maxBytes {
-			break
-		}
-		end = i
-	}
-	return text[:end], true
 }

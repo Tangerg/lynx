@@ -21,11 +21,11 @@ type WriteResponse struct {
 var _ toolcontract.Tool = (*WriteTool)(nil)
 
 type WriteTool struct {
-	executor Executor
+	executor Writer
 	typed    toolcontract.Func[WriteRequest, WriteResponse]
 }
 
-func NewWriteTool(executor Executor) *WriteTool {
+func NewWriteTool(executor Writer) *WriteTool {
 	if executor == nil {
 		executor = NewLocalExecutor("")
 	}

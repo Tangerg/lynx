@@ -156,7 +156,7 @@ func patchPaths(patch string) ([]string, error) {
 	return parsed.paths(), nil
 }
 
-func (l *LocalExecutor) ApplyPatch(_ context.Context, in ApplyPatchRequest) (ApplyPatchResponse, error) {
+func (l *LocalExecutor) ApplyPatch(ctx context.Context, in ApplyPatchRequest) (_ ApplyPatchResponse, err error) {
 	parsed, err := parseUnifiedPatch(in.Patch)
 	if err != nil {
 		return ApplyPatchResponse{}, err
@@ -164,6 +164,13 @@ func (l *LocalExecutor) ApplyPatch(_ context.Context, in ApplyPatchRequest) (App
 	if path := parsed.duplicatePath(); path != "" {
 		return ApplyPatchResponse{}, fmt.Errorf("fs.ApplyPatch: duplicate file patch for %s", path)
 	}
+	root, err := l.openRoot()
+	if err != nil {
+		return ApplyPatchResponse{}, err
+	}
+	defer func() {
+		err = errors.Join(err, root.Close())
+	}()
 
 	resolved := make([]patchTarget, len(parsed.files))
 	var locks []string
@@ -189,7 +196,7 @@ func (l *LocalExecutor) ApplyPatch(_ context.Context, in ApplyPatchRequest) (App
 
 	prepared := make([]preparedPatch, len(parsed.files))
 	for i, file := range parsed.files {
-		next, err := l.preparePatch(file, resolved[i])
+		next, err := l.preparePatch(ctx, root, file, resolved[i])
 		if err != nil {
 			return ApplyPatchResponse{}, err
 		}
@@ -198,7 +205,7 @@ func (l *LocalExecutor) ApplyPatch(_ context.Context, in ApplyPatchRequest) (App
 
 	var out ApplyPatchResponse
 	for _, file := range prepared {
-		if err := file.commit(); err != nil {
+		if err := file.commit(root); err != nil {
 			return ApplyPatchResponse{}, err
 		}
 		out.Files = append(out.Files, file.result)
@@ -235,14 +242,14 @@ func (p patchTarget) locks() []string {
 func (l *LocalExecutor) resolveTarget(file filePatch) (patchTarget, error) {
 	var target patchTarget
 	if file.oldPath != "" {
-		from, err := l.resolve(file.oldPath)
+		from, err := l.authorize(file.oldPath, false)
 		if err != nil {
 			return patchTarget{}, err
 		}
 		target.from = from
 	}
 	if file.newPath != "" {
-		to, err := l.resolve(file.newPath)
+		to, err := l.authorize(file.newPath, false)
 		if err != nil {
 			return patchTarget{}, err
 		}
@@ -266,23 +273,28 @@ type preparedPatch struct {
 
 // commit writes before it removes, so a failure between the two leaves the
 // content somewhere rather than nowhere.
-func (p preparedPatch) commit() error {
+func (p preparedPatch) commit(root *os.Root) error {
 	if p.path != "" {
-		if err := atomicWriteFile(p.path, p.data, p.mode); err != nil {
+		if err := atomicWriteRootFile(root, p.path, p.data, p.mode); err != nil {
 			return err
 		}
 	}
 	if p.source != "" && p.source != p.path {
-		return os.Remove(p.source)
+		return root.Remove(p.source)
 	}
 	return nil
 }
 
-func (l *LocalExecutor) preparePatch(file filePatch, target patchTarget) (preparedPatch, error) {
+func (l *LocalExecutor) preparePatch(
+	ctx context.Context,
+	root *os.Root,
+	file filePatch,
+	target patchTarget,
+) (preparedPatch, error) {
 	// A patch may not land on a file it did not open. Create says so by having no
 	// origin; a move has one, but its destination is a new file all the same.
 	if file.created() || file.moved() {
-		if _, err := os.Stat(target.to); err == nil {
+		if _, err := root.Stat(target.to); err == nil {
 			return preparedPatch{}, fmt.Errorf("fs.ApplyPatch: %s: file already exists", file.newPath)
 		} else if !errors.Is(err, os.ErrNotExist) {
 			return preparedPatch{}, fmt.Errorf("fs.ApplyPatch: %s: %w", file.newPath, err)
@@ -293,12 +305,12 @@ func (l *LocalExecutor) preparePatch(file filePatch, target patchTarget) (prepar
 	var source []byte
 	hadBOM, hadCRLF := false, false
 	if !file.created() {
-		info, err := os.Stat(target.from)
+		info, err := root.Stat(target.from)
 		if err != nil {
 			return preparedPatch{}, err
 		}
 		mode = info.Mode().Perm()
-		data, err := os.ReadFile(target.from)
+		data, err := readBoundedRootFile(ctx, root, target.from, defaultMutationInputBytes)
 		if err != nil {
 			return preparedPatch{}, err
 		}

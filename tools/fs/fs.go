@@ -5,43 +5,44 @@ import (
 	"context"
 )
 
-// Executor is the SPI every backend implements. Tool request/response types
-// are reused when their backend semantics are identical; backend-specific
-// input/output types remain explicit where line offsets, byte limits, append
-// policy, or search roots differ.
-type Executor interface {
-	// Read applies line and byte bounds before returning detached content. It must
-	// reject paths outside the executor's authority and honor ctx throughout I/O.
+// Each tool depends on the smallest backend capability it consumes. A backend
+// may implement any combination of these ports; LocalExecutor implements all
+// of them without forcing remote or policy-specific backends to grow unrelated
+// methods.
+type Reader interface {
 	Read(ctx context.Context, in ReadInput) (ReadOutput, error)
-	// Write performs exactly the overwrite-or-append policy in input. It must not
-	// broaden path authority, must reject invalid binary content, and must report
-	// external partial-write failure rather than claim success.
+}
+
+type Writer interface {
 	Write(ctx context.Context, in WriteInput) (WriteResponse, error)
-	// Edit applies the requested exact-string replacement policy atomically at
-	// the file abstraction boundary. A mismatch is an explicit error; the method
-	// never guesses a nearby edit.
+}
+
+type Editor interface {
 	Edit(ctx context.Context, request EditRequest) (EditResponse, error)
-	// ApplyPatch validates and applies the complete patch within the executor's
-	// path authority. It reports per-file results in patch order and must not
-	// silently accept malformed or partially interpreted input.
+}
+
+type PatchApplier interface {
 	ApplyPatch(ctx context.Context, request ApplyPatchRequest) (ApplyPatchResponse, error)
-	// Glob evaluates the requested pattern beneath its authorized root and
-	// returns a bounded, stable path list. It honors ctx and never traverses
-	// outside the configured workspace.
+}
+
+type Globber interface {
 	Glob(ctx context.Context, in GlobInput) (GlobResponse, error)
-	// Grep executes the requested expression and output mode beneath the
-	// authorized root. Results preserve backend source order and respect every
-	// configured bound; malformed patterns are returned as errors.
+}
+
+type Grepper interface {
 	Grep(ctx context.Context, in GrepInput) (GrepResponse, error)
 }
 
 // ReadInput is line-based. The executor handles binary detection and
 // line windowing — the tool only forwards what the LLM asked for.
 type ReadInput struct {
-	Path     string
-	Offset   int // 0-based line offset; negative is clamped to 0
-	Limit    int // 0 = read to end of file
-	MaxBytes int // 0 = no byte cap after line windowing
+	Path           string
+	Offset         int   // 0-based line offset; negative is clamped to 0
+	Limit          int   // 0 = read to end of file
+	MaxInputBytes  int64 // 0 = executor default
+	MaxLineBytes   int   // 0 = executor default
+	MaxOutputBytes int   // 0 = executor default
+	PartialLine    bool  // admit a UTF-8 prefix when the output cap splits a line
 }
 
 type ReadOutput struct {
@@ -66,11 +67,11 @@ type editOperation struct {
 	ReplaceAll bool
 }
 
-// GlobInput uses doublestar syntax. Root is resolved by the executor so the
-// model-facing adapter cannot expand filesystem authority.
+// GlobInput uses doublestar syntax. Path narrows the executor's immutable
+// authority to a relative subtree; it can never replace or broaden that root.
 type GlobInput struct {
 	Pattern    string
-	Root       string // "" = executor's workspace root
+	Path       string // "" = executor's authority root
 	IgnoreCase bool
 	MaxResults int // 0 = executor default
 }
@@ -102,7 +103,7 @@ func (g GrepOutputMode) Valid() bool {
 
 type GrepInput struct {
 	Pattern    string // regex
-	Root       string
+	Path       string // file or directory below the executor's authority root
 	Glob       string // optional file filter ("*.go", "**/*.ts", ...)
 	FileType   string // rg-style ("go", "ts", "rust", ...). Backend decides mapping.
 	IgnoreCase bool
