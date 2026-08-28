@@ -32,7 +32,7 @@ func (o originSet) contains(origin httpOrigin) bool {
 func (o originSet) validate(target *url.URL) error {
 	origin, err := originFromURL(target)
 	if err != nil {
-		return fmt.Errorf("%w: %v", ErrOriginNotAllowed, err)
+		return fmt.Errorf("%w: %w", ErrOriginNotAllowed, err)
 	}
 	if !o.contains(origin) {
 		return fmt.Errorf("%w: %s", ErrOriginNotAllowed, origin)
@@ -71,7 +71,7 @@ type endpointOriginPolicy struct {
 func newEndpointOriginPolicy(cardURL string, allowedRPCOrigins []string) (endpointOriginPolicy, error) {
 	cardOrigin, err := originFromURLString(cardURL)
 	if err != nil {
-		return endpointOriginPolicy{}, fmt.Errorf("%w %q: %v", ErrInvalidCardURL, cardURL, err)
+		return endpointOriginPolicy{}, fmt.Errorf("%w %q: %w", ErrInvalidCardURL, cardURL, err)
 	}
 	policy := endpointOriginPolicy{
 		cardOrigins: originSet{cardOrigin: {}},
@@ -80,7 +80,7 @@ func newEndpointOriginPolicy(cardURL string, allowedRPCOrigins []string) (endpoi
 	for _, rawOrigin := range allowedRPCOrigins {
 		origin, err := parseConfiguredOrigin(rawOrigin)
 		if err != nil {
-			return endpointOriginPolicy{}, fmt.Errorf("%w %q: %v", ErrInvalidRPCOrigin, rawOrigin, err)
+			return endpointOriginPolicy{}, fmt.Errorf("%w %q: %w", ErrInvalidRPCOrigin, rawOrigin, err)
 		}
 		policy.rpcOrigins[origin] = struct{}{}
 	}
@@ -99,7 +99,7 @@ func (e endpointOriginPolicy) validateCard(card *sdka2a.AgentCard) error {
 		}
 		origin, err := originFromURLString(iface.URL)
 		if err != nil {
-			return fmt.Errorf("%w: supported interface %d URL %q: %v", ErrInvalidCard, i, iface.URL, err)
+			return fmt.Errorf("%w: supported interface %d URL %q: %w", ErrInvalidCard, i, iface.URL, err)
 		}
 		if !e.rpcOrigins.contains(origin) {
 			return fmt.Errorf("%w: supported interface %d uses %s", ErrOriginNotAllowed, i, origin)

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -48,6 +49,56 @@ func TestDialRejectsInvalidCardConfiguration(t *testing.T) {
 			_, _, err := dial(t.Context(), test.endpoint)
 			if !errors.Is(err, test.want) {
 				t.Fatalf("dial error = %v, want %v", err, test.want)
+			}
+		})
+	}
+}
+
+func TestOriginPolicyPreservesConfigurationErrorCauses(t *testing.T) {
+	tests := []struct {
+		name string
+		run  func() error
+		want error
+	}{
+		{
+			name: "card URL",
+			run: func() error {
+				_, err := newEndpointOriginPolicy("https://%zz", nil)
+				return err
+			},
+			want: ErrInvalidCardURL,
+		},
+		{
+			name: "RPC origin",
+			run: func() error {
+				_, err := newEndpointOriginPolicy("https://agent.example", []string{"https://%zz"})
+				return err
+			},
+			want: ErrInvalidRPCOrigin,
+		},
+		{
+			name: "supported interface",
+			run: func() error {
+				policy, err := newEndpointOriginPolicy("https://agent.example", nil)
+				if err != nil {
+					return err
+				}
+				return policy.validateCard(&sdka2a.AgentCard{SupportedInterfaces: []*sdka2a.AgentInterface{
+					sdka2a.NewAgentInterface("https://%zz", sdka2a.TransportProtocolJSONRPC),
+				}})
+			},
+			want: ErrInvalidCard,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := test.run()
+			if !errors.Is(err, test.want) {
+				t.Fatalf("error = %v, want %v", err, test.want)
+			}
+			var escape url.EscapeError
+			if !errors.As(err, &escape) {
+				t.Fatalf("error cause = %T, want url.EscapeError", err)
 			}
 		})
 	}
