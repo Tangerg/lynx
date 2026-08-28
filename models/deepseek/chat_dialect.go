@@ -14,6 +14,9 @@ const (
 	maximumTools         = 128
 	maximumTopLogProbs   = 20
 	maximumUserIDLength  = 512
+	reasoningEffortLow   = corechat.ReasoningEffort("low")
+	reasoningEffortHigh  = corechat.ReasoningEffort("high")
+	reasoningEffortMax   = corechat.ReasoningEffort("max")
 )
 
 const RequestExtensionKey = "deepseek/request"
@@ -43,17 +46,6 @@ func (t ThinkingConfig) Validate() error {
 	}
 }
 
-// ReasoningEffort controls the amount of reasoning performed in thinking
-// mode. DeepSeek V4 Flash supports all three levels. V4 Pro currently accepts
-// low but maps it to high.
-type ReasoningEffort string
-
-const (
-	ReasoningEffortLow  ReasoningEffort = "low"
-	ReasoningEffortHigh ReasoningEffort = "high"
-	ReasoningEffortMax  ReasoningEffort = "max"
-)
-
 // ToolChoiceMode controls whether DeepSeek may select a tool. To force one
 // function, set [ToolChoice.FunctionName] instead of Mode.
 type ToolChoiceMode string
@@ -75,13 +67,12 @@ type ToolChoice struct {
 // have no provider-neutral Core equivalent. Store it in
 // [chat.Options.Extensions] under [RequestExtensionKey].
 type RequestOptions struct {
-	Thinking        *ThinkingConfig `json:"thinking,omitempty"`
-	ReasoningEffort ReasoningEffort `json:"reasoning_effort,omitempty"`
-	ToolChoice      *ToolChoice     `json:"tool_choice,omitempty"`
-	LogProbs        *bool           `json:"logprobs,omitempty"`
-	TopLogProbs     *int64          `json:"top_logprobs,omitempty"`
-	IncludeUsage    *bool           `json:"include_usage,omitempty"`
-	UserID          string          `json:"user_id,omitempty"`
+	Thinking     *ThinkingConfig `json:"thinking,omitempty"`
+	ToolChoice   *ToolChoice     `json:"tool_choice,omitempty"`
+	LogProbs     *bool           `json:"logprobs,omitempty"`
+	TopLogProbs  *int64          `json:"top_logprobs,omitempty"`
+	IncludeUsage *bool           `json:"include_usage,omitempty"`
+	UserID       string          `json:"user_id,omitempty"`
 }
 
 type requestDialect struct {
@@ -95,6 +86,9 @@ func (r requestDialect) prepareRequest(request *corechat.Request, target *openai
 	}
 	if _, exists := fields["response_format"]; exists {
 		return fmt.Errorf("extension %q field %q is owned by options.output_format", RequestExtensionKey, "response_format")
+	}
+	if _, exists := fields["reasoning_effort"]; exists {
+		return fmt.Errorf("extension %q field %q is owned by options.reasoning_effort", RequestExtensionKey, "reasoning_effort")
 	}
 	options, _, err := request.Options.Extensions.Decode[RequestOptions](RequestExtensionKey)
 	if err != nil {
@@ -110,11 +104,6 @@ func (r requestDialect) prepareRequest(request *corechat.Request, target *openai
 
 	if options.Thinking != nil {
 		if err := target.SetExtraField("thinking", options.Thinking); err != nil {
-			return err
-		}
-	}
-	if options.ReasoningEffort != "" {
-		if err := target.SetExtraField("reasoning_effort", options.ReasoningEffort); err != nil {
 			return err
 		}
 	}
@@ -164,13 +153,13 @@ func (r RequestOptions) ValidateFor(generation corechat.Options, tools []corecha
 			return err
 		}
 	}
-	switch r.ReasoningEffort {
-	case "", ReasoningEffortLow, ReasoningEffortHigh, ReasoningEffortMax:
+	switch generation.ReasoningEffort {
+	case "", reasoningEffortLow, reasoningEffortHigh, reasoningEffortMax:
 	default:
-		return fmt.Errorf("reasoning_effort has unsupported value %q", r.ReasoningEffort)
+		return fmt.Errorf("options.reasoning_effort has unsupported value %q", generation.ReasoningEffort)
 	}
-	if !thinkingEnabled && r.ReasoningEffort != "" {
-		return errors.New("reasoning_effort requires thinking.type=enabled")
+	if !thinkingEnabled && generation.ReasoningEffort != "" {
+		return errors.New("options.reasoning_effort requires thinking.type=enabled")
 	}
 	if generation.FrequencyPenalty != nil {
 		return errors.New("options.frequency_penalty is deprecated and unsupported by DeepSeek")

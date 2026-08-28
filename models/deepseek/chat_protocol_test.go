@@ -126,13 +126,13 @@ func TestOpenAIChatMapsOfficialRequestOptions(t *testing.T) {
 		t.Fatal(err)
 	}
 	request.Options.OutputFormat = &format
+	request.Options.ReasoningEffort = "max"
 	if err := request.Options.SetExtension(deepseek.RequestExtensionKey, deepseek.RequestOptions{
-		Thinking:        &deepseek.ThinkingConfig{Type: deepseek.ThinkingEnabled},
-		ReasoningEffort: deepseek.ReasoningEffortMax,
-		ToolChoice:      &deepseek.ToolChoice{FunctionName: "lookup"},
-		LogProbs:        &logProbs,
-		TopLogProbs:     &topLogProbs,
-		UserID:          "tenant_42-user",
+		Thinking:    &deepseek.ThinkingConfig{Type: deepseek.ThinkingEnabled},
+		ToolChoice:  &deepseek.ToolChoice{FunctionName: "lookup"},
+		LogProbs:    &logProbs,
+		TopLogProbs: &topLogProbs,
+		UserID:      "tenant_42-user",
 	}); err != nil {
 		t.Fatalf("SetExtension: %v", err)
 	}
@@ -258,7 +258,8 @@ func TestOpenAIChatRejectsInvalidDeepSeekOptions(t *testing.T) {
 		want    string
 	}{
 		{name: "unknown thinking mode", options: deepseek.RequestOptions{Thinking: &deepseek.ThinkingConfig{Type: "sometimes"}}, want: "thinking.type has unsupported value"},
-		{name: "effort without thinking", options: deepseek.RequestOptions{Thinking: &deepseek.ThinkingConfig{Type: deepseek.ThinkingDisabled}, ReasoningEffort: deepseek.ReasoningEffortHigh}, want: "reasoning_effort requires thinking.type=enabled"},
+		{name: "effort without thinking", options: deepseek.RequestOptions{Thinking: &deepseek.ThinkingConfig{Type: deepseek.ThinkingDisabled}}, core: corechat.Options{ReasoningEffort: "high"}, want: "reasoning_effort requires thinking.type=enabled"},
+		{name: "unknown effort", core: corechat.Options{ReasoningEffort: "turbo"}, want: "reasoning_effort has unsupported value"},
 		{name: "ignored temperature", core: corechat.Options{Temperature: new(0.5)}, want: "temperature has no effect"},
 		{name: "top logprobs without logprobs", options: deepseek.RequestOptions{TopLogProbs: &topLogProbs}, want: "top_logprobs requires logprobs=true"},
 		{name: "usage on non-streaming call", options: deepseek.RequestOptions{IncludeUsage: &trueValue}, want: "include_usage is valid only for streaming"},
@@ -279,6 +280,16 @@ func TestOpenAIChatRejectsInvalidDeepSeekOptions(t *testing.T) {
 				t.Fatalf("Call error = %v; want substring %q", err, test.want)
 			}
 		})
+	}
+
+	request := &corechat.Request{
+		Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart("hello"))},
+	}
+	if err := request.Options.SetExtension(deepseek.RequestExtensionKey, map[string]any{"reasoning_effort": "high"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), "owned by options.reasoning_effort") {
+		t.Fatalf("duplicate reasoning effort owner error = %v", err)
 	}
 }
 
