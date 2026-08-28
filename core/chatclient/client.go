@@ -58,7 +58,7 @@ func New(model chat.Model, config Config) (*Client, error) {
 	if lo.IsNil(model) {
 		return nil, errors.New("chatclient: call middleware returned a nil model")
 	}
-	inputTokenCounter, _ := model.(inputTokenCounter)
+	tokenCounter, _ := model.(inputTokenCounter)
 	if streamer != nil {
 		streamer = chat.WrapStream(streamer, config.StreamMiddleware...)
 		if lo.IsNil(streamer) {
@@ -69,7 +69,7 @@ func New(model chat.Model, config Config) (*Client, error) {
 	return &Client{
 		model:             model,
 		streamer:          streamer,
-		inputTokenCounter: inputTokenCounter,
+		inputTokenCounter: tokenCounter,
 		defaults:          config.Defaults,
 	}, nil
 }

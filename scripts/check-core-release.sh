@@ -19,22 +19,26 @@ fuzz_time=${FUZZ_TIME:-5m}
 "$root/scripts/check-core-coverage.sh"
 
 (
-  cd "$root/models"
-  go test -race -count=1 \
-    ./internal/arch \
-    ./internal/chatconformance \
-    ./internal/conformance \
-    ./anthropic \
-    ./bedrock \
-    ./google \
-    ./ollama \
-    ./openai
+  cd "$root/dev/providerconformance"
+  go test -race -count=1 ./...
 )
 
 (
+  cd "$root/models"
+  go test -race -count=1 ./anthropic ./bedrock ./google ./ollama ./openai
+)
+
+vectorstore_packages=()
+while IFS= read -r module_file; do
+  vectorstore_packages+=("./$(basename "$(dirname "$module_file")")/...")
+done < <(find "$root/vectorstores" -mindepth 2 -maxdepth 2 -name go.mod -print | sort)
+if [[ ${#vectorstore_packages[@]} -eq 0 ]]; then
+  echo "no vectorstore modules found" >&2
+  exit 1
+fi
+(
   cd "$root/vectorstores"
-  go test -race -count=1 ./... \
-    -run '^(TestReleaseBackendCoverage|TestRun|TestStoreConformance)$'
+  go test -race -count=1 "${vectorstore_packages[@]}" -run '^TestStoreConformance$'
 )
 
 if [[ "$fuzz_time" != "0" ]]; then
