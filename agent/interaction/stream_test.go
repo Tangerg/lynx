@@ -36,6 +36,15 @@ func TestStreamingOutputDoesNotDependOnDeltaListeners(t *testing.T) {
 	if closeErr := engine.Close(); closeErr != nil {
 		t.Fatal(closeErr)
 	}
+	observationFailures := engine.ObservationFailures()
+	if observationFailures.EventListenerPanics() == 0 ||
+		observationFailures.DeltaListenerPanics() == 0 {
+		t.Fatalf(
+			"observation failures = event %d, delta %d, want both non-zero",
+			observationFailures.EventListenerPanics(),
+			observationFailures.DeltaListenerPanics(),
+		)
+	}
 	if result.Status() != agent.StatusCompleted {
 		t.Fatalf("status = %s, termination = %#v", result.Status(), result.Termination())
 	}

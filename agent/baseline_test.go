@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	currentAPIBaseline         = 34
+	currentAPIBaseline         = 35
 	currentAPIBaselineFrozenOn = "2026-08-29"
 )
 
@@ -27,9 +27,9 @@ var exportedAPIBaselines = []struct {
 	directory string
 	want      string
 }{
-	{name: "kernel", label: "root kernel", directory: ".", want: "d4618424bc0d48c99ef4dd2139d928468bebd58680f4f839ccb5b8fdfdc22dbb"},
+	{name: "kernel", label: "root kernel", directory: ".", want: "4b7e02f98828bc4f2762eb32c92a0975567b0441c736726fb0b54901be0756d8"},
 	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "66c49a9dec9e33d416fbc66c925a5893d54b96335d4e09294ad87b40badc6ad9"},
-	{name: "interaction", label: "interaction", directory: "interaction", want: "71ec1c2ab2ade97d872d1e8314763b27ef96d7fc4a3d307103b12293eea0cffd"},
+	{name: "interaction", label: "interaction", directory: "interaction", want: "8d5b982f92cdbd457970f8e9678c058198a937ff9ca42740af26e5e4db383b75"},
 	{name: "planning", label: "planning", directory: "planning", want: "4ca18318b81c7fc646ee7121c9f2e303df2cc2d28fcd8357e2c3b07cebd1a014"},
 	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "0f7376bbf8b1815315005984540bdc5d5aabb7bccea5147f957c2911a55e04e7"},
 	{name: "workflow", label: "workflow", directory: "workflow", want: "f0f995aa9a543e0985d650ca9815d6baac1aa6367f6d75483b958489113fda16"},

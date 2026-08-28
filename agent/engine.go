@@ -108,6 +108,15 @@ type Engine struct {
 	closed                 bool
 }
 
+// ObservationFailures returns a concurrency-safe snapshot of listener panics
+// isolated by this Engine. The counts do not alter Process state or Usage.
+func (e *Engine) ObservationFailures() ObservationFailureCounts {
+	if e == nil || e.observation == nil {
+		return ObservationFailureCounts{}
+	}
+	return e.observation.failureCounts()
+}
+
 // FlushDeltas waits until every best-effort Delta accepted before this call has
 // finished delivery to the configured listeners. Deltas rejected by the bounded
 // queue remain dropped; the method is an ordering barrier, not a reliability

@@ -709,3 +709,9 @@
 - `Termination` 是 Status/Cause/Failure 的唯一终态 owner；观察协议原先只投影 Status/Cause，导致不同稳定 Failure code 在 Event 边界永久丢失，OTel 或其他 listener 无法事后还原。
 - 失败 `agent.process.finished` 现在同时投影 Failure kind/code；非失败终态省略字段。bounded diagnostic message不进入协议新增字段，避免高基数与秘密泄露。
 - 变更只升级 observation wire digest；公共 API、Process/Tree snapshot、Framework effect、child protocol 与全部 Strategy state/protocol保持原版本。
+
+## 30. P33 observation failure health 证据
+
+- 观察 callback 无 error 返回是正确控制合同：observer 不能否决已经发生的事实，也不能改变模型/Tool settlement；但直接丢弃 recovered panic 会永久失去“观察链已降级”这一运维事实。
+- Engine 与 Interaction Dispatcher 是两条真实投递生命周期的 owner，因此分别持有 Event/Delta 与模型/Tool observer 的 typed atomic 计数；外层可以轮询不可变快照接入 health/metrics，无需领域模块依赖 OTel。
+- 计数使用饱和递增，长时间运行不会回绕成健康零值。回归覆盖隔离、准确分类、继续投递、公开 Engine/Dispatcher 快照与饱和边界；Process Usage、settlement 和全部 wire不变。

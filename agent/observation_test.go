@@ -111,6 +111,42 @@ func TestDeltaDeliveryPreservesValuesWithoutRequestCancellation(t *testing.T) {
 	}
 }
 
+func TestObservationFailuresAreCountedWithoutAffectingDelivery(t *testing.T) {
+	bus := newObservationBus(
+		[]EventListener{
+			EventListenerFunc(func(context.Context, Event) { panic("event observer failed") }),
+			EventListenerFunc(func(context.Context, Event) {}),
+		},
+		[]DeltaListener{
+			DeltaListenerFunc(func(context.Context, Delta) { panic("delta observer failed") }),
+			DeltaListenerFunc(func(context.Context, Delta) {}),
+		},
+		1,
+	)
+	t.Cleanup(bus.close)
+
+	bus.publishEvent(t.Context(), Event{})
+	if !bus.offerDelta(t.Context(), Delta{}) {
+		t.Fatal("delta was not accepted")
+	}
+	if err := bus.flushDeltas(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+
+	counts := bus.failureCounts()
+	if counts.EventListenerPanics() != 1 || counts.DeltaListenerPanics() != 1 {
+		t.Fatalf(
+			"observation failures = event %d, delta %d, want 1 each",
+			counts.EventListenerPanics(), counts.DeltaListenerPanics(),
+		)
+	}
+	bus.eventListenerPanics.Store(math.MaxUint64)
+	bus.publishEvent(t.Context(), Event{})
+	if got := bus.failureCounts().EventListenerPanics(); got != math.MaxUint64 {
+		t.Fatalf("saturated event listener panic count = %d", got)
+	}
+}
+
 func TestProcessEventSequenceAdvancesOnlyForConstructedEvents(t *testing.T) {
 	deployment := newChildTestDeployment(t)
 	processID, _ := ParseProcessID("process:event-sequence")

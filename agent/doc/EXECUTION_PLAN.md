@@ -3,8 +3,8 @@
 > 状态：持续实施
 > 建立日期：2026-08-06
 > 最后更新：2026-08-29
-> 当前阶段：P1–P32 完成
-> 当前实施范围：Framework 重写、消费迁移、canonical Scope module、JSON wire schema 对账、外层产品化、Host 前置边界失败、Core 单输出/Output 词汇、Go 1.27 typed-edge ownership、文本值对象、共享 JSON Schema owner、OTel 集成归位、语义注释门禁、模型调用前上下文缩减状态同步、模型 ToolResult 单一所有权、异步上下文/树 authority 与终态失败观察归因均已完成；Runtime 的持久化与产品策略仍由 `app/runtime` 专项文档拥有
+> 当前阶段：P1–P33 完成
+> 当前实施范围：Framework 重写、消费迁移、canonical Scope module、JSON wire schema 对账、外层产品化、Host 前置边界失败、Core 单输出/Output 词汇、Go 1.27 typed-edge ownership、文本值对象、共享 JSON Schema owner、OTel 集成归位、语义注释门禁、模型调用前上下文缩减状态同步、模型 ToolResult 单一所有权、异步上下文/树 authority、终态失败观察归因与 observation failure health 均已完成；Runtime 的持久化与产品策略仍由 `app/runtime` 专项文档拥有
 > 模块路径：`github.com/Tangerg/scope/agent`
 
 本文只记录实施范围、阶段任务、当前进度、风险、验证结果和执行日志。目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)，长期决策见 [`DECISIONS.md`](DECISIONS.md)，能力裁决与消费者证据见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)，强制工程标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
@@ -100,6 +100,7 @@ go test ./...
 | P30 模型 ToolResult 单一所有权 | 完成 | 1/1 | 让 exact ToolInvocation 单点拥有模型可见结果映射 |
 | P31 异步上下文与树 authority 收敛 | 完成 | 1/1 | 保留 context values、移除请求取消，并让 quiesced tree 只有一个释放 owner |
 | P32 终态失败观察归因 | 完成 | 1/1 | 把 Termination 已拥有的稳定 Failure kind/code 投影到 Process finished event |
+| P33 observation failure health | 完成 | 1/1 | 由真实投递 owner 分类计数被隔离的 observer panic |
 
 ---
 
@@ -335,6 +336,10 @@ go test ./...
 
 - [x] P32-01 将 resolved Termination 已拥有的 Failure kind/code直接投影到失败 Process 的 finished event；非失败事件省略字段，不泄露 diagnostic message，并显式升级 observation baseline。
 
+### P33：observation failure health
+
+- [x] P33-01 由 Engine 与 Interaction Dispatcher 分别持有 Event/Delta 与模型/Tool observer panic 的单调饱和计数，以不可变 typed snapshot 暴露，不递归发 Event、不污染 Usage/settlement、不引入 OTel 依赖。
+
 ---
 
 ## 6. 最终完成定义
@@ -380,6 +385,7 @@ go test ./...
 
 | 日期 | 阶段 | 实际事实 | 验证与结果 |
 |---|---|---|---|
+| 2026-08-29 | P33（Baseline 35） | Event/Delta 与 Interaction 模型/Tool observer 的 panic 继续隔离，但不再静默消失；真实投递 owner 以分类 atomic 饱和计数暴露不可变快照 | 回归覆盖准确分类、继续投递、公开 Engine/Dispatcher 读取和 `math.MaxUint64` 饱和；root/Interaction public digest显式更新，全部 wire/version保持不变 |
 | 2026-08-29 | P32（Baseline 34） | `agent.process.finished` 对失败终态新增 `failure_kind`/`failure_code`，直接投影 resolved Termination 的稳定分类；成功、取消、超时与 kill 不携带伪失败字段 | execution Step failure 回归锁定 exact kind/code；observation digest显式升级，其余 public、snapshot 与 Strategy wire不变 |
 | 2026-08-29 | P31（Baseline 33） | 子 Process、恢复后代和 Delta 异步投递统一保留启动 context values，同时明确脱离请求 deadline/cancellation；等待子树取消把 tree operation 与 quiescence barrier 收敛为单一幂等 capability，Event 构造使用具名 spec | 新增 child/Delta context 回归和 quiesced authority 架构守卫；Agent 全量 test/vet/build 通过。公共 API、GoDoc、全部 wire/version 与 Baseline 33 digest不变 |
 | 2026-08-28 | P30（Baseline 33） | 真实 Runtime HTTP approval 恢复证明客户端 presenter result 与模型 ToolResult 不能共用字段。`ToolInvocation.ModelResult` 现由 exact ToolCall 单点拥有成功/错误/control-plane 映射，Dispatcher 与 Runtime projection 共用；未引入 Host persistence 或产品协议 | 外部 invocation policy、Runtime reducer 双投影和 43 条真实 HTTP E2E 覆盖；Interaction public digest 显式更新，全部 Agent wire 不变。完整 standalone 门禁在发布前统一验收 |
@@ -492,4 +498,4 @@ go test ./...
 
 ## 9. 当前下一步
 
-P32 已完成：失败 Process 的 finished event 直接携带 Termination 已拥有的稳定 Failure kind/code，adapter 不再从粗 cause 或 message猜测；observation wire形成 Baseline 34。Agent 仍只拥有中性执行语义；durable history、transaction、模型窗口、summary policy 与产品 compaction event继续由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。
+P33 已完成：Engine 与 Interaction Dispatcher 分别以不可变 typed snapshot 暴露被隔离 observer panic 的单调饱和计数，外层 health/metrics 不再把观察链失效误判为健康；没有第二事件流、业务 Usage 污染或领域 OTel 依赖，形成 Baseline 35。Agent 仍只拥有中性执行语义；durable history、transaction、模型窗口、summary policy 与产品 compaction event继续由 Runtime owner 处理。后续 façade、A2A continuation、checkpoint lineage、citation 或新编排语义必须由新的真实消费者反例和完整 standalone/consumer 门禁驱动。

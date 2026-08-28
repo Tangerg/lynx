@@ -2,6 +2,8 @@ package interaction
 
 import (
 	"context"
+	"math"
+	"sync/atomic"
 
 	"github.com/Tangerg/scope/core/chat"
 )
@@ -42,11 +44,58 @@ type ToolSettlement struct {
 	Unknown bool
 }
 
+// ObservationFailureCounts is an immutable snapshot of ExecutionObserver
+// panics isolated by one Dispatcher. Counts are monotonic and saturate at
+// math.MaxUint64.
+type ObservationFailureCounts struct {
+	modelResponsePanics uint64
+	toolStartedPanics   uint64
+	toolSettledPanics   uint64
+}
+
+func (c ObservationFailureCounts) ModelResponsePanics() uint64 {
+	return c.modelResponsePanics
+}
+
+func (c ObservationFailureCounts) ToolStartedPanics() uint64 {
+	return c.toolStartedPanics
+}
+
+func (c ObservationFailureCounts) ToolSettledPanics() uint64 {
+	return c.toolSettledPanics
+}
+
+type observationFailureCounters struct {
+	modelResponsePanics atomic.Uint64
+	toolStartedPanics   atomic.Uint64
+	toolSettledPanics   atomic.Uint64
+}
+
+func (c *observationFailureCounters) snapshot() ObservationFailureCounts {
+	return ObservationFailureCounts{
+		modelResponsePanics: c.modelResponsePanics.Load(),
+		toolStartedPanics:   c.toolStartedPanics.Load(),
+		toolSettledPanics:   c.toolSettledPanics.Load(),
+	}
+}
+
+func recordObserverPanic(counter *atomic.Uint64) {
+	if recover() == nil {
+		return
+	}
+	for {
+		current := counter.Load()
+		if current == math.MaxUint64 || counter.CompareAndSwap(current, current+1) {
+			return
+		}
+	}
+}
+
 func (d *Dispatcher) observeModel(ctx context.Context, invocation ModelInvocation, response *chat.Response) {
 	if d.observer == nil {
 		return
 	}
-	defer func() { _ = recover() }()
+	defer recordObserverPanic(&d.observationFailures.modelResponsePanics)
 	d.observer.OnModelResponse(ctx, invocation, response.Clone())
 }
 
@@ -54,7 +103,7 @@ func (d *Dispatcher) observeToolStarted(ctx context.Context, invocation ToolInvo
 	if d.observer == nil {
 		return
 	}
-	defer func() { _ = recover() }()
+	defer recordObserverPanic(&d.observationFailures.toolStartedPanics)
 	d.observer.OnToolStarted(ctx, invocation)
 }
 
@@ -65,6 +114,6 @@ func (d *Dispatcher) observeToolSettled(ctx context.Context, invocation ToolInvo
 	if settlement.Result != nil {
 		settlement.Result = new(*settlement.Result)
 	}
-	defer func() { _ = recover() }()
+	defer recordObserverPanic(&d.observationFailures.toolSettledPanics)
 	d.observer.OnToolSettled(ctx, invocation, settlement)
 }

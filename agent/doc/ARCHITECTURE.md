@@ -629,7 +629,7 @@ Event 描述已经发生的框架事实，不承担 Signal、命令、Transition
 
 Event 名称由根 package 常量统一，不能在发布点散落字符串。Step finished 与 Effect finished payload 都携带同一 owner 测得的非负 `duration_ms`；Effect lifecycle 同时携带准确 target 与 settlement status。模型、Tool、Planning Action 等 Strategy-specific lifecycle 不能由不理解 opaque Effect 的 Kernel 猜测；需要时由相应 dispatcher/adapter 使用官方 OTel API 或它自己的中性观察合同，不污染 Framework Event 名称。
 
-EventListener 与 DeltaListener 都是无错误返回的观察接口：返回值既不会改变事实，也不应制造“可否决执行”的误解。实现必须有界、并发安全且不得重入被观察 Process；panic 被隔离。Event 在每个 Process 内同步保持顺序，不承诺不同 Process 的全局顺序；Delta 继续通过独立有界队列异步投递。
+EventListener 与 DeltaListener 都是无错误返回的观察接口：返回值既不会改变事实，也不应制造“可否决执行”的误解。实现必须有界、并发安全且不得重入被观察 Process；panic 被隔离，并由持有投递生命周期的 Engine 以单调饱和计数暴露。Interaction Dispatcher 同理拥有模型/Tool observer 的分类计数。两者都返回不可变 typed snapshot，不递归发布故障 Event、不污染业务 Usage/settlement，也不把领域模块绑定到日志或遥测实现。Event 在每个 Process 内同步保持顺序，不承诺不同 Process 的全局顺序；Delta 继续通过独立有界队列异步投递。
 
 Delta 是与 Event 不同的临时流输出。Delta 缓冲显式有界、按调用内 sequence 排序、恢复后不重放；慢消费者造成的丢弃必须通过 gap/dropped count 可观察。观察型 listener 失败不改变 Step 或 Process 结果，也不得产生无 owner goroutine。完成 Output 必须由最终 Effect settlement/Transition 独立导出，不能由 delta 拼接成为唯一真相。
 

@@ -729,3 +729,11 @@
 - 决策：`processFinishedEventPayload` 在失败终态增加可选 `failure_kind` 与 `failure_code`，直接从同一个 resolved Termination 投影；非失败终态省略两字段。Event 不携带 Failure message，避免把诊断文本、外部 payload 或潜在秘密提升为低基数遥测维度。OTel adapter 可直接把 kind/code用于 span 与 process-exit metric。
 - 决策：不增加 logger、callback、Host failure map、重试分类或第二 termination owner。公开 API、Process/Tree snapshot、Framework/Strategy protocol 与 schema version均不变；observation wire 有意 breaking，旧 shape 不双写。
 - 后果：Framework 的稳定失败分类终于能被 traces/metrics消费；observation digest 升级并形成 Baseline 34，其余 public/wire digest保持不变。
+
+## ADR-A2-088：被隔离的 observer panic 必须由投递生命周期 owner 计数
+
+- 状态：已接受并实施；形成 Baseline 35。
+- 证据：Event/Delta listener 与 Interaction ExecutionObserver 的 panic 虽然被正确隔离，不会破坏 Process 或 settlement，但此前直接丢弃 `recover()` 结果，长时间运行时无法区分“观察链健康”与“业务仍成功但全部观察失效”。让 panic 再发布 Event 会递归经过同一故障 listener；写入 Process Usage 会混淆业务资源事实；让领域包直接记录日志或 OTel metric 又会反转集成依赖。
+- 决策：Engine 的 observation bus 与 Interaction Dispatcher 分别作为真实投递生命周期 owner，持有按静态回调类别划分的 atomic 单调计数。公开 API 只返回不可变 typed snapshot；计数达到 `math.MaxUint64` 后饱和，绝不回绕。Event、Delta、模型响应、Tool started 与 Tool settled 各自保持明确字段/accessor，不使用字符串 key 或动态 map。
+- 决策：panic 继续隔离且不改变 Process state、Usage、Tool settlement 或模型结果；不递归发布 observation-failure Event，不新增 logger、callback registry、Host policy 或 OTel 依赖。没有 observer 时保持零值；快照读取可与并发投递安全交错。
+- 后果：外层 health/metrics integration 能准确检测观察链降级，同时 Framework 与 Strategy 仍不拥有具体遥测策略。root 与 Interaction public digest 形成 Baseline 35；全部 snapshot、Framework/Strategy protocol、schema version 与 observation wire保持不变。

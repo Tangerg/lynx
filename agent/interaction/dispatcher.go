@@ -61,18 +61,29 @@ type boundTool struct {
 }
 
 // Dispatcher executes model calls and ordinary Tool segments emitted by an
-// Interaction Execution. It is immutable after construction and may serve
+// Interaction Execution. Its configuration is immutable after construction;
+// internal observation health counters are concurrency-safe. It may serve
 // Processes concurrently when the supplied Client and Tools support concurrent use.
 type Dispatcher struct {
-	client             *chatclient.Client
-	tools              map[string]boundTool
-	delegates          map[string]struct{}
-	initialDefinitions []chat.ToolDefinition
-	deferredToolNames  map[string]struct{}
-	stream             bool
-	maxParallel        int
-	observer           ExecutionObserver
-	contextReducer     ModelContextReducer
+	client              *chatclient.Client
+	tools               map[string]boundTool
+	delegates           map[string]struct{}
+	initialDefinitions  []chat.ToolDefinition
+	deferredToolNames   map[string]struct{}
+	stream              bool
+	maxParallel         int
+	observer            ExecutionObserver
+	observationFailures observationFailureCounters
+	contextReducer      ModelContextReducer
+}
+
+// ObservationFailures returns a concurrency-safe snapshot of ExecutionObserver
+// panics isolated by this Dispatcher. The counts do not alter settlements.
+func (d *Dispatcher) ObservationFailures() ObservationFailureCounts {
+	if d == nil {
+		return ObservationFailureCounts{}
+	}
+	return d.observationFailures.snapshot()
 }
 
 func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher, error) {
