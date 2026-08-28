@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tangerg/scope/core/document"
 	coremetadata "github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/etl"
 )
 
 const (
@@ -24,12 +25,14 @@ var ErrPartialRead = errors.New("pdf reader: one or more pages could not be read
 
 // ReaderConfig controls PDF extraction. PerPage emits one document per readable
 // page. Password is used for encrypted PDFs. Metadata is cloned by NewReader,
-// and reader-derived pdf.* keys take precedence on conflict.
+// and reader-derived pdf.* keys take precedence on conflict. A zero
+// SourceBudget uses [etl.DefaultMaxSourceBytes].
 type ReaderConfig struct {
-	PerPage    bool
-	SourceName string
-	Password   string
-	Metadata   coremetadata.Map
+	PerPage      bool
+	SourceName   string
+	Password     string
+	Metadata     coremetadata.Map
+	SourceBudget etl.SourceBudget
 }
 
 // Reader extracts documents from PDF.
@@ -48,6 +51,14 @@ func NewReader(source io.ReaderAt, size int64, config ReaderConfig) (*Reader, er
 	}
 	if size <= 0 {
 		return nil, errors.New("pdf reader: size must be positive")
+	}
+	if size > config.SourceBudget.MaxBytes() {
+		return nil, fmt.Errorf(
+			"pdf reader: %w: source is %d bytes; maximum is %d bytes",
+			etl.ErrSourceTooLarge,
+			size,
+			config.SourceBudget.MaxBytes(),
+		)
 	}
 	r := &Reader{
 		source:        source,

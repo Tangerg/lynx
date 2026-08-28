@@ -30,6 +30,8 @@ type Reader struct {
 	sourceBudget etl.SourceBudget
 }
 
+// ReaderConfig controls the whole-source memory budget. The zero budget uses
+// [etl.DefaultMaxSourceBytes].
 type ReaderConfig struct {
 	SourceBudget etl.SourceBudget
 }

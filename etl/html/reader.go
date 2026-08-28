@@ -1,6 +1,7 @@
 package html
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/Tangerg/scope/core/document"
 	coremetadata "github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/etl"
 )
 
 const (
@@ -25,12 +27,14 @@ const (
 
 // ReaderConfig controls HTML extraction. By default whitespace runs are collapsed;
 // PreserveWhitespace retains the source spacing instead. Metadata is cloned
-// by NewReader, and reader-derived html.* keys take precedence on conflict.
+// by NewReader, and reader-derived html.* keys take precedence on conflict. A
+// zero SourceBudget uses [etl.DefaultMaxSourceBytes].
 type ReaderConfig struct {
 	Selector           string
 	SourceName         string
 	PreserveWhitespace bool
 	Metadata           coremetadata.Map
+	SourceBudget       etl.SourceBudget
 }
 
 // Reader extracts documents from HTML.
@@ -41,6 +45,7 @@ type Reader struct {
 	sourceName      string
 	stripWhitespace bool
 	extraMetadata   coremetadata.Map
+	sourceBudget    etl.SourceBudget
 }
 
 func NewReader(source io.Reader, config ReaderConfig) (*Reader, error) {
@@ -53,6 +58,7 @@ func NewReader(source io.Reader, config ReaderConfig) (*Reader, error) {
 		sourceName:      config.SourceName,
 		stripWhitespace: !config.PreserveWhitespace,
 		extraMetadata:   config.Metadata.Clone(),
+		sourceBudget:    config.SourceBudget,
 	}
 	if err := r.extraMetadata.Validate(); err != nil {
 		return nil, fmt.Errorf("html reader: invalid metadata: %w", err)
@@ -73,7 +79,11 @@ func (r *Reader) Read(ctx context.Context) ([]*document.Document, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	doc, err := goquery.NewDocumentFromReader(r.source)
+	raw, err := r.sourceBudget.ReadAll(ctx, r.source)
+	if err != nil {
+		return nil, fmt.Errorf("html: read source: %w", err)
+	}
+	doc, err := goquery.NewDocumentFromReader(bytes.NewReader(raw))
 	if err != nil {
 		return nil, fmt.Errorf("html: parse: %w", err)
 	}

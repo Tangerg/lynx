@@ -29,6 +29,7 @@ const (
 // per section split on headings at or above that level (1 = H1, 2 = H1+H2).
 // Zero disables splitting; non-zero values must be in [1, 6]. Metadata is
 // cloned by NewReader, and reader-derived markdown.* keys take precedence.
+// A zero SourceBudget uses [etl.DefaultMaxSourceBytes].
 type ReaderConfig struct {
 	HeadingSplitLevel int
 	SourceName        string

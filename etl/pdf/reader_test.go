@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	coremetadata "github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/etl"
 	"github.com/Tangerg/scope/etl/pdf"
 )
 
@@ -30,6 +31,18 @@ func TestNewReaderValidatesInputs(t *testing.T) {
 	}
 	if _, err := pdf.NewReader(bytes.NewReader([]byte{}), -1, pdf.ReaderConfig{}); err == nil {
 		t.Error("negative size: expected error, got nil")
+	}
+}
+
+func TestNewReaderRejectsSourceBeyondBudget(t *testing.T) {
+	budget, err := etl.NewSourceBudget(4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	source := bytes.NewReader([]byte("12345"))
+	_, err = pdf.NewReader(source, int64(source.Len()), pdf.ReaderConfig{SourceBudget: budget})
+	if !errors.Is(err, etl.ErrSourceTooLarge) {
+		t.Fatalf("NewReader error = %v, want ErrSourceTooLarge", err)
 	}
 }
 

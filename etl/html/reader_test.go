@@ -1,11 +1,13 @@
 package html_test
 
 import (
+	"errors"
 	"io"
 	"strings"
 	"testing"
 
 	coremetadata "github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/etl"
 	"github.com/Tangerg/scope/etl/html"
 )
 
@@ -100,6 +102,21 @@ func TestSelector(t *testing.T) {
 		if got := metadataValue[string](t, d.Metadata, html.MetadataSelector); got != "article" {
 			t.Errorf("docs[%d] selector: got %v", i, got)
 		}
+	}
+}
+
+func TestReaderRejectsSourceBeyondBudget(t *testing.T) {
+	budget, err := etl.NewSourceBudget(4)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r, err := html.NewReader(strings.NewReader("12345"), html.ReaderConfig{SourceBudget: budget})
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs, err := r.Read(t.Context())
+	if docs != nil || !errors.Is(err, etl.ErrSourceTooLarge) {
+		t.Fatalf("Read = (%v, %v), want nil ErrSourceTooLarge", docs, err)
 	}
 }
 
