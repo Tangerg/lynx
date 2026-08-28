@@ -374,19 +374,23 @@ func (e *Engine) quiesceTree(
 	ctx context.Context,
 	rootID ProcessID,
 ) (*treeQuiescence, error) {
-	release := make(chan struct{})
+	quiescence := &treeQuiescence{releaseGate: make(chan struct{})}
+	transferred := false
+	defer func() {
+		if !transferred {
+			quiescence.release()
+		}
+	}()
 	quiesced := make(map[ProcessID]struct{})
 	for {
 		controllers, err := e.treeControllers(rootID)
 		if err != nil {
-			close(release)
 			return nil, err
 		}
 		complete := true
 		for _, controller := range controllers {
 			if controller.status().Terminal() {
 				if err := waitTreeSettled(ctx, controller); err != nil {
-					close(release)
 					return nil, err
 				}
 				continue
@@ -396,21 +400,18 @@ func (e *Engine) quiesceTree(
 			}
 			complete = false
 			response, err := (&Process{controller: controller}).request(ctx, processCommand{
-				kind: commandQuiesce, release: release,
+				kind: commandQuiesce, release: quiescence.releaseGate,
 			})
 			if err != nil {
 				if errors.Is(err, ErrProcessFinished) {
 					if waitTreeSettledErr := waitTreeSettled(ctx, controller); waitTreeSettledErr != nil {
-						close(release)
 						return nil, waitTreeSettledErr
 					}
 					continue
 				}
-				close(release)
 				return nil, err
 			}
 			if !response.accepted {
-				close(release)
 				return nil, ErrEngineQuiescenceUnavailable
 			}
 			quiesced[controller.processID] = struct{}{}
@@ -421,10 +422,11 @@ func (e *Engine) quiesceTree(
 	}
 	controllers, err := e.treeControllers(rootID)
 	if err != nil {
-		close(release)
 		return nil, err
 	}
-	return &treeQuiescence{controllers: controllers, releaseGate: release}, nil
+	quiescence.controllers = controllers
+	transferred = true
+	return quiescence, nil
 }
 
 // captureQuiescedTree requires ownership of the root's tree operation and a
