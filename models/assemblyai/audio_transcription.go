@@ -34,6 +34,12 @@ func (a AudioTranscriptionModelConfig) Validate() error {
 	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
+	if a.PollInterval < 0 {
+		return errors.New("assemblyai: PollInterval must not be negative")
+	}
+	if a.PollTimeout < 0 {
+		return errors.New("assemblyai: PollTimeout must not be negative")
+	}
 	return nil
 }
 
@@ -77,11 +83,11 @@ func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTra
 	}
 
 	pollInterval := config.PollInterval
-	if pollInterval <= 0 {
+	if pollInterval == 0 {
 		pollInterval = DefaultPollInterval
 	}
 	pollTimeout := config.PollTimeout
-	if pollTimeout <= 0 {
+	if pollTimeout == 0 {
 		pollTimeout = DefaultPollTimeout
 	}
 

@@ -9,11 +9,9 @@
 
 - 架构决策及取舍原因见 [`DECISIONS.md`](DECISIONS.md)。
 - 工程实施和代码质量标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
-- 阶段任务、当前进度和执行事实见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)。
-- 旧能力的归属、裁决和验收见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)。
 - 上位约束见 [`../../CLAUDE.md`](../../CLAUDE.md)、[`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md) 和 [`../../REFACTORING.md`](../../REFACTORING.md)。
 
-代码与本文冲突时不得静默迁就：如果实现有误，修改实现；如果设计被事实推翻，先更新决策文档，再修改本文和代码。计划中的能力不能描述成已经交付。
+代码与本文冲突时不得静默迁就：如果实现有误，修改实现；如果设计被事实推翻，先更新决策文档，再修改本文和代码。归档中的历史阶段和迁移证据不授权当前实现范围。
 
 ---
 
@@ -25,7 +23,7 @@ Scope 最早从 Embabel Agent 移植并发展出以 GOAP、Goal、Action、Condi
 
 ### 1.1 原实现只保留为历史证据，不是兼容规范
 
-原实现曾提供下列经过实践的证据，当前只能通过仓库历史与本模块的裁决台账查阅：
+原实现曾提供下列经过实践的证据，当前只能通过仓库历史查阅：
 
 - GOAP、HTN、Utility 等算法及其正确性测试。
 - Tool loop 的事件顺序、checkpoint/resume 和并发控制。
@@ -35,7 +33,7 @@ Scope 最早从 Embabel Agent 移植并发展出以 GOAP、Goal、Action、Condi
 历史证据不等于兼容：
 
 - 原实现不决定当前 API、包结构或共同领域模型。
-- 能力台账对每项历史能力给出“保留思想、重新实现、移除”裁决，当前行为只由新合同与测试证明。
+- 历史迁移裁决不构成当前合同，当前行为只由现行架构、ADR、公共基线与测试证明。
 - 不从历史中恢复混合抽象、别名、旧 wire 或第二生命周期入口。
 - architecture gate 永久禁止临时 module path 与 Host application 依赖回流。
 

@@ -5,6 +5,7 @@ go 1.27.0
 require (
 	github.com/Tangerg/scope/core v0.0.1
 	github.com/samber/lo v1.53.0
+	golang.org/x/sync v0.22.0
 )
 
 require (

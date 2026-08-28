@@ -29,6 +29,12 @@ func (a AudioTranscriptionModelConfig) Validate() error {
 	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
+	if a.PollInterval < 0 {
+		return errors.New("gladia: PollInterval must not be negative")
+	}
+	if a.PollTimeout < 0 {
+		return errors.New("gladia: PollTimeout must not be negative")
+	}
 	return nil
 }
 
@@ -54,11 +60,11 @@ func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTra
 		return nil, err
 	}
 	pi := config.PollInterval
-	if pi <= 0 {
+	if pi == 0 {
 		pi = DefaultPollInterval
 	}
 	pt := config.PollTimeout
-	if pt <= 0 {
+	if pt == 0 {
 		pt = DefaultPollTimeout
 	}
 	return &AudioTranscriptionModel{api: api, defaultOptions: config.DefaultOptions.Clone(), pollInterval: pi, pollTimeout: pt}, nil

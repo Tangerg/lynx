@@ -27,8 +27,7 @@ type ClientConfig struct {
 	// DefaultHeaders are added unless [Request.Headers] overrides them.
 	DefaultHeaders map[string]string
 
-	// MaxResponseBytes selects [DefaultMaxResponseBytes] at zero; a negative
-	// value disables the response-size cap.
+	// MaxResponseBytes selects [DefaultMaxResponseBytes] at zero.
 	MaxResponseBytes int64
 
 	// DefaultTimeout selects [DefaultTimeout] at zero.
@@ -82,6 +81,9 @@ func (config ClientConfig) compilePolicy() (clientPolicy, error) {
 	}
 	if config.DefaultTimeout < 0 {
 		return clientPolicy{}, fmt.Errorf("%w: default timeout must not be negative", ErrInvalidClientConfig)
+	}
+	if config.MaxResponseBytes < 0 {
+		return clientPolicy{}, fmt.Errorf("%w: maximum response bytes must not be negative", ErrInvalidClientConfig)
 	}
 
 	maxResponseBytes := config.MaxResponseBytes

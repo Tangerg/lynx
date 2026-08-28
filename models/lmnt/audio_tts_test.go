@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	tts "github.com/Tangerg/scope/core/speech"
@@ -62,5 +63,29 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	}
 	if requestBody.Text != "hello world" || requestBody.Model != lmnt.ModelBlizzard || requestBody.Voice != "lily" {
 		t.Fatalf("request = %#v", requestBody)
+	}
+
+	limited, err := lmnt.NewAudioTTSModel(lmnt.AudioTTSModelConfig{
+		APIKey:           "test-key",
+		DefaultOptions:   opts,
+		BaseURL:          srv.URL,
+		MaxResponseBytes: 4,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = limited.Call(t.Context(), req); err == nil || !strings.Contains(err.Error(), "4-byte limit") {
+		t.Fatalf("limited Call error = %v", err)
+	}
+}
+
+func TestAudioTTSModelConfigRejectsNegativeResponseLimit(t *testing.T) {
+	opts, _ := tts.NewOptions(lmnt.ModelBlizzard)
+	opts.Voice = "lily"
+	_, err := lmnt.NewAudioTTSModel(lmnt.AudioTTSModelConfig{
+		APIKey: "test-key", DefaultOptions: opts, MaxResponseBytes: -1,
+	})
+	if err == nil {
+		t.Fatal("NewAudioTTSModel accepted a negative response limit")
 	}
 }

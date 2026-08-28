@@ -1,6 +1,7 @@
 package deepgram
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"net/http"
@@ -9,10 +10,11 @@ import (
 )
 
 type AudioTranscriptionModelConfig struct {
-	APIKey         string
-	DefaultOptions transcription.Options
-	BaseURL        string
-	HTTPClient     *http.Client
+	APIKey           string
+	DefaultOptions   transcription.Options
+	BaseURL          string
+	HTTPClient       *http.Client
+	MaxResponseBytes int64
 }
 
 func (a AudioTranscriptionModelConfig) Validate() error {
@@ -24,6 +26,9 @@ func (a AudioTranscriptionModelConfig) Validate() error {
 	}
 	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
+	}
+	if a.MaxResponseBytes < 0 {
+		return errors.New("deepgram: MaxResponseBytes must not be negative")
 	}
 	return nil
 }
@@ -51,9 +56,10 @@ func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTra
 	}
 
 	api, err := newAPI(apiConfig{
-		APIKey:     config.APIKey,
-		BaseURL:    config.BaseURL,
-		HTTPClient: config.HTTPClient,
+		APIKey:           config.APIKey,
+		BaseURL:          config.BaseURL,
+		HTTPClient:       config.HTTPClient,
+		MaxResponseBytes: cmp.Or(config.MaxResponseBytes, DefaultMaxResponseBytes),
 	})
 	if err != nil {
 		return nil, err

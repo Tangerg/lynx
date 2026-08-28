@@ -1,6 +1,7 @@
 package lmnt
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -10,13 +11,18 @@ import (
 	tts "github.com/Tangerg/scope/core/speech"
 )
 
-const maximumTextLength = 5000
+const (
+	maximumTextLength         = 5000
+	DefaultMaxResponseBytes   = int64(32 * 1024 * 1024)
+	maximumErrorResponseBytes = int64(64 * 1024)
+)
 
 type AudioTTSModelConfig struct {
-	APIKey         string
-	DefaultOptions tts.Options
-	BaseURL        string
-	HTTPClient     *http.Client
+	APIKey           string
+	DefaultOptions   tts.Options
+	BaseURL          string
+	HTTPClient       *http.Client
+	MaxResponseBytes int64
 }
 
 func (a AudioTTSModelConfig) Validate() error {
@@ -28,6 +34,9 @@ func (a AudioTTSModelConfig) Validate() error {
 	}
 	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
+	}
+	if a.MaxResponseBytes < 0 {
+		return errors.New("lmnt: MaxResponseBytes must not be negative")
 	}
 	return nil
 }
@@ -51,7 +60,12 @@ func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := newAPI(apiConfig{APIKey: config.APIKey, BaseURL: config.BaseURL, HTTPClient: config.HTTPClient})
+	api, err := newAPI(apiConfig{
+		APIKey:           config.APIKey,
+		BaseURL:          config.BaseURL,
+		HTTPClient:       config.HTTPClient,
+		MaxResponseBytes: cmp.Or(config.MaxResponseBytes, DefaultMaxResponseBytes),
+	})
 	if err != nil {
 		return nil, err
 	}

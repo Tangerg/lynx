@@ -13,6 +13,8 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
+const maximumErrorResponseBytes = int64(64 * 1024)
+
 type apiConfig struct {
 	APIKey     string
 	BaseURL    string
@@ -158,7 +160,7 @@ func (a *api) ttsStream(ctx context.Context, req *ttsRequest) (io.ReadCloser, er
 	}
 	if !resp.IsSuccess() {
 		defer resp.RawBody().Close()
-		body, readErr := io.ReadAll(resp.RawBody())
+		body, readErr := io.ReadAll(io.LimitReader(resp.RawBody(), maximumErrorResponseBytes))
 		if readErr != nil {
 			return nil, fmt.Errorf("hume: stream http %d; read error response: %w", resp.StatusCode(), readErr)
 		}

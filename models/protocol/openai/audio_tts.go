@@ -1,6 +1,7 @@
 package openai
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -14,12 +15,15 @@ import (
 	tts "github.com/Tangerg/scope/core/speech"
 )
 
+const DefaultMaxResponseBytes = int64(32 * 1024 * 1024)
+
 type AudioTTSModelConfig struct {
-	Provider       string
-	APIKey         string
-	DefaultOptions tts.Options
-	BaseURL        string
-	HTTPClient     *http.Client
+	Provider         string
+	APIKey           string
+	DefaultOptions   tts.Options
+	BaseURL          string
+	HTTPClient       *http.Client
+	MaxResponseBytes int64
 }
 
 func (a AudioTTSModelConfig) Validate() error {
@@ -35,6 +39,9 @@ func (a AudioTTSModelConfig) Validate() error {
 	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
 	}
+	if a.MaxResponseBytes < 0 {
+		return errors.New("openai: MaxResponseBytes must not be negative")
+	}
 	return nil
 }
 
@@ -42,9 +49,10 @@ var _ tts.Model = (*AudioTTSModel)(nil)
 var _ tts.Streamer = (*AudioTTSModel)(nil)
 
 type AudioTTSModel struct {
-	api            *api
-	provider       string
-	defaultOptions tts.Options
+	api              *api
+	provider         string
+	defaultOptions   tts.Options
+	maxResponseBytes int64
 }
 
 func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
@@ -62,9 +70,10 @@ func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 	}
 
 	return &AudioTTSModel{
-		api:            api,
-		provider:       config.Provider,
-		defaultOptions: config.DefaultOptions.Clone(),
+		api:              api,
+		provider:         config.Provider,
+		defaultOptions:   config.DefaultOptions.Clone(),
+		maxResponseBytes: cmp.Or(config.MaxResponseBytes, DefaultMaxResponseBytes),
 	}, nil
 }
 
@@ -120,9 +129,12 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	}
 	defer apiResp.Body.Close()
 
-	data, err := io.ReadAll(apiResp.Body)
+	data, err := io.ReadAll(io.LimitReader(apiResp.Body, a.maxResponseBytes+1))
 	if err != nil {
 		return nil, err
+	}
+	if int64(len(data)) > a.maxResponseBytes {
+		return nil, fmt.Errorf("openai: speech response exceeds %d-byte limit", a.maxResponseBytes)
 	}
 
 	return a.buildTTSResponse(data)

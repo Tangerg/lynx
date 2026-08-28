@@ -20,6 +20,7 @@ type Report struct {
 }
 
 func (report Report) Clone() Report {
+	report.Metric = report.Metric.Clone()
 	report.Metadata = report.Metadata.Clone()
 	report.Details = slices.Clone(report.Details)
 	for index := range report.Details {

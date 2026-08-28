@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
 	"go.mongodb.org/mongo-driver/v2/mongo"
@@ -187,7 +188,7 @@ func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 		embeddingPath:          config.EmbeddingPath,
 		contentField:           config.ContentField,
 		metadataField:          config.MetadataField,
-		metadataFieldsToFilter: config.MetadataFieldsToFilter,
+		metadataFieldsToFilter: slices.Clone(config.MetadataFieldsToFilter),
 		embeddingClient:        embeddingClient,
 		documentBatcher:        config.DocumentBatcher,
 		dimensions:             config.Dimensions,

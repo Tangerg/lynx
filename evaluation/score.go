@@ -5,7 +5,8 @@ import (
 	"math"
 )
 
-// Score is a normalized evaluation score in the closed interval [0, 1].
+// Score is a normalized quality score in the closed interval [0, 1], where a
+// higher value is always better.
 type Score float64
 
 const DefaultThreshold Score = 0.5

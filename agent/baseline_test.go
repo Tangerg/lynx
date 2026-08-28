@@ -50,10 +50,8 @@ func TestManagedExecutionVocabularyIsUnambiguous(t *testing.T) {
 	paths := append(frameworkProductionGoFiles(t),
 		"doc/API_BASELINE.md",
 		"doc/ARCHITECTURE.md",
-		"doc/CAPABILITY_LEDGER.md",
 		"doc/DECISIONS.md",
 		"doc/ENGINEERING_STANDARDS.md",
-		"doc/EXECUTION_PLAN.md",
 	)
 	forbidden := []*regexp.Regexp{
 		regexp.MustCompile(`(?i)\bna` + `tive\b`),

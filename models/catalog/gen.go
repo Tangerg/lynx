@@ -44,7 +44,10 @@ import (
 	modelcatalog "github.com/Tangerg/scope/models/catalog"
 )
 
-const defaultSource = "https://models.dev/api.json"
+const (
+	defaultSource      = "https://models.dev/api.json"
+	maximumSourceBytes = int64(32 * 1024 * 1024)
+)
 
 // providerMap maps a models.dev provider id to our config/provider name
 // (the adapter's Provider const, lowercased — Lookup matches case-folded).
@@ -310,9 +313,14 @@ func loadAPI(source string) (map[string]apiProvider, error) {
 		if resp.StatusCode != http.StatusOK {
 			return nil, fmt.Errorf("catalog.fetchSource: HTTP status %s", resp.Status)
 		}
-		raw, err = io.ReadAll(resp.Body)
+		raw, err = readSource(resp.Body)
 	} else {
-		raw, err = os.ReadFile(source)
+		var file *os.File
+		file, err = os.Open(source)
+		if err == nil {
+			defer file.Close()
+			raw, err = readSource(file)
+		}
 	}
 	if err != nil {
 		return nil, err
@@ -325,7 +333,12 @@ func loadAPI(source string) (map[string]apiProvider, error) {
 }
 
 func loadAugmentations(path string) (map[string]map[string]augEntry, error) {
-	raw, err := os.ReadFile(path)
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+	raw, err := readSource(file)
 	if err != nil {
 		return nil, err
 	}
@@ -334,6 +347,17 @@ func loadAugmentations(path string) (map[string]map[string]augEntry, error) {
 		return nil, err
 	}
 	return augs, nil
+}
+
+func readSource(reader io.Reader) ([]byte, error) {
+	raw, err := io.ReadAll(io.LimitReader(reader, maximumSourceBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(raw)) > maximumSourceBytes {
+		return nil, fmt.Errorf("catalog source exceeds %d-byte limit", maximumSourceBytes)
+	}
+	return raw, nil
 }
 
 func writeJSON(path string, v any) error {

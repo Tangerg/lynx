@@ -1,9 +1,12 @@
 package skills
 
 import (
+	"bufio"
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"slices"
 	"strings"
@@ -19,26 +22,34 @@ const SkillFile = "SKILL.md"
 // Reads are lazy and per-call, so changes to the backing filesystem are
 // visible without a refresh operation.
 type Repository struct {
-	fsys fs.FS
+	fsys   fs.FS
+	limits repositoryLimits
 }
 
 var _ Source = (*Repository)(nil)
 var _ ResourceSource = (*Repository)(nil)
 
-func NewRepository(fsys fs.FS) (*Repository, error) {
+func NewRepository(fsys fs.FS, config RepositoryConfig) (*Repository, error) {
 	if lo.IsNil(fsys) {
 		return nil, ErrNilFilesystem
 	}
-	return &Repository{fsys: fsys}, nil
+	limits, err := config.resolve()
+	if err != nil {
+		return nil, err
+	}
+	return &Repository{fsys: fsys, limits: limits}, nil
 }
 
-func NewDirectoryRepository(root string) *Repository {
-	return &Repository{fsys: rootedFS(root)}
+func NewDirectoryRepository(root string, config RepositoryConfig) (*Repository, error) {
+	return NewRepository(rootedFS(root), config)
 }
 
 func (r *Repository) validate() error {
 	if r == nil || lo.IsNil(r.fsys) {
 		return ErrNilFilesystem
+	}
+	if r.limits.maxEntries <= 0 || r.limits.maxFrontmatterBytes <= 0 || r.limits.maxSkillBytes <= 0 {
+		return ErrInvalidLimit
 	}
 	return nil
 }
@@ -46,47 +57,67 @@ func (r *Repository) validate() error {
 // List returns a summary for every valid skill directory, sorted by name.
 // Invalid skill entries are skipped. Repository access failures are returned.
 // A missing root directory is treated as an empty repository.
-func (r *Repository) List(ctx context.Context) ([]Summary, error) {
-	if err := r.validate(); err != nil {
-		return nil, err
+func (r *Repository) List(ctx context.Context) (summaries []Summary, err error) {
+	if validationErr := r.validate(); validationErr != nil {
+		return nil, validationErr
 	}
-	if err := contextError(ctx, "list"); err != nil {
-		return nil, err
+	if contextErr := contextError(ctx, "list"); contextErr != nil {
+		return nil, contextErr
 	}
-	entries, err := fs.ReadDir(r.fsys, ".")
-	if ctxErr := contextError(ctx, "list"); ctxErr != nil {
-		return nil, ctxErr
-	}
+	directory, err := r.fsys.Open(".")
 	if errors.Is(err, fs.ErrNotExist) {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("skills: list: %w", err)
 	}
+	defer func() {
+		if closeErr := directory.Close(); closeErr != nil {
+			err = errors.Join(err, fmt.Errorf("skills: close repository directory: %w", closeErr))
+		}
+	}()
+	reader, ok := directory.(fs.ReadDirFile)
+	if !ok {
+		return nil, errors.New("skills: list: filesystem directory does not implement fs.ReadDirFile")
+	}
 
-	summaries := make([]Summary, 0, len(entries))
-	for _, entry := range entries {
-		if err := contextError(ctx, "list"); err != nil {
-			return nil, err
-		}
-		if !entry.IsDir() {
-			continue
-		}
-		name := entry.Name()
-		if ValidateName(name) != nil {
-			continue
-		}
-		skill, err := r.load(ctx, name)
-		if err != nil {
-			if ctxErr := contextError(ctx, "list"); ctxErr != nil {
-				return nil, ctxErr
+	summaries = make([]Summary, 0)
+	entriesSeen := 0
+	for {
+		entries, readErr := reader.ReadDir(64)
+		for _, entry := range entries {
+			entriesSeen++
+			if entriesSeen > r.limits.maxEntries {
+				return nil, fmt.Errorf("%w: limit %d", ErrRepositoryLarge, r.limits.maxEntries)
 			}
-			if errors.Is(err, fs.ErrNotExist) || errors.Is(err, ErrInvalidSkill) {
+			if err := contextError(ctx, "list"); err != nil {
+				return nil, err
+			}
+			if !entry.IsDir() {
 				continue
 			}
-			return nil, fmt.Errorf("skills: list: %w", err)
+			name := entry.Name()
+			if ValidateName(name) != nil {
+				continue
+			}
+			summary, summaryErr := r.loadSummary(ctx, name)
+			if summaryErr != nil {
+				if ctxErr := contextError(ctx, "list"); ctxErr != nil {
+					return nil, ctxErr
+				}
+				if errors.Is(summaryErr, fs.ErrNotExist) || errors.Is(summaryErr, ErrInvalidSkill) {
+					continue
+				}
+				return nil, fmt.Errorf("skills: list: %w", summaryErr)
+			}
+			summaries = append(summaries, summary)
 		}
-		summaries = append(summaries, skill.Summary())
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+		if readErr != nil {
+			return nil, fmt.Errorf("skills: list directory: %w", readErr)
+		}
 	}
 	slices.SortFunc(summaries, func(a, b Summary) int {
 		return strings.Compare(a.Name, b.Name)
@@ -110,12 +141,9 @@ func (r *Repository) load(ctx context.Context, name string) (*Skill, error) {
 	if err := contextError(ctx, operation); err != nil {
 		return nil, err
 	}
-	data, readErr := fs.ReadFile(r.fsys, name+"/"+SkillFile)
-	if err := contextError(ctx, operation); err != nil {
+	data, err := r.readSkillFile(ctx, name, r.limits.maxSkillBytes)
+	if err != nil {
 		return nil, err
-	}
-	if readErr != nil {
-		return nil, fmt.Errorf("skills: load %q: %w", name, readErr)
 	}
 
 	skill, err := Parse(data)
@@ -134,6 +162,81 @@ func (r *Repository) load(ctx context.Context, name string) (*Skill, error) {
 		))
 	}
 	return skill, nil
+}
+
+func (r *Repository) loadSummary(ctx context.Context, name string) (Summary, error) {
+	operation := fmt.Sprintf("load summary %q", name)
+	file, err := r.fsys.Open(name + "/" + SkillFile)
+	if err != nil {
+		return Summary{}, fmt.Errorf("skills: %s: %w", operation, err)
+	}
+	frontmatter, readErr := readFrontmatter(ctx, file, r.limits.maxFrontmatterBytes)
+	closeErr := file.Close()
+	if combinedErr := errors.Join(readErr, closeErr); combinedErr != nil {
+		if errors.Is(combinedErr, ErrNoFrontmatter) || errors.Is(combinedErr, ErrContentTooLarge) {
+			return Summary{}, invalidSkill(name, combinedErr)
+		}
+		return Summary{}, fmt.Errorf("skills: %s: %w", operation, combinedErr)
+	}
+	skill, err := Parse(frontmatter)
+	if err != nil {
+		return Summary{}, invalidSkill(name, err)
+	}
+	if skill.Name != name {
+		return Summary{}, invalidSkill(name, fmt.Errorf(
+			"%w: frontmatter %q vs directory %q", ErrNameMismatch, skill.Name, name,
+		))
+	}
+	return skill.Summary(), nil
+}
+
+func (r *Repository) readSkillFile(ctx context.Context, name string, maxBytes int64) ([]byte, error) {
+	file, err := r.fsys.Open(name + "/" + SkillFile)
+	if err != nil {
+		return nil, fmt.Errorf("skills: load %q: %w", name, err)
+	}
+	data, truncated, readErr := readBounded(ctx, file, maxBytes)
+	closeErr := file.Close()
+	if readErr = errors.Join(readErr, closeErr); readErr != nil {
+		return nil, fmt.Errorf("skills: load %q: %w", name, readErr)
+	}
+	if truncated {
+		return nil, fmt.Errorf("%w: skill %q exceeds %d bytes", ErrContentTooLarge, name, maxBytes)
+	}
+	return data, nil
+}
+
+func readFrontmatter(ctx context.Context, reader io.Reader, maxBytes int64) ([]byte, error) {
+	limited := io.LimitReader(contextReader{ctx: ctx, reader: reader}, maxBytes+1)
+	buffered := bufio.NewReaderSize(limited, int(min(maxBytes+1, 4096)))
+
+	var document bytes.Buffer
+	lineNumber := 0
+	for {
+		text, readErr := buffered.ReadString('\n')
+		if readErr != nil && !errors.Is(readErr, io.EOF) {
+			return nil, errors.Join(readErr, ctx.Err())
+		}
+		line := strings.TrimSuffix(strings.TrimSuffix(text, "\n"), "\r")
+		if lineNumber == 0 {
+			line = strings.TrimPrefix(line, "\ufeff")
+			if line != frontmatterFence {
+				return nil, ErrNoFrontmatter
+			}
+		}
+		if int64(document.Len()+len(line)+1) > maxBytes {
+			return nil, fmt.Errorf("%w: frontmatter exceeds %d bytes", ErrContentTooLarge, maxBytes)
+		}
+		document.WriteString(line)
+		document.WriteByte('\n')
+		if lineNumber > 0 && line == frontmatterFence {
+			return document.Bytes(), nil
+		}
+		lineNumber++
+		if readErr != nil {
+			return nil, ErrNoFrontmatter
+		}
+	}
 }
 
 // OpenResource opens a file bundled under a skill. The resource path is

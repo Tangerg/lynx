@@ -9,6 +9,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/Tangerg/scope/core/metadata"
 	"github.com/Tangerg/scope/evaluation"
 )
 
@@ -23,7 +24,6 @@ const (
 	MetricRecall         Metric = "recall"
 	MetricReciprocalRank Metric = "reciprocal_rank"
 	MetricNDCG           Metric = "ndcg"
-	reportMetricFormat          = "retrieval/%s@%d"
 	retrievedField              = "retrieved"
 	relevantField               = "relevant"
 )
@@ -38,11 +38,11 @@ func (metric Metric) Validate() error {
 }
 
 func (metric Metric) reportMetric(cutoff int) (evaluation.Metric, error) {
-	reportMetric := evaluation.Metric(fmt.Sprintf(reportMetricFormat, metric, cutoff))
-	if err := reportMetric.Validate(); err != nil {
-		return "", err
+	parameters := metadata.Map{}
+	if err := parameters.Set("cutoff", cutoff); err != nil {
+		return evaluation.Metric{}, err
 	}
-	return reportMetric, nil
+	return evaluation.NewMetric("retrieval", evaluation.MetricName(metric), parameters)
 }
 
 // Sample is an observed ranking and its complete binary relevance judgment.

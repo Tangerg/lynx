@@ -4,7 +4,7 @@
 > 冻结日期：2026-08-29
 > 适用范围：`agent` 根 package、`agent/agenttest`、`agent/interaction`、`agent/planning`、`agent/planning/goap`、`agent/workflow`、`agent/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v8/v8、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
 
-本文只记录已经由 P3 真实 Interaction、P4 child composition、八个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow、P8 Platform 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
+本文只记录已经由真实 Interaction、child composition、独立 command consumer、Planning/GOAP、managed Workflow、Platform 与恢复合同共同证明的公共合同基线。目标架构、ADR 和工程标准仍由各自现行文档拥有；已完成阶段记录只作为历史归档，不在这里复制。
 
 ## 1. 基线的含义
 

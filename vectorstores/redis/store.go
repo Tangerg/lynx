@@ -54,8 +54,9 @@ func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 		return nil, fmt.Errorf("redis: create embedding client: %w", err)
 	}
 
-	fieldTypes := make(map[string]MetadataFieldType, len(config.MetadataFields))
-	for _, f := range config.MetadataFields {
+	metadataFields := slices.Clone(config.MetadataFields)
+	fieldTypes := make(map[string]MetadataFieldType, len(metadataFields))
+	for _, f := range metadataFields {
 		if f.Name == "" {
 			return nil, errors.New("redis: MetadataField.Name must not be empty")
 		}
@@ -68,7 +69,7 @@ func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 		keyPrefix:       config.KeyPrefix,
 		contentField:    config.ContentField,
 		embeddingField:  config.EmbeddingField,
-		metadataFields:  config.MetadataFields,
+		metadataFields:  metadataFields,
 		fieldTypes:      fieldTypes,
 		embeddingClient: embeddingClient,
 		documentBatcher: config.DocumentBatcher,

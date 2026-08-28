@@ -28,10 +28,11 @@ func (*panicSource) OpenResource(context.Context, string, string) (fs.File, erro
 
 func newToolFS() skillsrc.ResourceSource {
 	repository, err := skillsrc.NewRepository(fstest.MapFS{
-		"pdf-processing/SKILL.md":                {Data: []byte("---\nname: pdf-processing\ndescription: Handle PDFs.\n---\n# PDF\nDo the thing. See references/REFERENCE.md.")},
+		"pdf-processing/SKILL.md":                {Data: []byte("---\nname: pdf-processing\ndescription: Handle PDFs.\n---\n# PDF\nDo the thing. See references/REFERENCE.md. This deliberately long instruction body verifies model-facing output limits.")},
 		"pdf-processing/references/REFERENCE.md": {Data: []byte("detailed reference")},
+		"pdf-processing/references/LONG.md":      {Data: []byte(strings.Repeat("reference ", 20))},
 		"data-analysis/SKILL.md":                 {Data: []byte("---\nname: data-analysis\ndescription: Analyze data.\n---\nanalysis body")},
-	})
+	}, skillsrc.RepositoryConfig{})
 	if err != nil {
 		panic(err)
 	}
@@ -39,8 +40,12 @@ func newToolFS() skillsrc.ResourceSource {
 }
 
 func newTools(t *testing.T) map[string]toolcontract.Tool {
+	return newToolsWithConfig(t, Config{})
+}
+
+func newToolsWithConfig(t *testing.T, config Config) map[string]toolcontract.Tool {
 	t.Helper()
-	built, err := NewTools(newToolFS())
+	built, err := NewTools(newToolFS(), config)
 	if err != nil {
 		t.Fatalf("NewTools: %v", err)
 	}
@@ -54,7 +59,7 @@ func newTools(t *testing.T) map[string]toolcontract.Tool {
 func TestNewToolsRejectsNilSource(t *testing.T) {
 	var typedNil *panicSource
 	for _, source := range []skillsrc.ResourceSource{nil, typedNil} {
-		if _, err := NewTools(source); !errors.Is(err, ErrNilSource) {
+		if _, err := NewTools(source, Config{}); !errors.Is(err, ErrNilSource) {
 			t.Errorf("err = %v, want ErrNilSource", err)
 		}
 	}
@@ -104,6 +109,46 @@ func TestReadSkillResource(t *testing.T) {
 	}
 	if out != "detailed reference" {
 		t.Errorf("resource content = %q", out)
+	}
+}
+
+func TestSkillToolsBoundModelFacingContent(t *testing.T) {
+	const maxOutputBytes = int64(68)
+	tools := newToolsWithConfig(t, Config{MaxOutputBytes: maxOutputBytes})
+
+	loaded, err := tools["load_skill"].Call(t.Context(), `{"name":"pdf-processing"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if int64(len(loaded)) > maxOutputBytes || !strings.HasSuffix(loaded, "[output truncated]") || !strings.HasPrefix(loaded, "# PDF") {
+		t.Fatalf("bounded skill output = %q", loaded)
+	}
+
+	resource, err := tools["read_skill_resource"].Call(t.Context(), `{"name":"pdf-processing","path":"references/LONG.md"}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if int64(len(resource)) > maxOutputBytes || !strings.HasSuffix(resource, "[output truncated]") {
+		t.Fatalf("bounded resource output = %q", resource)
+	}
+
+	listed, err := tools["list_skills"].Call(t.Context(), `{}`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(listed, "<truncated>true</truncated>") {
+		t.Fatalf("bounded list output = %q", listed)
+	}
+	if int64(len(listed)) > maxOutputBytes {
+		t.Fatalf("list output length = %d, want <= %d", len(listed), maxOutputBytes)
+	}
+}
+
+func TestNewToolsRejectsOutputLimitTooSmallForItsEnvelope(t *testing.T) {
+	for _, maxOutputBytes := range []int64{minimumMaxOutputBytes - 1, maximumMaxOutputBytes + 1} {
+		if _, err := NewTools(newToolFS(), Config{MaxOutputBytes: maxOutputBytes}); !errors.Is(err, skillsrc.ErrInvalidLimit) {
+			t.Fatalf("NewTools(%d) error = %v, want ErrInvalidLimit", maxOutputBytes, err)
+		}
 	}
 }
 

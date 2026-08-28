@@ -142,7 +142,11 @@ func TestMergeRejectsInvalidSourceModels(t *testing.T) {
 // empty rather than failing — the case behind a project/global skills dir that
 // the user hasn't created.
 func TestListMissingDir(t *testing.T) {
-	got, err := NewDirectoryRepository("/no/such/skills/dir").List(context.Background())
+	repository, err := NewDirectoryRepository("/no/such/skills/dir", RepositoryConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := repository.List(context.Background())
 	if err != nil {
 		t.Fatalf("List of a missing dir should not error, got %v", err)
 	}
@@ -167,7 +171,7 @@ func TestMergeReadResource(t *testing.T) {
 	})
 	src := Merge(project, global)
 
-	note, err := ReadResource(context.Background(), src, "shared", "references/note.md")
+	note, _, err := ReadResource(context.Background(), src, "shared", "references/note.md", DefaultMaxResourceBytes)
 	if err != nil {
 		t.Fatalf("ReadResource shared: %v", err)
 	}
@@ -175,7 +179,7 @@ func TestMergeReadResource(t *testing.T) {
 		t.Errorf("shared resource = %q, want the project copy (precedence)", note)
 	}
 
-	asset, err := ReadResource(context.Background(), src, "glob-only", "assets/data.txt")
+	asset, _, err := ReadResource(context.Background(), src, "glob-only", "assets/data.txt", DefaultMaxResourceBytes)
 	if err != nil {
 		t.Fatalf("ReadResource glob-only: %v", err)
 	}
@@ -193,7 +197,7 @@ func TestMergeKeepsResourcesWithWinningSkill(t *testing.T) {
 		"shared/references/note.md": {Data: []byte("GLOBAL note")},
 	})
 
-	_, err := ReadResource(t.Context(), Merge(project, global), "shared", "references/note.md")
+	_, _, err := ReadResource(t.Context(), Merge(project, global), "shared", "references/note.md", DefaultMaxResourceBytes)
 	if !errors.Is(err, fs.ErrNotExist) {
 		t.Fatalf("ReadResource error = %v, want project resource not found", err)
 	}
@@ -208,7 +212,7 @@ func TestMergeDoesNotMaskMalformedWinningSkill(t *testing.T) {
 		"shared/references/note.md": {Data: []byte("GLOBAL note")},
 	})
 
-	_, err := ReadResource(t.Context(), Merge(project, global), "shared", "references/note.md")
+	_, _, err := ReadResource(t.Context(), Merge(project, global), "shared", "references/note.md", DefaultMaxResourceBytes)
 	if !errors.Is(err, ErrInvalidSkill) {
 		t.Fatalf("ReadResource error = %v, want ErrInvalidSkill from project skill", err)
 	}

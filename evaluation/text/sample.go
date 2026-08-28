@@ -1,5 +1,5 @@
-// Package text evaluates generated text against its originating input and
-// caller-selected evidence.
+// Package text evaluates generated text without imposing a shared, RAG-shaped
+// sample on unrelated metrics.
 package text
 
 import (
@@ -13,35 +13,12 @@ var ErrInvalidSample = errors.New("evaluation/text: invalid sample")
 
 const evidenceSeparator = "\n"
 
-// Sample contains the generated-text facts used by text metrics. Individual
-// evaluators require only the fields their metric consumes.
-type Sample struct {
-	Input   string   `json:"input,omitzero"`
-	Output  string   `json:"output,omitzero"`
-	Context []string `json:"context,omitzero"`
+type AnswerRelevanceSample struct {
+	Input  string `json:"input"`
+	Output string `json:"output"`
 }
 
-func NewSample(input, output string, context []string) Sample {
-	return Sample{Input: input, Output: output, Context: slices.Clone(context)}
-}
-
-func (sample Sample) Clone() Sample {
-	sample.Context = slices.Clone(sample.Context)
-	return sample
-}
-
-// ContextText drops blank evidence entries before joining them in caller order.
-func (sample Sample) ContextText() string {
-	texts := make([]string, 0, len(sample.Context))
-	for _, text := range sample.Context {
-		if strings.TrimSpace(text) != "" {
-			texts = append(texts, text)
-		}
-	}
-	return strings.Join(texts, evidenceSeparator)
-}
-
-func (sample Sample) validateAnswerRelevance() error {
+func (sample AnswerRelevanceSample) Validate() error {
 	if strings.TrimSpace(sample.Input) == "" {
 		return fmt.Errorf("%w: input is required", ErrInvalidSample)
 	}
@@ -51,12 +28,51 @@ func (sample Sample) validateAnswerRelevance() error {
 	return nil
 }
 
-func (sample Sample) validateGroundedness() error {
+type GroundednessSample struct {
+	Output   string   `json:"output"`
+	Evidence []string `json:"evidence"`
+}
+
+func (sample GroundednessSample) Clone() GroundednessSample {
+	sample.Evidence = slices.Clone(sample.Evidence)
+	return sample
+}
+
+func (sample GroundednessSample) EvidenceText() string {
+	texts := make([]string, 0, len(sample.Evidence))
+	for _, text := range sample.Evidence {
+		if strings.TrimSpace(text) != "" {
+			texts = append(texts, text)
+		}
+	}
+	return strings.Join(texts, evidenceSeparator)
+}
+
+func (sample GroundednessSample) Validate() error {
 	if strings.TrimSpace(sample.Output) == "" {
 		return fmt.Errorf("%w: output is required", ErrInvalidSample)
 	}
-	if sample.ContextText() == "" {
-		return fmt.Errorf("%w: context is required", ErrInvalidSample)
+	if sample.EvidenceText() == "" {
+		return fmt.Errorf("%w: evidence is required", ErrInvalidSample)
+	}
+	return nil
+}
+
+type CorrectnessSample struct {
+	Input     string `json:"input"`
+	Output    string `json:"output"`
+	Reference string `json:"reference"`
+}
+
+func (sample CorrectnessSample) Validate() error {
+	if strings.TrimSpace(sample.Input) == "" {
+		return fmt.Errorf("%w: input is required", ErrInvalidSample)
+	}
+	if strings.TrimSpace(sample.Output) == "" {
+		return fmt.Errorf("%w: output is required", ErrInvalidSample)
+	}
+	if strings.TrimSpace(sample.Reference) == "" {
+		return fmt.Errorf("%w: reference is required", ErrInvalidSample)
 	}
 	return nil
 }

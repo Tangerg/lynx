@@ -11,37 +11,75 @@ import (
 	"github.com/samber/lo"
 )
 
-// ReadResource reads and closes a bundled skill resource from src.
-func ReadResource(ctx context.Context, src ResourceSource, name, resource string) ([]byte, error) {
+// ReadResource reads at most maxBytes from a bundled skill resource. The
+// truncated result is valid content but must not be treated as the complete
+// resource. maxBytes must be positive.
+func ReadResource(
+	ctx context.Context,
+	src ResourceSource,
+	name string,
+	resource string,
+	maxBytes int64,
+) ([]byte, bool, error) {
 	if lo.IsNil(src) {
-		return nil, ErrNilSource
+		return nil, false, ErrNilSource
 	}
 	if err := ValidateName(name); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	if err := validateResourcePath(resource); err != nil {
-		return nil, err
+		return nil, false, err
+	}
+	if maxBytes <= 0 || maxBytes > maxBoundedReadBytes {
+		return nil, false, fmt.Errorf("%w: max bytes must be positive and safely bounded", ErrInvalidLimit)
 	}
 	operation := fmt.Sprintf("read resource %q/%q", name, resource)
 	if err := contextError(ctx, operation); err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	file, err := src.OpenResource(ctx, name, resource)
 	file, err = checkedResourceFile(ctx, operation, name, resource, file, err)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	data, err := io.ReadAll(file)
-	err = errors.Join(err, ctx.Err())
+	data, truncated, err := readBounded(ctx, file, maxBytes)
 	closeErr := file.Close()
 	err = errors.Join(
 		resourceIOError("read", name, resource, err),
 		resourceIOError("close", name, resource, closeErr),
 	)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
-	return data, nil
+	return data, truncated, nil
+}
+
+type contextReader struct {
+	ctx    context.Context
+	reader io.Reader
+}
+
+func (reader contextReader) Read(buffer []byte) (int, error) {
+	if err := reader.ctx.Err(); err != nil {
+		return 0, err
+	}
+	read, err := reader.reader.Read(buffer)
+	if contextErr := reader.ctx.Err(); contextErr != nil {
+		return read, errors.Join(err, contextErr)
+	}
+	return read, err
+}
+
+func readBounded(ctx context.Context, reader io.Reader, maxBytes int64) ([]byte, bool, error) {
+	limited := io.LimitReader(contextReader{ctx: ctx, reader: reader}, maxBytes+1)
+	data, err := io.ReadAll(limited)
+	if err != nil {
+		return nil, false, err
+	}
+	if int64(len(data)) > maxBytes {
+		return data[:maxBytes], true, nil
+	}
+	return data, false, nil
 }
 
 func checkedResourceFile(

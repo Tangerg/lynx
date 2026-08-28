@@ -8,6 +8,9 @@ var (
 	ErrNilFilesystem   = errors.New("skills: filesystem must not be nil")
 	ErrNilSource       = errors.New("skills: source must not be nil")
 	ErrNilResourceFile = errors.New("skills: resource source returned a nil file without an error")
+	ErrInvalidLimit    = errors.New("skills: invalid limit")
+	ErrContentTooLarge = errors.New("skills: content exceeds configured limit")
+	ErrRepositoryLarge = errors.New("skills: repository exceeds configured entry limit")
 
 	ErrNoFrontmatter = errors.New("skills: SKILL.md must open with a YAML frontmatter block delimited by ---")
 

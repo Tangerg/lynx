@@ -58,4 +58,17 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	if out.Output == nil || out.Output.Text == "" {
 		t.Fatal("empty transcript")
 	}
+
+	limited, err := deepgram.NewAudioTranscriptionModel(deepgram.AudioTranscriptionModelConfig{
+		APIKey:           "test-key",
+		DefaultOptions:   opts,
+		BaseURL:          srv.URL,
+		MaxResponseBytes: 4,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = limited.Call(t.Context(), req); err == nil {
+		t.Fatal("Call accepted a transcription response over the configured limit")
+	}
 }

@@ -71,9 +71,10 @@ const (
 	// DefaultContentField / DefaultEmbeddingField / DefaultIDField
 	// name the well-known fields written to and read from each
 	// document. They must exist on the underlying index schema.
-	DefaultContentField   = "content"
-	DefaultEmbeddingField = "contentVector"
-	DefaultIDField        = "id"
+	DefaultContentField     = "content"
+	DefaultEmbeddingField   = "contentVector"
+	DefaultIDField          = "id"
+	DefaultMaxResponseBytes = int64(16 * 1024 * 1024)
 )
 
 // StoreConfig contains configuration options for the Azure AI Search
@@ -124,6 +125,10 @@ type StoreConfig struct {
 	// proxies, MSAL bearer-token injection). Optional: defaults to
 	// http.DefaultClient.
 	HTTPClient *http.Client
+
+	// MaxResponseBytes bounds every buffered HTTP response. Zero selects
+	// [DefaultMaxResponseBytes].
+	MaxResponseBytes int64
 }
 
 func (s StoreConfig) Validate() error {
@@ -148,6 +153,9 @@ func (s StoreConfig) Validate() error {
 	}
 	if !s.SimilarityMetric.Valid() {
 		return fmt.Errorf("azureaisearch: unsupported SimilarityMetric %q", s.SimilarityMetric)
+	}
+	if s.MaxResponseBytes < 0 {
+		return errors.New("azureaisearch: MaxResponseBytes must not be negative")
 	}
 	return nil
 }
@@ -184,6 +192,7 @@ type Store struct {
 	documentBatcher  vectorstore.Batcher
 	similarityMetric SimilarityMetric
 	httpClient       *http.Client
+	maxResponseBytes int64
 }
 
 func NewStore(config StoreConfig) (*Store, error) {
@@ -210,6 +219,7 @@ func NewStore(config StoreConfig) (*Store, error) {
 		documentBatcher:  config.DocumentBatcher,
 		similarityMetric: config.SimilarityMetric,
 		httpClient:       config.HTTPClient,
+		maxResponseBytes: cmp.Or(config.MaxResponseBytes, DefaultMaxResponseBytes),
 	}, nil
 }
 
@@ -481,9 +491,13 @@ func (s *Store) sendJSON(ctx context.Context, method, path string, body any) ([]
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	maxResponseBytes := cmp.Or(s.maxResponseBytes, DefaultMaxResponseBytes)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
+	}
+	if int64(len(respBody)) > maxResponseBytes {
+		return nil, fmt.Errorf("response exceeds %d-byte limit", maxResponseBytes)
 	}
 	if resp.StatusCode >= http.StatusMultipleChoices {
 		return nil, fmt.Errorf("status=%d body=%s", resp.StatusCode, string(respBody))

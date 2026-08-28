@@ -180,7 +180,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	}
 	defer resp.Body.Close()
 	if resp.IsError() {
-		body, readErr := io.ReadAll(resp.Body)
+		body, readErr := readErrorResponse(resp.Body)
 		if readErr != nil {
 			return nil, fmt.Errorf("elasticsearch: read search error response for %s with status %d: %w",
 				s.indexName, resp.StatusCode, readErr)
@@ -243,7 +243,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 	}
 	defer resp.Body.Close()
 	if resp.IsError() {
-		respBody, readErr := io.ReadAll(resp.Body)
+		respBody, readErr := readErrorResponse(resp.Body)
 		if readErr != nil {
 			return fmt.Errorf("elasticsearch: read delete_by_query error response for %s with status %d: %w",
 				s.indexName, resp.StatusCode, readErr)
@@ -417,7 +417,7 @@ func parseBulkResponse(response *esapi.Response, operation bulkOperation) (err e
 		}
 	}()
 	if response.IsError() {
-		body, readErr := io.ReadAll(response.Body)
+		body, readErr := readErrorResponse(response.Body)
 		if readErr != nil {
 			return fmt.Errorf("elasticsearch: read bulk %s error response with status %d: %w",
 				operation, response.StatusCode, readErr)

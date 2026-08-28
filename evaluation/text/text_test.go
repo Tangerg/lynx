@@ -34,10 +34,19 @@ func TestModelEvaluatorConstructionValidatesConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := texteval.NewGroundednessEvaluator(texteval.ModelEvaluatorConfig{
+	if _, constructErr := texteval.NewGroundednessEvaluator(texteval.ModelEvaluatorConfig{
 		Model: model, PromptTemplate: missing,
-	}); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
-		t.Fatalf("unknown field error = %v", err)
+	}); !errors.Is(constructErr, evaluation.ErrInvalidEvaluatorConfig) {
+		t.Fatalf("unknown field error = %v", constructErr)
+	}
+	ragOnly, err := chatclient.ParseTemplate("{{.Input}} {{.Output}} {{.Context}}")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, constructErr := texteval.NewAnswerRelevanceEvaluator(texteval.ModelEvaluatorConfig{
+		Model: model, PromptTemplate: ragOnly,
+	}); !errors.Is(constructErr, evaluation.ErrInvalidEvaluatorConfig) {
+		t.Fatalf("unsupported relevance prompt field error = %v", constructErr)
 	}
 	var typedNilModel *fakeModel
 	if _, err := texteval.NewGroundednessEvaluator(texteval.ModelEvaluatorConfig{
@@ -53,8 +62,8 @@ func TestGroundednessBuildsStructuredRequestAndDecodesResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := evaluator.Evaluate(t.Context(), texteval.Sample{
-		Output: "the claim", Context: []string{"source one", "", "source two"},
+	result, err := evaluator.Evaluate(t.Context(), texteval.GroundednessSample{
+		Output: "the claim", Evidence: []string{"source one", "", "source two"},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -79,7 +88,7 @@ func TestGroundednessBuildsStructuredRequestAndDecodesResult(t *testing.T) {
 
 func TestAnswerRelevanceSupportsCustomPromptAndThreshold(t *testing.T) {
 	model := &fakeModel{reply: `{"score":0.6,"feedback":"Partly relevant."}`}
-	prompt, err := chatclient.ParseTemplate("Q={{.Input}} A={{.Output}} C={{.Context}}")
+	prompt, err := chatclient.ParseTemplate("Q={{.Input}} A={{.Output}}")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,8 +99,8 @@ func TestAnswerRelevanceSupportsCustomPromptAndThreshold(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := evaluator.Evaluate(t.Context(), texteval.Sample{
-		Input: "question", Output: "answer", Context: []string{"source"},
+	result, err := evaluator.Evaluate(t.Context(), texteval.AnswerRelevanceSample{
+		Input: "question", Output: "answer",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -99,7 +108,7 @@ func TestAnswerRelevanceSupportsCustomPromptAndThreshold(t *testing.T) {
 	if result.Passed || result.Score != 0.6 || result.Feedback != "Partly relevant." {
 		t.Fatalf("result = %#v", result)
 	}
-	if got := model.lastRequest().Messages[0].Text(); got != "Q=question A=answer C=source" {
+	if got := model.lastRequest().Messages[0].Text(); got != "Q=question A=answer" {
 		t.Fatalf("custom prompt = %q", got)
 	}
 }
@@ -110,10 +119,10 @@ func TestModelEvaluatorsRejectMissingSemanticInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, sample := range []texteval.Sample{
-		{Context: []string{"source"}},
+	for _, sample := range []texteval.GroundednessSample{
+		{Evidence: []string{"source"}},
 		{Output: "answer"},
-		{Output: "answer", Context: []string{"  "}},
+		{Output: "answer", Evidence: []string{"  "}},
 	} {
 		if _, evaluateErr := groundedness.Evaluate(t.Context(), sample); !errors.Is(evaluateErr, texteval.ErrInvalidSample) {
 			t.Fatalf("Groundedness Evaluate(%#v) error = %v", sample, evaluateErr)
@@ -123,11 +132,41 @@ func TestModelEvaluatorsRejectMissingSemanticInputs(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := relevance.Evaluate(t.Context(), texteval.Sample{Output: "answer"}); !errors.Is(err, texteval.ErrInvalidSample) {
+	if _, err := relevance.Evaluate(t.Context(), texteval.AnswerRelevanceSample{Output: "answer"}); !errors.Is(err, texteval.ErrInvalidSample) {
 		t.Fatalf("missing input error = %v", err)
 	}
 	if calls := model.callCount(); calls != 0 {
 		t.Fatalf("model calls after invalid inputs = %d", calls)
+	}
+}
+
+func TestCorrectnessUsesReferenceAndSupportsSelfConsistency(t *testing.T) {
+	model := &fakeModel{reply: "{\"score\":0.9,\"feedback\":\"Correct.\"}"}
+	evaluator, err := texteval.NewCorrectnessEvaluator(texteval.ModelEvaluatorConfig{
+		Model: model, Samples: 3,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := evaluator.Evaluate(t.Context(), texteval.CorrectnessSample{
+		Input: "2 + 2", Output: "4", Reference: "4",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !report.Passed || report.Score != 0.9 || model.callCount() != 3 {
+		t.Fatalf("report = %#v, calls = %d", report, model.callCount())
+	}
+	prompt := model.lastRequest().Messages[0].Text()
+	for _, want := range []string{"2 + 2", "Reference:", "4"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("prompt %q missing %q", prompt, want)
+		}
+	}
+	if _, err := evaluator.Evaluate(t.Context(), texteval.CorrectnessSample{
+		Input: "2 + 2", Output: "4",
+	}); !errors.Is(err, texteval.ErrInvalidSample) {
+		t.Fatalf("missing reference error = %v", err)
 	}
 }
 
@@ -138,7 +177,7 @@ func TestModelEvaluatorPreservesCancellationAndModelErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	sample := texteval.Sample{Output: "answer", Context: []string{"source"}}
+	sample := texteval.GroundednessSample{Output: "answer", Evidence: []string{"source"}}
 	if _, err := evaluator.Evaluate(t.Context(), sample); !errors.Is(err, modelErr) {
 		t.Fatalf("model error = %v", err)
 	}
@@ -161,8 +200,8 @@ func TestModelEvaluatorRejectsInvalidStructuredResults(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := evaluator.Evaluate(t.Context(), texteval.Sample{
-			Output: "answer", Context: []string{"source"},
+		if _, err := evaluator.Evaluate(t.Context(), texteval.GroundednessSample{
+			Output: "answer", Evidence: []string{"source"},
 		}); err == nil {
 			t.Fatalf("reply %q was accepted", reply)
 		}
@@ -172,20 +211,18 @@ func TestModelEvaluatorRejectsInvalidStructuredResults(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, err = evaluator.Evaluate(t.Context(), texteval.Sample{Output: "answer", Context: []string{"source"}})
+	_, err = evaluator.Evaluate(t.Context(), texteval.GroundednessSample{Output: "answer", Evidence: []string{"source"}})
 	if !errors.Is(err, evaluation.ErrInvalidReport) {
 		t.Fatalf("out-of-range score error = %v", err)
 	}
 }
 
-func TestSampleOwnsContext(t *testing.T) {
-	contextValues := []string{"first"}
-	sample := texteval.NewSample("input", "output", contextValues)
-	contextValues[0] = "changed"
+func TestGroundednessSampleCloneOwnsEvidence(t *testing.T) {
+	sample := texteval.GroundednessSample{Output: "output", Evidence: []string{"first"}}
 	clone := sample.Clone()
-	clone.Context[0] = "clone"
-	if got := sample.ContextText(); got != "first" {
-		t.Fatalf("ContextText = %q, want first", got)
+	clone.Evidence[0] = "clone"
+	if got := sample.EvidenceText(); got != "first" {
+		t.Fatalf("EvidenceText = %q, want first", got)
 	}
 }
 

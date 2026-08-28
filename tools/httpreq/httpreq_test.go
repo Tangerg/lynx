@@ -68,6 +68,7 @@ func TestClientConfigValidate(t *testing.T) {
 		{name: "blank method", config: ClientConfig{AllowedHosts: []string{"example.com"}, AllowedMethods: []Method{""}}, want: ErrInvalidClientConfig},
 		{name: "unsupported method", config: ClientConfig{AllowedHosts: []string{"example.com"}, AllowedMethods: []Method{"CONNECT"}}, want: ErrInvalidMethod},
 		{name: "negative timeout", config: ClientConfig{AllowedHosts: []string{"example.com"}, DefaultTimeout: -time.Second}, want: ErrInvalidClientConfig},
+		{name: "negative response limit", config: ClientConfig{AllowedHosts: []string{"example.com"}, MaxResponseBytes: -1}, want: ErrInvalidClientConfig},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -235,6 +236,47 @@ func TestDo_RedirectHostAllowlist(t *testing.T) {
 			t.Fatal("blocked redirect reached its target")
 		}
 	})
+}
+
+func TestDo_RedirectRevalidatesMethod(t *testing.T) {
+	var targetHits atomic.Int64
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/found":
+			http.Redirect(w, r, "/target", http.StatusFound)
+		case "/temporary":
+			http.Redirect(w, r, "/target", http.StatusTemporaryRedirect)
+		case "/target":
+			targetHits.Add(1)
+			_, _ = io.WriteString(w, r.Method)
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(srv.Close)
+
+	client, err := NewClient(ClientConfig{
+		AllowedHosts:   []string{testURLHostname(t, srv.URL)},
+		AllowedMethods: []Method{MethodPOST},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, redirectErr := client.Do(t.Context(), &Request{URL: srv.URL + "/found", Method: MethodPOST}); !errors.Is(redirectErr, ErrMethodNotAllowed) {
+		t.Fatalf("302 redirect error = %v, want ErrMethodNotAllowed", redirectErr)
+	}
+	if targetHits.Load() != 0 {
+		t.Fatal("redirect with rewritten, disallowed method reached its target")
+	}
+
+	response, err := client.Do(t.Context(), &Request{URL: srv.URL + "/temporary", Method: MethodPOST})
+	if err != nil {
+		t.Fatalf("307 redirect: %v", err)
+	}
+	if response.Body != string(MethodPOST) || targetHits.Load() != 1 {
+		t.Fatalf("307 response = %#v, target hits = %d", response, targetHits.Load())
+	}
 }
 
 func TestDo_WildcardHost(t *testing.T) {

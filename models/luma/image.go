@@ -1,6 +1,7 @@
 package luma
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -17,6 +18,8 @@ import (
 	"github.com/Tangerg/scope/core/media"
 )
 
+const DefaultMaxOutputBytes = int64(32 * 1024 * 1024)
+
 type ImageModelConfig struct {
 	APIKey         string
 	DefaultOptions image.Options
@@ -24,6 +27,7 @@ type ImageModelConfig struct {
 	HTTPClient     *http.Client
 	PollInterval   time.Duration
 	PollTimeout    time.Duration
+	MaxOutputBytes int64
 }
 
 func (i ImageModelConfig) Validate() error {
@@ -35,6 +39,15 @@ func (i ImageModelConfig) Validate() error {
 	}
 	if err := i.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("luma: DefaultOptions: %w", err)
+	}
+	if i.PollInterval < 0 {
+		return errors.New("luma: PollInterval must not be negative")
+	}
+	if i.PollTimeout < 0 {
+		return errors.New("luma: PollTimeout must not be negative")
+	}
+	if i.MaxOutputBytes < 0 {
+		return errors.New("luma: MaxOutputBytes must not be negative")
 	}
 	return nil
 }
@@ -49,6 +62,7 @@ type ImageModel struct {
 	httpClient     *http.Client
 	pollInterval   time.Duration
 	pollTimeout    time.Duration
+	maxOutputBytes int64
 }
 
 func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
@@ -68,11 +82,11 @@ func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 		httpClient = http.DefaultClient
 	}
 	pollInterval := config.PollInterval
-	if pollInterval <= 0 {
+	if pollInterval == 0 {
 		pollInterval = time.Duration(DefaultPollIntervalSeconds) * time.Second
 	}
 	pollTimeout := config.PollTimeout
-	if pollTimeout <= 0 {
+	if pollTimeout == 0 {
 		pollTimeout = time.Duration(DefaultPollTimeoutSeconds) * time.Second
 	}
 	return &ImageModel{
@@ -81,6 +95,7 @@ func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 		httpClient:     httpClient,
 		pollInterval:   pollInterval,
 		pollTimeout:    pollTimeout,
+		maxOutputBytes: cmp.Or(config.MaxOutputBytes, DefaultMaxOutputBytes),
 	}, nil
 }
 
@@ -232,9 +247,12 @@ func (i *ImageModel) downloadOutput(ctx context.Context, rawURL string) ([]byte,
 	if response.StatusCode < http.StatusOK || response.StatusCode >= http.StatusMultipleChoices {
 		return nil, "", fmt.Errorf("download HTTP %d", response.StatusCode)
 	}
-	data, err := io.ReadAll(response.Body)
+	data, err := io.ReadAll(io.LimitReader(response.Body, i.maxOutputBytes+1))
 	if err != nil {
 		return nil, "", fmt.Errorf("read download: %w", err)
+	}
+	if int64(len(data)) > i.maxOutputBytes {
+		return nil, "", fmt.Errorf("download exceeds %d-byte limit", i.maxOutputBytes)
 	}
 	if len(data) == 0 {
 		return nil, "", errors.New("download is empty")

@@ -9,8 +9,6 @@
 
 - 目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)。
 - 架构决策见 [`DECISIONS.md`](DECISIONS.md)。
-- 能力取舍与真实消费者证据见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)。
-- 阶段与实际进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)。
 - 仓库通用规则见 [`../../CLAUDE.md`](../../CLAUDE.md)、[`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md) 和 [`../../REFACTORING.md`](../../REFACTORING.md)。
 
 本文比通用规则更具体，但不能放宽上位约束。发生冲突时，先按更严格且更接近根因的规则处理；仍无法裁决时，停止实现并更新 ADR。
@@ -399,7 +397,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 注释只写 why、外部约束、并发/安全合同和非显然算法，不复述 what。
 - exported API 的 GoDoc 是合同，必须与实现同步。
 - 不保留迁移注释、review 说明、过期 TODO 或指向已删除符号的文字。
-- 代码变更同步更新架构事实、ADR 或进度记录中真正受影响的那一份文档，避免跨文档复制。
+- 代码变更只更新真正受影响的现行 owner：架构事实、ADR、工程标准或 API baseline；阶段流水和迁移台账由 Git 历史承担，避免重新建立第二真相源。
 
 ---
 
@@ -459,7 +457,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - [ ] 相关 contract、race、fuzz、golden 和 architecture tests。
 - [ ] `go mod tidy` 后无非预期 diff。
 - [ ] `git diff --check` 通过。
-- [ ] 进度和执行日志只记录已经完成的事实。
+- [ ] 现行架构、ADR 或 API baseline 只在其合同确实变化时同步更新；不为普通批次续写历史执行归档。
 
 ### 6.4 提交
 

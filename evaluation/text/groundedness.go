@@ -6,14 +6,14 @@ import (
 	"github.com/Tangerg/scope/evaluation"
 )
 
-const MetricGroundedness evaluation.Metric = "groundedness"
+const MetricGroundedness evaluation.MetricName = "groundedness"
 
-const groundednessPrompt = `Evaluate how well the output is supported by the provided context.
+const groundednessPrompt = `Evaluate how well the output is supported by the provided evidence.
 
 Score support from 0.0 to 1.0 and provide concise feedback.
 
-Context:
-{{.Context}}
+Evidence:
+{{.Evidence}}
 
 Output:
 {{.Output}}
@@ -23,16 +23,28 @@ Evaluation:`
 // GroundednessEvaluator scores whether generated output is supported by the
 // supplied evidence.
 type GroundednessEvaluator struct {
-	evaluator *modelEvaluator
+	evaluator evaluation.Evaluator[GroundednessSample]
+}
+
+type groundednessVariables struct {
+	Output   string
+	Evidence string
 }
 
 func NewGroundednessEvaluator(config ModelEvaluatorConfig) (*GroundednessEvaluator, error) {
+	metric, err := evaluation.NewMetric("text", MetricGroundedness, nil)
+	if err != nil {
+		return nil, err
+	}
 	evaluator, err := newModelEvaluator(
 		config,
-		MetricGroundedness,
+		metric,
 		groundednessPrompt,
+		func(sample GroundednessSample) groundednessVariables {
+			return groundednessVariables{Output: sample.Output, Evidence: sample.EvidenceText()}
+		},
 		templateOutputName,
-		templateContextName,
+		templateEvidenceName,
 	)
 	if err != nil {
 		return nil, err
@@ -40,11 +52,11 @@ func NewGroundednessEvaluator(config ModelEvaluatorConfig) (*GroundednessEvaluat
 	return &GroundednessEvaluator{evaluator: evaluator}, nil
 }
 
-func (evaluator *GroundednessEvaluator) Evaluate(ctx context.Context, sample Sample) (evaluation.Report, error) {
-	if err := sample.validateGroundedness(); err != nil {
+func (evaluator *GroundednessEvaluator) Evaluate(ctx context.Context, sample GroundednessSample) (evaluation.Report, error) {
+	if err := sample.Validate(); err != nil {
 		return evaluation.Report{}, err
 	}
-	return evaluator.evaluator.evaluate(ctx, sample)
+	return evaluator.evaluator.Evaluate(ctx, sample)
 }
 
-var _ evaluation.Evaluator[Sample] = (*GroundednessEvaluator)(nil)
+var _ evaluation.Evaluator[GroundednessSample] = (*GroundednessEvaluator)(nil)

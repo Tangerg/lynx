@@ -2,6 +2,7 @@ package deepgram_test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 
 	"github.com/Tangerg/scope/core/modeltest"
@@ -43,5 +44,28 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	}
 	if out.Output == nil {
 		t.Fatal("nil output")
+	}
+
+	limited, err := deepgram.NewAudioTTSModel(deepgram.AudioTTSModelConfig{
+		APIKey:           "test-key",
+		DefaultOptions:   opts,
+		BaseURL:          srv.URL,
+		MaxResponseBytes: 4,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = limited.Call(t.Context(), req); err == nil || !strings.Contains(err.Error(), "4-byte limit") {
+		t.Fatalf("limited Call error = %v", err)
+	}
+}
+
+func TestAudioTTSModelConfigRejectsNegativeResponseLimit(t *testing.T) {
+	opts, _ := tts.NewOptions("aura-asteria-en")
+	_, err := deepgram.NewAudioTTSModel(deepgram.AudioTTSModelConfig{
+		APIKey: "test-key", DefaultOptions: opts, MaxResponseBytes: -1,
+	})
+	if err == nil {
+		t.Fatal("NewAudioTTSModel accepted a negative response limit")
 	}
 }

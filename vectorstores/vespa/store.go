@@ -37,6 +37,8 @@ const (
 	// DefaultQueryTensorName names the rank-profile query tensor.
 	DefaultQueryTensorName = "q"
 
+	DefaultMaxResponseBytes = int64(16 * 1024 * 1024)
+
 	// Staying within Vespa's default maxHits avoids requiring a query-profile
 	// override merely to enumerate documents for deletion.
 	deletePageSize = 400
@@ -87,6 +89,10 @@ type StoreConfig struct {
 	// proxies, mTLS for Vespa Cloud). Optional: defaults to
 	// http.DefaultClient.
 	HTTPClient *http.Client
+
+	// MaxResponseBytes bounds every buffered HTTP response. Zero selects
+	// [DefaultMaxResponseBytes].
+	MaxResponseBytes int64
 }
 
 func (s StoreConfig) Validate() error {
@@ -105,6 +111,9 @@ func (s StoreConfig) Validate() error {
 	}
 	if s.DocumentBatcher == nil {
 		return errors.New("vespa: DocumentBatcher is required")
+	}
+	if s.MaxResponseBytes < 0 {
+		return errors.New("vespa: MaxResponseBytes must not be negative")
 	}
 	return s.validateIdentifiers()
 }
@@ -156,17 +165,18 @@ var (
 
 // Store implements vector-store capabilities through Vespa's REST API.
 type Store struct {
-	endpoint        string
-	schemaName      string
-	namespace       string
-	embeddingField  string
-	contentField    string
-	idField         string
-	queryTensorName string
-	rankingProfile  string
-	embeddingClient embeddingclient.Client
-	documentBatcher vectorstore.Batcher
-	httpClient      *http.Client
+	endpoint         string
+	schemaName       string
+	namespace        string
+	embeddingField   string
+	contentField     string
+	idField          string
+	queryTensorName  string
+	rankingProfile   string
+	embeddingClient  embeddingclient.Client
+	documentBatcher  vectorstore.Batcher
+	httpClient       *http.Client
+	maxResponseBytes int64
 }
 
 func NewStore(config StoreConfig) (*Store, error) {
@@ -179,17 +189,18 @@ func NewStore(config StoreConfig) (*Store, error) {
 		return nil, fmt.Errorf("vespa: create embedding client: %w", err)
 	}
 	return &Store{
-		endpoint:        strings.TrimRight(config.Endpoint, "/"),
-		schemaName:      config.SchemaName,
-		namespace:       config.Namespace,
-		embeddingField:  config.EmbeddingField,
-		contentField:    config.ContentField,
-		idField:         config.IDField,
-		queryTensorName: config.QueryTensorName,
-		rankingProfile:  config.RankingProfile,
-		embeddingClient: embeddingClient,
-		documentBatcher: config.DocumentBatcher,
-		httpClient:      config.HTTPClient,
+		endpoint:         strings.TrimRight(config.Endpoint, "/"),
+		schemaName:       config.SchemaName,
+		namespace:        config.Namespace,
+		embeddingField:   config.EmbeddingField,
+		contentField:     config.ContentField,
+		idField:          config.IDField,
+		queryTensorName:  config.QueryTensorName,
+		rankingProfile:   config.RankingProfile,
+		embeddingClient:  embeddingClient,
+		documentBatcher:  config.DocumentBatcher,
+		httpClient:       config.HTTPClient,
+		maxResponseBytes: cmp.Or(config.MaxResponseBytes, DefaultMaxResponseBytes),
 	}, nil
 }
 
@@ -437,9 +448,13 @@ func (s *Store) sendJSON(ctx context.Context, method, path string, body any) ([]
 	}
 	defer resp.Body.Close()
 
-	respBody, err := io.ReadAll(resp.Body)
+	maxResponseBytes := cmp.Or(s.maxResponseBytes, DefaultMaxResponseBytes)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, maxResponseBytes+1))
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
+	}
+	if int64(len(respBody)) > maxResponseBytes {
+		return nil, fmt.Errorf("response exceeds %d-byte limit", maxResponseBytes)
 	}
 	if resp.StatusCode >= http.StatusMultipleChoices {
 		return nil, fmt.Errorf("status=%d body=%s", resp.StatusCode, string(respBody))

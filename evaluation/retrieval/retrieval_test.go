@@ -49,8 +49,12 @@ func TestEvaluatorCalculatesRankingMetricsAtCutoff(t *testing.T) {
 			if math.Abs(report.Score.Float64()-test.want) > 1e-12 {
 				t.Fatalf("score = %v, want %v", report.Score, test.want)
 			}
-			if got, want := string(report.Metric), "retrieval/"+string(test.metric)+"@4"; got != want {
-				t.Fatalf("metric = %q, want %q", got, want)
+			if report.Metric.Namespace != "retrieval" || report.Metric.Name != evaluation.MetricName(test.metric) {
+				t.Fatalf("metric = %#v", report.Metric)
+			}
+			cutoff, found, err := report.Metric.Parameters.Decode[int]("cutoff")
+			if err != nil || !found || cutoff != 4 {
+				t.Fatalf("metric cutoff = (%d, %v, %v)", cutoff, found, err)
 			}
 			if report.Passed != (test.want >= threshold.Float64()) {
 				t.Fatalf("passed = %v for score %v and threshold %v", report.Passed, report.Score, threshold)

@@ -7,9 +7,7 @@
 本文只记录影响长期结构的架构决策及其理由，不复述目标架构，不记录任务进度。
 
 - 目标设计见 [`ARCHITECTURE.md`](ARCHITECTURE.md)。
-- 能力取舍与消费者证据见 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md)。
 - 工程实施标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
-- 实施进度见 [`EXECUTION_PLAN.md`](EXECUTION_PLAN.md)。
 
 改变已接受决策时，不直接改写历史结论。应追加新的 ADR，注明被取代的旧 ADR，并同步更新目标架构。
 
@@ -109,7 +107,7 @@
 ## ADR-A2-016：原实现是历史证据，不是当前规范
 
 - 状态：已接受，迁移已完成。
-- 决策：绿色重写期间曾直接参考原实现的代码、测试和文档，但没有建立 import、兼容或共享混合抽象；切换后只保留仓库历史和能力台账作为证据。
+- 决策：绿色重写期间曾直接参考原实现的代码、测试和文档，但没有建立 import、兼容或共享混合抽象；切换后只保留仓库历史作为迁移证据。
 - 原因：迁移时复用经过生产验证的知识，同时避免历史结构反向决定新设计；完成后删除双轨真相源。
 - 执行要求：当前能力只由公共基线与测试验收，历史实现不得作为兼容依据恢复。
 
@@ -469,7 +467,7 @@
 - 状态：已接受；完成 P9-06，P9 完成。
 - 证据：最终完整项目 lint 发现根公共 API 使用 `StatusCancelled` 与 JSON `"cancelled"`，既不符合仓库统一美式英文，也与 Go 标准库 `context.Canceled` 的既有术语冲突。同一轮还发现 P1 的两个 disposable spike 在正式实现和行为合同已完整接管后仍留在主测试集合，普通测试甚至借用了 spike 文件中的 helper；稳定架构文档也残留已完成阶段的未来时态。它们分别属于公共词汇不一致、验证资产生命周期失守和事实文档漂移，不能以关闭 lint、保留别名或改写历史解释掩盖。
 - 决策：公共状态只叫 `StatusCanceled`，wire 只接受 `"canceled"`。不提供 `StatusCancelled` alias，不接受旧 JSON 拼写，不建立迁移 decoder。由于 Status 嵌入 Process Snapshot/TreeSnapshot，schema 分别从 v5/v3 升为 v6/v4；prior-version 与 prior-spelling tests 直接证明旧格式被拒绝。其余 Strategy protocol 与 Event/Delta wire 没有变化，不为统一版本号而无意义升级。
-- 决策：P1 disposable spike 在正式 Interaction、Engine、prepared Step、snapshot/restore 与 unknown Effect 合同全部有 owner 测试后整体删除。任何仍需要的普通测试装配只能由真实测试 owner 自己拥有；同 package 的重复 Interaction Deployment 构造收敛为一个已存在 helper，不形成生产测试框架。稳定架构文档只陈述当前冻结事实，阶段性计划、spike 与验收过程只进入执行计划和能力台账。
+- 决策：P1 disposable spike 在正式 Interaction、Engine、prepared Step、snapshot/restore 与 unknown Effect 合同全部有 owner 测试后整体删除。任何仍需要的普通测试装配只能由真实测试 owner 自己拥有；同 package 的重复 Interaction Deployment 构造收敛为一个已存在 helper，不形成生产测试框架。稳定架构文档只陈述当前冻结事实，阶段性计划、spike 与验收过程只由 Git 历史保留。
 - 决策：阶段完成门禁使用项目完整 `golangci-lint` 配置，而不把 `staticcheck` 当作其替代。额外 duplicate/complexity 指标只用于发现证据：重复职责必须修复；sealed union validator、状态机和测试 fixture 的完整分支不为追逐任意阈值拆散领域不变量。
 - 后果：形成 Baseline 6，根 public digest 与 Kernel snapshot/protocol digest 显式更新；其余六个 public package、Strategy owner wire、Event/Delta wire 与 production package DAG 保持不变。P9 结束时不再有 disposable spike、跨 spike helper、事实过期的稳定设计语句或已知静态问题。
 

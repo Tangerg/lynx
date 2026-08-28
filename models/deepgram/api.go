@@ -15,9 +15,10 @@ import (
 )
 
 type apiConfig struct {
-	APIKey     string
-	BaseURL    string
-	HTTPClient *http.Client
+	APIKey           string
+	BaseURL          string
+	HTTPClient       *http.Client
+	MaxResponseBytes int64
 }
 
 func (a apiConfig) validate() error {
@@ -28,7 +29,8 @@ func (a apiConfig) validate() error {
 }
 
 type api struct {
-	http *resty.Client
+	http             *resty.Client
+	maxResponseBytes int64
 }
 
 func newAPI(config apiConfig) (*api, error) {
@@ -41,9 +43,10 @@ func newAPI(config apiConfig) (*api, error) {
 		client = resty.NewWithClient(config.HTTPClient)
 	}
 	client.SetBaseURL(cmp.Or(config.BaseURL, DefaultBaseURL)).
-		SetHeader("Authorization", "Token "+config.APIKey)
+		SetHeader("Authorization", "Token "+config.APIKey).
+		SetResponseBodyLimit(int(config.MaxResponseBytes))
 
-	return &api{http: client}, nil
+	return &api{http: client, maxResponseBytes: config.MaxResponseBytes}, nil
 }
 
 // ListenParams holds current query-string options for Deepgram /listen.
@@ -152,7 +155,7 @@ func (a *api) speak(ctx context.Context, text string, params *speakParams) ([]by
 		return nil, nil, err
 	}
 	defer body.Close()
-	audio, err := io.ReadAll(body)
+	audio, err := readBounded(body, a.maxResponseBytes)
 	if err != nil {
 		return nil, nil, fmt.Errorf("deepgram: read speech response: %w", err)
 	}
@@ -181,7 +184,7 @@ func (a *api) speakStream(ctx context.Context, text string, params *speakParams)
 	}
 	if !resp.IsSuccess() {
 		defer resp.RawBody().Close()
-		body, readErr := io.ReadAll(resp.RawBody())
+		body, readErr := readBounded(resp.RawBody(), maximumErrorResponseBytes)
 		if readErr != nil {
 			return nil, nil, fmt.Errorf("deepgram: http %d; read error response: %w", resp.StatusCode(), readErr)
 		}
@@ -191,6 +194,17 @@ func (a *api) speakStream(ctx context.Context, text string, params *speakParams)
 		return nil, nil, errors.New("deepgram: speech response has no body")
 	}
 	return resp.RawBody(), resp.Header(), nil
+}
+
+func readBounded(reader io.Reader, maxBytes int64) ([]byte, error) {
+	data, err := io.ReadAll(io.LimitReader(reader, maxBytes+1))
+	if err != nil {
+		return nil, err
+	}
+	if int64(len(data)) > maxBytes {
+		return nil, fmt.Errorf("response exceeds %d-byte limit", maxBytes)
+	}
+	return data, nil
 }
 
 func buildSpeakQuery(p *speakParams) url.Values {

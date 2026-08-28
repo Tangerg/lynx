@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -64,5 +65,30 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	}
 	if out.First() == nil || string(out.First().Media.Source.Bytes) != "PNG" {
 		t.Fatalf("result = %#v", out.First())
+	}
+
+	limited, err := luma.NewImageModel(luma.ImageModelConfig{
+		APIKey:         "test-key",
+		DefaultOptions: opts,
+		BaseURL:        server.URL,
+		PollInterval:   10 * time.Millisecond,
+		PollTimeout:    5 * time.Second,
+		MaxOutputBytes: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = limited.Call(t.Context(), req); err == nil || !strings.Contains(err.Error(), "2-byte limit") {
+		t.Fatalf("limited Call error = %v", err)
+	}
+}
+
+func TestImageModelConfigRejectsNegativeOutputLimit(t *testing.T) {
+	opts, _ := image.NewOptions(luma.ModelUni1)
+	_, err := luma.NewImageModel(luma.ImageModelConfig{
+		APIKey: "test-key", DefaultOptions: opts, MaxOutputBytes: -1,
+	})
+	if err == nil {
+		t.Fatal("NewImageModel accepted a negative output limit")
 	}
 }

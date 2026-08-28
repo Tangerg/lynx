@@ -39,6 +39,12 @@ func (a AudioTTSModelConfig) Validate() error {
 	if err := a.InputSchema.Validate(); err != nil {
 		return err
 	}
+	if a.PollInterval < 0 {
+		return errors.New("replicate: PollInterval must not be negative")
+	}
+	if a.PollTimeout < 0 {
+		return errors.New("replicate: PollTimeout must not be negative")
+	}
 	return nil
 }
 
@@ -131,11 +137,11 @@ func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 		return nil, err
 	}
 	pi := config.PollInterval
-	if pi <= 0 {
+	if pi == 0 {
 		pi = time.Duration(DefaultPollIntervalSeconds) * time.Second
 	}
 	pt := config.PollTimeout
-	if pt <= 0 {
+	if pt == 0 {
 		pt = time.Duration(DefaultTTSPollTimeoutSeconds) * time.Second
 	}
 	return &AudioTTSModel{

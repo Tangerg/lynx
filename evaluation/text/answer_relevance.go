@@ -6,7 +6,7 @@ import (
 	"github.com/Tangerg/scope/evaluation"
 )
 
-const MetricAnswerRelevance evaluation.Metric = "answer_relevance"
+const MetricAnswerRelevance evaluation.MetricName = "answer_relevance"
 
 const answerRelevancePrompt = `Evaluate how directly and completely the output addresses the input.
 
@@ -23,14 +23,26 @@ Evaluation:`
 // AnswerRelevanceEvaluator scores whether generated output addresses its
 // originating input. Groundedness is intentionally evaluated separately.
 type AnswerRelevanceEvaluator struct {
-	evaluator *modelEvaluator
+	evaluator evaluation.Evaluator[AnswerRelevanceSample]
+}
+
+type answerRelevanceVariables struct {
+	Input  string
+	Output string
 }
 
 func NewAnswerRelevanceEvaluator(config ModelEvaluatorConfig) (*AnswerRelevanceEvaluator, error) {
+	metric, err := evaluation.NewMetric("text", MetricAnswerRelevance, nil)
+	if err != nil {
+		return nil, err
+	}
 	evaluator, err := newModelEvaluator(
 		config,
-		MetricAnswerRelevance,
+		metric,
 		answerRelevancePrompt,
+		func(sample AnswerRelevanceSample) answerRelevanceVariables {
+			return answerRelevanceVariables(sample)
+		},
 		templateInputName,
 		templateOutputName,
 	)
@@ -40,11 +52,11 @@ func NewAnswerRelevanceEvaluator(config ModelEvaluatorConfig) (*AnswerRelevanceE
 	return &AnswerRelevanceEvaluator{evaluator: evaluator}, nil
 }
 
-func (evaluator *AnswerRelevanceEvaluator) Evaluate(ctx context.Context, sample Sample) (evaluation.Report, error) {
-	if err := sample.validateAnswerRelevance(); err != nil {
+func (evaluator *AnswerRelevanceEvaluator) Evaluate(ctx context.Context, sample AnswerRelevanceSample) (evaluation.Report, error) {
+	if err := sample.Validate(); err != nil {
 		return evaluation.Report{}, err
 	}
-	return evaluator.evaluator.evaluate(ctx, sample)
+	return evaluator.evaluator.Evaluate(ctx, sample)
 }
 
-var _ evaluation.Evaluator[Sample] = (*AnswerRelevanceEvaluator)(nil)
+var _ evaluation.Evaluator[AnswerRelevanceSample] = (*AnswerRelevanceEvaluator)(nil)

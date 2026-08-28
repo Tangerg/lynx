@@ -14,6 +14,8 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
+const maximumErrorResponseBytes = int64(64 * 1024)
+
 type apiConfig struct {
 	APIKey     string
 	BaseURL    string
@@ -103,7 +105,7 @@ func (a *api) textToSpeechStream(ctx context.Context, voiceID, outputFormat stri
 	if !resp.IsSuccess() {
 		// Drain + close to surface the error body to the caller.
 		raw := resp.RawBody()
-		errBody, _ := io.ReadAll(raw)
+		errBody, _ := io.ReadAll(io.LimitReader(raw, maximumErrorResponseBytes))
 		_ = raw.Close()
 		return nil, nil, fmt.Errorf("elevenlabs: http %d: %s", resp.StatusCode(), string(errBody))
 	}

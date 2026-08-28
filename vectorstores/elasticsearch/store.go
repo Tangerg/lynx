@@ -18,15 +18,16 @@ import (
 const Provider = "Elasticsearch"
 
 const (
-	DefaultIndexName        = "scope-vector-index"
-	DefaultEmbeddingField   = "embedding"
-	DefaultContentField     = "content"
-	DefaultMetadataField    = "metadata"
-	DefaultSimilarity       = SimilarityCosine
-	defaultNumCandidatesMul = 1.5 // num_candidates = ceil(topK * multiplier)
-	mappingTypeText         = "text"
-	mappingTypeDenseVector  = "dense_vector"
-	mappingTypeObject       = "object"
+	DefaultIndexName          = "scope-vector-index"
+	DefaultEmbeddingField     = "embedding"
+	DefaultContentField       = "content"
+	DefaultMetadataField      = "metadata"
+	DefaultSimilarity         = SimilarityCosine
+	defaultNumCandidatesMul   = 1.5 // num_candidates = ceil(topK * multiplier)
+	mappingTypeText           = "text"
+	mappingTypeDenseVector    = "dense_vector"
+	mappingTypeObject         = "object"
+	maximumErrorResponseBytes = int64(64 * 1024)
 )
 
 type createIndexRequest struct {
@@ -261,7 +262,7 @@ func (s *Store) indexExists(ctx context.Context) (bool, error) {
 	case http.StatusNotFound:
 		return false, nil
 	default:
-		body, readErr := io.ReadAll(resp.Body)
+		body, readErr := readErrorResponse(resp.Body)
 		if readErr != nil {
 			return false, fmt.Errorf("elasticsearch: read index existence error for %q with status %d: %w",
 				s.indexName, resp.StatusCode, readErr)
@@ -301,7 +302,7 @@ func (s *Store) createIndex(ctx context.Context) error {
 	}
 	defer resp.Body.Close()
 	if resp.IsError() {
-		body, readErr := io.ReadAll(resp.Body)
+		body, readErr := readErrorResponse(resp.Body)
 		if readErr != nil {
 			return fmt.Errorf("elasticsearch: read create-index error for %q with status %d: %w",
 				s.indexName, resp.StatusCode, readErr)
@@ -310,6 +311,10 @@ func (s *Store) createIndex(ctx context.Context) error {
 			s.indexName, resp.StatusCode, string(body))
 	}
 	return nil
+}
+
+func readErrorResponse(reader io.Reader) ([]byte, error) {
+	return io.ReadAll(io.LimitReader(reader, maximumErrorResponseBytes))
 }
 
 // Index embeds the documents and bulk-indexes them.

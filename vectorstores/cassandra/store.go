@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/gocql/gocql"
@@ -229,7 +230,7 @@ func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 		idColumn:        config.IDColumn,
 		contentColumn:   config.ContentColumn,
 		embeddingColumn: config.EmbeddingColumn,
-		metadataColumns: config.MetadataColumns,
+		metadataColumns: slices.Clone(config.MetadataColumns),
 		embeddingClient: embeddingClient,
 		documentBatcher: config.DocumentBatcher,
 		dimensions:      config.Dimensions,

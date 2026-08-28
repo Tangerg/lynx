@@ -34,7 +34,7 @@ func NewClient(config ClientConfig) (*Client, error) {
 	} else {
 		transport = resty.New()
 	}
-	transport.SetRedirectPolicy(resty.RedirectPolicyFunc(policy.allowedHosts.CheckRedirect))
+	transport.SetRedirectPolicy(resty.RedirectPolicyFunc(policy.checkRedirect))
 	for name, value := range config.DefaultHeaders {
 		transport.SetHeader(name, value)
 	}

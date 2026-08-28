@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/samber/lo"
 
@@ -21,14 +22,41 @@ type ReadSkillResourceRequest struct {
 }
 
 type toolSet struct {
-	source skillsrc.ResourceSource
+	source         skillsrc.ResourceSource
+	maxOutputBytes int64
 }
 
-func NewTools(source skillsrc.ResourceSource) ([]toolcontract.Tool, error) {
+const (
+	DefaultMaxOutputBytes = int64(256 * 1024)
+	minimumMaxOutputBytes = int64(len("<available_skills>\n  <truncated>true</truncated>\n</available_skills>"))
+	maximumMaxOutputBytes = int64(^uint64(0)>>1) - 1
+	truncationMarker      = "\n\n[output truncated]"
+)
+
+type Config struct {
+	MaxOutputBytes int64
+}
+
+func NewTools(source skillsrc.ResourceSource, config Config) ([]toolcontract.Tool, error) {
 	if lo.IsNil(source) {
 		return nil, ErrNilSource
 	}
-	set := &toolSet{source: source}
+	if config.MaxOutputBytes < 0 {
+		return nil, fmt.Errorf("%w: maximum output bytes must not be negative", skillsrc.ErrInvalidLimit)
+	}
+	maxOutputBytes := config.MaxOutputBytes
+	if maxOutputBytes == 0 {
+		maxOutputBytes = DefaultMaxOutputBytes
+	}
+	if maxOutputBytes < minimumMaxOutputBytes || maxOutputBytes > maximumMaxOutputBytes {
+		return nil, fmt.Errorf(
+			"%w: maximum output bytes must be between %d and %d",
+			skillsrc.ErrInvalidLimit,
+			minimumMaxOutputBytes,
+			maximumMaxOutputBytes,
+		)
+	}
+	set := &toolSet{source: source, maxOutputBytes: maxOutputBytes}
 	list, err := toolcontract.NewFunc(
 		toolcontract.FuncConfig{
 			Name: "list_skills",
@@ -70,7 +98,7 @@ func (t *toolSet) list(ctx context.Context, _ struct{}) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	return renderSummaries(summaries), nil
+	return renderSummaries(summaries, t.maxOutputBytes), nil
 }
 
 func (t *toolSet) load(ctx context.Context, request LoadSkillRequest) (string, error) {
@@ -78,29 +106,43 @@ func (t *toolSet) load(ctx context.Context, request LoadSkillRequest) (string, e
 	if err != nil {
 		return "", err
 	}
-	return skill.Instructions, nil
+	return boundedText(skill.Instructions, false, t.maxOutputBytes), nil
 }
 
 func (t *toolSet) readResource(ctx context.Context, request ReadSkillResourceRequest) (string, error) {
-	data, err := skillsrc.ReadResource(ctx, t.source, request.Name, request.Path)
+	data, truncated, err := skillsrc.ReadResource(ctx, t.source, request.Name, request.Path, t.maxOutputBytes)
 	if err != nil {
 		return "", err
 	}
-	return string(data), nil
+	return boundedText(string(data), truncated, t.maxOutputBytes), nil
 }
 
 var xmlEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
 
-func renderSummaries(summaries []skillsrc.Summary) string {
+func renderSummaries(summaries []skillsrc.Summary, maxBytes int64) string {
 	var b strings.Builder
 	b.WriteString("<available_skills>")
 	for _, summary := range summaries {
-		b.WriteString("\n  <skill>\n    <name>")
-		b.WriteString(xmlEscaper.Replace(summary.Name))
-		b.WriteString("</name>\n    <description>")
-		b.WriteString(xmlEscaper.Replace(summary.Description))
-		b.WriteString("</description>\n  </skill>")
+		entry := "\n  <skill>\n    <name>" + xmlEscaper.Replace(summary.Name) +
+			"</name>\n    <description>" + xmlEscaper.Replace(summary.Description) +
+			"</description>\n  </skill>"
+		if int64(b.Len()+len(entry)+len("\n  <truncated>true</truncated>\n</available_skills>")) > maxBytes {
+			b.WriteString("\n  <truncated>true</truncated>")
+			break
+		}
+		b.WriteString(entry)
 	}
 	b.WriteString("\n</available_skills>")
 	return b.String()
+}
+
+func boundedText(value string, truncated bool, maxBytes int64) string {
+	if !truncated && int64(len(value)) <= maxBytes {
+		return value
+	}
+	end := min(len(value), int(maxBytes)-len(truncationMarker))
+	for end > 0 && end < len(value) && !utf8.RuneStart(value[end]) {
+		end--
+	}
+	return value[:end] + truncationMarker
 }

@@ -15,10 +15,6 @@ type Response struct {
 }
 
 func readCapped(reader io.Reader, maxBytes int64) ([]byte, bool, error) {
-	if maxBytes < 0 {
-		body, err := io.ReadAll(reader)
-		return body, false, err
-	}
 	limited := io.LimitReader(reader, maxBytes+1)
 	body, err := io.ReadAll(limited)
 	if err != nil {

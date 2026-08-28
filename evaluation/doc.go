@@ -1,5 +1,12 @@
-// Package evaluation defines the subject-agnostic evaluation kernel: normalized
-// scores and reports, the Evaluator contract, and explicit evaluator
-// composition. Concrete subject domains live in subpackages so their sample
-// shapes and metric vocabularies cannot leak into this kernel.
+// Package evaluation defines a subject-agnostic quality-evaluation kernel.
+// Evaluator is generic over the subject, Metric carries structured identity,
+// CompositeEvaluator makes score and pass aggregation explicit, and Runner
+// executes identified cases with bounded concurrency and distribution
+// summaries. ProjectionEvaluator adapts aggregate datasets to narrow evaluator
+// subjects without forcing a shared sample shape.
+//
+// Domain vocabularies live outside the kernel: judge supplies generic
+// model-backed evaluation, text owns generated-text metrics, and retrieval owns
+// ranking metrics. New domains implement Evaluator directly and do not depend
+// on text-generation or retrieval concepts.
 package evaluation

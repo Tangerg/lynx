@@ -53,6 +53,30 @@ type failingOpenFS struct {
 	err  error
 }
 
+type countingFS struct {
+	fs.FS
+	reads int
+}
+
+func (c *countingFS) Open(name string) (fs.File, error) {
+	file, err := c.FS.Open(name)
+	if err != nil || name == "." {
+		return file, err
+	}
+	return &countingFile{File: file, reads: &c.reads}, nil
+}
+
+type countingFile struct {
+	fs.File
+	reads *int
+}
+
+func (c *countingFile) Read(buffer []byte) (int, error) {
+	read, err := c.File.Read(buffer)
+	*c.reads += read
+	return read, err
+}
+
 func (f failingOpenFS) Open(name string) (fs.File, error) {
 	if name == f.path {
 		return nil, f.err
@@ -101,7 +125,7 @@ func newTestFS() ResourceSource {
 }
 
 func mustNewFS(fsys fs.FS) *Repository {
-	repository, err := NewRepository(fsys)
+	repository, err := NewRepository(fsys, RepositoryConfig{})
 	if err != nil {
 		panic(err)
 	}
@@ -235,6 +259,71 @@ func TestList(t *testing.T) {
 	}
 }
 
+func TestListReadsOnlyBoundedFrontmatter(t *testing.T) {
+	document := skillFile("large-skill", "large skill", strings.Repeat("body", 64*1024))
+	filesystem := &countingFS{FS: fstest.MapFS{"large-skill/SKILL.md": document}}
+	repository, err := NewRepository(filesystem, RepositoryConfig{MaxFrontmatterBytes: 1024, MaxSkillBytes: int64(len(document.Data))})
+	if err != nil {
+		t.Fatal(err)
+	}
+	summaries, err := repository.List(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(summaries) != 1 || summaries[0].Name != "large-skill" {
+		t.Fatalf("summaries = %#v", summaries)
+	}
+	if filesystem.reads >= len(document.Data) {
+		t.Fatalf("List read the complete %d-byte skill document", len(document.Data))
+	}
+}
+
+func TestListSkipsSkillWithOversizedFrontmatterLine(t *testing.T) {
+	filesystem := fstest.MapFS{
+		"oversized/SKILL.md": {Data: []byte("---\nname: oversized\ndescription: " + strings.Repeat("x", 1024) + "\n---\nbody")},
+		"valid/SKILL.md":     skillFile("valid", "valid skill", "body"),
+	}
+	repository, err := NewRepository(filesystem, RepositoryConfig{MaxFrontmatterBytes: 128})
+	if err != nil {
+		t.Fatal(err)
+	}
+	summaries, err := repository.List(t.Context())
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(summaries) != 1 || summaries[0].Name != "valid" {
+		t.Fatalf("summaries = %#v", summaries)
+	}
+}
+
+func TestRepositoryEnforcesEntryAndSkillLimits(t *testing.T) {
+	filesystem := fstest.MapFS{
+		"one/SKILL.md": skillFile("one", "one", "body"),
+		"two/SKILL.md": skillFile("two", "two", "body"),
+	}
+	repository, err := NewRepository(filesystem, RepositoryConfig{MaxEntries: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, listErr := repository.List(t.Context()); !errors.Is(listErr, ErrRepositoryLarge) {
+		t.Fatalf("List error = %v, want ErrRepositoryLarge", listErr)
+	}
+
+	repository, err = NewRepository(filesystem, RepositoryConfig{MaxFrontmatterBytes: 16, MaxSkillBytes: 16})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, loadErr := repository.Load(t.Context(), "one"); !errors.Is(loadErr, ErrContentTooLarge) {
+		t.Fatalf("Load error = %v, want ErrContentTooLarge", loadErr)
+	}
+	if _, err := NewRepository(filesystem, RepositoryConfig{MaxEntries: -1}); !errors.Is(err, ErrInvalidLimit) {
+		t.Fatalf("NewRepository error = %v, want ErrInvalidLimit", err)
+	}
+	if _, err := NewRepository(filesystem, RepositoryConfig{MaxSkillBytes: maxBoundedReadBytes + 1}); !errors.Is(err, ErrInvalidLimit) {
+		t.Fatalf("overflowing repository limit error = %v, want ErrInvalidLimit", err)
+	}
+}
+
 func TestLoad(t *testing.T) {
 	sk, err := newTestFS().Load(context.Background(), "pdf-processing")
 	if err != nil {
@@ -293,7 +382,7 @@ func TestListReturnsRepositoryReadFailure(t *testing.T) {
 func TestReadResource(t *testing.T) {
 	fsrc := newTestFS()
 
-	data, err := ReadResource(context.Background(), fsrc, "pdf-processing", "references/REFERENCE.md")
+	data, _, err := ReadResource(context.Background(), fsrc, "pdf-processing", "references/REFERENCE.md", DefaultMaxResourceBytes)
 	if err != nil {
 		t.Fatalf("ReadResource: %v", err)
 	}
@@ -302,14 +391,32 @@ func TestReadResource(t *testing.T) {
 	}
 
 	// Traversal out of the skill directory must be rejected.
-	if _, err := ReadResource(context.Background(), fsrc, "pdf-processing", "../data-analysis/SKILL.md"); !errors.Is(err, ErrResourcePath) {
+	if _, _, err := ReadResource(context.Background(), fsrc, "pdf-processing", "../data-analysis/SKILL.md", DefaultMaxResourceBytes); !errors.Is(err, ErrResourcePath) {
 		t.Errorf("traversal err = %v, want ErrResourcePath", err)
+	}
+}
+
+func TestReadResourceReturnsBoundedTruncation(t *testing.T) {
+	data, truncated, err := ReadResource(
+		t.Context(), newTestFS(), "pdf-processing", "references/REFERENCE.md", 5,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !truncated || string(data) != "# Ref" {
+		t.Fatalf("ReadResource = (%q, %v), want bounded prefix", data, truncated)
+	}
+	if _, _, err := ReadResource(t.Context(), newTestFS(), "pdf-processing", "references/REFERENCE.md", 0); !errors.Is(err, ErrInvalidLimit) {
+		t.Fatalf("zero limit error = %v, want ErrInvalidLimit", err)
+	}
+	if _, _, err := ReadResource(t.Context(), newTestFS(), "pdf-processing", "references/REFERENCE.md", maxBoundedReadBytes+1); !errors.Is(err, ErrInvalidLimit) {
+		t.Fatalf("overflowing limit error = %v, want ErrInvalidLimit", err)
 	}
 }
 
 func TestReadResourceRejectsNilFileWithoutPanicking(t *testing.T) {
 	source := nilFileResourceSource{ResourceSource: newTestFS()}
-	_, err := ReadResource(t.Context(), source, "pdf-processing", "references/REFERENCE.md")
+	_, _, err := ReadResource(t.Context(), source, "pdf-processing", "references/REFERENCE.md", DefaultMaxResourceBytes)
 	if !errors.Is(err, ErrNilResourceFile) {
 		t.Fatalf("ReadResource error = %v, want ErrNilResourceFile", err)
 	}
@@ -350,7 +457,7 @@ func TestOperationsHonorCanceledContextBeforeAccess(t *testing.T) {
 			return err
 		}},
 		{name: "read resource", call: func() error {
-			_, err := ReadResource(ctx, &panicResourceSource{}, "safe-skill", "references/note.md")
+			_, _, err := ReadResource(ctx, &panicResourceSource{}, "safe-skill", "references/note.md", DefaultMaxResourceBytes)
 			return err
 		}},
 		{name: "empty merge list", call: func() error { _, err := Merge().List(ctx); return err }},
@@ -398,7 +505,7 @@ func TestOperationsHonorCancellationDuringAccess(t *testing.T) {
 
 	ctx, cancel := context.WithCancel(t.Context())
 	source := cancelingResourceSource{ResourceSource: mustNewFS(base), cancel: cancel}
-	if _, err := ReadResource(ctx, source, "safe-skill", "references/note.md"); !errors.Is(err, context.Canceled) {
+	if _, _, err := ReadResource(ctx, source, "safe-skill", "references/note.md", DefaultMaxResourceBytes); !errors.Is(err, context.Canceled) {
 		t.Fatalf("ReadResource error = %v, want context.Canceled", err)
 	}
 }
@@ -414,7 +521,7 @@ func TestReadResourceRejectsNilSource(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			if _, err := ReadResource(t.Context(), test.source, "pdf-processing", "references/REFERENCE.md"); !errors.Is(err, ErrNilSource) {
+			if _, _, err := ReadResource(t.Context(), test.source, "pdf-processing", "references/REFERENCE.md", DefaultMaxResourceBytes); !errors.Is(err, ErrNilSource) {
 				t.Fatalf("ReadResource error = %v, want ErrNilSource", err)
 			}
 		})
@@ -444,7 +551,11 @@ func TestDirRejectsResourceSymlinkEscapingRoot(t *testing.T) {
 		t.Skipf("create symlink: %v", err)
 	}
 
-	if _, err := ReadResource(t.Context(), NewDirectoryRepository(root), "safe-skill", "references/secret.txt"); err == nil {
+	repository, err := NewDirectoryRepository(root, RepositoryConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := ReadResource(t.Context(), repository, "safe-skill", "references/secret.txt", DefaultMaxResourceBytes); err == nil {
 		t.Fatal("ReadResource followed a symlink outside the source root")
 	}
 }
@@ -474,7 +585,11 @@ func TestDirRejectsResourceSymlinkEscapingSkill(t *testing.T) {
 		t.Skipf("create symlink: %v", err)
 	}
 
-	if _, err := ReadResource(t.Context(), NewDirectoryRepository(root), "safe-skill", "references/secret.txt"); err == nil {
+	repository, err := NewDirectoryRepository(root, RepositoryConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := ReadResource(t.Context(), repository, "safe-skill", "references/secret.txt", DefaultMaxResourceBytes); err == nil {
 		t.Fatal("ReadResource followed a symlink into a sibling skill")
 	}
 }
@@ -490,7 +605,7 @@ func TestNewFSRejectsNilFilesystemWithoutPanicking(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			repository, err := NewRepository(test.filesystem)
+			repository, err := NewRepository(test.filesystem, RepositoryConfig{})
 			if repository != nil || !errors.Is(err, ErrNilFilesystem) {
 				t.Fatalf("NewRepository = (%v, %v), want (nil, ErrNilFilesystem)", repository, err)
 			}

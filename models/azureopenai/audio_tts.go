@@ -9,10 +9,11 @@ import (
 )
 
 type AudioTTSModelConfig struct {
-	APIKey         string
-	BaseURL        string
-	DefaultOptions tts.Options
-	HTTPClient     *http.Client
+	APIKey           string
+	BaseURL          string
+	DefaultOptions   tts.Options
+	HTTPClient       *http.Client
+	MaxResponseBytes int64
 }
 
 func (a AudioTTSModelConfig) Validate() error {
@@ -24,6 +25,9 @@ func (a AudioTTSModelConfig) Validate() error {
 	}
 	if err := a.DefaultOptions.Validate(); err != nil {
 		return err
+	}
+	if a.MaxResponseBytes < 0 {
+		return errors.New("azureopenai: MaxResponseBytes must not be negative")
 	}
 	return nil
 }
@@ -44,10 +48,11 @@ func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 		return nil, err
 	}
 	return openai.NewAudioTTSModel(openai.AudioTTSModelConfig{
-		Provider:       "azureopenai",
-		APIKey:         config.APIKey,
-		DefaultOptions: config.DefaultOptions,
-		BaseURL:        baseURL,
-		HTTPClient:     config.HTTPClient,
+		Provider:         "azureopenai",
+		APIKey:           config.APIKey,
+		DefaultOptions:   config.DefaultOptions,
+		BaseURL:          baseURL,
+		HTTPClient:       config.HTTPClient,
+		MaxResponseBytes: config.MaxResponseBytes,
 	})
 }

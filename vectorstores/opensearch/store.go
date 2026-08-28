@@ -19,6 +19,8 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+const maximumErrorResponseBytes = int64(64 * 1024)
+
 var (
 	_ vectorstore.Indexer       = (*Store)(nil)
 	_ vectorstore.Searcher      = (*Store)(nil)
@@ -110,7 +112,7 @@ func (s *Store) indexExists(ctx context.Context) (bool, error) {
 	case http.StatusNotFound:
 		return false, nil
 	default:
-		body, readErr := io.ReadAll(resp.Body)
+		body, readErr := readErrorResponse(resp.Body)
 		if readErr != nil {
 			return false, fmt.Errorf("opensearch: read index existence error for %q with status %d: %w",
 				s.indexName, resp.StatusCode, readErr)
@@ -153,7 +155,7 @@ func (s *Store) createIndex(ctx context.Context) error {
 	}
 	if resp != nil && resp.Inspect().Response != nil && resp.Inspect().Response.IsError() {
 		response := resp.Inspect().Response
-		raw, readErr := io.ReadAll(response.Body)
+		raw, readErr := readErrorResponse(response.Body)
 		if readErr != nil {
 			return fmt.Errorf("opensearch: read create-index error for %q with status %d: %w",
 				s.indexName, response.StatusCode, readErr)
@@ -162,6 +164,10 @@ func (s *Store) createIndex(ctx context.Context) error {
 			s.indexName, response.StatusCode, string(raw))
 	}
 	return nil
+}
+
+func readErrorResponse(reader io.Reader) ([]byte, error) {
+	return io.ReadAll(io.LimitReader(reader, maximumErrorResponseBytes))
 }
 
 func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (err error) {

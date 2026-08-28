@@ -124,16 +124,24 @@ func NewAudioTranslationModel(config AudioTranslationModelConfig) (*AudioTransla
 }
 
 type AudioTTSModelConfig struct {
-	APIKey         string
-	DefaultOptions tts.Options
-	BaseURL        string
-	HTTPClient     *http.Client
+	APIKey           string
+	DefaultOptions   tts.Options
+	BaseURL          string
+	HTTPClient       *http.Client
+	MaxResponseBytes int64
 }
 
 func (a AudioTTSModelConfig) Validate() error { return a.protocol().Validate() }
 
 func (a AudioTTSModelConfig) protocol() openaiprotocol.AudioTTSModelConfig {
-	return openaiprotocol.AudioTTSModelConfig{Provider: protocolProvider, APIKey: a.APIKey, DefaultOptions: a.DefaultOptions, BaseURL: a.BaseURL, HTTPClient: a.HTTPClient}
+	return openaiprotocol.AudioTTSModelConfig{
+		Provider:         protocolProvider,
+		APIKey:           a.APIKey,
+		DefaultOptions:   a.DefaultOptions,
+		BaseURL:          a.BaseURL,
+		HTTPClient:       a.HTTPClient,
+		MaxResponseBytes: a.MaxResponseBytes,
+	}
 }
 
 // AudioTTSModel is the OpenAI-compatible speech protocol model.

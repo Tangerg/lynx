@@ -44,9 +44,7 @@ func (allowlist Allowlist) Allows(host string) bool {
 	return false
 }
 
-// CheckRedirect enforces the same host policy on every redirect hop and caps
-// the chain at net/http's default limit.
-func (allowlist Allowlist) CheckRedirect(request *http.Request, via []*http.Request) error {
+func (policy clientPolicy) checkRedirect(request *http.Request, via []*http.Request) error {
 	if len(via) >= defaultRedirectLimit {
 		return fmt.Errorf("%w: limit %d", ErrRedirectLimitReached, defaultRedirectLimit)
 	}
@@ -54,8 +52,12 @@ func (allowlist Allowlist) CheckRedirect(request *http.Request, via []*http.Requ
 		return fmt.Errorf("httpreq: validate redirect target: %w", ErrInvalidURL)
 	}
 	host := request.URL.Hostname()
-	if !allowlist.Allows(host) {
+	if !policy.allowedHosts.Allows(host) {
 		return fmt.Errorf("%w: redirect target %q", ErrHostNotAllowed, host)
+	}
+	method := Method(request.Method).Normalize()
+	if _, allowed := policy.allowedMethods[method]; !allowed {
+		return fmt.Errorf("%w: redirect method %s", ErrMethodNotAllowed, method)
 	}
 	return nil
 }
