@@ -36,13 +36,13 @@ import (
 // is that the document this build writes is the version the contract named. Bumping
 // it is a breaking act, so it should cost a deliberate edit here.
 func TestArtifactVersionMatchesCurrentContractBaseline(t *testing.T) {
-	if protocol.SessionArtifactVersion != 23 {
-		t.Fatalf("SessionArtifactVersion = %d; current Runtime contract requires artifact v23",
+	if protocol.SessionArtifactVersion != 24 {
+		t.Fatalf("SessionArtifactVersion = %d; current Runtime contract requires artifact v24",
 			protocol.SessionArtifactVersion)
 	}
 }
 
-// TestArtifactV23RoundTripsEveryFieldItCarries is the rest of gate 16.
+// TestArtifactV24RoundTripsEveryFieldItCarries is the rest of gate 16.
 //
 // The failure mode a version bump actually has is a field the encoder writes and
 // the decoder drops — the archive still imports, still looks right, and the value is
@@ -55,7 +55,7 @@ func TestArtifactVersionMatchesCurrentContractBaseline(t *testing.T) {
 //   - the archive survives the trip WHOLE — export, wipe, import, export again, and
 //     the two documents must be identical byte for byte. Any field the decoder
 //     forgets is missing from the second document.
-func TestArtifactV23RoundTripsEveryFieldItCarries(t *testing.T) {
+func TestArtifactV24RoundTripsEveryFieldItCarries(t *testing.T) {
 	s, rt := rollbackHarness(t)
 	s.features.plan = true // this composition offers Plan, so it may restore it
 	ctx := t.Context()
@@ -344,7 +344,7 @@ func seedMaximalSession(t *testing.T, rt *stubRuntime) string {
 	// path would make the two exports differ by macOS's /private prefix rather than
 	// by anything the archive carries.
 	cwd := canonicalWorkspacePath(t, t.TempDir())
-	selection, err := modelref.New("anthropic", "claude-opus-5")
+	selection, err := modelref.NewWithReasoningEffort("anthropic", "claude-opus-5", "high")
 	if err != nil {
 		t.Fatalf("seed model selection: %v", err)
 	}
@@ -381,7 +381,7 @@ func seedCompletedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 	t.Helper()
 	cost := 1.25
 	outcome := run.OutcomeCompleted
-	selection, err := modelref.New("anthropic", "claude-opus-5")
+	selection, err := modelref.NewWithReasoningEffort("anthropic", "claude-opus-5", "high")
 	if err != nil {
 		t.Fatalf("model selection: %v", err)
 	}
@@ -418,7 +418,7 @@ func seedCompletedRun(t *testing.T, rt *stubRuntime, sessionID string) {
 func seedChildRun(t *testing.T, rt *stubRuntime, sessionID string) {
 	t.Helper()
 	outcome := run.OutcomeCompleted
-	selection, err := modelref.New("openai", "gpt-child")
+	selection, err := modelref.NewWithReasoningEffort("openai", "gpt-child", "medium")
 	if err != nil {
 		t.Fatalf("child model selection: %v", err)
 	}

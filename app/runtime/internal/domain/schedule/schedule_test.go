@@ -59,9 +59,10 @@ func TestScheduleApplyPatch(t *testing.T) {
 		t.Fatalf("patched schedule = %+v", got)
 	}
 
-	provider := "anthropic"
-	if _, err := sc.Apply(Patch{Provider: &provider}); !errors.Is(err, modelref.ErrIncomplete) {
-		t.Fatalf("partial model patch error = %v, want %v", err, modelref.ErrIncomplete)
+	replacement := mustSelection(t, "anthropic", "claude")
+	got, err = sc.Apply(Patch{Selection: &replacement})
+	if err != nil || got.ModelSelection != replacement {
+		t.Fatalf("selection patch = %+v, %v", got.ModelSelection, err)
 	}
 }
 

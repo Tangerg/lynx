@@ -9,11 +9,13 @@ import (
 	"context"
 
 	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
 )
 
 type scopeKey struct{}
 type runCapabilitiesKey struct{}
+type modelSelectionKey struct{}
 
 // WithScope returns a context carrying scope. The value is immutable and safe
 // to share across the complete delegation tree.
@@ -43,6 +45,21 @@ func RunCapabilities(ctx context.Context) (run.Capabilities, bool) {
 	}
 	capabilities, ok := ctx.Value(runCapabilitiesKey{}).(run.Capabilities)
 	return capabilities.Clone(), ok
+}
+
+// WithModelSelection carries the root Run's exact immutable model choice
+// through model-invoked product tools.
+func WithModelSelection(ctx context.Context, selection modelref.Selection) context.Context {
+	return context.WithValue(ctx, modelSelectionKey{}, selection)
+}
+
+// ModelSelection returns the exact root Run model choice.
+func ModelSelection(ctx context.Context) (modelref.Selection, bool) {
+	if ctx == nil {
+		return modelref.Selection{}, false
+	}
+	selection, ok := ctx.Value(modelSelectionKey{}).(modelref.Selection)
+	return selection, ok
 }
 
 // CWD returns the execution workspace, falling back when the Run is

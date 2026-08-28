@@ -322,16 +322,8 @@ func (r *reducer) open() (reductionBatch, error) {
 	if err != nil {
 		return reductionBatch{}, err
 	}
-	if r.cfg.Lineage.IsRoot() && len(r.cfg.UserInput) != 0 {
-		var message corechat.Message
-		if r.cfg.ConversationInput != nil {
-			message = r.cfg.ConversationInput.Clone()
-		} else {
-			message, err = MaterializeUserMessage(r.cfg.UserInput)
-			if err != nil {
-				return reductionBatch{}, fmt.Errorf("%w: opening conversation message: %w", errReducerInvariant, err)
-			}
-		}
+	if r.cfg.Lineage.IsRoot() && r.cfg.ConversationInput != nil {
+		message := r.cfg.ConversationInput.Clone()
 		if message.Role != corechat.RoleUser || message.Validate() != nil {
 			return reductionBatch{}, fmt.Errorf("%w: opening conversation input is not a valid User message", errReducerInvariant)
 		}
@@ -430,8 +422,8 @@ func (r *reducer) reduceFact(ev ExecutionFact) (factReduction, error) {
 		var messages []corechat.Message
 		if r.cfg.Lineage.IsRoot() {
 			messages = make([]corechat.Message, len(e.Messages))
-			for index, content := range e.Messages {
-				message, err := MaterializeUserMessage(content)
+			for index, applied := range e.Messages {
+				message, err := MaterializeUserMessage(applied.Content)
 				if err != nil {
 					return factReduction{}, fmt.Errorf("%w: applied steer message[%d]: %w", errExecutorContract, index, err)
 				}

@@ -27,7 +27,7 @@ import (
 // runs.resume.
 func (s *Server) StartRun(ctx context.Context, in protocol.StartRunRequest) (*protocol.StartRunResponse, iter.Seq[protocol.RunEvent], error) {
 	options := generationOptionsFromWire(in.Params)
-	selection, err := modelref.New(in.Provider, in.Model)
+	selection, err := modelref.NewWithReasoningEffort(in.Provider, in.Model, in.ReasoningEffort)
 	if err != nil {
 		return nil, nil, wireRunStartErr(err)
 	}
@@ -95,13 +95,15 @@ func wireRunStartErr(err error) error {
 	switch {
 	case errors.Is(err, runs.ErrInputRequired):
 		return fmt.Errorf("%w: input must contain a user text or image block", protocol.ErrInvalidParams)
-	case errors.Is(err, modelref.ErrIncomplete):
+	case modelref.IsInvalid(err):
 		return protocol.ErrInvalidParams
 	case errors.Is(err, runs.ErrInvalidRunLimit):
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	case errors.Is(err, runs.ErrInvalidRunOptions):
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	case errors.Is(err, runs.ErrUnsupportedMedia):
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
+	case errors.Is(err, runs.ErrUnsupportedModelSelection):
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	case errors.Is(err, runs.ErrInvalidScheduledStart):
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)

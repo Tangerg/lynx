@@ -12,6 +12,7 @@ import (
 	"github.com/Tangerg/scope/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/interrupt"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
@@ -258,15 +259,21 @@ func TestRunAdmitEnforcesOneActivePerSession(t *testing.T) {
 func TestRunProgressFootprintSurvivesTerminalRead(t *testing.T) {
 	ctx := context.Background()
 	store, _ := newRunStores(t)
-	if err := store.Admit(ctx, runDraft("run_context", "ses_context")); err != nil {
-		t.Fatalf("admit: %v", err)
+	selection, err := modelref.NewWithReasoningEffort("openai", "gpt-5.6-sol", "high")
+	if err != nil {
+		t.Fatalf("model selection: %v", err)
+	}
+	draft := runDraft("run_context", "ses_context")
+	draft.ModelSelection = selection
+	if admitErr := store.Admit(ctx, draft); admitErr != nil {
+		t.Fatalf("admit: %v", admitErr)
 	}
 	metrics := runfixture.MustMetrics(runfixture.MetricsInput{Steps: 1})
 	updatedAt := runCreatedAt.Add(time.Second)
-	if err := store.UpdateProgress(
+	if updateErr := store.UpdateProgress(
 		ctx, "ses_context", "run_context", "seg_open", metrics, 87_900, updatedAt,
-	); err != nil {
-		t.Fatalf("UpdateProgress: %v", err)
+	); updateErr != nil {
+		t.Fatalf("UpdateProgress: %v", updateErr)
 	}
 	current, found, err := store.Run(ctx, "run_context")
 	if err != nil || !found {
@@ -287,6 +294,9 @@ func TestRunProgressFootprintSurvivesTerminalRead(t *testing.T) {
 	}
 	if got := recovered.ContextTokens(); got != 87_900 {
 		t.Fatalf("recovered ContextTokens = %d, want 87900", got)
+	}
+	if recovered.ModelSelection() != selection {
+		t.Fatalf("recovered model selection = %+v, want %+v", recovered.ModelSelection(), selection)
 	}
 }
 

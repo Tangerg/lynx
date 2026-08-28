@@ -73,11 +73,12 @@ type WorkingContextComposer interface {
 	) ([]corechat.Message, error)
 }
 
-// ModelInputAdmitter validates provider-neutral input against the exact
-// selected model's known capabilities. Unknown-model behavior belongs behind
-// this port; the use case only knows that rejected input must not reach staging
-// or durable admission.
-type ModelInputAdmitter interface {
+// ModelAdmitter validates an exact selection and provider-neutral input against
+// that model's known capabilities. Unknown-model behavior belongs behind this
+// port; the use case only knows that rejected selections or input must not reach
+// staging or durable admission.
+type ModelAdmitter interface {
+	AdmitSelection(selection modelref.Selection) error
 	AdmitInput(selection modelref.Selection, messages []corechat.Message) error
 }
 
@@ -103,6 +104,7 @@ type WaitingExecutionContinuer interface {
 		ctx context.Context,
 		ref ExecutorRef,
 		answers []InterruptAnswer,
+		input *CommittedUserInput,
 		allowedInterrupts []interrupt.Kind,
 	) error
 }

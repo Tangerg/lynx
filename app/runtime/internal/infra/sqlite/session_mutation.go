@@ -43,11 +43,11 @@ func (s *SessionStore) Save(
 	snapshot := replacement.Snapshot()
 	result, err := conn(ctx, s.db).ExecContext(ctx, `UPDATE sessions SET
 		title = ?, workspace_path = ?, parent_id = ?, started_at = ?, updated_at = ?,
-		provider = ?, model = ?, favorite = ?, isolated = ?, revision = ?
+		provider = ?, model = ?, reasoning_effort = ?, favorite = ?, isolated = ?, revision = ?
 		WHERE id = ? AND revision = ?`,
 		snapshot.Title, snapshot.Workspace.Path(), snapshot.ParentID,
 		snapshot.StartedAt.UnixNano(), snapshot.UpdatedAt.UnixNano(),
-		snapshot.Selection.Provider(), snapshot.Selection.Model(),
+		snapshot.Selection.Provider(), snapshot.Selection.Model(), snapshot.Selection.ReasoningEffort(),
 		boolToInt(snapshot.Favorite), boolToInt(snapshot.Isolated),
 		snapshot.Revision, snapshot.ID, expectedRevision,
 	)
@@ -80,10 +80,10 @@ func (s *SessionStore) Delete(ctx context.Context, id string) error {
 func (s *SessionStore) execInsert(ctx context.Context, executor execer, value session.Session) error {
 	snapshot := value.Snapshot()
 	_, err := executor.ExecContext(ctx,
-		`INSERT INTO sessions(`+sessionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		`INSERT INTO sessions(`+sessionColumns+`) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		snapshot.ID, snapshot.Title, snapshot.Workspace.Path(), snapshot.ParentID,
 		snapshot.StartedAt.UnixNano(), snapshot.UpdatedAt.UnixNano(),
-		snapshot.Selection.Provider(), snapshot.Selection.Model(),
+		snapshot.Selection.Provider(), snapshot.Selection.Model(), snapshot.Selection.ReasoningEffort(),
 		boolToInt(snapshot.Favorite), boolToInt(snapshot.Isolated),
 		snapshot.Revision,
 	)

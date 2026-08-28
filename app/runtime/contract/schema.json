@@ -1104,6 +1104,9 @@
         "provider": {
           "type": "string"
         },
+        "reasoningEffort": {
+          "type": "string"
+        },
         "rootRunId": {
           "type": "string"
         },
@@ -1239,6 +1242,9 @@
         "provider": {
           "type": "string",
           "minLength": 1
+        },
+        "reasoningEffort": {
+          "type": "string"
         },
         "title": {
           "type": "string"
@@ -1607,6 +1613,9 @@
           "type": "string"
         },
         "provider": {
+          "type": "string"
+        },
+        "reasoningEffort": {
           "type": "string"
         },
         "title": {
@@ -2263,6 +2272,9 @@
         },
         "reason": {
           "$ref": "#/$defs/GoalReason"
+        },
+        "reasoningEffort": {
+          "type": "string"
         },
         "sessionId": {
           "type": "string"
@@ -6277,6 +6289,9 @@
         "provider": {
           "type": "string"
         },
+        "reasoningEffort": {
+          "type": "string"
+        },
         "rootRunId": {
           "type": "string"
         },
@@ -6529,6 +6544,9 @@
           "type": "string"
         },
         "provider": {
+          "type": "string"
+        },
+        "reasoningEffort": {
           "type": "string"
         },
         "rootRunId": {
@@ -7238,6 +7256,9 @@
         "provider": {
           "type": "string"
         },
+        "reasoningEffort": {
+          "type": "string"
+        },
         "revision": {
           "type": "integer",
           "minimum": 0
@@ -7635,6 +7656,9 @@
           "type": "string",
           "minLength": 1
         },
+        "reasoningEffort": {
+          "type": "string"
+        },
         "revision": {
           "type": "integer",
           "minimum": 0
@@ -7701,8 +7725,8 @@
         },
         "version": {
           "type": "integer",
-          "minimum": 23,
-          "maximum": 23
+          "minimum": 24,
+          "maximum": 24
         }
       },
       "required": [
@@ -7923,6 +7947,9 @@
         "provider": {
           "type": "string"
         },
+        "reasoningEffort": {
+          "type": "string"
+        },
         "sessionId": {
           "type": "string",
           "minLength": 1
@@ -7962,6 +7989,9 @@
           "$ref": "#/$defs/GenerationParams"
         },
         "provider": {
+          "type": "string"
+        },
+        "reasoningEffort": {
           "type": "string"
         },
         "sessionId": {
@@ -8458,6 +8488,9 @@
         "provider": {
           "type": "string"
         },
+        "reasoningEffort": {
+          "type": "string"
+        },
         "title": {
           "type": "string"
         },
@@ -8509,6 +8542,9 @@
         "provider": {
           "type": "string",
           "minLength": 1
+        },
+        "reasoningEffort": {
+          "type": "string"
         },
         "sessionId": {
           "type": "string",

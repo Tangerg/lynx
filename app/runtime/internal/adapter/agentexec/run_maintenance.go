@@ -63,7 +63,7 @@ func (i *interactionSession) maintainCompletedRoot() {
 		SessionID:      i.start.SessionID,
 		CWD:            i.start.CWD,
 		ModelSelection: i.start.ModelSelection,
-		Options:        clonedOptions(i.start.Options),
+		Options:        executionOptions(i.start.ModelSelection, i.start.Options),
 		ToolCalls:      toolCalls,
 		PreCompact:     preCompact,
 	})

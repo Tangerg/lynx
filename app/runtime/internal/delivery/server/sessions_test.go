@@ -33,14 +33,29 @@ func TestUpdateSession(t *testing.T) {
 	// The aggregate model edit surfaces on the wire.
 	provider := "anthropic"
 	model := "claude-opus-4-8"
+	effort := "high"
 	out, err = s.UpdateSession(ctx, protocol.UpdateSessionRequest{
-		SessionID: created.ID(), Provider: &provider, Model: &model,
+		SessionID: created.ID(), Provider: &provider, Model: &model, ReasoningEffort: &effort,
 	})
 	if err != nil {
 		t.Fatalf("set model: %v", err)
 	}
-	if out.Provider != provider || out.Model != model {
-		t.Errorf("selection = %s/%s, want %s/%s", out.Provider, out.Model, provider, model)
+	if out.Provider != provider || out.Model != model || out.ReasoningEffort != effort {
+		t.Errorf("selection = %s/%s/%s, want %s/%s/%s", out.Provider, out.Model, out.ReasoningEffort, provider, model, effort)
+	}
+	medium := "medium"
+	out, err = s.UpdateSession(ctx, protocol.UpdateSessionRequest{
+		SessionID: created.ID(), ReasoningEffort: &medium,
+	})
+	if err != nil || out.Provider != provider || out.Model != model || out.ReasoningEffort != medium {
+		t.Fatalf("reasoning-only edit = (%+v, %v), want retained identity with medium effort", out, err)
+	}
+	provider, model = "openai", "gpt-5.6-sol"
+	out, err = s.UpdateSession(ctx, protocol.UpdateSessionRequest{
+		SessionID: created.ID(), Provider: &provider, Model: &model,
+	})
+	if err != nil || out.Provider != provider || out.Model != model || out.ReasoningEffort != "" {
+		t.Fatalf("model switch = (%+v, %v), want cleared prior-model effort", out, err)
 	}
 
 	if _, updateSessionErr := s.UpdateSession(ctx, protocol.UpdateSessionRequest{

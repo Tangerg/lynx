@@ -4,16 +4,17 @@ import { ContextUsageGauge } from "./ContextUsageGauge";
 
 const model = vi.hoisted(() => ({
   contextTokens: 198_000,
+  modelSelection: { provider: "provider-b", model: "shared-model", reasoningEffort: "high" },
 }));
 
 vi.mock("@/plugins/builtin/agent/public/run", () => ({
-  useSessionContextTokens: () => model.contextTokens,
+  useCurrentRootMaterial: () => model,
 }));
 
 vi.mock("@/plugins/builtin/agent/public/session", () => ({
   useActiveSessionId: () => "session-a",
   useAgentSessions: () => ({
-    data: [{ id: "session-a", provider: "provider-b", model: "shared-model" }],
+    data: [{ id: "session-a", provider: "provider-a", model: "shared-model" }],
   }),
 }));
 
@@ -29,7 +30,7 @@ vi.mock("@/plugins/builtin/settings/providers/public/queries", () => ({
 describe("ContextUsageGauge", () => {
   afterEach(cleanup);
 
-  it("reads the exact provider/model context window instead of matching model id alone", () => {
+  it("reads the active Run's exact provider/model window instead of the editable Session default", () => {
     render(<ContextUsageGauge />);
 
     expect(screen.getByRole("button", { name: "Context usage: 77%" })).toBeTruthy();

@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/tool"
@@ -102,8 +103,13 @@ func TestSessionCRUD(t *testing.T) {
 		t.Fatalf("List on empty DB = %d entries", len(list))
 	}
 
+	selection, selectionErr := modelref.NewWithReasoningEffort("openai", "gpt-5.6-sol", "high")
+	if selectionErr != nil {
+		t.Fatalf("model selection: %v", selectionErr)
+	}
 	created := sessionfixture.MustRestore(session.Snapshot{
 		ID: "ses_first", Title: "first session", Workspace: sessionfixture.MustWorkspace("/work"),
+		Selection: selection,
 	})
 	if insertErr := svc.Insert(ctx, created); insertErr != nil {
 		t.Fatalf("Insert: %v", insertErr)
@@ -116,6 +122,9 @@ func TestSessionCRUD(t *testing.T) {
 	}
 	if got.Title() != "first session" {
 		t.Fatalf("Get title = %q", got.Title())
+	}
+	if got.Selection() != selection {
+		t.Fatalf("Get selection = %+v, want %+v", got.Selection(), selection)
 	}
 	if !got.UpdatedAt().Equal(created.UpdatedAt()) {
 		t.Fatalf("UpdatedAt round-trip mismatch: got %v want %v", got.UpdatedAt(), created.UpdatedAt())

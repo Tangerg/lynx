@@ -18,7 +18,7 @@ import (
 	corechat "github.com/Tangerg/scope/core/chat"
 )
 
-const interactionCheckpointSchemaVersion uint16 = 4
+const interactionCheckpointSchemaVersion uint16 = 5
 
 type interactionCheckpointPayloadWire struct {
 	SchemaVersion uint16                        `json:"schema_version"`
@@ -47,8 +47,9 @@ type interactionModelContextWire struct {
 }
 
 type interactionPendingSteerWire struct {
-	SignalID string                        `json:"signal_id"`
-	Content  []interactionContentBlockWire `json:"content"`
+	SignalID        string                        `json:"signal_id"`
+	Content         []interactionContentBlockWire `json:"content"`
+	ProjectedItemID string                        `json:"projected_item_id,omitempty"`
 }
 
 type interactionContentBlockWire struct {
@@ -181,6 +182,9 @@ func encodeInteractionPendingSteers(
 		if len(steer.content) == 0 {
 			return nil, fmt.Errorf("pending steer %s has no product content", signalID)
 		}
+		if steer.projectedItemID != strings.TrimSpace(steer.projectedItemID) {
+			return nil, fmt.Errorf("pending steer %s projected Item identity is not canonical", signalID)
+		}
 		content := make([]interactionContentBlockWire, len(steer.content))
 		for index, block := range steer.content {
 			if err := block.Validate(); err != nil {
@@ -198,7 +202,10 @@ func encodeInteractionPendingSteers(
 				return nil, fmt.Errorf("pending steer %s content %d has unknown kind %q", signalID, index, block.Kind)
 			}
 		}
-		values = append(values, interactionPendingSteerWire{SignalID: signalID.String(), Content: content})
+		values = append(values, interactionPendingSteerWire{
+			SignalID: signalID.String(), Content: content,
+			ProjectedItemID: steer.projectedItemID,
+		})
 	}
 	slices.SortFunc(values, func(left, right interactionPendingSteerWire) int {
 		return strings.Compare(left.SignalID, right.SignalID)
@@ -382,7 +389,10 @@ func decodeInteractionPendingSteers(
 				return nil, fmt.Errorf("pending steer %s content %d: %w", signalID, contentIndex, err)
 			}
 		}
-		pending[signalID] = pendingInteractionSteer{content: content}
+		if value.ProjectedItemID != strings.TrimSpace(value.ProjectedItemID) {
+			return nil, fmt.Errorf("pending steer %s projected Item identity is not canonical", signalID)
+		}
+		pending[signalID] = pendingInteractionSteer{content: content, projectedItemID: value.ProjectedItemID}
 		previous = value.SignalID
 	}
 	return pending, nil

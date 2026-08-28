@@ -111,16 +111,17 @@ type goalResult struct {
 // goalView deliberately excludes the Goal incarnation and persistence revision.
 // Those are ownership mechanics, not facts the model can act on.
 type goalView struct {
-	SessionID string           `json:"session_id"`
-	Objective string           `json:"objective"`
-	Status    goalstate.Status `json:"status"`
-	Reason    string           `json:"reason,omitempty"`
-	Provider  string           `json:"provider,omitempty"`
-	Model     string           `json:"model,omitempty"`
-	Budget    budgetView       `json:"budget"`
-	Usage     usageView        `json:"usage"`
-	CreatedAt time.Time        `json:"created_at"`
-	UpdatedAt time.Time        `json:"updated_at"`
+	SessionID       string           `json:"session_id"`
+	Objective       string           `json:"objective"`
+	Status          goalstate.Status `json:"status"`
+	Reason          string           `json:"reason,omitempty"`
+	Provider        string           `json:"provider,omitempty"`
+	Model           string           `json:"model,omitempty"`
+	ReasoningEffort string           `json:"reasoning_effort,omitempty"`
+	Budget          budgetView       `json:"budget"`
+	Usage           usageView        `json:"usage"`
+	CreatedAt       time.Time        `json:"created_at"`
+	UpdatedAt       time.Time        `json:"updated_at"`
 }
 
 type budgetView struct {
@@ -188,7 +189,8 @@ func (c *creator) create(ctx context.Context, args createArgs) (goalResult, erro
 		}
 	}
 	capabilities, _ := executionctx.RunCapabilities(ctx)
-	g, err := c.goals.Start(ctx, sessionID, objective, modelref.Selection{}, budget, capabilities)
+	selection, _ := executionctx.ModelSelection(ctx)
+	g, err := c.goals.Start(ctx, sessionID, objective, selection, budget, capabilities)
 	if err != nil {
 		switch {
 		case errors.Is(err, goals.ErrGoalActive):
@@ -284,12 +286,13 @@ func (o *outcomeReporter) report(ctx context.Context, args reportArgs) (string, 
 
 func viewOf(g goalstate.Goal) goalView {
 	return goalView{
-		SessionID: g.SessionID,
-		Objective: g.Objective,
-		Status:    g.Status,
-		Reason:    reasonText(g.Reason),
-		Provider:  g.ModelSelection.Provider(),
-		Model:     g.ModelSelection.Model(),
+		SessionID:       g.SessionID,
+		Objective:       g.Objective,
+		Status:          g.Status,
+		Reason:          reasonText(g.Reason),
+		Provider:        g.ModelSelection.Provider(),
+		Model:           g.ModelSelection.Model(),
+		ReasoningEffort: g.ModelSelection.ReasoningEffort(),
 		Budget: budgetView{
 			MaxRuns:    g.Budget.MaxRuns,
 			MaxCostUSD: g.Budget.MaxCostUSD,

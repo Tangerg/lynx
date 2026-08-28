@@ -13,6 +13,7 @@ export interface AgentSessionSummary {
   status: "running" | "waiting" | "idle";
   provider: string;
   model: string;
+  reasoningEffort?: string;
   workspace: AgentSessionWorkspace;
   favorite?: boolean;
   time: string;

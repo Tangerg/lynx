@@ -34,16 +34,17 @@ type WorkspaceView struct {
 // View is the complete application read model for a session. Live lineage and
 // other aggregate-only state stay inside the session domain.
 type View struct {
-	ID        string
-	Title     string
-	Workspace WorkspaceView
-	Provider  string
-	Model     string
-	Activity  Activity
-	CreatedAt time.Time
-	UpdatedAt time.Time
-	Favorite  bool
-	Revision  uint64
+	ID              string
+	Title           string
+	Workspace       WorkspaceView
+	Provider        string
+	Model           string
+	ReasoningEffort string
+	Activity        Activity
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
+	Favorite        bool
+	Revision        uint64
 }
 
 // Activities resolves activity for the requested sessions in one durable read.
@@ -214,10 +215,11 @@ func (c *Coordinator) view(value session.Session, activity Activity) (View, erro
 		Workspace: WorkspaceView{
 			Path: workspace.Path, ProjectRoot: workspace.ProjectRoot, Missing: workspace.Missing,
 		},
-		Provider:  selection.Provider(),
-		Model:     selection.Model(),
-		Activity:  activity,
-		CreatedAt: value.StartedAt(), UpdatedAt: value.UpdatedAt(),
+		Provider:        selection.Provider(),
+		Model:           selection.Model(),
+		ReasoningEffort: selection.ReasoningEffort(),
+		Activity:        activity,
+		CreatedAt:       value.StartedAt(), UpdatedAt: value.UpdatedAt(),
 		Favorite: value.Favorite(), Revision: value.Revision(),
 	}, nil
 }

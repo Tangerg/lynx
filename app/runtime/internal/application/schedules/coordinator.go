@@ -33,6 +33,7 @@ type ManagementStore interface {
 type Coordinator struct {
 	store         ManagementStore
 	paths         CWDResolver
+	models        ModelAdmitter
 	now           func() time.Time
 	invalidations invalidation.Publish
 }
@@ -44,6 +45,12 @@ type CWDResolver interface {
 	ResolveExistingDir(path string) (string, error)
 }
 
+// ModelAdmitter validates an exact schedule-owned model choice before it is
+// persisted or captured by a firing.
+type ModelAdmitter interface {
+	AdmitSelection(selection modelref.Selection) error
+}
+
 // ErrUnavailable reports that scheduled-run management was not assembled in
 // this Runtime.
 var ErrUnavailable = errors.New("schedules: unavailable")
@@ -52,6 +59,7 @@ var ErrUnavailable = errors.New("schedules: unavailable")
 type Dependencies struct {
 	Store         ManagementStore
 	Paths         CWDResolver
+	Models        ModelAdmitter
 	Invalidations invalidation.Publish
 }
 
@@ -69,6 +77,7 @@ type CreateCommand struct {
 type UpdateCommand struct {
 	ID               string
 	Patch            schedule.Patch
+	ModelSelection   modelref.Patch
 	ExpectedRevision uint64
 }
 
@@ -78,13 +87,14 @@ func New(deps Dependencies) *Coordinator {
 	return &Coordinator{
 		store:         deps.Store,
 		paths:         deps.Paths,
+		models:        deps.Models,
 		now:           time.Now,
 		invalidations: deps.Invalidations,
 	}
 }
 
 // Available reports whether schedule-management use cases are wired.
-func (c *Coordinator) Available() bool { return c != nil && c.store != nil }
+func (c *Coordinator) Available() bool { return c != nil && c.store != nil && c.models != nil }
 
 // List returns every saved schedule, newest-created first.
 func (c *Coordinator) List(ctx context.Context) ([]schedule.Schedule, error) {
@@ -142,6 +152,9 @@ func (c *Coordinator) Create(ctx context.Context, cmd CreateCommand) (schedule.S
 	if !c.Available() {
 		return schedule.Schedule{}, ErrUnavailable
 	}
+	if err := c.models.AdmitSelection(cmd.ModelSelection); err != nil {
+		return schedule.Schedule{}, fmt.Errorf("schedules: model selection is not admitted: %w", err)
+	}
 	scheduled, err := (schedule.Schedule{
 		Title:          cmd.Title,
 		Instructions:   cmd.Instructions,
@@ -180,6 +193,18 @@ func (c *Coordinator) Update(ctx context.Context, cmd UpdateCommand) (schedule.S
 	existing, err := c.store.Get(ctx, cmd.ID)
 	if err != nil {
 		return schedule.Schedule{}, fmt.Errorf("schedules: get %q for update: %w", cmd.ID, err)
+	}
+	if !cmd.ModelSelection.Empty() {
+		selection, selectionErr := cmd.ModelSelection.Apply(existing.ModelSelection)
+		if selectionErr != nil {
+			return schedule.Schedule{}, selectionErr
+		}
+		cmd.Patch.Selection = &selection
+	}
+	if cmd.Patch.Selection != nil {
+		if err := c.models.AdmitSelection(*cmd.Patch.Selection); err != nil {
+			return schedule.Schedule{}, fmt.Errorf("schedules: model selection is not admitted: %w", err)
+		}
 	}
 	return c.updateExisting(ctx, existing, cmd.Patch, cmd.ExpectedRevision)
 }

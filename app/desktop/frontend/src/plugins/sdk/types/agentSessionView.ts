@@ -196,6 +196,15 @@ export interface AgentRunProgress {
   contextTokens?: number;
 }
 
+/** Exact model identity frozen when a Run is admitted. Session selection may
+ * be edited while this Run is still active, so runtime-facing UI must prefer
+ * this value for capability and context-window decisions. */
+export interface AgentModelSelection {
+  provider: string;
+  model: string;
+  reasoningEffort?: string;
+}
+
 export interface AgentRunView {
   id: string;
   sessionId: string;
@@ -205,6 +214,7 @@ export interface AgentRunView {
   status: AgentRunStatus;
   activeSegmentId: string | null;
   outcome: AgentRunOutcome | null;
+  modelSelection?: AgentModelSelection | null;
   metrics: AgentRunMetrics;
   progress: AgentRunProgress | null;
   createdAt: string;

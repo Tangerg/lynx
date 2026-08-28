@@ -48,7 +48,7 @@ func (s *Server) ClearGoal(ctx context.Context, in protocol.GoalRequest) error {
 
 // StartGoal opens and begins driving a goal for the session (goals.start).
 func (s *Server) StartGoal(ctx context.Context, in protocol.StartGoalRequest) (*protocol.Goal, error) {
-	selection, err := modelref.New(in.Provider, in.Model)
+	selection, err := modelref.NewWithReasoningEffort(in.Provider, in.Model, in.ReasoningEffort)
 	if err != nil {
 		return nil, mapGoalErr(err, "goals.start")
 	}
@@ -117,8 +117,10 @@ func mapGoalErr(err error, method string) error {
 		return fmt.Errorf("%w: this goal is not resumable", protocol.ErrInvalidParams)
 	case errors.Is(err, goal.ErrNotEditable):
 		return fmt.Errorf("%w: this goal is finishing and cannot be edited", protocol.ErrInvalidParams)
-	case errors.Is(err, modelref.ErrIncomplete):
+	case modelref.IsInvalid(err):
 		return protocol.ErrInvalidParams
+	case errors.Is(err, modelref.ErrUnsupported):
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	default:
 		return err
 	}
@@ -138,16 +140,17 @@ func presentGoal(g goal.Goal) (*protocol.Goal, error) {
 		return nil, err
 	}
 	w := protocol.Goal{
-		SessionID: g.SessionID,
-		Objective: g.Objective,
-		Status:    status,
-		Reason:    reason,
-		Provider:  g.ModelSelection.Provider(),
-		Model:     g.ModelSelection.Model(),
-		Budget:    protocol.GoalBudget{MaxRuns: g.Budget.MaxRuns, MaxCostUSD: g.Budget.MaxCostUSD, MaxSteps: g.Budget.MaxSteps},
-		Used:      protocol.GoalUsage{Runs: g.Used.Runs, CostUSD: g.Used.CostUSD, Steps: g.Used.Steps},
-		CreatedAt: g.CreatedAt,
-		UpdatedAt: g.UpdatedAt,
+		SessionID:       g.SessionID,
+		Objective:       g.Objective,
+		Status:          status,
+		Reason:          reason,
+		Provider:        g.ModelSelection.Provider(),
+		Model:           g.ModelSelection.Model(),
+		ReasoningEffort: g.ModelSelection.ReasoningEffort(),
+		Budget:          protocol.GoalBudget{MaxRuns: g.Budget.MaxRuns, MaxCostUSD: g.Budget.MaxCostUSD, MaxSteps: g.Budget.MaxSteps},
+		Used:            protocol.GoalUsage{Runs: g.Used.Runs, CostUSD: g.Used.CostUSD, Steps: g.Used.Steps},
+		CreatedAt:       g.CreatedAt,
+		UpdatedAt:       g.UpdatedAt,
 	}
 	return &w, nil
 }

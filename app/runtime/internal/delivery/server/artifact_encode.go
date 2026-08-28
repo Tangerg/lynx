@@ -60,7 +60,8 @@ func artifactSessionFromPortable(value sessions.PortableSession) protocol.Artifa
 	return protocol.ArtifactSession{
 		ID: value.ID, Title: value.Title, Workspace: protocol.WorkspaceRef{Path: value.CWD},
 		Provider: value.Selection.Provider(), Model: value.Selection.Model(),
-		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, Favorite: value.Favorite,
+		ReasoningEffort: value.Selection.ReasoningEffort(),
+		CreatedAt:       value.CreatedAt, UpdatedAt: value.UpdatedAt, Favorite: value.Favorite,
 	}
 }
 
@@ -75,7 +76,8 @@ func artifactRunFromPortable(run sessions.PortableRun) (protocol.ArtifactRun, er
 	}
 	return protocol.ArtifactRun{
 		ID: run.ID, SessionID: run.SessionID, SpawnedByItemID: run.SpawnedByItemID,
-		Provider: run.Provider, Model: run.Model,
+		Provider: run.Selection.Provider(), Model: run.Selection.Model(),
+		ReasoningEffort: run.Selection.ReasoningEffort(),
 		ParentRunID:     run.ParentRunID,
 		RootRunID:       run.RootRunID,
 		Limits:          artifactLimitsFromDomain(run.Limits),

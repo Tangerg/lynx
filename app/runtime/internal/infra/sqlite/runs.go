@@ -81,13 +81,13 @@ func (r *RunStore) Admit(ctx context.Context, draft rundomain.Draft) error {
 		_, err := conn(ctx, r.db).ExecContext(ctx,
 			`INSERT INTO runs(
 			   run_id, session_id, spawned_by_item_id, parent_run_id, root_run_id,
-			   state, active_segment_id, provider, model, goal_incarnation_id, max_total_tokens, max_steps, max_budget_usd,
+			   state, active_segment_id, provider, model, reasoning_effort, goal_incarnation_id, max_total_tokens, max_steps, max_budget_usd,
 			   capabilities, message_mark, started_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 			admitted.ID(), admitted.SessionID(),
 			lineage.SpawnedByItemID, lineage.ParentRunID, lineage.RootRunID,
 			runStateRunning, admitted.ActiveSegmentID(),
-			admitted.ModelSelection().Provider(), admitted.ModelSelection().Model(),
+			admitted.ModelSelection().Provider(), admitted.ModelSelection().Model(), admitted.ModelSelection().ReasoningEffort(),
 			admitted.GoalIncarnationID(),
 			admitted.Limits().MaxTotalTokens, admitted.Limits().MaxSteps, admitted.Limits().MaxBudgetUSD, capabilities,
 			rundomain.UnknownMessageMark, now, now)
@@ -852,15 +852,15 @@ func (r *RunStore) Restore(ctx context.Context, value rundomain.Run) error {
 	_, err = conn(ctx, r.db).ExecContext(ctx,
 		`INSERT INTO runs(
 		   run_id, session_id, spawned_by_item_id, parent_run_id, root_run_id,
-		   state, outcome, provider, model, goal_incarnation_id,
+		   state, outcome, provider, model, reasoning_effort, goal_incarnation_id,
 		   detail, steps, active_duration_ns, usage, context_tokens, problem,
 		   max_total_tokens, max_steps, max_budget_usd,
 		   capabilities, message_mark, started_at, finished_at, updated_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
 		value.ID(), value.SessionID(),
 		lineage.SpawnedByItemID, lineage.ParentRunID, lineage.RootRunID,
 		coarseState(value.State()), outcome.String(),
-		selection.Provider(), selection.Model(),
+		selection.Provider(), selection.Model(), selection.ReasoningEffort(),
 		value.GoalIncarnationID(),
 		value.Detail(), metrics.steps, metrics.durationNs, metrics.usage, value.ContextTokens(), encodedFailure,
 		limits.MaxTotalTokens, limits.MaxSteps, limits.MaxBudgetUSD, capabilities, value.MessageMark(),
@@ -1090,7 +1090,7 @@ func placeholders(n int) string {
 // is waiting on — kept in the interrupts table so one park is one record.
 const runColumns = `r.run_id, r.session_id, r.spawned_by_item_id, r.parent_run_id, r.root_run_id,
 	r.state, r.active_segment_id, r.outcome,
-	r.provider, r.model, r.goal_incarnation_id, r.detail,
+	r.provider, r.model, r.reasoning_effort, r.goal_incarnation_id, r.detail,
 	r.steps, r.active_duration_ns, r.usage, r.context_tokens, r.problem,
 	r.max_total_tokens, r.max_steps, r.max_budget_usd, r.capabilities, tree_root.capabilities,
 	r.message_mark, r.started_at, r.finished_at, r.updated_at, i.payload`

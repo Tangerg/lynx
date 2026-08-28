@@ -74,6 +74,7 @@ export interface DataProviderSpec<T = unknown, P = unknown> {
 export interface AgentRunStartOptions {
   provider?: string;
   model?: string;
+  reasoningEffort?: string;
 }
 
 export interface AgentRunOptionsProviderSpec {
@@ -107,9 +108,15 @@ export interface AgentDriver {
    */
   resume: (
     runId: RunId,
-    responses: InterruptResponse[],
+    options: {
+      responses: InterruptResponse[];
+      /** Optional follow-up committed in the same opening as the HITL answers. */
+      input?: ContentBlock[];
+    },
     signal?: AbortSignal,
-  ) => Promise<StreamingResult<{ runId: RunId; segmentId: SegmentId }, RunEvent>>;
+  ) => Promise<
+    StreamingResult<{ runId: RunId; segmentId: SegmentId; userItemId?: ItemId }, RunEvent>
+  >;
 }
 
 /**

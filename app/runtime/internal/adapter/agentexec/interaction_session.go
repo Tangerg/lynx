@@ -77,7 +77,8 @@ type activeInteractionDispatch struct {
 }
 
 type pendingInteractionSteer struct {
-	content []transcript.ContentBlock
+	content         []transcript.ContentBlock
+	projectedItemID string
 }
 
 type interactionBoundary uint8
@@ -343,9 +344,9 @@ func (i *interactionSession) commitAppliedSteers(
 		return nil
 	}
 	i.state.mu.Lock()
-	messages := make([][]transcript.ContentBlock, len(signalIDs))
+	messages := make([]runs.AppliedSteerMessage, 0, len(signalIDs))
 	seen := make(map[agent.SignalID]struct{}, len(signalIDs))
-	for index, signalID := range signalIDs {
+	for _, signalID := range signalIDs {
 		if _, duplicate := seen[signalID]; duplicate {
 			i.state.mu.Unlock()
 			return fmt.Errorf("agentexec: model attribution repeats steer Signal %s", signalID)
@@ -356,11 +357,15 @@ func (i *interactionSession) commitAppliedSteers(
 			i.state.mu.Unlock()
 			return fmt.Errorf("agentexec: model attribution names unknown steer Signal %s", signalID)
 		}
-		messages[index] = transcript.CloneContent(pending.content)
+		messages = append(messages, runs.AppliedSteerMessage{
+			Content: transcript.CloneContent(pending.content), ProjectedItemID: pending.projectedItemID,
+		})
 	}
 	i.state.mu.Unlock()
-	if err := i.commitFact(ctx, member, runs.SteerMessagesApplied{Messages: messages}); err != nil {
-		return fmt.Errorf("agentexec: commit applied Interaction steers: %w", err)
+	if len(messages) > 0 {
+		if err := i.commitFact(ctx, member, runs.SteerMessagesApplied{Messages: messages}); err != nil {
+			return fmt.Errorf("agentexec: commit applied Interaction steers: %w", err)
+		}
 	}
 	i.state.mu.Lock()
 	for _, signalID := range signalIDs {

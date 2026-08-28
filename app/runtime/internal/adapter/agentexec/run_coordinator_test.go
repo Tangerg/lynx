@@ -21,6 +21,7 @@ func (passthroughRunWorkingContext) ComposeWorkingContext(
 
 type acceptAllRunModelInputs struct{}
 
+func (acceptAllRunModelInputs) AdmitSelection(modelref.Selection) error                 { return nil }
 func (acceptAllRunModelInputs) AdmitInput(modelref.Selection, []corechat.Message) error { return nil }
 
 func mustNewRunCoordinator(t *testing.T, deps runs.Dependencies) *runs.Coordinator {
@@ -35,8 +36,8 @@ func mustNewRunCoordinator(t *testing.T, deps runs.Dependencies) *runs.Coordinat
 	if deps.WorkingContexts == nil {
 		deps.WorkingContexts = passthroughRunWorkingContext{}
 	}
-	if deps.ModelInputs == nil {
-		deps.ModelInputs = acceptAllRunModelInputs{}
+	if deps.Models == nil {
+		deps.Models = acceptAllRunModelInputs{}
 	}
 	sessions := any(deps.Session.Reader)
 	fillRunDependency(t, &deps.Session.Creator, sessions, "session creator")

@@ -53,6 +53,7 @@ export interface GoalReadModel {
   used: GoalUsage;
   provider: string;
   model: string;
+  reasoningEffort: string;
   createdAt: string;
   updatedAt: string;
 }

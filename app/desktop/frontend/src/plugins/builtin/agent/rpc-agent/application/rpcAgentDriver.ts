@@ -5,18 +5,20 @@ export const DEFAULT_RPC_SESSION_ID = "ses_default";
 export type RpcAgentInput = Parameters<AgentDriver["start"]>[0];
 export type RpcAgentStartOptions = Parameters<AgentDriver["start"]>[1];
 export type RpcAgentRunId = Parameters<AgentDriver["resume"]>[0];
-export type RpcAgentInterruptResponses = Parameters<AgentDriver["resume"]>[1];
+export type RpcAgentResumeOptions = Parameters<AgentDriver["resume"]>[1];
 
 export interface RpcRunStartParams {
   sessionId: string;
   input: RpcAgentInput;
   provider?: string;
   model?: string;
+  reasoningEffort?: string;
 }
 
 export interface RpcRunResumeParams {
   runId: RpcAgentRunId;
-  responses: RpcAgentInterruptResponses;
+  responses: RpcAgentResumeOptions["responses"];
+  input?: RpcAgentResumeOptions["input"];
 }
 
 export interface RpcRunsGateway {
@@ -33,11 +35,13 @@ export function rpcRunStartParams(
   input: RpcAgentInput,
   options: RpcAgentStartOptions,
 ): RpcRunStartParams {
-  const { provider, model } = options;
+  const { provider, model, reasoningEffort } = options;
   return {
     sessionId,
     input,
-    ...(provider && model ? { provider, model } : {}),
+    ...(provider && model
+      ? { provider, model, ...(reasoningEffort ? { reasoningEffort } : {}) }
+      : {}),
   };
 }
 
@@ -48,6 +52,6 @@ export function createRpcAgentDriver(
   return {
     start: (input, options, signal) =>
       gateway().start(rpcRunStartParams(sessionId, input, options), signal),
-    resume: (runId, responses, signal) => gateway().resume({ runId, responses }, signal),
+    resume: (runId, options, signal) => gateway().resume({ runId, ...options }, signal),
   };
 }

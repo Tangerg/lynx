@@ -51,7 +51,7 @@ func TestInterruptStore_OpenGetListDelete(t *testing.T) {
 		Continuations: []runs.Continuation{{
 			RunID:          "run_1",
 			MemberID:       "member_1",
-			ModelSelection: testModelSelection(t, "anthropic", "claude-opus-4-8"),
+			ModelSelection: testReasoningSelection(t, "anthropic", "claude-opus-4-8", "high"),
 			RunCreatedAt:   time.Unix(1, 0).UTC(),
 		}},
 		CreatedAt: time.Unix(5, 0).UTC(),
@@ -77,8 +77,8 @@ func TestInterruptStore_OpenGetListDelete(t *testing.T) {
 	// Per-run model selection round-trips (T1.4 — cross-restart rehydrate rebuilds
 	// the SAME model client instead of dropping to the default).
 	root, _ := got.RootContinuation()
-	if root.ModelSelection.Provider() != "anthropic" || root.ModelSelection.Model() != "claude-opus-4-8" {
-		t.Fatalf("Get provider/model = %q/%q, want anthropic/claude-opus-4-8", root.ModelSelection.Provider(), root.ModelSelection.Model())
+	if root.ModelSelection.Provider() != "anthropic" || root.ModelSelection.Model() != "claude-opus-4-8" || root.ModelSelection.ReasoningEffort() != "high" {
+		t.Fatalf("Get model selection = %q/%q/%q, want anthropic/claude-opus-4-8/high", root.ModelSelection.Provider(), root.ModelSelection.Model(), root.ModelSelection.ReasoningEffort())
 	}
 
 	if list, _ := store.List(ctx, "ses_a"); len(list) != 1 {

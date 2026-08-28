@@ -48,11 +48,12 @@ type RunSummary struct {
 	// with Model. It is stamped before execution so usage.summary attributes spend by provider without
 	// re-deriving the model→provider mapping (which isn't 1:1 across
 	// compatible-endpoint providers).
-	Provider   string      `json:"provider,omitempty"`
-	Status     RunStatus   `json:"status,omitempty"`
-	Outcome    *RunOutcome `json:"outcome,omitempty"`
-	CreatedAt  time.Time   `json:"createdAt,omitzero"`
-	FinishedAt time.Time   `json:"finishedAt,omitzero"`
+	Provider        string      `json:"provider,omitempty"`
+	ReasoningEffort string      `json:"reasoningEffort,omitempty"`
+	Status          RunStatus   `json:"status,omitempty"`
+	Outcome         *RunOutcome `json:"outcome,omitempty"`
+	CreatedAt       time.Time   `json:"createdAt,omitzero"`
+	FinishedAt      time.Time   `json:"finishedAt,omitzero"`
 }
 
 // RunRef is a run's summary plus the control, metering and protocol facts a
@@ -234,12 +235,13 @@ type StartRunRequest struct {
 	// one without the other is invalid_params — the provider is explicit,
 	// never inferred from the model id. Both are meaningful slugs (no "Id"
 	// suffix, mirroring `model` and Model.provider).
-	Provider       string            `json:"provider,omitempty"`
-	Model          string            `json:"model,omitempty"`
-	MaxTotalTokens int64             `json:"maxTotalTokens,omitempty"`
-	MaxSteps       int               `json:"maxSteps,omitempty"`
-	MaxBudgetUSD   float64           `json:"maxBudgetUsd,omitempty"`
-	Params         *GenerationParams `json:"params,omitempty"`
+	Provider        string            `json:"provider,omitempty"`
+	Model           string            `json:"model,omitempty"`
+	ReasoningEffort string            `json:"reasoningEffort,omitempty"`
+	MaxTotalTokens  int64             `json:"maxTotalTokens,omitempty"`
+	MaxSteps        int               `json:"maxSteps,omitempty"`
+	MaxBudgetUSD    float64           `json:"maxBudgetUsd,omitempty"`
+	Params          *GenerationParams `json:"params,omitempty"`
 }
 
 // StartRunResponse is the synchronous result of runs.start.

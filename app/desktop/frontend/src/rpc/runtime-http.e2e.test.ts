@@ -69,6 +69,7 @@ interface FakeChatRequest {
   input?: string | string[];
   messages?: Array<{ role?: string; content?: unknown }>;
   model?: string;
+  reasoning_effort?: string;
   stream?: boolean;
   tools?: Array<{ function?: { name?: string } }>;
 }
@@ -288,6 +289,10 @@ function scriptedReply(body: FakeChatRequest): {
   );
   const toolResultCount = (body.messages ?? []).filter((message) => message.role === "tool").length;
   const hasToolResult = toolResultCount > 0;
+
+  if (transcript.includes("E2E_RESUME_INPUT")) {
+    return { text: "Resume follow-up input observed." };
+  }
 
   if (transcript.includes(compactionRecoveryMarker)) {
     return { text: "Committed compaction recovered without an immediate second compaction." };
@@ -1956,6 +1961,61 @@ for await (const line of lines) {
     await expect(client.models.getEmbeddingRole()).resolves.toEqual({});
   }, 30_000);
 
+  it("carries catalog reasoning capabilities and an exact effort into provider execution", async () => {
+    if (!client) throw new Error("runtime client was not initialized");
+
+    const openAIModels = await client.models.list("openai");
+    expect(openAIModels.data).toContainEqual(
+      expect.objectContaining({
+        id: "gpt-5.6-sol",
+        provider: "openai",
+        capabilities: expect.objectContaining({
+          reasoning: true,
+          reasoningLevels: ["none", "low", "medium", "high", "xhigh", "max"],
+          reasoningDefaultLevel: "medium",
+          inputModalities: expect.arrayContaining(["text", "image"]),
+          outputModalities: expect.arrayContaining(["text"]),
+        }),
+      }),
+    );
+
+    const gate = createProviderGate("E2E_REASONING_SELECTION");
+    providerGate = gate;
+    try {
+      const session = await client.sessions.create({
+        workspace: { path: root },
+        title: "HTTP exact reasoning selection",
+      });
+      const started = await client.runs.start({
+        sessionId: asSessionId(session.id),
+        input: [{ type: "text", text: "E2E_REASONING_SELECTION reach the provider." }],
+        provider: "openai-compatible",
+        model: "e2e-model",
+        reasoningEffort: "high",
+      });
+      await within(gate.arrived.promise, "the exact reasoning provider request");
+      expect(gate.request?.reasoning_effort).toBe("high");
+      gate.release.resolve();
+      await expect(collectRunEvents(started.events)).resolves.toSatisfy(
+        (events: RunEvent[]) => events.at(-1)?.event.type === "segment.finished",
+      );
+      await expect(client.sessions.get(asSessionId(session.id))).resolves.toMatchObject({
+        provider: "openai-compatible",
+        model: "e2e-model",
+        reasoningEffort: "high",
+      });
+      await expect(client.runs.get(asRunId(started.result.runId))).resolves.toMatchObject({
+        provider: "openai-compatible",
+        model: "e2e-model",
+        reasoningEffort: "high",
+        status: "finished",
+      });
+    } finally {
+      gate.release.resolve();
+      providerGate = undefined;
+    }
+  }, 30_000);
+
   it("streams a complete run and reconciles its durable state", async () => {
     if (!client) throw new Error("runtime client was not initialized");
 
@@ -2416,10 +2476,23 @@ for await (const line of lines) {
           response: { type: "answer", answers: [["Yes"]] },
         },
       ],
+      input: [{ type: "text", text: "E2E_RESUME_INPUT preserve this once." }],
     });
     expect(resumed.result.runId).toBe(started.result.runId);
     expect(resumed.result.segmentId).not.toBe(started.result.segmentId);
+    expect(resumed.result.userItemId).toBeTruthy();
     const resumeEvents = await collectRunEvents(resumed.events);
+    expect(resumeEvents).toContainEqual(
+      expect.objectContaining({
+        event: expect.objectContaining({
+          type: "item.completed",
+          item: expect.objectContaining({
+            type: "agentMessage",
+            content: [{ type: "text", text: "Resume follow-up input observed." }],
+          }),
+        }),
+      }),
+    );
     expect(resumeEvents.at(-1)?.event).toMatchObject({
       type: "segment.finished",
       outcome: { type: "completed" },
@@ -2429,6 +2502,18 @@ for await (const line of lines) {
       status: "finished",
       outcome: { type: "completed" },
     });
+    const items = await client.items.list({ scope: { type: "run", runId } }).autoPagingToArray();
+    expect(
+      items.filter(
+        (item) =>
+          item.type === "userMessage" &&
+          item.id === resumed.result.userItemId &&
+          item.content?.some(
+            (block) =>
+              block.type === "text" && block.text === "E2E_RESUME_INPUT preserve this once.",
+          ),
+      ),
+    ).toHaveLength(1);
   }, 30_000);
 
   it("opens and clears an approval interrupt around the exact tool call", async () => {

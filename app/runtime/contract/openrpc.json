@@ -332,6 +332,12 @@
           }
         },
         {
+          "name": "reasoningEffort",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
           "name": "favorite",
           "schema": {
             "type": "boolean"
@@ -804,6 +810,12 @@
         },
         {
           "name": "model",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "reasoningEffort",
           "schema": {
             "type": "string"
           }
@@ -3992,6 +4004,12 @@
           }
         },
         {
+          "name": "reasoningEffort",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
           "name": "cron",
           "required": true,
           "schema": {
@@ -4103,6 +4121,12 @@
         },
         {
           "name": "model",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "reasoningEffort",
           "schema": {
             "type": "string"
           }
@@ -4329,6 +4353,12 @@
         },
         {
           "name": "model",
+          "schema": {
+            "type": "string"
+          }
+        },
+        {
+          "name": "reasoningEffort",
           "schema": {
             "type": "string"
           }

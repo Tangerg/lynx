@@ -10,9 +10,6 @@ export function useComposerModelPreference(): ComposerModelPreference {
   return composerState().useModelPreference();
 }
 
-export function useSetComposerModelPreference(): (
-  provider: string | null,
-  model: string | null,
-) => void {
+export function useSetComposerModelPreference(): (preference: ComposerModelPreference) => void {
   return composerState().useSetModelPreference();
 }

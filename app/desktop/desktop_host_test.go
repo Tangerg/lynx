@@ -137,7 +137,7 @@ func TestDesktopHostChooseWorkingDirectoryPreservesCancellation(t *testing.T) {
 		t.Fatal(err)
 	}
 	if selected != "" {
-		t.Fatalf("cancelled selection = %q, want empty", selected)
+		t.Fatalf("canceled selection = %q, want empty", selected)
 	}
 }
 
@@ -220,7 +220,7 @@ func TestDesktopHostSaveImagePreservesCancellation(t *testing.T) {
 	if saved, err := host.SaveImage("data:image/svg+xml,%3Csvg%3E%2B%3C%2Fsvg%3E"); err != nil {
 		t.Fatal(err)
 	} else if saved {
-		t.Fatal("cancelled SaveImage() = true, want false")
+		t.Fatal("canceled SaveImage() = true, want false")
 	}
 }
 

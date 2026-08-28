@@ -14,6 +14,8 @@ import (
 	"github.com/Tangerg/scope/core/media"
 )
 
+const applyingUserInputActivity = "Applying user input"
+
 func (r *reducer) itemIdentity(id string, occurredAt time.Time) transcript.ItemIdentity {
 	return transcript.ItemIdentity{
 		SessionID:  r.cfg.SessionID,
@@ -602,7 +604,8 @@ func (r *reducer) steerMessagesApplied(e SteerMessagesApplied) ([]RunEvent, erro
 	if err != nil {
 		return nil, err
 	}
-	for messageIndex, message := range e.Messages {
+	for messageIndex, applied := range e.Messages {
+		message := applied.Content
 		if len(message) == 0 {
 			return nil, fmt.Errorf("applied steer message %d is empty", messageIndex)
 		}
@@ -614,6 +617,12 @@ func (r *reducer) steerMessagesApplied(e SteerMessagesApplied) ([]RunEvent, erro
 				)
 			}
 		}
+		if applied.ProjectedItemID != "" {
+			if applied.ProjectedItemID != strings.TrimSpace(applied.ProjectedItemID) {
+				return nil, fmt.Errorf("applied steer message %d projected Item identity is not canonical", messageIndex)
+			}
+			continue
+		}
 		id, now := r.nextItemID(), r.now()
 		content := transcript.CloneContent(message)
 		item, err := transcript.NewUserMessage(r.itemIdentity(id, now), content)
@@ -621,6 +630,9 @@ func (r *reducer) steerMessagesApplied(e SteerMessagesApplied) ([]RunEvent, erro
 			return nil, err
 		}
 		out = append(out, ItemCompleted{Item: item})
+	}
+	if len(out) == 0 {
+		out = append(out, SegmentProgressed{Progress: RunProgress{Activity: applyingUserInputActivity}})
 	}
 	return out, nil
 }

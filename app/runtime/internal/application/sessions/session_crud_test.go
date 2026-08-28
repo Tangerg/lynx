@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/scope/app/runtime/internal/application/pagination"
 	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
 	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
 	"github.com/Tangerg/scope/app/runtime/internal/testsupport/sessionfixture"
 )
@@ -217,7 +218,10 @@ func TestGeneratedTitleLosesToConcurrentUserTitle(t *testing.T) {
 }
 
 func TestViewPresentsExactSessionSelectionAndWorkspace(t *testing.T) {
-	selection := mustTestSelection(t, "anthropic", "claude-opus-4-8")
+	selection, selectionErr := modelref.NewWithReasoningEffort("anthropic", "claude-opus-4-8", "high")
+	if selectionErr != nil {
+		t.Fatal(selectionErr)
+	}
 	c := mustNewCoordinator(Dependencies{
 		Paths: testWorkspaceResolver{missing: true}, DefaultModelSelection: selection,
 	})
@@ -228,8 +232,8 @@ func TestViewPresentsExactSessionSelectionAndWorkspace(t *testing.T) {
 	if err != nil {
 		t.Fatalf("view: %v", err)
 	}
-	if view.Provider != "anthropic" || view.Model != "claude-opus-4-8" {
-		t.Fatalf("view selection = %s/%s, want Session selection", view.Provider, view.Model)
+	if view.Provider != "anthropic" || view.Model != "claude-opus-4-8" || view.ReasoningEffort != "high" {
+		t.Fatalf("view selection = %s/%s/%s, want Session selection", view.Provider, view.Model, view.ReasoningEffort)
 	}
 	if view.Workspace != (WorkspaceView{Path: "/repo", ProjectRoot: "/repo", Missing: true}) {
 		t.Fatalf("view workspace = %+v, want one exact missing projection", view.Workspace)
@@ -245,12 +249,19 @@ func TestCoordinatorUpdateAppliesPatch(t *testing.T) {
 
 	title := "  Renamed  "
 	selection := mustTestSelection(t, "anthropic", "claude-opus-4-8")
+	provider, model, effort := selection.Provider(), selection.Model(), "high"
+	selection, selectionErr := modelref.NewWithReasoningEffort(provider, model, effort)
+	if selectionErr != nil {
+		t.Fatal(selectionErr)
+	}
 	cwd := "/requested/project"
 	favorite := true
 
 	got, err := c.Update(ctx, "ses_1", Patch{
-		Title:         &title,
-		Selection:     &selection,
+		Title: &title,
+		ModelSelection: modelref.Patch{
+			Provider: &provider, Model: &model, ReasoningEffort: &effort,
+		},
 		WorkspacePath: &cwd,
 		Favorite:      &favorite,
 	})

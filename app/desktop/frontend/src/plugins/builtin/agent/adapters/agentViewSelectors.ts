@@ -12,7 +12,6 @@ import type {
 import { EMPTY_AGENT_SESSION_VIEW } from "@/plugins/sdk/types/agentSessionView";
 import {
   selectCurrentRootRun,
-  selectSessionContextTokens,
   selectRootNarrativeMessages,
   selectRunTree,
   selectVisibleProblem,
@@ -42,6 +41,7 @@ type AgentStoreState = ReturnType<typeof useAgentStore.getState>;
 
 class TranscriptRowsProjection {
   private cache: TranscriptRowCache = EMPTY_TRANSCRIPT_ROW_CACHE;
+  private rows: readonly TranscriptRow[] = [];
 
   constructor(private readonly sessionId: string) {}
 
@@ -49,16 +49,19 @@ class TranscriptRowsProjection {
     const view = state.sessions[this.sessionId]?.view ?? EMPTY_AGENT_SESSION_VIEW;
     const built = buildTranscriptRows(view, this.cache);
     this.cache = built.cache;
-    return built.rows;
+    if (
+      built.rows.length === this.rows.length &&
+      built.rows.every((row, index) => row === this.rows[index])
+    ) {
+      return this.rows;
+    }
+    this.rows = built.rows;
+    return this.rows;
   }
 }
 
 export function useCurrentRootRun() {
   return useActiveAgentView(selectCurrentRootRun);
-}
-
-export function useAgentSessionContextTokens(): number | null {
-  return useActiveAgentView(selectSessionContextTokens);
 }
 
 export function useAgentAction(kind: "stop"): StopCurrentRootRunAction | null;

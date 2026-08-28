@@ -7,13 +7,13 @@
 > promise and does not authorize dual fields or fallback decoding in the server.
 >
 > Last verified against the Runtime-owned server, public Go contracts, and
-> Desktop generated consumer: 2026-08-28, during the P187 ScopeApp identity cutover.
+> Desktop generated consumer: 2026-08-28, through the P196 exact reasoning-selection cutover.
 > Other consumers migrate independently and do not change the Runtime contract.
 
 ## Current server baseline
 
 - Protocol version: exactly `2026-08-28`; there is no compatibility range.
-- Session artifact version: `23`; every other version is rejected before
+- Session artifact version: `24`; every other version is rejected before
   any import write.
 - Machine truth: [`../contract/`](../contract/) generated from the Go contract
   registry with `go generate ./...`; `go-api.json` freezes the complete public
@@ -34,7 +34,7 @@ use first-class Item or resource contracts for new facts.
 Plan is no longer the sole member of a speculative shared-state registry. The
 only spellings are `plan.updated`, `plan.changed`, `plan.get`,
 `SessionSnapshot.plan`, and `SessionArtifact.plan`; discovery has no
-`stateSnapshots`, RuntimeEvent has no state key, and Artifact v23 has no
+`stateSnapshots`, RuntimeEvent has no state key, and Artifact v24 has no
 `states[]` union. Consumers must not retain `state.snapshot`, `state.changed`,
 `StateSnapshot`, the old `states[]` archive shape, or a generic shared-state Plan
 reader. Desktop projects the Runtime Plan into the explicit `AgentSessionView.plan`;
@@ -58,16 +58,19 @@ old generated binding, `@codebase` alias, or compatibility adapter. The
 embedding role remains valid only as optional Agent Memory ranking; keyword
 memory search remains available without it.
 
-Every public `Session` and `ArtifactSession` now carries required `provider` and
-`model` fields. `sessions.update` changes them only as one complete pair;
-provider-only, model-only, empty, or whitespace-padded identities are invalid.
-Omitting a per-Run pair uses the durable Session pair, while an explicit pair is
-committed as the Session's next default in the same opening write-set. Consumers
-must compare both fields when resolving a catalog entry or its context window;
-matching model id alone is incorrect when providers publish the same id. Fork,
-scheduled admission, export, and import preserve the exact pair. There is no
-model-only alias, provider inference, global-default fallback for an existing
-Session, v22 artifact reader, or epoch-77 database migration.
+Every public `Session`, `Run`, `Goal`, `Schedule`, and artifact selection carries
+required `provider`/`model` identity plus optional `reasoningEffort` owned by that
+exact model. `sessions.update` changes identity only as a complete pair; an
+effort-only patch retains identity, while changing the pair without an effort
+clears the previous model's effort. Provider-only, model-only, effort-without-model,
+empty, or whitespace-padded values are invalid. Omitting a per-Run selection uses
+the durable Session selection, while an explicit selection is committed as the
+Session's next default in the same opening write-set and frozen on that Run.
+Consumers must compare provider and model when resolving catalog capabilities;
+matching model id alone is incorrect. Fork, scheduled admission/occurrence,
+Goal execution, checkpoint, export, and import preserve the exact selection.
+There is no model-only alias, provider inference, global-default fallback for an
+existing Session, v23 artifact reader, or epoch-83 database migration.
 
 Transcript events now publish user messages, questions, and compaction as
 complete facts without a synthetic `item.started` event. Agent-message and
@@ -149,6 +152,19 @@ fixtures. The generated package, handwritten adapter, smoke/wire fixtures, and
 strict validators move together to Protocol `2026-08-28` and Artifact v23. No
 second selection store or compatibility decoder was added.
 
+P196 wires the model-owned execution facts through the product. Desktop projects
+catalog limits, supported/default reasoning levels, input/output modalities,
+tool use, and structured-output support into one immutable `SelectableModel`.
+Composer model and effort controls submit the exact selection to normal Runs and
+Goals; attachment admission consumes the selected input modalities. During an
+active root Run, Context usage resolves the window from that Run's frozen
+selection rather than a subsequently edited Session default. The driver also
+supports `runs.resume` with optional follow-up input; Runtime commits its user
+Item with the answer claim, checkpoint removal, and next Segment, then delivers
+answer + input signals at the same continuation boundary. Conversation preserves
+the provider-valid Tool-result-then-User order, while exact projected Item identity
+prevents a second transcript copy.
+
 - `app/runtime/contract/typescript/` generated bindings, validators, canonical
   samples, and the handwritten JSON Schema check vocabulary;
 - `app/desktop/frontend/src/rpc/` SDK, preflight, and schema tests;
@@ -202,7 +218,7 @@ A consumer migration is complete only when it:
 2. sends `protocolVersion: "2026-08-28"` and rejects any different discovered
    range instead of guessing compatibility;
 3. accepts only `runtimeInstanceRootSegment` for `RunReplayScope`;
-4. imports/exports Session artifact v23 with its required exact provider/model pair and explicit `plan` field, including durable root-run context footprints, authored AgentMessage phases, accepted Question answers, and exact human ToolCall approval decisions, without rewriting prior documents;
+4. imports/exports Session artifact v24 with required exact provider/model identity, optional model-owned reasoning effort on Session and every Run, and explicit `plan` field, including durable root-run context footprints, authored AgentMessage phases, accepted Question answers, and exact human ToolCall approval decisions, without rewriting prior documents;
 5. passes its strict fixture validation and HTTP integration suite.
 
 An embedded Go consumer additionally passes an external-module compile test,

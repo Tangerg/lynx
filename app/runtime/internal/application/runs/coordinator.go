@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/scope/app/runtime/internal/application/sessionadmission"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 	rundomain "github.com/Tangerg/scope/app/runtime/internal/domain/run"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
 )
@@ -32,7 +33,7 @@ type Coordinator struct {
 	rootCancellation                   RunningRootCancellationRequester
 	conversation                       ConversationReader
 	workingContexts                    WorkingContextComposer
-	modelInputs                        ModelInputAdmitter
+	models                             ModelAdmitter
 	continuation                       WaitingExecutionContinuer
 	waitingRestorer                    WaitingExecutionRestorer
 	steering                           RunningExecutionSteerer
@@ -65,6 +66,15 @@ type Coordinator struct {
 	publications runPublications
 }
 
+// AdmitSelection exposes the same model policy Start applies before any Goal
+// can freeze that selection durably.
+func (c *Coordinator) AdmitSelection(selection modelref.Selection) error {
+	if err := c.models.AdmitSelection(selection); err != nil {
+		return fmt.Errorf("%w: %w", ErrUnsupportedModelSelection, err)
+	}
+	return nil
+}
+
 // Dependencies is the complete collaborator set for the user-visible run use
 // cases and the segment supervisor they own.
 type Dependencies struct {
@@ -74,7 +84,7 @@ type Dependencies struct {
 	RootCancellation                   RunningRootCancellationRequester
 	Conversation                       ConversationReader
 	WorkingContexts                    WorkingContextComposer
-	ModelInputs                        ModelInputAdmitter
+	Models                             ModelAdmitter
 	Continuation                       WaitingExecutionContinuer
 	WaitingRestorer                    WaitingExecutionRestorer
 	Steering                           RunningExecutionSteerer
@@ -118,7 +128,7 @@ func NewCoordinator(deps Dependencies) (*Coordinator, error) {
 		{"root cancellation requester", deps.RootCancellation},
 		{"conversation reader", deps.Conversation},
 		{"working context composer", deps.WorkingContexts},
-		{"model input admitter", deps.ModelInputs},
+		{"model admitter", deps.Models},
 		{"waiting execution continuer", deps.Continuation},
 		{"waiting execution restorer", deps.WaitingRestorer},
 		{"running execution steerer", deps.Steering},
@@ -157,7 +167,7 @@ func NewCoordinator(deps Dependencies) (*Coordinator, error) {
 		rootCancellation:                   deps.RootCancellation,
 		conversation:                       deps.Conversation,
 		workingContexts:                    deps.WorkingContexts,
-		modelInputs:                        deps.ModelInputs,
+		models:                             deps.Models,
 		continuation:                       deps.Continuation,
 		waitingRestorer:                    deps.WaitingRestorer,
 		steering:                           deps.Steering,

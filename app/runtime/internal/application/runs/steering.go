@@ -24,7 +24,7 @@ func (c *Coordinator) Steer(ctx context.Context, cmd SteerCommand) error {
 	if err != nil {
 		return err
 	}
-	if admitErr := c.modelInputs.AdmitInput(rec.ModelSelection, []corechat.Message{message}); admitErr != nil {
+	if admitErr := c.models.AdmitInput(rec.ModelSelection, []corechat.Message{message}); admitErr != nil {
 		return fmt.Errorf("%w: %w", ErrUnsupportedMedia, admitErr)
 	}
 	if err := c.steering.SubmitSteer(ctx, ExecutorRef{SessionID: rec.SessionID, ExecutorID: rec.ExecutorID}, cmd.Input); err != nil {

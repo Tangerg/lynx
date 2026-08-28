@@ -8,6 +8,7 @@ import {
 } from "@/plugins/builtin/agent/adapters/runtimeAgentFacts";
 import type { AgentSessionSnapshot } from "@/plugins/builtin/agent/application/ports/runtimeGateway";
 import type { GoalReadModel } from "@/plugins/builtin/chat/goal/application/goalReadModel";
+import { VISUAL_CONTEXT_TOKENS } from "./agentFixtureFacts";
 
 export const VISUAL_AGENT_STATES = [
   "empty",
@@ -1030,8 +1031,10 @@ export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, AgentE
     tailEvent(3, { type: "item.started", item: RUNNING_READ }),
     tailEvent(4, { type: "item.started", item: RUNNING_TOOL }),
     tailEvent(5, { type: "item.started", item: RUNNING_RESPONSE }),
-    // 96k against the served model's 256k window puts the live gauge at 38%.
-    tailEvent(6, { type: "segment.progress", progress: { contextTokens: 96_000 } }),
+    tailEvent(6, {
+      type: "segment.progress",
+      progress: { contextTokens: VISUAL_CONTEXT_TOKENS },
+    }),
   ],
   // One frame earlier than `running`: the answer is open and empty. Nothing here is
   // superseded yet, so the thinking stays readable and the live tool work stays
@@ -1042,14 +1045,20 @@ export const AGENT_SESSION_TAIL_EVENTS: Readonly<Record<VisualAgentState, AgentE
     tailEvent(3, { type: "item.started", item: RUNNING_READ }),
     tailEvent(4, { type: "item.started", item: RUNNING_TOOL }),
     tailEvent(5, { type: "item.started", item: OPENING_RESPONSE }),
-    tailEvent(6, { type: "segment.progress", progress: { contextTokens: 96_000 } }),
+    tailEvent(6, {
+      type: "segment.progress",
+      progress: { contextTokens: VISUAL_CONTEXT_TOKENS },
+    }),
   ],
   steer: [
     tailEvent(1, { type: "item.started", item: RUNNING_REASONING }),
     tailEvent(3, { type: "item.started", item: RUNNING_READ }),
     tailEvent(4, { type: "item.started", item: RUNNING_TOOL }),
     tailEvent(5, { type: "item.started", item: RUNNING_RESPONSE }),
-    tailEvent(6, { type: "segment.progress", progress: { contextTokens: 96_000 } }),
+    tailEvent(6, {
+      type: "segment.progress",
+      progress: { contextTokens: VISUAL_CONTEXT_TOKENS },
+    }),
   ],
   waiting: [],
   question: [],
@@ -1092,6 +1101,7 @@ export const VISUAL_GOALS: Partial<Record<VisualAgentState, GoalReadModel>> = {
     used: { runs: 7, costUsd: 4.5, steps: 31 },
     provider: "openai",
     model: "gpt-5",
+    reasoningEffort: "high",
     createdAt: "2026-08-12T08:00:00Z",
     updatedAt: "2026-08-12T08:01:00Z",
   },
@@ -1104,6 +1114,7 @@ export const VISUAL_GOALS: Partial<Record<VisualAgentState, GoalReadModel>> = {
     used: { runs: 12, costUsd: 5, steps: 58 },
     provider: "openai",
     model: "gpt-5",
+    reasoningEffort: "high",
     createdAt: "2026-08-12T08:00:00Z",
     updatedAt: "2026-08-12T08:02:00Z",
   },

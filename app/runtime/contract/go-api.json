@@ -1787,7 +1787,7 @@
         {
           "name": "SessionArtifactVersion",
           "type": "untyped int",
-          "value": "23"
+          "value": "24"
         },
         {
           "name": "SessionStatusIdle",
@@ -2834,6 +2834,11 @@
               "tag": "json:\"model,omitempty\""
             },
             {
+              "name": "ReasoningEffort",
+              "type": "string",
+              "tag": "json:\"reasoningEffort,omitempty\""
+            },
+            {
               "name": "Limits",
               "type": "*ArtifactRunLimits",
               "tag": "json:\"limits,omitempty\""
@@ -2968,6 +2973,11 @@
               "name": "Model",
               "type": "string",
               "tag": "json:\"model\""
+            },
+            {
+              "name": "ReasoningEffort",
+              "type": "string",
+              "tag": "json:\"reasoningEffort,omitempty\""
             },
             {
               "name": "CreatedAt",
@@ -3332,6 +3342,11 @@
               "name": "Model",
               "type": "string",
               "tag": "json:\"model,omitempty\""
+            },
+            {
+              "name": "ReasoningEffort",
+              "type": "string",
+              "tag": "json:\"reasoningEffort,omitempty\""
             },
             {
               "name": "Cron",
@@ -4101,6 +4116,11 @@
               "name": "Model",
               "type": "string",
               "tag": "json:\"model,omitempty\""
+            },
+            {
+              "name": "ReasoningEffort",
+              "type": "string",
+              "tag": "json:\"reasoningEffort,omitempty\""
             },
             {
               "name": "Budget",
@@ -6582,6 +6602,11 @@
               "tag": "json:\"provider,omitempty\""
             },
             {
+              "name": "ReasoningEffort",
+              "type": "string",
+              "tag": "json:\"reasoningEffort,omitempty\""
+            },
+            {
               "name": "Status",
               "type": "RunStatus",
               "tag": "json:\"status,omitempty\""
@@ -6799,6 +6824,11 @@
               "tag": "json:\"model,omitempty\""
             },
             {
+              "name": "ReasoningEffort",
+              "type": "string",
+              "tag": "json:\"reasoningEffort,omitempty\""
+            },
+            {
               "name": "Cron",
               "type": "string",
               "tag": "json:\"cron\""
@@ -6962,6 +6992,11 @@
               "name": "Model",
               "type": "string",
               "tag": "json:\"model\""
+            },
+            {
+              "name": "ReasoningEffort",
+              "type": "string",
+              "tag": "json:\"reasoningEffort,omitempty\""
             },
             {
               "name": "Workspace",
@@ -7291,6 +7326,11 @@
               "tag": "json:\"model,omitempty\""
             },
             {
+              "name": "ReasoningEffort",
+              "type": "string",
+              "tag": "json:\"reasoningEffort,omitempty\""
+            },
+            {
               "name": "Budget",
               "type": "GoalBudget",
               "tag": "json:\"budget,omitzero\""
@@ -7326,6 +7366,11 @@
               "name": "Model",
               "type": "string",
               "tag": "json:\"model,omitempty\""
+            },
+            {
+              "name": "ReasoningEffort",
+              "type": "string",
+              "tag": "json:\"reasoningEffort,omitempty\""
             },
             {
               "name": "MaxTotalTokens",
@@ -7780,6 +7825,11 @@
               "tag": "json:\"model,omitempty\""
             },
             {
+              "name": "ReasoningEffort",
+              "type": "*string",
+              "tag": "json:\"reasoningEffort,omitempty\""
+            },
+            {
               "name": "Cron",
               "type": "*string",
               "tag": "json:\"cron,omitempty\""
@@ -7830,6 +7880,11 @@
               "name": "Model",
               "type": "*string",
               "tag": "json:\"model,omitempty\""
+            },
+            {
+              "name": "ReasoningEffort",
+              "type": "*string",
+              "tag": "json:\"reasoningEffort,omitempty\""
             },
             {
               "name": "Favorite",

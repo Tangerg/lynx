@@ -42,6 +42,7 @@ func (passthroughWorkingContext) ComposeWorkingContext(
 
 type acceptAllModelInputs struct{}
 
+func (acceptAllModelInputs) AdmitSelection(modelref.Selection) error                 { return nil }
 func (acceptAllModelInputs) AdmitInput(modelref.Selection, []corechat.Message) error { return nil }
 
 // mustNewCoordinator completes dependencies unrelated to a focused test. The
@@ -70,8 +71,8 @@ func mustNewCoordinator(deps Dependencies) *Coordinator {
 	if deps.WorkingContexts == nil {
 		deps.WorkingContexts = passthroughWorkingContext{}
 	}
-	if deps.ModelInputs == nil {
-		deps.ModelInputs = acceptAllModelInputs{}
+	if deps.Models == nil {
+		deps.Models = acceptAllModelInputs{}
 	}
 	if deps.Continuation == nil {
 		deps.Continuation = control

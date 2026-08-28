@@ -119,7 +119,7 @@ Domain package 是否成立只看以下证据：
 | `interrupt` | durable HITL kind、stable key 和 semantic resolution；open-set、request validation 和 continuation routing 在 Application |
 | `knowledge` | 人类维护的 SCOPEAPP.md scope/document value；与 AgentMemory 的所有权和写入来源不同 |
 | `mcpserver` | MCP server descriptor、canonical tool identity/schema 与 per-tool policy；connection lifecycle 在外部 |
-| `modelref` | zero-or-complete provider/model selection，被 Run、Goal、Schedule 和 model use case 共享 |
+| `modelref` | zero-or-complete provider/model identity + optional model-owned reasoning effort，被 Session、Run、Goal、Schedule 和 model use case 共享 |
 | `plan` | Session-scoped ordered Plan replacement、step invariant、revision 和 updated time |
 | `provider` | model-provider identity、credential configuration、effective provenance 与 patch vocabulary |
 | `run` | 单个产品 Run 的完整 lifecycle、lineage、metrics、limits/capabilities 与 terminal facts |
@@ -271,18 +271,21 @@ Tool Adapter 只负责模型参数 decode、从 Tool execution context 提取 Se
 `domain/session.Session` 应完整拥有单个 Session 内的行为：
 
 - fresh 和 scheduled Session 的构造；
-- title/exact provider+model selection/exact Workspace/isolation/favorite edit；
+- title/exact provider+model+optional reasoning selection/exact Workspace/isolation/favorite edit；
 - fork inheritance；
 - relocation/restore 后 canonical workspace identity 的安装；
 - revision 单调推进和实体时间更新；
 - immutable identity、parent 和 started time。
 
 Session 的模型身份不是可缺省字符串，而是 configured `modelref.Selection`。Domain 构造、restore 与 patch
-都要求 provider/model 同时存在且无外围空白；zero selection 对 Session 非法。Runtime 全局默认只由
-Session Application 在 fresh/scheduled admission 时解析并安装，之后 read model、Run、fork、SQLite 与
-Artifact 都读取聚合内同一 pair，不再在消费处补默认或按 model id 推断 provider。显式 Run pair 只有在
-executor staging 成功后，才随 Run opening 原子替换 Session pair；失败不得留下半更新。fork 继承父
-Session 的 exact pair，而不是清空后等待另一层重新猜默认。
+都要求 provider/model 同时存在且无外围空白；可选 reasoning effort 同样必须 canonical，且不能脱离完整 identity
+独立存在；zero selection 对 Session 非法。Runtime 全局默认只由 Session Application 在 fresh/scheduled
+admission 时解析并安装，之后 read model、Run、Goal、Schedule、fork、SQLite 与 Artifact 都读取同一个值对象，
+不再在消费处补默认或按 model id 推断 provider。reasoning-only patch 保留当前 identity；显式切换 provider/model
+而未同时给 effort 时清空旧 effort，不能把一个模型的等级泄漏给另一个模型。显式 Run selection 只有在 executor
+staging 成功后，才随 Run opening 原子替换 Session 默认；失败不得留下半更新。Run 随 opening 冻结自己的 exact
+selection，后续 Session 修改不能重写 active/history Run。fork 继承父 Session 的 exact selection，而不是清空后等待
+另一层重新猜默认。
 
 Session 的工作区身份同样不是 `cwd string`，而是 immutable `Workspace`。该值只拥有纯不变量：必填、
 绝对且等于其 lexical-clean 形式；root workspace 合法，路径段中的空格有意义。Draft、Patch、Snapshot、

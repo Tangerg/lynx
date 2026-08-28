@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/scope/app/runtime/internal/adapter/workspacepath"
 	"github.com/Tangerg/scope/app/runtime/internal/application/schedules"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/scope/app/runtime/protocol"
 )
@@ -79,8 +80,9 @@ func (f *fakeScheduleRegistry) Pending(context.Context, int) ([]schedule.Occurre
 func serverWithSchedules(reg *fakeScheduleRegistry) *Server {
 	s := newTestServer(&stubRuntime{})
 	s.schedules = schedules.New(schedules.Dependencies{
-		Store: reg,
-		Paths: workspacepath.Resolver{},
+		Store:  reg,
+		Paths:  workspacepath.Resolver{},
+		Models: allowModelSelections{},
 	})
 	s.scheduleFiring = schedules.NewFiring(reg, schedules.NewRunLauncher(s.runs, s.serverInfo.DefaultWorkspace.Path), nil)
 	s.features.schedules = true
@@ -95,6 +97,7 @@ func TestCreateScheduleBuildsEnabledDomainSchedule(t *testing.T) {
 	got, err := s.CreateSchedule(context.Background(), protocol.CreateScheduleRequest{
 		Title: "Morning", Instructions: "Summarize the repo",
 		Workspace: &protocol.WorkspaceRef{Path: cwd}, Cron: "@daily",
+		Provider: "openai", Model: "gpt-5.6-sol", ReasoningEffort: "high",
 	})
 	if err != nil {
 		t.Fatalf("create schedule: %v", err)
@@ -103,7 +106,8 @@ func TestCreateScheduleBuildsEnabledDomainSchedule(t *testing.T) {
 		t.Fatalf("created %d schedule(s), want 1", len(reg.created))
 	}
 	created := reg.created[0]
-	if !created.Enabled || created.Instructions != "Summarize the repo" || created.CWD != canonicalWorkspacePath(t, cwd) || created.Cron != "@daily" {
+	if !created.Enabled || created.Instructions != "Summarize the repo" || created.CWD != canonicalWorkspacePath(t, cwd) || created.Cron != "@daily" ||
+		created.ModelSelection.Provider() != "openai" || created.ModelSelection.Model() != "gpt-5.6-sol" || created.ModelSelection.ReasoningEffort() != "high" {
 		t.Fatalf("created = %+v", created)
 	}
 	if created.NextRunAt.IsZero() {
@@ -133,11 +137,16 @@ func TestCreateScheduleRejectsUnavailableCWD(t *testing.T) {
 func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 	last := time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)
 	createdAt := time.Date(2026, 7, 1, 9, 0, 0, 0, time.UTC)
+	selection, selectionErr := modelref.NewWithReasoningEffort("openai", "gpt-5.6-sol", "high")
+	if selectionErr != nil {
+		t.Fatal(selectionErr)
+	}
 	reg := &fakeScheduleRegistry{byID: map[string]schedule.Schedule{
-		"sch_1": {ID: "sch_1", LastRunAt: last, CreatedAt: createdAt, NextRunAt: last.Add(time.Hour)},
+		"sch_1": {ID: "sch_1", ModelSelection: selection, LastRunAt: last, CreatedAt: createdAt, NextRunAt: last.Add(time.Hour)},
 	}}
 	s := serverWithSchedules(reg)
 	cwd := t.TempDir()
+	effort := "xhigh"
 
 	got, err := s.UpdateSchedule(context.Background(), protocol.UpdateScheduleRequest{
 		ID:               "sch_1",
@@ -147,6 +156,7 @@ func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 		Workspace:        &protocol.WorkspaceRef{Path: cwd},
 		Cron:             valuePtr("@daily"),
 		Enabled:          valuePtr(false),
+		ReasoningEffort:  &effort,
 	})
 	if err != nil {
 		t.Fatalf("update schedule: %v", err)
@@ -163,6 +173,9 @@ func TestUpdateSchedulePreservesStoredTimestampsAndCanDisable(t *testing.T) {
 	}
 	if updated.CWD != canonicalWorkspacePath(t, cwd) {
 		t.Fatalf("updated.CWD = %q, want %q", updated.CWD, canonicalWorkspacePath(t, cwd))
+	}
+	if updated.ModelSelection.Provider() != "openai" || updated.ModelSelection.Model() != "gpt-5.6-sol" || updated.ModelSelection.ReasoningEffort() != effort {
+		t.Fatalf("reasoning-only schedule edit lost exact identity: %+v", updated.ModelSelection)
 	}
 	if got.NextRunAt != nil || got.LastRunAt == nil {
 		t.Fatalf("wire schedule = %+v, want omitted nextRunAt and present lastRunAt", got)

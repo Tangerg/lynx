@@ -32,6 +32,7 @@ export function toGoalReadModel(goal: Goal): GoalReadModel {
     stop: goal.reason ? { code: goal.reason.code, detail: goal.reason.detail ?? "" } : null,
     provider: goal.provider ?? "",
     model: goal.model ?? "",
+    reasoningEffort: goal.reasoningEffort ?? "",
     budget: {
       maxRuns: goal.budget.maxRuns ?? 0,
       maxCostUsd: goal.budget.maxCostUsd ?? 0,

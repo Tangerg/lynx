@@ -18,6 +18,7 @@ export function toAgentSessionSummary(session: Session): AgentSessionSummary {
     status: session.status,
     provider: session.provider,
     model: session.model,
+    ...(session.reasoningEffort ? { reasoningEffort: session.reasoningEffort } : {}),
     workspace: {
       path: session.workspace.ref.path,
       availability: session.workspace.availability,

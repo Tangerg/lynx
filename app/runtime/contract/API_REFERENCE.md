@@ -453,8 +453,8 @@ TypeScript validator from this single registry projection.
 | `ImportSessionRequest` | `artifact.session.id` | `nonEmpty` |
 | `ArtifactSession` | `provider` | `nonEmpty` |
 | `ArtifactSession` | `model` | `nonEmpty` |
-| `SessionArtifact` | `version` | `minimum(23)` |
-| `SessionArtifact` | `version` | `maximum(23)` |
+| `SessionArtifact` | `version` | `minimum(24)` |
+| `SessionArtifact` | `version` | `maximum(24)` |
 | `ArtifactRun` | `messageMark` | `nonNegative` |
 | `ArtifactRun` | `contextTokens` | `nonNegative` |
 | `ArtifactRunMetrics` | `steps` | `nonNegative` |

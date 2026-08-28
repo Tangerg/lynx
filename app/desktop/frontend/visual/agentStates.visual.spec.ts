@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
 import { VISUAL_AGENT_STATES, type VisualAgentState } from "./agentSessionSnapshots";
+import { VISUAL_CONTEXT_TOKENS, VISUAL_PRIMARY_MODEL_CONTEXT_WINDOW } from "./agentFixtureFacts";
+import { contextUsageReadout } from "@/plugins/builtin/chat/context-usage/application/contextUsageReadout";
+import { fmtTokens } from "@/lib/format";
 
 const EXPECTED_ATTENTION: Record<VisualAgentState, string> = {
   empty: "idle",
@@ -19,6 +22,10 @@ const EXPECTED_ATTENTION: Record<VisualAgentState, string> = {
   "tool-shells": "finished",
   waves: "running",
 };
+
+const GPT_5_6_SOL_CAPABILITY_NAME =
+  "GPT-5.6 Sol 1.1M context · text + image + pdf input · Reasoning none / low / medium / high / xhigh / max · 922k max input · 128k max output · text output · Tools · Structured output · Knowledge 2026-02-16T00:00:00Z";
+const QWEN_MT_PLUS_CAPABILITY_NAME = "Qwen MT Plus 32.8k context · text input · text output";
 
 // The Record's own exhaustiveness is not enforced by its type — a partial Record
 // still typechecks against an index signature — and an absent expectation reads to
@@ -316,14 +323,20 @@ test("the composer context ring exposes the Runtime window occupancy", async ({ 
   await page.goto("/visual/?fixture=agent&theme=light&state=running");
   await page.locator("html[data-visual-ready]").waitFor();
 
-  const gauge = page.getByRole("img", { name: "Context usage: 38%" });
+  const readout = contextUsageReadout(VISUAL_CONTEXT_TOKENS, VISUAL_PRIMARY_MODEL_CONTEXT_WINDOW);
+  expect(readout).not.toBeNull();
+  if (!readout) throw new Error("the canonical context fixture must produce a readout");
+
+  const gauge = page.getByRole("img", { name: `Context usage: ${readout.percent}%` });
   await expect(gauge).toBeVisible();
   await gauge.hover();
 
   const tooltip = page.getByRole("tooltip");
   await expect(tooltip).toContainText("Context window:");
-  await expect(tooltip).toContainText("38% used (62% left)");
-  await expect(tooltip).toContainText("96k / 256k tokens used");
+  await expect(tooltip).toContainText(`${readout.percent}% used (${100 - readout.percent}% left)`);
+  await expect(tooltip).toContainText(
+    `${fmtTokens(readout.usedTokens)} / ${fmtTokens(readout.windowTokens)} tokens used`,
+  );
 });
 
 for (const theme of ["light", "dark"] as const) {
@@ -437,16 +450,18 @@ test("model capabilities drive the picker and image admission together", async (
   await page.locator("html[data-visual-ready]").waitFor();
 
   const attach = page.getByRole("button", { name: "Attach image" });
+  const effort = page.getByRole("button", { name: "Switch reasoning effort" });
   await expect(attach).toBeEnabled();
+  await expect(effort).toHaveText("medium");
+  await effort.click();
+  await page.getByRole("menuitem", { name: "high", exact: true }).click();
+  await expect(effort).toHaveText("high");
   await page.getByRole("button", { name: "Switch model" }).click();
-  await expect(
-    page.getByRole("menuitem", {
-      name: "GPT-5.6 256K · text + image · low / medium / high",
-    }),
-  ).toBeVisible();
-  await page.getByRole("menuitem", { name: "Qwen MT Plus 32.8K · text" }).click();
+  await expect(page.getByRole("menuitem", { name: GPT_5_6_SOL_CAPABILITY_NAME })).toBeVisible();
+  await page.getByRole("menuitem", { name: QWEN_MT_PLUS_CAPABILITY_NAME }).click();
 
   await expect(attach).toBeDisabled();
+  await expect(effort).toHaveCount(0);
 });
 
 test("the projectless composer owns Codex's inset rear project tray", async ({ page }) => {

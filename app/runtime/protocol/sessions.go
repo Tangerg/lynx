@@ -16,16 +16,17 @@ const (
 
 // Session is one conversation, bound to a resolved workspace (API.md §4.1).
 type Session struct {
-	ID        string        `json:"id"`
-	Title     string        `json:"title"`
-	Status    SessionStatus `json:"status"`
-	Provider  string        `json:"provider"`
-	Model     string        `json:"model"`
-	Workspace WorkspaceInfo `json:"workspace"`
-	CreatedAt time.Time     `json:"createdAt"`
-	UpdatedAt time.Time     `json:"updatedAt"`
-	Favorite  bool          `json:"favorite,omitempty"` // user-pinned; sorts ahead in the session list
-	Revision  uint64        `json:"revision"`
+	ID              string        `json:"id"`
+	Title           string        `json:"title"`
+	Status          SessionStatus `json:"status"`
+	Provider        string        `json:"provider"`
+	Model           string        `json:"model"`
+	ReasoningEffort string        `json:"reasoningEffort,omitempty"`
+	Workspace       WorkspaceInfo `json:"workspace"`
+	CreatedAt       time.Time     `json:"createdAt"`
+	UpdatedAt       time.Time     `json:"updatedAt"`
+	Favorite        bool          `json:"favorite,omitempty"` // user-pinned; sorts ahead in the session list
+	Revision        uint64        `json:"revision"`
 }
 
 // GetSessionRequest identifies the session returned by sessions.get.
@@ -74,6 +75,7 @@ type UpdateSessionRequest struct {
 	Workspace        *WorkspaceRef `json:"workspace,omitempty"`
 	Provider         *string       `json:"provider,omitempty"`
 	Model            *string       `json:"model,omitempty"`
+	ReasoningEffort  *string       `json:"reasoningEffort,omitempty"`
 	Favorite         *bool         `json:"favorite,omitempty"`
 }
 
@@ -162,9 +164,10 @@ type ExportSessionResponse struct {
 // artifact it doesn't recognize; development builds do not migrate old
 // artifacts.
 //
-// Version 23 preserves the Session's exact provider/model selection in addition
+// Version 24 preserves the Session and Run exact provider/model/reasoning
+// selections in addition
 // to the complete durable material introduced by earlier versions.
-const SessionArtifactVersion = 23
+const SessionArtifactVersion = 24
 
 // SessionArtifact is the portable, round-trippable form of a session: its
 // identity plus the full conversation — chat messages (the model's context),
@@ -199,14 +202,15 @@ type SessionArtifact struct {
 // ArtifactSession is the durable session identity and user-owned metadata. It
 // deliberately excludes live status, revision, and workspace-derived fields.
 type ArtifactSession struct {
-	ID        string       `json:"id"`
-	Title     string       `json:"title"`
-	Workspace WorkspaceRef `json:"workspace"`
-	Provider  string       `json:"provider"`
-	Model     string       `json:"model"`
-	CreatedAt time.Time    `json:"createdAt"`
-	UpdatedAt time.Time    `json:"updatedAt"`
-	Favorite  bool         `json:"favorite,omitempty"`
+	ID              string       `json:"id"`
+	Title           string       `json:"title"`
+	Workspace       WorkspaceRef `json:"workspace"`
+	Provider        string       `json:"provider"`
+	Model           string       `json:"model"`
+	ReasoningEffort string       `json:"reasoningEffort,omitempty"`
+	CreatedAt       time.Time    `json:"createdAt"`
+	UpdatedAt       time.Time    `json:"updatedAt"`
+	Favorite        bool         `json:"favorite,omitempty"`
 }
 
 // ArtifactRun is the durable terminal record of one run. Outcome is stored as
@@ -219,10 +223,11 @@ type ArtifactRun struct {
 	// ParentRunID and RootRunID are the child edges, all-or-none with
 	// SpawnedByItemID exactly as RunSummary's are — an archive is a durable input
 	// document, so a half-linked child would import a tree that cannot be walked.
-	ParentRunID string `json:"parentRunId,omitempty"`
-	RootRunID   string `json:"rootRunId,omitempty"`
-	Provider    string `json:"provider,omitempty"`
-	Model       string `json:"model,omitempty"`
+	ParentRunID     string `json:"parentRunId,omitempty"`
+	RootRunID       string `json:"rootRunId,omitempty"`
+	Provider        string `json:"provider,omitempty"`
+	Model           string `json:"model,omitempty"`
+	ReasoningEffort string `json:"reasoningEffort,omitempty"`
 	// Limits and Metrics split the same way the live wire does. The archive has
 	// to move with it: leaving the old combined shape here would keep a second,
 	// older account of what a run cost alive inside the export format.

@@ -49,7 +49,8 @@ func TestCommittedScheduleMutationsPublishExactInvalidations(t *testing.T) {
 	}
 	var notices []invalidation.Notice
 	coordinator := New(Dependencies{
-		Store: store,
+		Store:  store,
+		Models: allowModels{},
 		Invalidations: func(notice invalidation.Notice) {
 			notices = append(notices, notice)
 		},
@@ -91,7 +92,7 @@ func TestScheduleMutationsPublishOnlyAfterActualCommit(t *testing.T) {
 				fail: operation, deleteFound: true,
 			}
 			var notices []invalidation.Notice
-			coordinator := New(Dependencies{Store: store, Invalidations: func(notice invalidation.Notice) {
+			coordinator := New(Dependencies{Store: store, Models: allowModels{}, Invalidations: func(notice invalidation.Notice) {
 				notices = append(notices, notice)
 			}})
 
@@ -118,7 +119,7 @@ func TestScheduleMutationsPublishOnlyAfterActualCommit(t *testing.T) {
 
 	store := &invalidationScheduleStore{runNowStore: &runNowStore{}, deleteFound: false}
 	var notices []invalidation.Notice
-	coordinator := New(Dependencies{Store: store, Invalidations: func(notice invalidation.Notice) {
+	coordinator := New(Dependencies{Store: store, Models: allowModels{}, Invalidations: func(notice invalidation.Notice) {
 		notices = append(notices, notice)
 	}})
 	if err := coordinator.Delete(t.Context(), "sch_missing"); err != nil {

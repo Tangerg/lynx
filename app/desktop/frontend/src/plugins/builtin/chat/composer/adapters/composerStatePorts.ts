@@ -29,14 +29,9 @@ export function installComposerStatePorts(sessions: AgentSessionPorts): () => vo
     recallPreviousHistory: () => useComposerStore.getState().historyPrev(),
     recallNextHistory: () => useComposerStore.getState().historyNext(),
     getModelPreference: () => {
-      const { provider, model } = useComposerStore.getState();
-      return { provider, model };
+      return useComposerStore.getState().modelPreference;
     },
-    useModelPreference: () => {
-      const provider = useComposerStore((state) => state.provider);
-      const model = useComposerStore((state) => state.model);
-      return { provider, model };
-    },
+    useModelPreference: () => useComposerStore((state) => state.modelPreference),
     useSetModelPreference: () => useComposerStore((state) => state.setModel),
   });
   const disposeSessionSync = installComposerSessionSync(sessions);

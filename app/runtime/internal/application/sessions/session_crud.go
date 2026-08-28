@@ -24,7 +24,7 @@ type WorkspaceResolver interface {
 // the Domain patch receives only the resulting exact Workspace value.
 type Patch struct {
 	Title            *string
-	Selection        *modelref.Selection
+	ModelSelection   modelref.Patch
 	WorkspacePath    *string
 	Favorite         *bool
 	Isolated         *bool
@@ -96,6 +96,9 @@ func (c *Coordinator) PrepareScheduled(
 	if validateErr := selection.Validate(); validateErr != nil {
 		return session.Session{}, nil, fmt.Errorf("sessions: scheduled model selection: %w", validateErr)
 	}
+	if admitErr := c.models.AdmitSelection(selection); admitErr != nil {
+		return session.Session{}, nil, fmt.Errorf("sessions: scheduled model selection is not admitted: %w", admitErr)
+	}
 	created, err := session.New(session.Draft{
 		ID: id, Title: title, Workspace: workspace, Selection: selection, StartedAt: c.now(),
 	})
@@ -128,8 +131,19 @@ func (c *Coordinator) Update(ctx context.Context, id string, patch Patch) (sessi
 	if err != nil {
 		return session.Session{}, err
 	}
+	var selection *modelref.Selection
+	if !patch.ModelSelection.Empty() {
+		resolved, selectionErr := patch.ModelSelection.Apply(current.Selection())
+		if selectionErr != nil {
+			return session.Session{}, selectionErr
+		}
+		if selectionErr = c.models.AdmitSelection(resolved); selectionErr != nil {
+			return session.Session{}, fmt.Errorf("sessions: model selection is not admitted: %w", selectionErr)
+		}
+		selection = &resolved
+	}
 	updated, changed, err := current.Apply(session.Patch{
-		Title: patch.Title, Selection: patch.Selection, Workspace: workspace,
+		Title: patch.Title, Selection: selection, Workspace: workspace,
 		Favorite: patch.Favorite, Isolated: patch.Isolated,
 		ExpectedRevision: patch.ExpectedRevision,
 	}, c.now())

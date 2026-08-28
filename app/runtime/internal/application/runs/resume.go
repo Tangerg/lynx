@@ -8,6 +8,7 @@ import (
 
 	"github.com/Tangerg/scope/app/runtime/internal/domain/run"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/transcript"
 )
 
 // Resume validates one complete response set, atomically consumes the waiting
@@ -85,6 +86,13 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (result Sta
 		return StartResult{}, validateForErr
 	}
 	segmentID := c.newSegmentID()
+	var committedInput *CommittedUserInput
+	if len(cmd.Input) > 0 {
+		committedInput = &CommittedUserInput{
+			ItemID:  userMessageItemID(segmentID),
+			Content: transcript.CloneContent(cmd.Input),
+		}
+	}
 	createdAt := rootContinuation.RunCreatedAt
 	pendingCopy := pending
 	continuation, err := treeContinuationFromPending(pendingCopy)
@@ -113,7 +121,7 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (result Sta
 		DetachActivation:  true,
 		BeginExecution: func(beginCtx context.Context) error {
 			return c.continuation.BeginContinuation(
-				beginCtx, ref, claimed.Answers, pending.Capabilities.InterruptKinds,
+				beginCtx, ref, claimed.Answers, committedInput, pending.Capabilities.InterruptKinds,
 			)
 		},
 	})
@@ -133,11 +141,11 @@ func (c *Coordinator) Resume(ctx context.Context, cmd ResumeCommand) (result Sta
 	}
 	c.publications.publishWaitingMoved(pending.SessionID, pending.RootRunID)
 	result = StartResult{RunID: cmd.RunID, SegmentID: segmentID, SessionID: pending.SessionID, Events: events}
-	if len(cmd.Input) > 0 {
+	if committedInput != nil {
 		// Named only when there is an item to name: the id is derived from the segment
 		// the same way a fresh run derives it, so the client reconciles its optimistic
 		// bubble by id rather than by content.
-		result.UserItemID = userMessageItemID(segmentID)
+		result.UserItemID = committedInput.ItemID
 	}
 	return result, nil
 }

@@ -31,7 +31,7 @@ static ChromeMetrics measureOnMain(void *windowHandle) {
 
 	// Fullscreen takes the marks away with the menu bar, and a gutter reserved for
 	// something that is not there is a hole in the header. Zero says "no gutter",
-	// and leaves the centre at zero with it so nothing is aligned to a ghost.
+	// and leaves the center at zero with it so nothing is aligned to a ghost.
 	if (!close.isHidden && !zoom.isHidden) {
 		NSRect closeFrame = [close.superview convertRect:close.frame toView:nil];
 		NSRect zoomFrame = [zoom.superview convertRect:zoom.frame toView:nil];
@@ -66,7 +66,7 @@ import "unsafe"
 // would discard platform behavior such as the zoom button's tiling menu. Two
 // numbers cross the boundary, and they are the two the app cannot otherwise know:
 // where the cluster ends, which is where the header's first control may begin, and
-// the marks' centre line, which is what that control centres on.
+// the marks' center line, which is what that control centers on.
 //
 // Deliberately NOT the titlebar height, which would be the app's header height by
 // another name — that number belongs to the visual style, and handing the frame a

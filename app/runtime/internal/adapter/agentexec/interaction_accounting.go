@@ -167,7 +167,10 @@ func (i *interactionSession) interactionCheckpointPayload(
 	usageByProcess, carried, contexts := i.accounting.checkpointLocked()
 	pendingSteers := make(map[agent.SignalID]pendingInteractionSteer, len(i.state.pendingSteers))
 	for signalID, pending := range i.state.pendingSteers {
-		pendingSteers[signalID] = pendingInteractionSteer{content: transcript.CloneContent(pending.content)}
+		pendingSteers[signalID] = pendingInteractionSteer{
+			content:         transcript.CloneContent(pending.content),
+			projectedItemID: pending.projectedItemID,
+		}
 	}
 	i.state.mu.Unlock()
 	i.accounting.mu.Unlock()

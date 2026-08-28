@@ -56,8 +56,7 @@ type PortableRun struct {
 	// SpawnedByItemID they preserve the execution tree exactly across export/import.
 	ParentRunID   string
 	RootRunID     string
-	Provider      string
-	Model         string
+	Selection     modelref.Selection
 	Outcome       run.Outcome
 	Failure       *run.Failure
 	Metrics       run.Metrics
@@ -145,8 +144,7 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 			return Snapshot{}, fmt.Errorf("%w: run %q names root %q, which this archive does not contain",
 				ErrInvalidPortableSnapshot, portable.ID, portable.rootID())
 		}
-		selection, err := modelref.New(portable.Provider, portable.Model)
-		if err != nil {
+		if err := portable.Selection.Validate(); err != nil {
 			return Snapshot{}, fmt.Errorf("%w: run %q model selection: %w", ErrInvalidPortableSnapshot, portable.ID, err)
 		}
 		state, ok := run.Running.Terminate(portable.Outcome)
@@ -162,7 +160,7 @@ func (p PortableSnapshot) CanonicalSnapshot() (Snapshot, error) {
 				ParentRunID:     portable.ParentRunID,
 				RootRunID:       portable.RootRunID,
 			},
-			ModelSelection: selection,
+			ModelSelection: portable.Selection,
 			State:          state,
 			Outcome:        &outcome,
 			Failure:        portable.Failure,
@@ -265,8 +263,7 @@ func (s Snapshot) PortableSnapshot() (PortableSnapshot, error) {
 			SpawnedByItemID: run.Lineage().SpawnedByItemID,
 			ParentRunID:     run.Lineage().ParentRunID,
 			RootRunID:       run.Lineage().RootRunID,
-			Provider:        run.ModelSelection().Provider(),
-			Model:           run.ModelSelection().Model(),
+			Selection:       run.ModelSelection(),
 			Outcome:         outcome,
 			Metrics:         run.Metrics(),
 			ContextTokens:   run.ContextTokens(),

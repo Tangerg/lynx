@@ -10,9 +10,18 @@
 import { act, renderHook } from "@testing-library/react";
 import { navigator } from "@/lib/navigation";
 import { afterEach, describe, expect, it } from "vitest";
-import { EMPTY_AGENT_SESSION_VIEW, type AgentProblem } from "@/plugins/sdk/types/agentSessionView";
+import {
+  EMPTY_AGENT_SESSION_VIEW,
+  type AgentProblem,
+  type Message,
+} from "@/plugins/sdk/types/agentSessionView";
 import { useAgentStore } from "./agentStore";
-import { useAgentProblem, useAgentSharedMaterial, useCurrentRootRun } from "./agentViewSelectors";
+import {
+  useAgentProblem,
+  useAgentSharedMaterial,
+  useCurrentRootRun,
+  useTranscriptRows,
+} from "./agentViewSelectors";
 
 function seed(commandError: AgentProblem | null, shared: Record<string, unknown>) {
   return {
@@ -156,5 +165,30 @@ describe("agent view selectors react to session switch", () => {
 
     expect(renders).toBe(1);
     expect(result.current).toBe(finished);
+  });
+
+  it("keeps the transcript collection snapshot stable when every row is unchanged", () => {
+    const message: Message = {
+      id: "message-1",
+      runId: null,
+      role: "user",
+      blocks: [{ kind: "text", text: "hello", status: "complete" }],
+    };
+    useAgentStore.setState({
+      sessions: {
+        a: {
+          ...seed(null, {}),
+          view: { ...EMPTY_AGENT_SESSION_VIEW, messages: [message] },
+        },
+      },
+    });
+    navigator().go({ session: "a" });
+
+    const { result, rerender } = renderHook(() => useTranscriptRows());
+    const first = result.current;
+    rerender();
+
+    expect(result.current).toBe(first);
+    expect(result.current[0]?.message).toBe(message);
   });
 });

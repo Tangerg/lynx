@@ -180,5 +180,16 @@ func (c *Coordinator) RestorePortableSession(ctx context.Context, portable Porta
 	if err != nil {
 		return View{}, err
 	}
+	if err := c.models.AdmitSelection(snapshot.Session.Selection()); err != nil {
+		return View{}, fmt.Errorf("sessions: restored Session model selection is not admitted: %w", err)
+	}
+	for _, restoredRun := range snapshot.Runs {
+		if err := c.models.AdmitSelection(restoredRun.ModelSelection()); err != nil {
+			return View{}, fmt.Errorf(
+				"sessions: restored Run %q model selection is not admitted: %w",
+				restoredRun.ID(), err,
+			)
+		}
+	}
 	return c.restoreSession(ctx, snapshot, true)
 }

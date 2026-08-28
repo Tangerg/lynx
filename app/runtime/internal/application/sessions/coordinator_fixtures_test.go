@@ -226,6 +226,12 @@ func testDependencies(stores testStores, deps Dependencies) Dependencies {
 	if deps.NewToolResultID == nil {
 		deps.NewToolResultID = toolresult.NewID
 	}
+	if !deps.DefaultModelSelection.Configured() {
+		deps.DefaultModelSelection, _ = modelref.New("test-provider", "test-model")
+	}
+	if deps.Models == nil {
+		deps.Models = testModelAdmitter{}
+	}
 	deps.Sessions = stores.Session()
 	deps.Interrupts = stores.Interrupts()
 	deps.Transcript = stores.Transcript()
@@ -289,6 +295,9 @@ func mustNewCoordinator(deps Dependencies) *Coordinator {
 	if !deps.DefaultModelSelection.Configured() {
 		deps.DefaultModelSelection, _ = modelref.New("test-provider", "test-model")
 	}
+	if deps.Models == nil {
+		deps.Models = testModelAdmitter{}
+	}
 	coordinator, err := New(deps)
 	if err != nil {
 		panic(err)
@@ -308,6 +317,10 @@ func mustTestSelection(t *testing.T, provider, model string) modelref.Selection 
 type inertExecutionReleaser struct{}
 
 func (inertExecutionReleaser) Release(context.Context, runs.ExecutorRef) error { return nil }
+
+type testModelAdmitter struct{}
+
+func (testModelAdmitter) AdmitSelection(modelref.Selection) error { return nil }
 
 type emptyMaterialSnapshotReader struct{}
 

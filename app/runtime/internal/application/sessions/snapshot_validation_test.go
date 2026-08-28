@@ -127,7 +127,7 @@ func TestPortableSnapshotRefusesABrokenRunLineage(t *testing.T) {
 	root := func() PortableRun {
 		return PortableRun{
 			SessionID: "ses_1", ID: "run_root", Outcome: run.OutcomeCompleted,
-			Capabilities: &capabilities,
+			Selection: selection, Capabilities: &capabilities,
 		}
 	}
 	for name, runs := range map[string][]PortableRun{
@@ -192,13 +192,13 @@ func TestPortableSnapshotChildInheritsRootCapabilities(t *testing.T) {
 		Runs: []PortableRun{
 			{
 				SessionID: "ses_1", ID: "run_root", Outcome: run.OutcomeCompleted,
-				Capabilities: &capabilities,
-				CreatedAt:    at, FinishedAt: at, UpdatedAt: at,
+				Selection: selection, Capabilities: &capabilities,
+				CreatedAt: at, FinishedAt: at, UpdatedAt: at,
 			},
 			{
 				SessionID: "ses_1", ID: "run_child", Outcome: run.OutcomeCompleted,
 				SpawnedByItemID: "item_1", ParentRunID: "run_root", RootRunID: "run_root",
-				CreatedAt: at, FinishedAt: at, UpdatedAt: at,
+				Selection: selection, CreatedAt: at, FinishedAt: at, UpdatedAt: at,
 			},
 		},
 	}

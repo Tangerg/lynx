@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/schedule"
 	"github.com/Tangerg/scope/app/runtime/internal/infra/sqlite"
 )
@@ -29,9 +30,13 @@ func TestScheduleCRUD(t *testing.T) {
 	s := newScheduleStore(t)
 
 	past := time.Now().Add(-time.Hour).UTC().Truncate(time.Millisecond)
+	selection, selectionErr := modelref.NewWithReasoningEffort("openai", "gpt-5.6-sol", "high")
+	if selectionErr != nil {
+		t.Fatalf("model selection: %v", selectionErr)
+	}
 	created, err := s.Create(ctx, schedule.Schedule{
 		Title: "standup", Instructions: "summarize the diff", CWD: "/proj",
-		Cron: "0 9 * * 1-5", Enabled: true, NextRunAt: past,
+		ModelSelection: selection, Cron: "0 9 * * 1-5", Enabled: true, NextRunAt: past,
 	})
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -49,6 +54,9 @@ func TestScheduleCRUD(t *testing.T) {
 	}
 	if got.Instructions != "summarize the diff" || got.Cron != "0 9 * * 1-5" || !got.Enabled {
 		t.Errorf("get round-trip mismatch: %+v", got)
+	}
+	if got.ModelSelection != selection {
+		t.Errorf("model selection = %+v, want %+v", got.ModelSelection, selection)
 	}
 	if !got.NextRunAt.Equal(past) {
 		t.Errorf("NextRunAt = %v, want %v", got.NextRunAt, past)
@@ -198,8 +206,13 @@ func TestScheduleOccurrenceSurvivesDispatchAndAcceptsOnce(t *testing.T) {
 	store := newScheduleStore(t)
 	dueAt := time.Date(2026, 7, 25, 9, 0, 0, 0, time.UTC)
 	nextAt := dueAt.Add(time.Hour)
+	selection, selectionErr := modelref.NewWithReasoningEffort("openai", "gpt-5.6-sol", "xhigh")
+	if selectionErr != nil {
+		t.Fatalf("model selection: %v", selectionErr)
+	}
 	created, err := store.Create(ctx, schedule.Schedule{
 		Title: "hourly", Instructions: "review", Cron: "0 * * * *", Enabled: true, NextRunAt: dueAt,
+		ModelSelection: selection,
 	})
 	if err != nil {
 		t.Fatalf("Create: %v", err)
@@ -218,7 +231,7 @@ func TestScheduleOccurrenceSurvivesDispatchAndAcceptsOnce(t *testing.T) {
 		t.Fatalf("repeat Claim = (%v, %v), want false, nil", claimed, err)
 	}
 	pending, err := store.Pending(ctx, 100)
-	if err != nil || len(pending) != 1 || pending[0].RunID != occurrence.RunID || pending[0].SessionID != occurrence.SessionID {
+	if err != nil || len(pending) != 1 || pending[0].RunID != occurrence.RunID || pending[0].SessionID != occurrence.SessionID || pending[0].Schedule.ModelSelection != selection {
 		t.Fatalf("Pending = (%+v, %v), want persisted occurrence", pending, err)
 	}
 	got, err := store.Get(ctx, created.ID)

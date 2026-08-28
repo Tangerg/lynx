@@ -175,7 +175,7 @@ run 粒度、按 `runId` 寻址的三个会话操作：**回退**（就地销毁
 
 ### 4.3 `sessions.export` / `sessions.import`
 
-同一份 `SessionArtifact`（**version 23**）的两端：Session exact provider/model selection + 终态 run + 完整 Item 历史 + chat 消息 + offload 的工具正文 +
+同一份 `SessionArtifact`（**version 24**）的两端：Session exact provider/model/reasoning selection + 每条终态 Run 的 frozen exact selection + 完整 Item 历史 + chat 消息 + offload 的工具正文 +
 显式 Plan 语义值。`format:"md"` 是人读转录（**不可再导入**）。
 
 - **只带终态 run**：live 与 interrupted 的 executor 状态是进程本地的，不可移植。

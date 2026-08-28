@@ -36,7 +36,16 @@ function event(value: RunEvent["event"]): RunEvent {
 
 describe("Runtime → Agent fact adapter", () => {
   it("normalizes a live root Run into a complete product fact", () => {
-    expect(runtimeRunFact(runningRoot({ contextTokens: 198_000 }))).toEqual({
+    expect(
+      runtimeRunFact(
+        runningRoot({
+          provider: "openai",
+          model: "gpt-5.6-sol",
+          reasoningEffort: "high",
+          contextTokens: 198_000,
+        }),
+      ),
+    ).toEqual({
       id: "run_root",
       sessionId: "ses_1",
       parentRunId: null,
@@ -45,6 +54,11 @@ describe("Runtime → Agent fact adapter", () => {
       status: "running",
       activeSegmentId: "seg_1",
       outcome: null,
+      modelSelection: {
+        provider: "openai",
+        model: "gpt-5.6-sol",
+        reasoningEffort: "high",
+      },
       metrics: {
         steps: 2,
         activeDurationMillis: 25,
@@ -222,6 +236,12 @@ describe("Runtime → Agent fact adapter", () => {
     ],
     ["root lineage absence", runningRoot({ rootRunId: "run_root" }), "rootLineagePresent"],
     ["running segment", runningRoot({ activeSegmentId: undefined }), "activeSegmentMissing"],
+    ["complete model identity", runningRoot({ provider: "openai" }), "modelSelectionIncomplete"],
+    [
+      "reasoning model ownership",
+      runningRoot({ reasoningEffort: "high" }),
+      "reasoningWithoutModel",
+    ],
     [
       "waiting segment absence",
       runningRoot({ status: "waiting", activeSegmentId: "seg_1" }),

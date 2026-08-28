@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/scope/app/runtime/internal/adapter/agentexec"
+	"github.com/Tangerg/scope/app/runtime/internal/adapter/modelcatalog"
 	"github.com/Tangerg/scope/app/runtime/internal/adapter/persistence"
 	"github.com/Tangerg/scope/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/scope/app/runtime/internal/adapter/skillproposal"
@@ -70,6 +71,7 @@ func buildPolicyComposition(ctx context.Context, cfg Config) (policyComposition,
 		schedules: schedules.New(schedules.Dependencies{
 			Store:         cfg.ScheduleStore,
 			Paths:         workspacepath.Resolver{},
+			Models:        modelcatalog.Capabilities{},
 			Invalidations: invalidations.Publish,
 		}),
 	}, nil

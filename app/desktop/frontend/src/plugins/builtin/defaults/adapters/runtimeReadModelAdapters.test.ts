@@ -9,6 +9,7 @@ function runtimeSession(availability: "available" | "missing"): Session {
     status: "idle",
     provider: "provider",
     model: "model",
+    reasoningEffort: "high",
     workspace: {
       ref: { path: "/repo" },
       projectRoot: "/repo",
@@ -22,9 +23,11 @@ function runtimeSession(availability: "available" | "missing"): Session {
 
 describe("Runtime read-model adapters", () => {
   it("keeps workspace identity and availability in one consumer-owned value", () => {
-    expect(toAgentSessionSummary(runtimeSession("missing")).workspace).toEqual({
+    const summary = toAgentSessionSummary(runtimeSession("missing"));
+    expect(summary.workspace).toEqual({
       path: "/repo",
       availability: "missing",
     });
+    expect(summary.reasoningEffort).toBe("high");
   });
 });

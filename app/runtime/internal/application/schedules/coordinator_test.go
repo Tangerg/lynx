@@ -9,8 +9,13 @@ import (
 
 	"github.com/Tangerg/scope/app/runtime/internal/application/invalidation"
 	"github.com/Tangerg/scope/app/runtime/internal/application/pagination"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/schedule"
 )
+
+type allowModels struct{}
+
+func (allowModels) AdmitSelection(modelref.Selection) error { return nil }
 
 // TestNilRegistryDisablesCRUD: a coordinator built without a store reports
 // every CRUD op as unavailable (the no-scheduling build), rather than panicking.
@@ -114,7 +119,8 @@ func TestCreateOwnsScheduleAdmission(t *testing.T) {
 	now := time.Date(2026, 7, 19, 12, 0, 0, 0, time.UTC)
 	store := &runNowStore{}
 	c := New(Dependencies{
-		Store: store,
+		Store:  store,
+		Models: allowModels{},
 		Paths: cwdResolverFunc(func(path string) (string, error) {
 			if path != "workspace" {
 				t.Fatalf("ResolveExistingDir(%q), want workspace", path)
@@ -159,7 +165,8 @@ func TestUpdateOwnsPatchAndPreservesSnapshotState(t *testing.T) {
 		CreatedAt:    createdAt,
 	}}
 	c := New(Dependencies{
-		Store: store,
+		Store:  store,
+		Models: allowModels{},
 		Paths: cwdResolverFunc(func(string) (string, error) {
 			return "/canonical/after", nil
 		}),
@@ -186,7 +193,7 @@ func TestUpdateOwnsPatchAndPreservesSnapshotState(t *testing.T) {
 }
 
 func TestUpdateRequiresAnExplicitRevision(t *testing.T) {
-	c := New(Dependencies{Store: &runNowStore{schedule: schedule.Schedule{ID: "sch_1"}}})
+	c := New(Dependencies{Store: &runNowStore{schedule: schedule.Schedule{ID: "sch_1"}}, Models: allowModels{}})
 	_, err := c.Update(t.Context(), UpdateCommand{ID: "sch_1"})
 	if !errors.Is(err, schedule.ErrRevisionRequired) {
 		t.Fatalf("Update error = %v, want ErrRevisionRequired", err)
@@ -196,7 +203,8 @@ func TestUpdateRequiresAnExplicitRevision(t *testing.T) {
 func TestCreateValidatesBeforeResolvingCWD(t *testing.T) {
 	resolved := false
 	c := New(Dependencies{
-		Store: &runNowStore{},
+		Store:  &runNowStore{},
+		Models: allowModels{},
 		Paths: cwdResolverFunc(func(string) (string, error) {
 			resolved = true
 			return "", errors.New("unexpected resolution")
@@ -309,7 +317,7 @@ func scheduleRows(ids ...string) []schedule.Schedule {
 // schedule that fires on the same cron.
 func TestListPagePagesNewestFirstAndRefusesAForeignCursor(t *testing.T) {
 	store := &pagedStore{runNowStore: &runNowStore{}, rows: scheduleRows("sch_1", "sch_2", "sch_3")}
-	c := New(Dependencies{Store: store})
+	c := New(Dependencies{Store: store, Models: allowModels{}})
 	ctx := t.Context()
 
 	first, err := c.ListPage(ctx, "", 2)

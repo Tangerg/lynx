@@ -34,8 +34,9 @@ func presentRunSummary(run rundomain.Run) protocol.RunSummary {
 		ID: run.ID(), SessionID: run.SessionID(), SpawnedByItemID: run.Lineage().SpawnedByItemID,
 		ParentRunID: run.Lineage().ParentRunID, RootRunID: run.Lineage().RootRunID,
 		Provider: run.ModelSelection().Provider(), Model: run.ModelSelection().Model(),
-		Status:    presentRunStatus(run.State().Status()),
-		CreatedAt: run.CreatedAt(), FinishedAt: run.FinishedAt(),
+		ReasoningEffort: run.ModelSelection().ReasoningEffort(),
+		Status:          presentRunStatus(run.State().Status()),
+		CreatedAt:       run.CreatedAt(), FinishedAt: run.FinishedAt(),
 	}
 	// A waiting run has no outcome: what it is waiting on is the answer, and the
 	// interrupts carry that.

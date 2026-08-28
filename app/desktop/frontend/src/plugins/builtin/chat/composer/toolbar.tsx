@@ -2,7 +2,7 @@ import { useRef } from "react";
 
 import { Button, DropdownMenu, HiddenFileInput, Icon, IconButton, ProviderIcon } from "@/ui";
 import { imageFiles } from "@/plugins/builtin/chat/composer/public/input";
-import { useSelectedModel } from "./public/selectedModel";
+import { useSelectedModel, useSelectedModelSelection } from "./public/selectedModel";
 import {
   APPROVAL_MODES,
   DEFAULT_APPROVAL_MODE,
@@ -14,36 +14,55 @@ import { useModels } from "@/plugins/builtin/settings/providers/public/queries";
 import { rpcErrorText } from "@/lib/rpcErrors";
 import { contributeLayout, notifyError } from "@/plugins/sdk";
 import { useT } from "@/lib/i18n";
+import { fmtTokens } from "@/lib/format";
 import { cn } from "@/lib/classNames";
 import { definePlugin } from "@/plugins/sdk";
 import { useAddComposerImageFiles } from "./public/attachments";
 import { useSetComposerModelPreference } from "./public/modelPreference";
 
-const TOKENS_PER_THOUSAND = 1_000;
-
-function compactTokenLimit(value: number): string {
-  if (value < TOKENS_PER_THOUSAND) return String(value);
-  const thousands = value / TOKENS_PER_THOUSAND;
-  return `${Number.isInteger(thousands) ? String(thousands) : thousands.toFixed(1)}K`;
-}
-
 function ModelCapabilities({ model }: { model: NonNullable<ReturnType<typeof useSelectedModel>> }) {
-  const capabilities = [
-    model.contextWindow ? compactTokenLimit(model.contextWindow) : null,
-    model.inputModalities.length > 0 ? model.inputModalities.join(" + ") : null,
+  const t = useT();
+  const primary = [
+    model.contextWindow
+      ? t("composer.model.contextWindow", { tokens: fmtTokens(model.contextWindow) })
+      : null,
+    model.inputModalities.length > 0
+      ? t("composer.model.inputModalities", { modalities: model.inputModalities.join(" + ") })
+      : null,
     model.reasoning
       ? model.reasoningLevels.length > 0
-        ? model.reasoningLevels.join(" / ")
-        : "reasoning"
+        ? t("composer.model.reasoningLevels", { levels: model.reasoningLevels.join(" / ") })
+        : t("composer.model.reasoning")
       : null,
   ].filter((value): value is string => value !== null);
-  if (capabilities.length === 0) return null;
+  const secondary = [
+    model.maxInputTokens && model.maxInputTokens !== model.contextWindow
+      ? t("composer.model.maxInput", { tokens: fmtTokens(model.maxInputTokens) })
+      : null,
+    model.maxOutputTokens
+      ? t("composer.model.maxOutput", { tokens: fmtTokens(model.maxOutputTokens) })
+      : null,
+    model.outputModalities.length > 0
+      ? t("composer.model.outputModalities", { modalities: model.outputModalities.join(" + ") })
+      : null,
+    model.toolUse ? t("composer.model.toolUse") : null,
+    model.structuredOutput ? t("composer.model.structuredOutput") : null,
+    model.knowledgeCutoff
+      ? t("composer.model.knowledgeCutoff", { cutoff: model.knowledgeCutoff })
+      : null,
+  ].filter((value): value is string => value !== null);
+  if (primary.length === 0 && secondary.length === 0) return null;
+  const title = [...primary, ...secondary].join(" · ");
   return (
     <span
-      className="block truncate text-ui-xs font-normal text-fg-faint"
-      title={capabilities.join(" · ")}
+      className="block min-w-0 text-ui-xs font-normal text-fg-faint"
+      title={title}
+      aria-label={title}
     >
-      {capabilities.join(" · ")}
+      {primary.length > 0 && <span className="block truncate">{primary.join(" · ")}</span>}
+      {secondary.length > 0 && (
+        <span className="block truncate opacity-80">{secondary.join(" · ")}</span>
+      )}
     </span>
   );
 }
@@ -54,7 +73,8 @@ function ModelPicker() {
   const t = useT();
   const { data: models = [], isLoading, isError } = useModels();
   const setModel = useSetComposerModelPreference();
-  const selected = useSelectedModel();
+  const selection = useSelectedModelSelection();
+  const selected = selection?.model;
 
   if (models.length === 0) {
     if (isError) {
@@ -115,7 +135,15 @@ function ModelPicker() {
         {models.map((m) => (
           <DropdownMenu.Item
             key={`${m.provider}:${m.id}`}
-            onClick={() => setModel(m.provider, m.id)}
+            onClick={() => {
+              const reasoningEffort = m.reasoningLevelOrDefault(selection?.reasoningEffort);
+              setModel({
+                kind: "explicit",
+                provider: m.provider,
+                model: m.id,
+                ...(reasoningEffort ? { reasoningEffort } : {}),
+              });
+            }}
             className="grid min-h-11 grid-cols-[16px_minmax(0,1fr)_14px] items-center px-2"
           >
             <ProviderIcon provider={m.provider} size="md" />
@@ -126,6 +154,55 @@ function ModelPicker() {
             {m.provider === selected.provider && m.id === selected.id && (
               <Icon name="check" size="xs" className="text-accent" />
             )}
+          </DropdownMenu.Item>
+        ))}
+      </DropdownMenu.Content>
+    </DropdownMenu.Root>
+  );
+}
+
+function ReasoningEffortPicker() {
+  const t = useT();
+  const selection = useSelectedModelSelection();
+  const setModel = useSetComposerModelPreference();
+  if (!selection || selection.model.reasoningLevels.length === 0) return null;
+
+  const { model, reasoningEffort } = selection;
+  const selectedEffort = reasoningEffort ?? model.reasoningLevelOrDefault();
+  if (!selectedEffort) return null;
+
+  return (
+    <DropdownMenu.Root>
+      <DropdownMenu.Trigger
+        render={
+          <Button
+            variant="ghost"
+            aria-label={t("composer.switchReasoningEffort")}
+            title={t("composer.switchReasoningEffort")}
+            className="gap-1.5 whitespace-nowrap px-2 text-ui-sm text-fg-soft data-[popup-open]:bg-selected data-[popup-open]:text-fg"
+          >
+            <Icon name="sparkle" size="sm" className="text-fg-faint" />
+            <span className="capitalize">{selectedEffort}</span>
+            <Icon name="chevron-down" size="sm" className="shrink-0 text-fg-faint" />
+          </Button>
+        }
+      />
+      <DropdownMenu.Content align="start" sideOffset={6} className="min-w-[176px]">
+        {model.reasoningLevels.map((effort) => (
+          <DropdownMenu.Item
+            key={effort}
+            onClick={() =>
+              setModel({
+                kind: "explicit",
+                provider: model.provider,
+                model: model.id,
+                reasoningEffort: effort,
+              })
+            }
+            className="grid grid-cols-[minmax(0,1fr)_14px] items-center gap-2 px-2"
+          >
+            <span className="truncate capitalize">{effort}</span>
+            {effort === selectedEffort && <Icon name="check" size="xs" className="text-accent" />}
           </DropdownMenu.Item>
         ))}
       </DropdownMenu.Content>
@@ -239,6 +316,11 @@ export const composerToolbar = definePlugin({
       id: "model",
       order: 2,
       component: ModelPicker,
+    });
+    contributeLayout(ctx, "composer.toolbar.start", {
+      id: "reasoning-effort",
+      order: 3,
+      component: ReasoningEffortPicker,
     });
   },
 });

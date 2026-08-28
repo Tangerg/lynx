@@ -24,7 +24,12 @@ beforeEach(() => {
     composerText: () => composerText,
     goalState: () => goalState,
     runtimeAvailable: () => true,
-    modelPreference: () => ({ provider: "openai", model: "gpt-5" }),
+    modelPreference: () => ({
+      kind: "explicit",
+      provider: "openai",
+      model: "gpt-5",
+      reasoningEffort: "high",
+    }),
     start: vi.fn(async () => {}),
     focusComposer: vi.fn(),
     reportUnavailable: vi.fn(),
@@ -76,6 +81,7 @@ describe("Goal composer submit mode", () => {
         objective: "ship alpha",
         provider: "openai",
         model: "gpt-5",
+        reasoningEffort: "high",
       }),
     );
     expect(context.accept).toHaveBeenCalledOnce();

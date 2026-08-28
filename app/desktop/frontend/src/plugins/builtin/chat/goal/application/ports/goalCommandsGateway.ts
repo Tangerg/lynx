@@ -9,6 +9,7 @@ export interface StartGoalInput {
   objective: string;
   provider?: string;
   model?: string;
+  reasoningEffort?: string;
   budget?: GoalCommandBudget;
 }
 

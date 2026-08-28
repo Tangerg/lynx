@@ -1,78 +1,122 @@
 import { describe, expect, it } from "vitest";
-import { resolveComposerModel, resolveComposerRunOptions } from "./modelSelection";
+import { resolveComposerModelSelection, resolveComposerRunOptions } from "./modelSelection";
+
+function model(
+  provider: string,
+  id: string,
+  reasoningLevels: readonly string[] = [],
+  reasoningDefault?: string,
+) {
+  return {
+    provider,
+    id,
+    reasoningLevelOrDefault(level?: string | null) {
+      if (level && reasoningLevels.includes(level)) return level;
+      if (reasoningDefault && reasoningLevels.includes(reasoningDefault)) return reasoningDefault;
+      return reasoningLevels[0];
+    },
+  };
+}
 
 const models = [
-  { provider: "deepseek", id: "deepseek-chat", label: "Chat" },
-  { provider: "deepseek", id: "deepseek-v4-pro", label: "V4 Pro" },
-  { provider: "openai", id: "gpt-5", label: "GPT-5" },
+  model("deepseek", "deepseek-chat"),
+  model("deepseek", "deepseek-v4-pro", ["low", "high"], "high"),
+  model("openai", "gpt-5", ["low", "medium", "high"], "medium"),
 ];
 
-describe("resolveComposerModel", () => {
-  it("keeps an explicit process preference across sessions", () => {
+describe("resolveComposerModelSelection", () => {
+  it("keeps an explicit model and supported effort across sessions", () => {
     expect(
-      resolveComposerModel(
+      resolveComposerModelSelection(
         models,
-        { provider: "openai", model: "gpt-5" },
-        {
-          provider: "deepseek",
-          model: "deepseek-v4-pro",
-        },
+        { kind: "explicit", provider: "openai", model: "gpt-5", reasoningEffort: "high" },
+        { provider: "deepseek", model: "deepseek-v4-pro" },
       ),
-    ).toBe(models[2]);
+    ).toEqual({ model: models[2], reasoningEffort: "high" });
   });
 
-  it("restores the active Session model before a preference exists", () => {
+  it("restores the active Session exact model and effort before a preference exists", () => {
     expect(
-      resolveComposerModel(
+      resolveComposerModelSelection(
         models,
-        { provider: null, model: null },
+        { kind: "session" },
         {
           provider: "deepseek",
           model: "deepseek-v4-pro",
+          reasoningEffort: "low",
         },
       ),
-    ).toBe(models[1]);
+    ).toEqual({ model: models[1], reasoningEffort: "low" });
+  });
+
+  it("does not rewrite a durable Session effort retired by a refreshed catalog", () => {
+    expect(
+      resolveComposerModelSelection(
+        models,
+        { kind: "session" },
+        {
+          provider: "openai",
+          model: "gpt-5",
+          reasoningEffort: "retired-level",
+        },
+      ),
+    ).toEqual({ model: models[2], reasoningEffort: "retired-level" });
+  });
+
+  it("falls back to the target model default when the prior effort is unsupported", () => {
+    expect(
+      resolveComposerModelSelection(
+        models,
+        {
+          kind: "explicit",
+          provider: "deepseek",
+          model: "deepseek-v4-pro",
+          reasoningEffort: "medium",
+        },
+        null,
+      ),
+    ).toEqual({ model: models[1], reasoningEffort: "high" });
   });
 
   it("restores a Session by exact provider/model when providers share a model id", () => {
-    const ambiguous = [
-      { provider: "provider-a", id: "shared-model" },
-      { provider: "provider-b", id: "shared-model" },
-    ];
-
+    const ambiguous = [model("provider-a", "shared-model"), model("provider-b", "shared-model")];
     expect(
-      resolveComposerModel(
+      resolveComposerModelSelection(
         ambiguous,
-        { provider: null, model: null },
+        { kind: "session" },
         {
           provider: "provider-b",
           model: "shared-model",
         },
       ),
-    ).toBe(ambiguous[1]);
+    ).toEqual({ model: ambiguous[1], reasoningEffort: undefined });
   });
 
   it("waits for an active Session summary instead of racing to the catalog default", () => {
-    expect(
-      resolveComposerModel(models, { provider: null, model: null }, undefined),
-    ).toBeUndefined();
+    expect(resolveComposerModelSelection(models, { kind: "session" }, undefined)).toBeUndefined();
   });
 
   it("uses the catalog default only when no durable Session supplies one", () => {
-    expect(resolveComposerModel(models, { provider: null, model: null }, null)).toBe(models[0]);
+    expect(resolveComposerModelSelection(models, { kind: "session" }, null)).toEqual({
+      model: models[0],
+      reasoningEffort: undefined,
+    });
   });
 });
 
 describe("resolveComposerRunOptions", () => {
-  it("omits the pair until the person makes an explicit Composer choice", () => {
-    expect(resolveComposerRunOptions({ provider: null, model: null })).toEqual({});
-    expect(resolveComposerRunOptions({ provider: "openai", model: null })).toEqual({});
+  it("omits an override until the person makes an explicit Composer choice", () => {
+    expect(resolveComposerRunOptions({ kind: "session" })).toEqual({});
   });
 
-  it("forwards an explicit provider/model pair as one override", () => {
-    expect(resolveComposerRunOptions({ provider: "openai", model: "gpt-5" })).toEqual({
-      provider: "openai",
-      model: "gpt-5",
-    });
+  it("forwards model and effort as one exact override", () => {
+    expect(
+      resolveComposerRunOptions({
+        kind: "explicit",
+        provider: "openai",
+        model: "gpt-5",
+        reasoningEffort: "high",
+      }),
+    ).toEqual({ provider: "openai", model: "gpt-5", reasoningEffort: "high" });
   });
 });

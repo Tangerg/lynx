@@ -27,6 +27,12 @@ func wireSessionErr(err error) error {
 	if errors.Is(err, session.ErrRevisionConflict) {
 		return fmt.Errorf("%w: the session changed after it was read", protocol.ErrRevisionConflict)
 	}
+	if modelref.IsInvalid(err) {
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
+	}
+	if errors.Is(err, modelref.ErrUnsupported) {
+		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
+	}
 	return err
 }
 
@@ -148,23 +154,11 @@ func (s *Server) UpdateSession(ctx context.Context, in protocol.UpdateSessionReq
 		path := in.Workspace.Path
 		cwd = &path
 	}
-	var selection *modelref.Selection
-	if in.Provider != nil || in.Model != nil {
-		if in.Provider == nil || in.Model == nil {
-			return nil, fmt.Errorf("%w: provider and model must be set together", protocol.ErrInvalidParams)
-		}
-		value, selectionErr := modelref.New(*in.Provider, *in.Model)
-		if selectionErr != nil {
-			return nil, fmt.Errorf("%w: invalid model selection: %v", protocol.ErrInvalidParams, selectionErr)
-		}
-		if !value.Configured() {
-			return nil, fmt.Errorf("%w: provider and model must be non-empty", protocol.ErrInvalidParams)
-		}
-		selection = &value
-	}
 	view, err := s.sessions.UpdateView(ctx, in.SessionID, sessions.Patch{
-		Title:            in.Title,
-		Selection:        selection,
+		Title: in.Title,
+		ModelSelection: modelref.Patch{
+			Provider: in.Provider, Model: in.Model, ReasoningEffort: in.ReasoningEffort,
+		},
 		WorkspacePath:    cwd,
 		Favorite:         in.Favorite,
 		ExpectedRevision: in.ExpectedRevision,
@@ -210,16 +204,17 @@ func (s *Server) ForkSession(ctx context.Context, in protocol.ForkSessionRequest
 // or model-default lookup.
 func presentSession(view sessions.View) protocol.Session {
 	return protocol.Session{
-		ID:        view.ID,
-		Title:     view.Title,
-		Workspace: presentWorkspaceInfo(view.Workspace.Path, view.Workspace.ProjectRoot, view.Workspace.Missing),
-		Provider:  view.Provider,
-		Model:     view.Model,
-		Status:    presentSessionStatus(view.Activity),
-		CreatedAt: view.CreatedAt,
-		UpdatedAt: view.UpdatedAt,
-		Favorite:  view.Favorite,
-		Revision:  view.Revision,
+		ID:              view.ID,
+		Title:           view.Title,
+		Workspace:       presentWorkspaceInfo(view.Workspace.Path, view.Workspace.ProjectRoot, view.Workspace.Missing),
+		Provider:        view.Provider,
+		Model:           view.Model,
+		ReasoningEffort: view.ReasoningEffort,
+		Status:          presentSessionStatus(view.Activity),
+		CreatedAt:       view.CreatedAt,
+		UpdatedAt:       view.UpdatedAt,
+		Favorite:        view.Favorite,
+		Revision:        view.Revision,
 	}
 }
 

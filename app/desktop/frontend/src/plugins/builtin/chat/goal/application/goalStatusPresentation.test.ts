@@ -13,6 +13,7 @@ function goal(patch: Partial<GoalReadModel> = {}): GoalReadModel {
     used: { runs: 7, costUsd: 4.5, steps: 31 },
     provider: "openai",
     model: "gpt-5",
+    reasoningEffort: "high",
     createdAt: "2026-08-12T08:00:00Z",
     updatedAt: "2026-08-12T08:01:00Z",
     ...patch,

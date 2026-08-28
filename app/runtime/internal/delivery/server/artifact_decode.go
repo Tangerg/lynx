@@ -34,7 +34,7 @@ func portableArtifactFromWire(art protocol.SessionArtifact) (sessions.PortableSn
 	if art.Session.ID == "" {
 		return sessions.PortableSnapshot{}, invalidArtifact("artifact.session.id", "is required")
 	}
-	selection, err := modelref.New(art.Session.Provider, art.Session.Model)
+	selection, err := modelref.NewWithReasoningEffort(art.Session.Provider, art.Session.Model, art.Session.ReasoningEffort)
 	if err != nil {
 		return sessions.PortableSnapshot{}, invalidArtifact(
 			"artifact.session", "provider and model must form a complete selection: %v", err,
@@ -143,10 +143,14 @@ func portableRunFromArtifact(path string, artifact protocol.ArtifactRun) (sessio
 	if err != nil {
 		return sessions.PortableRun{}, err
 	}
+	selection, err := modelref.NewWithReasoningEffort(artifact.Provider, artifact.Model, artifact.ReasoningEffort)
+	if err != nil {
+		return sessions.PortableRun{}, invalidArtifact(path, "invalid model selection: %v", err)
+	}
 	return sessions.PortableRun{
 		SessionID: artifact.SessionID, ID: artifact.ID, SpawnedByItemID: artifact.SpawnedByItemID,
 		ParentRunID: artifact.ParentRunID, RootRunID: artifact.RootRunID,
-		Provider: artifact.Provider, Model: artifact.Model, Outcome: outcome,
+		Selection: selection, Outcome: outcome,
 		Failure:       failure,
 		Metrics:       metrics,
 		ContextTokens: artifact.ContextTokens,

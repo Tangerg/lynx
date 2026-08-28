@@ -20,31 +20,16 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 	if validateScheduledIdentityErr := cmd.ValidateScheduledIdentity(); validateScheduledIdentityErr != nil {
 		return StartResult{}, validateScheduledIdentityErr
 	}
-	if validateErr := cmd.ModelSelection.Validate(); validateErr != nil {
-		return StartResult{}, fmt.Errorf("runs: model selection: %w", validateErr)
-	}
 	requestedSelection := cmd.ModelSelection
 	message, media, openingUserText, err := cmd.MaterializeInput()
 	if err != nil {
 		return StartResult{}, err
 	}
-	sess, initialSession, err := c.resolveSession(
-		ctx, cmd.SessionID, cmd.NewSessionID, cmd.DefaultWorkspacePath,
-		cmd.NewSessionTitle, requestedSelection,
-	)
+	sess, initialSession, effectiveSelection, err := c.resolveSessionSelection(ctx, cmd)
 	if err != nil {
 		return StartResult{}, err
 	}
-	cmd.ModelSelection = requestedSelection
-	if !cmd.ModelSelection.Configured() {
-		cmd.ModelSelection = sess.Selection()
-	}
-	if validateErr := cmd.ModelSelection.Validate(); validateErr != nil {
-		return StartResult{}, fmt.Errorf("runs: effective model selection: %w", validateErr)
-	}
-	if !cmd.ModelSelection.Configured() {
-		return StartResult{}, errors.New("runs: effective model selection is required")
-	}
+	cmd.ModelSelection = effectiveSelection
 	draft := RootExecutionStart{
 		Message:                  message,
 		Media:                    media,
@@ -63,7 +48,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 	if validateErr := draft.Validate(); validateErr != nil {
 		return StartResult{}, validateErr
 	}
-	if admitErr := c.modelInputs.AdmitInput(cmd.ModelSelection, draft.WorkingContext); admitErr != nil {
+	if admitErr := c.models.AdmitInput(cmd.ModelSelection, draft.WorkingContext); admitErr != nil {
 		return StartResult{}, fmt.Errorf("%w: %w", ErrUnsupportedMedia, admitErr)
 	}
 	if validateRootStartErr := c.rootStarts.ValidateRootStart(draft); validateRootStartErr != nil {
@@ -99,7 +84,7 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 	if err != nil {
 		return StartResult{}, fmt.Errorf("runs: compose working context: %w", err)
 	}
-	if admitErr := c.modelInputs.AdmitInput(cmd.ModelSelection, draft.WorkingContext); admitErr != nil {
+	if admitErr := c.models.AdmitInput(cmd.ModelSelection, draft.WorkingContext); admitErr != nil {
 		return StartResult{}, fmt.Errorf("%w: %w", ErrUnsupportedMedia, admitErr)
 	}
 	ref, err := c.rootStarts.StageRoot(ctx, draft)
@@ -185,6 +170,47 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 		RunID: runID, SegmentID: segmentID, SessionID: sess.ID(),
 		UserItemID: userItemID, Events: events,
 	}, nil
+}
+
+// resolveSessionSelection admits an explicitly requested selection, resolves
+// the Session that owns the default, and returns the one immutable selection
+// the opening will freeze. Existing Sessions never fall back to Runtime config.
+func (c *Coordinator) resolveSessionSelection(
+	ctx context.Context,
+	cmd StartCommand,
+) (session.Session, *session.Session, modelref.Selection, error) {
+	requested := cmd.ModelSelection
+	if err := requested.Validate(); err != nil {
+		return session.Session{}, nil, modelref.Selection{}, fmt.Errorf("runs: model selection: %w", err)
+	}
+	if requested.Configured() {
+		if err := c.AdmitSelection(requested); err != nil {
+			return session.Session{}, nil, modelref.Selection{}, err
+		}
+	}
+	sess, initial, err := c.resolveSession(
+		ctx, cmd.SessionID, cmd.NewSessionID, cmd.DefaultWorkspacePath,
+		cmd.NewSessionTitle, requested,
+	)
+	if err != nil {
+		return session.Session{}, nil, modelref.Selection{}, err
+	}
+	effective := requested
+	if !effective.Configured() {
+		effective = sess.Selection()
+	}
+	if err := effective.Validate(); err != nil {
+		return session.Session{}, nil, modelref.Selection{}, fmt.Errorf("runs: effective model selection: %w", err)
+	}
+	if !effective.Configured() {
+		return session.Session{}, nil, modelref.Selection{}, errors.New("runs: effective model selection is required")
+	}
+	if effective != requested {
+		if err := c.AdmitSelection(effective); err != nil {
+			return session.Session{}, nil, modelref.Selection{}, err
+		}
+	}
+	return sess, initial, effective, nil
 }
 
 func (c *Coordinator) resolveSession(

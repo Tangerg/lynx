@@ -1,10 +1,9 @@
 import { createSingletonPort } from "@/lib/ports/singletonPort";
 import type { ComposerDraftInput, ComposerImage, PastedText } from "../../domain/draft";
 
-export interface ComposerModelPreference {
-  provider: string | null;
-  model: string | null;
-}
+export type ComposerModelPreference =
+  | { kind: "session" }
+  | { kind: "explicit"; provider: string; model: string; reasoningEffort?: string };
 
 export interface ComposerStatePort {
   useText(): string;
@@ -23,7 +22,7 @@ export interface ComposerStatePort {
   recallNextHistory(): boolean;
   getModelPreference(): ComposerModelPreference;
   useModelPreference(): ComposerModelPreference;
-  useSetModelPreference(): (provider: string | null, model: string | null) => void;
+  useSetModelPreference(): (preference: ComposerModelPreference) => void;
 }
 
 const port = createSingletonPort<ComposerStatePort>("Composer state port is not configured");

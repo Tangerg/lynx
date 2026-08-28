@@ -58,7 +58,7 @@ func TestRuntimeDocumentationFactsHaveOneVersionOwner(t *testing.T) {
 	assertDocumentFactsMatch(
 		t,
 		capabilities,
-		regexp.MustCompile(`epoch ([0-9]+)`),
+		regexp.MustCompile(`(?:当前合同为[^\n]*SQLite|当前 schema|SQLite 当前) epoch ([0-9]+)`),
 		schemaEpoch,
 		"SQLite schema epoch",
 	)

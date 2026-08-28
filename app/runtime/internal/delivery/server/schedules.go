@@ -32,7 +32,7 @@ func (s *Server) ListSchedules(ctx context.Context, query protocol.PageQuery) (*
 // CreateSchedule adds an enabled schedule (schedules.create), computing its
 // first due time from the cron.
 func (s *Server) CreateSchedule(ctx context.Context, in protocol.CreateScheduleRequest) (*protocol.Schedule, error) {
-	selection, err := modelref.New(in.Provider, in.Model)
+	selection, err := modelref.NewWithReasoningEffort(in.Provider, in.Model, in.ReasoningEffort)
 	if err != nil {
 		return nil, mapScheduleErr(err, "schedules.create", "")
 	}
@@ -61,10 +61,11 @@ func (s *Server) UpdateSchedule(ctx context.Context, in protocol.UpdateScheduleR
 			Title:        in.Title,
 			Instructions: in.Instructions,
 			CWD:          scheduleWorkspacePathPatch(in.Workspace, in.WorkspaceMode),
-			Provider:     in.Provider,
-			Model:        in.Model,
 			Cron:         in.Cron,
 			Enabled:      in.Enabled,
+		},
+		ModelSelection: modelref.Patch{
+			Provider: in.Provider, Model: in.Model, ReasoningEffort: in.ReasoningEffort,
 		},
 	})
 	if err != nil {
@@ -120,7 +121,8 @@ func mapScheduleErr(err error, method, id string) error {
 		errors.Is(err, schedule.ErrRevisionRequired) ||
 		errors.Is(err, schedule.ErrInstructionsRequired) ||
 		errors.Is(err, schedule.ErrCronRequired) ||
-		errors.Is(err, modelref.ErrIncomplete) ||
+		modelref.IsInvalid(err) ||
+		errors.Is(err, modelref.ErrUnsupported) ||
 		errors.Is(err, schedule.ErrInvalidCron) {
 		return fmt.Errorf("%w: %w", protocol.ErrInvalidParams, err)
 	}
@@ -131,16 +133,17 @@ func mapScheduleErr(err error, method, id string) error {
 // time (never fired / unscheduled) to an omitted field rather than a fake epoch.
 func presentSchedule(scheduled schedule.Schedule) protocol.Schedule {
 	presented := protocol.Schedule{
-		ID:           scheduled.ID,
-		Title:        scheduled.Title,
-		Instructions: scheduled.Instructions,
-		Workspace:    workspaceRefFromPath(scheduled.CWD),
-		Provider:     scheduled.ModelSelection.Provider(),
-		Model:        scheduled.ModelSelection.Model(),
-		Cron:         scheduled.Cron,
-		Enabled:      scheduled.Enabled,
-		CreatedAt:    scheduled.CreatedAt,
-		Revision:     scheduled.Revision,
+		ID:              scheduled.ID,
+		Title:           scheduled.Title,
+		Instructions:    scheduled.Instructions,
+		Workspace:       workspaceRefFromPath(scheduled.CWD),
+		Provider:        scheduled.ModelSelection.Provider(),
+		Model:           scheduled.ModelSelection.Model(),
+		ReasoningEffort: scheduled.ModelSelection.ReasoningEffort(),
+		Cron:            scheduled.Cron,
+		Enabled:         scheduled.Enabled,
+		CreatedAt:       scheduled.CreatedAt,
+		Revision:        scheduled.Revision,
 	}
 	if !scheduled.LastRunAt.IsZero() {
 		lastRunAt := scheduled.LastRunAt

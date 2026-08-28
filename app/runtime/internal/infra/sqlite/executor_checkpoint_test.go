@@ -29,7 +29,7 @@ func newExecutorCheckpointStorage(t *testing.T) (*sql.DB, *persistence.ExecutorC
 }
 
 func storedExecutorCheckpoint(rootMemberID, sessionID, payload string) runs.ExecutorCheckpoint {
-	selection, err := modelref.New("anthropic", "claude")
+	selection, err := modelref.NewWithReasoningEffort("anthropic", "claude", "high")
 	if err != nil {
 		panic(err)
 	}
@@ -107,6 +107,9 @@ func TestExecutorCheckpointStoreRejectsImmutablePolicyReplacement(t *testing.T) 
 		},
 		"model": func(checkpoint *runs.ExecutorCheckpoint) {
 			checkpoint.ModelSelection, _ = modelref.New("anthropic", "claude-sonnet")
+		},
+		"reasoning effort": func(checkpoint *runs.ExecutorCheckpoint) {
+			checkpoint.ModelSelection, _ = modelref.NewWithReasoningEffort("anthropic", "claude", "medium")
 		},
 		"limits": func(checkpoint *runs.ExecutorCheckpoint) { checkpoint.Limits.MaxSteps++ },
 		"capabilities": func(checkpoint *runs.ExecutorCheckpoint) {

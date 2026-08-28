@@ -158,6 +158,7 @@ type continuationRow struct {
 	RootRunID       string             `json:"rootRunId,omitempty"`
 	Provider        string             `json:"provider,omitempty"`
 	Model           string             `json:"model,omitempty"`
+	ReasoningEffort string             `json:"reasoningEffort,omitempty"`
 	DrainedTools    []drainedToolRow   `json:"drainedTools,omitempty"`
 	CommittedTools  []committedToolRow `json:"committedTools,omitempty"`
 	RunCreatedAt    int64              `json:"runCreatedAt"`
@@ -682,6 +683,7 @@ func continuationRows(values []ContinuationRecord) ([]continuationRow, error) {
 			RootRunID:       value.Lineage.RootRunID,
 			Provider:        value.ModelSelection.Provider(),
 			Model:           value.ModelSelection.Model(),
+			ReasoningEffort: value.ModelSelection.ReasoningEffort(),
 			DrainedTools:    drainedToolRows(value.DrainedTools),
 			CommittedTools:  committedTools,
 			RunCreatedAt:    value.RunCreatedAt.UnixNano(),
@@ -695,7 +697,7 @@ func continuationRows(values []ContinuationRecord) ([]continuationRow, error) {
 func continuationsFromRows(rows []continuationRow) ([]ContinuationRecord, error) {
 	values := make([]ContinuationRecord, len(rows))
 	for index, row := range rows {
-		selection, err := modelref.New(row.Provider, row.Model)
+		selection, err := modelref.NewWithReasoningEffort(row.Provider, row.Model, row.ReasoningEffort)
 		if err != nil {
 			return nil, fmt.Errorf("continuation[%d] model selection: %w", index, err)
 		}

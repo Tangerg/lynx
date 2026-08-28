@@ -243,9 +243,9 @@ func TestReducerIgnoresStreamingObservationAfterAuthoritativeModelCompletion(t *
 
 func TestReducerProjectsAppliedSteersAsOneOrderedFact(t *testing.T) {
 	reducer := newReducer(testReducerConfig())
-	reduced := mustReduce(t, reducer, SteerMessagesApplied{Messages: [][]transcript.ContentBlock{
-		{{Kind: transcript.TextContent, Text: "first"}},
-		{{Kind: transcript.TextContent, Text: "second"}},
+	reduced := mustReduce(t, reducer, SteerMessagesApplied{Messages: []AppliedSteerMessage{
+		{Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "first"}}},
+		{Content: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "second"}}},
 	}})
 	if len(reduced) != 2 {
 		t.Fatalf("reductions = %d, want two complete Items", len(reduced))
@@ -263,6 +263,21 @@ func TestReducerProjectsAppliedSteersAsOneOrderedFact(t *testing.T) {
 	conversation := committedConversationMessages(reduced)
 	if len(conversation) != 2 || conversation[0].Text() != "first" || conversation[1].Text() != "second" {
 		t.Fatalf("steer conversation projection = %#v", conversation)
+	}
+}
+
+func TestReducerAppendsAlreadyProjectedContinuationInputWithoutDuplicatingItem(t *testing.T) {
+	reducer := newReducer(testReducerConfig())
+	reduced := mustReduce(t, reducer, SteerMessagesApplied{Messages: []AppliedSteerMessage{{
+		Content:         []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "follow up"}},
+		ProjectedItemID: "item_followup",
+	}}})
+	if completed := completedItems(reduced); len(completed) != 0 {
+		t.Fatalf("already projected continuation Items = %#v, want none", completed)
+	}
+	conversation := committedConversationMessages(reduced)
+	if len(conversation) != 1 || conversation[0].Text() != "follow up" {
+		t.Fatalf("continuation Conversation projection = %#v", conversation)
 	}
 }
 
@@ -387,10 +402,14 @@ func TestReducerTerminalPreservesCompletedOutOfOrderToolResult(t *testing.T) {
 func TestReducerRejectsMalformedAppliedSteerBatch(t *testing.T) {
 	tests := map[string]SteerMessagesApplied{
 		"empty batch":   {},
-		"empty message": {Messages: [][]transcript.ContentBlock{{}}},
-		"invalid content": {Messages: [][]transcript.ContentBlock{{{
+		"empty message": {Messages: []AppliedSteerMessage{{}}},
+		"invalid content": {Messages: []AppliedSteerMessage{{Content: []transcript.ContentBlock{{
 			Kind: transcript.TextContent,
-		}}}},
+		}}}}},
+		"invalid projected item": {Messages: []AppliedSteerMessage{{
+			Content:         []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "valid"}},
+			ProjectedItemID: " item_1",
+		}}},
 	}
 	for name, fact := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -580,6 +599,10 @@ func TestReducerKeepsGoalControlInputOutOfTheTranscript(t *testing.T) {
 		Kind: transcript.TextContent,
 		Text: "continue autonomously toward the active goal",
 	}}
+	conversationInput := corechat.NewUserMessage(
+		corechat.NewTextPart("continue autonomously toward the active goal"),
+	)
+	config.ConversationInput = &conversationInput
 
 	opening := mustOpen(t, newReducer(config))
 	if len(opening) != 1 {

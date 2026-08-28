@@ -9,16 +9,17 @@ import (
 // settlement window after the model has declared success and before the owning
 // drive has charged the final Run and cleared the objective.
 type Goal struct {
-	SessionID string      `json:"sessionId"`
-	Objective string      `json:"objective"`
-	Status    GoalStatus  `json:"status"`
-	Reason    *GoalReason `json:"reason,omitempty"`
-	Provider  string      `json:"provider,omitempty"`
-	Model     string      `json:"model,omitempty"`
-	Budget    GoalBudget  `json:"budget"`
-	Used      GoalUsage   `json:"used"`
-	CreatedAt time.Time   `json:"createdAt"`
-	UpdatedAt time.Time   `json:"updatedAt"`
+	SessionID       string      `json:"sessionId"`
+	Objective       string      `json:"objective"`
+	Status          GoalStatus  `json:"status"`
+	Reason          *GoalReason `json:"reason,omitempty"`
+	Provider        string      `json:"provider,omitempty"`
+	Model           string      `json:"model,omitempty"`
+	ReasoningEffort string      `json:"reasoningEffort,omitempty"`
+	Budget          GoalBudget  `json:"budget"`
+	Used            GoalUsage   `json:"used"`
+	CreatedAt       time.Time   `json:"createdAt"`
+	UpdatedAt       time.Time   `json:"updatedAt"`
 }
 
 // GoalStatus is the lifecycle vocabulary exposed by the autonomous-goal API.
@@ -73,11 +74,12 @@ type GoalUsage struct {
 
 // StartGoalRequest — goals.start body.
 type StartGoalRequest struct {
-	SessionID string     `json:"sessionId"`
-	Objective string     `json:"objective"`
-	Provider  string     `json:"provider,omitempty"`
-	Model     string     `json:"model,omitempty"`
-	Budget    GoalBudget `json:"budget,omitzero"`
+	SessionID       string     `json:"sessionId"`
+	Objective       string     `json:"objective"`
+	Provider        string     `json:"provider,omitempty"`
+	Model           string     `json:"model,omitempty"`
+	ReasoningEffort string     `json:"reasoningEffort,omitempty"`
+	Budget          GoalBudget `json:"budget,omitzero"`
 }
 
 // UpdateGoalRequest — goals.update body. Updating the objective preserves the

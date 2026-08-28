@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
 )
 
@@ -74,6 +75,27 @@ func (s *SessionStore) Exists(ctx context.Context, id string) (bool, error) {
 		return false, fmt.Errorf("sqlite: session exists: %w", err)
 	}
 	return true, nil
+}
+
+// ModelSelection returns the Session's exact durable model policy without
+// decoding unrelated aggregate state. Goal admission uses the boolean as its
+// existence fact and freezes the returned selection when no override was sent.
+func (s *SessionStore) ModelSelection(ctx context.Context, id string) (modelref.Selection, bool, error) {
+	var provider, model, reasoningEffort string
+	err := conn(ctx, s.db).QueryRowContext(ctx,
+		`SELECT provider, model, reasoning_effort FROM sessions WHERE id = ?`, id,
+	).Scan(&provider, &model, &reasoningEffort)
+	if errors.Is(err, sql.ErrNoRows) {
+		return modelref.Selection{}, false, nil
+	}
+	if err != nil {
+		return modelref.Selection{}, false, fmt.Errorf("sqlite: read Session model selection: %w", err)
+	}
+	selection, err := modelref.NewWithReasoningEffort(provider, model, reasoningEffort)
+	if err != nil {
+		return modelref.Selection{}, false, fmt.Errorf("sqlite: decode Session model selection: %w", err)
+	}
+	return selection, true, nil
 }
 
 func (s *SessionStore) Get(ctx context.Context, id string) (session.Session, error) {

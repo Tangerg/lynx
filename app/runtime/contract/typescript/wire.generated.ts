@@ -223,6 +223,7 @@ export interface ArtifactRun {
   parentRunId?: string;
   protocolProfile?: RunProtocolProfile;
   provider?: string;
+  reasoningEffort?: string;
   rootRunId?: string;
   sessionId: string;
   spawnedByItemId?: string;
@@ -247,6 +248,7 @@ export interface ArtifactSession {
   id: string;
   model: string;
   provider: string;
+  reasoningEffort?: string;
   title: string;
   updatedAt: string;
   workspace: WorkspaceRef;
@@ -328,6 +330,7 @@ export interface CreateScheduleRequest {
   instructions: string;
   model?: string;
   provider?: string;
+  reasoningEffort?: string;
   title?: string;
   workspace?: WorkspaceRef;
 }
@@ -519,6 +522,7 @@ export interface Goal {
   objective: string;
   provider?: string;
   reason?: GoalReason;
+  reasoningEffort?: string;
   sessionId: string;
   status: GoalStatus;
   updatedAt: string;
@@ -1165,6 +1169,7 @@ export interface RunRef {
   parentRunId?: string;
   protocolProfile: RunProtocolProfile;
   provider?: string;
+  reasoningEffort?: string;
   rootRunId?: string;
   sessionId: string;
   spawnedByItemId?: string;
@@ -1198,6 +1203,7 @@ export interface RunSummary {
   outcome?: RunOutcome;
   parentRunId?: string;
   provider?: string;
+  reasoningEffort?: string;
   rootRunId?: string;
   sessionId: string;
   spawnedByItemId?: string;
@@ -1277,6 +1283,7 @@ export interface Schedule {
   model?: string;
   nextRunAt?: string;
   provider?: string;
+  reasoningEffort?: string;
   revision: number;
   title: string;
   workspace?: WorkspaceRef;
@@ -1329,6 +1336,7 @@ export interface Session {
   id: string;
   model: string;
   provider: string;
+  reasoningEffort?: string;
   revision: number;
   status: SessionStatus;
   title: string;
@@ -1408,6 +1416,7 @@ export interface StartGoalRequest {
   model?: string;
   objective: string;
   provider?: string;
+  reasoningEffort?: string;
   sessionId: string;
 }
 
@@ -1419,6 +1428,7 @@ export interface StartRunRequest {
   model?: string;
   params?: GenerationParams;
   provider?: string;
+  reasoningEffort?: string;
   sessionId: string;
 }
 
@@ -1516,6 +1526,7 @@ export interface UpdateScheduleRequest {
   instructions?: string;
   model?: string;
   provider?: string;
+  reasoningEffort?: string;
   title?: string;
   workspace?: WorkspaceRef;
   workspaceMode?: ScheduleWorkspaceMode;
@@ -1526,6 +1537,7 @@ export interface UpdateSessionRequest {
   favorite?: boolean;
   model?: string;
   provider?: string;
+  reasoningEffort?: string;
   sessionId: string;
   title?: string;
   workspace?: WorkspaceRef;

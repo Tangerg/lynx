@@ -20,12 +20,19 @@ describe("activeRpcSessionId", () => {
 });
 
 describe("rpcRunStartParams", () => {
-  it("sends provider and model only as a complete pair", () => {
-    expect(rpcRunStartParams("ses_1", input, { provider: "openai", model: "gpt" })).toEqual({
+  it("sends provider, model, and reasoning effort as one exact selection", () => {
+    expect(
+      rpcRunStartParams("ses_1", input, {
+        provider: "openai",
+        model: "gpt",
+        reasoningEffort: "high",
+      }),
+    ).toEqual({
       sessionId: "ses_1",
       input,
       provider: "openai",
       model: "gpt",
+      reasoningEffort: "high",
     });
     expect(rpcRunStartParams("ses_1", input, { provider: "openai" })).toEqual({
       sessionId: "ses_1",
@@ -51,12 +58,15 @@ describe("createRpcAgentDriver", () => {
 
     await expect(driver.start(input, { provider: "openai" }, signal)).resolves.toBe(startResult);
     const runId = asRunId("run_1");
-    const responses: Parameters<AgentDriver["resume"]>[1] = [
+    const responses: Parameters<AgentDriver["resume"]>[1]["responses"] = [
       { itemId: asItemId("item_1"), response: { type: "approval", decision: "approve" } },
     ];
-    await expect(driver.resume(runId, responses, signal)).resolves.toBe(resumeResult);
+    const followUp = [{ type: "text" as const, text: "also add tests" }];
+    await expect(driver.resume(runId, { responses, input: followUp }, signal)).resolves.toBe(
+      resumeResult,
+    );
 
     expect(gateway.start).toHaveBeenCalledWith({ sessionId: "ses_1", input }, signal);
-    expect(gateway.resume).toHaveBeenCalledWith({ runId, responses }, signal);
+    expect(gateway.resume).toHaveBeenCalledWith({ runId, responses, input: followUp }, signal);
   });
 });

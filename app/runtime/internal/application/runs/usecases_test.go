@@ -184,6 +184,7 @@ type fakeExecutionPorts struct {
 	activateRelease   <-chan struct{}
 	activated         bool
 	resumed           bool
+	continuationInput *CommittedUserInput
 	released          []ExecutorRef
 	canceledTrees     []ExecutorRef
 	steered           []ExecutorRef
@@ -289,11 +290,17 @@ func testChildRunBindings(members []WaitingMember) []ChildRunBinding {
 }
 
 func (f *fakeExecutionPorts) BeginContinuation(
-	context.Context,
-	ExecutorRef,
-	[]InterruptAnswer,
-	[]interrupt.Kind,
+	_ context.Context,
+	_ ExecutorRef,
+	_ []InterruptAnswer,
+	input *CommittedUserInput,
+	_ []interrupt.Kind,
 ) error {
+	if input != nil {
+		f.continuationInput = &CommittedUserInput{
+			ItemID: input.ItemID, Content: transcript.CloneContent(input.Content),
+		}
+	}
 	if f.resumeStarted != nil {
 		f.resumeStarted <- struct{}{}
 	}
@@ -356,11 +363,19 @@ func (f *fakeExecutionPorts) SubmitSteer(_ context.Context, ref ExecutorRef, inp
 }
 
 type modelInputAdmissionProbe struct {
-	err      error
-	failAt   int
-	calls    int
-	selected []modelref.Selection
-	messages [][]corechat.Message
+	err            error
+	selectionErr   error
+	failAt         int
+	calls          int
+	selectionCalls int
+	selected       []modelref.Selection
+	messages       [][]corechat.Message
+}
+
+func (m *modelInputAdmissionProbe) AdmitSelection(selection modelref.Selection) error {
+	m.selectionCalls++
+	m.selected = append(m.selected, selection)
+	return m.selectionErr
 }
 
 func (m *modelInputAdmissionProbe) AdmitInput(
@@ -1240,7 +1255,7 @@ func TestResumeAndRootCancelShareOneApplicationAdmissionBoundary(t *testing.T) {
 // iff is a cross-shape rule no schema keyword can state, so it is held here.
 func TestResumeWithInputCommitsTheUserItemWithTheContinuation(t *testing.T) {
 	createdAt := time.Date(2025, 1, 2, 3, 4, 5, 0, time.UTC)
-	newResumeCase := func() (*fakeEffects, *Coordinator) {
+	newResumeCase := func() (*fakeEffects, *fakeExecutionPorts, *Coordinator) {
 		effects := &fakeEffects{}
 		sessions := &fakeRunSessions{
 			sess: sessionfixture.MustRestore(session.Snapshot{ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/work")}),
@@ -1249,14 +1264,14 @@ func TestResumeWithInputCommitsTheUserItemWithTheContinuation(t *testing.T) {
 			},
 		}
 		control := &fakeExecutionPorts{prepared: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
-		return effects, newUseCaseCoordinator(&fakeExecutor{}, control, sessions, effects)
+		return effects, control, newUseCaseCoordinator(&fakeExecutor{}, control, sessions, effects)
 	}
 	approve := []ResumeResponse{{
 		ItemID: "item_1", Kind: ApprovalResponseKind,
 		Approval: &ApprovalResponse{Approved: true},
 	}}
 
-	effects, c := newResumeCase()
+	effects, control, c := newResumeCase()
 	withInput, err := c.Resume(context.Background(), ResumeCommand{
 		RunID: "run_1", Responses: approve,
 		CallerCapabilities: run.Capabilities{
@@ -1286,8 +1301,12 @@ func TestResumeWithInputCommitsTheUserItemWithTheContinuation(t *testing.T) {
 	if !committed {
 		t.Fatalf("the user item is not in the continuation's write-set: %+v", opening.Events)
 	}
+	if control.continuationInput == nil || control.continuationInput.ItemID != withInput.UserItemID ||
+		len(control.continuationInput.Content) != 1 || control.continuationInput.Content[0].Text != "also skip the tests" {
+		t.Fatalf("executor continuation input = %+v, want the committed user Item", control.continuationInput)
+	}
 
-	_, c = newResumeCase()
+	_, control, c = newResumeCase()
 	without, err := c.Resume(context.Background(), ResumeCommand{
 		RunID: "run_1", Responses: approve,
 		CallerCapabilities: run.Capabilities{
@@ -1300,6 +1319,9 @@ func TestResumeWithInputCommitsTheUserItemWithTheContinuation(t *testing.T) {
 	consumeEvents(without.Events)
 	if without.UserItemID != "" {
 		t.Fatalf("userItemId = %q on a resume that opened no user input", without.UserItemID)
+	}
+	if control.continuationInput != nil {
+		t.Fatalf("executor received input on empty resume: %+v", control.continuationInput)
 	}
 }
 
@@ -2420,7 +2442,7 @@ func TestSteerRejectsInputOutsideSelectedModelCapabilities(t *testing.T) {
 	c, _ := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
 	c.steering = control
 	probe := &modelInputAdmissionProbe{err: errors.New("selected model accepts text only")}
-	c.modelInputs = probe
+	c.models = probe
 
 	err := c.Steer(t.Context(), SteerCommand{
 		RunID:             testRunID,
@@ -2447,7 +2469,7 @@ func TestStartRejectsCurrentInputOutsideSelectedModelCapabilitiesBeforeStaging(t
 	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
 	c := newUseCaseCoordinator(&fakeExecutor{}, control, sessions, &fakeEffects{})
 	probe := &modelInputAdmissionProbe{err: errors.New("selected model accepts text only")}
-	c.modelInputs = probe
+	c.models = probe
 
 	_, err := c.Start(t.Context(), StartCommand{
 		SessionID:      "ses_1",
@@ -2464,6 +2486,33 @@ func TestStartRejectsCurrentInputOutsideSelectedModelCapabilitiesBeforeStaging(t
 	}
 }
 
+func TestStartRejectsUnsupportedReasoningSelectionBeforeAnyOpeningSideEffect(t *testing.T) {
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{
+		ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/work"),
+	})}
+	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	effects := &fakeEffects{}
+	c := newUseCaseCoordinator(&fakeExecutor{}, control, sessions, effects)
+	unsupported := errors.New("reasoning effort is not advertised by the selected model")
+	probe := &modelInputAdmissionProbe{selectionErr: unsupported}
+	c.models = probe
+	selection, err := modelref.NewWithReasoningEffort("openai", "gpt-5.6-sol", "impossible")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = c.Start(t.Context(), StartCommand{
+		SessionID: "ses_1", ModelSelection: selection,
+		Input: []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "hello"}},
+	})
+	if !errors.Is(err, ErrUnsupportedModelSelection) || !errors.Is(err, unsupported) {
+		t.Fatalf("Start error = %v, want unsupported model selection", err)
+	}
+	if probe.selectionCalls != 1 || control.started.ModelSelection.Configured() || len(effects.openings) != 0 {
+		t.Fatalf("rejected selection crossed opening boundary: probe=%d staged=%+v openings=%d", probe.selectionCalls, control.started, len(effects.openings))
+	}
+}
+
 func TestStartRevalidatesComposedHistoryAgainstSelectedModelBeforeStaging(t *testing.T) {
 	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{
 		ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/work"),
@@ -2474,7 +2523,7 @@ func TestStartRevalidatesComposedHistoryAgainstSelectedModelBeforeStaging(t *tes
 		corechat.NewUserMessage(corechat.NewMediaPart(mustInputMedia(t, "image/png", []byte("history")))),
 	}}
 	probe := &modelInputAdmissionProbe{err: errors.New("selected model rejects historical image"), failAt: 2}
-	c.modelInputs = probe
+	c.models = probe
 
 	_, err := c.Start(t.Context(), StartCommand{
 		SessionID:      "ses_1",

@@ -2,13 +2,14 @@ import type { ComposerSubmitModeContext, ComposerSubmitModeSpec } from "@/plugin
 import type { GoalReadModel, GoalState } from "./goalReadModel";
 import type { StartGoalInput } from "./ports/goalCommandsGateway";
 import { GoalComposerModeOwner } from "./goalComposerMode";
+import type { ComposerModelPreference } from "../../composer/public/modelPreference";
 
 export interface GoalComposerSubmitDependencies {
   activeSessionId(): string | null;
   composerText(): string;
   goalState(sessionId: string): GoalState | undefined;
   runtimeAvailable(): boolean;
-  modelPreference(): { provider: string | null; model: string | null };
+  modelPreference(): ComposerModelPreference;
   start(input: StartGoalInput): Promise<void>;
   focusComposer(): void;
   reportUnavailable(): void;
@@ -94,8 +95,12 @@ async function startGoal(
     await dependencies.start({
       sessionId,
       objective,
-      ...(preference.provider && preference.model
-        ? { provider: preference.provider, model: preference.model }
+      ...(preference.kind === "explicit"
+        ? {
+            provider: preference.provider,
+            model: preference.model,
+            ...(preference.reasoningEffort ? { reasoningEffort: preference.reasoningEffort } : {}),
+          }
         : {}),
     });
     const committed = owner.finish(sessionId, true);

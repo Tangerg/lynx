@@ -14,6 +14,7 @@ import (
 	"github.com/Tangerg/scope/app/runtime/internal/adapter/workspacepath"
 	scheduleapp "github.com/Tangerg/scope/app/runtime/internal/application/schedules"
 	workspaceapp "github.com/Tangerg/scope/app/runtime/internal/application/workspace"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 	scheduledomain "github.com/Tangerg/scope/app/runtime/internal/domain/schedule"
 )
 
@@ -110,10 +111,15 @@ func newMemoryScheduleRegistry() *memoryScheduleRegistry {
 
 func newTestScheduleCoordinator(reg scheduleapp.ManagementStore) *scheduleapp.Coordinator {
 	return scheduleapp.New(scheduleapp.Dependencies{
-		Store: reg,
-		Paths: workspacepath.Resolver{},
+		Store:  reg,
+		Paths:  workspacepath.Resolver{},
+		Models: scheduleModelAdmitter{},
 	})
 }
+
+type scheduleModelAdmitter struct{}
+
+func (scheduleModelAdmitter) AdmitSelection(modelref.Selection) error { return nil }
 
 func (m *memoryScheduleRegistry) ListPage(ctx context.Context, _ time.Time, _ string, _ int) ([]scheduledomain.Schedule, error) {
 	return m.List(ctx)

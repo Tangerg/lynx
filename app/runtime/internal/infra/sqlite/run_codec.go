@@ -271,6 +271,7 @@ func scanRunRow(row scanRow, pendingPolicy pendingReadPolicy) (rundomain.Run, er
 		outcome             string
 		provider            string
 		model               string
+		reasoningEffort     string
 		goalIncarnationID   string
 		detail              string
 		steps               int
@@ -291,7 +292,7 @@ func scanRunRow(row scanRow, pendingPolicy pendingReadPolicy) (rundomain.Run, er
 		&id, &sessionID,
 		&spawnedByItemID, &parentRunID, &rootRunID,
 		&coarse, &activeSegmentID, &outcome,
-		&provider, &model, &goalIncarnationID, &detail,
+		&provider, &model, &reasoningEffort, &goalIncarnationID, &detail,
 		&steps, &durationNs, &usage, &contextTokens, &problem,
 		&limits.MaxTotalTokens, &limits.MaxSteps, &limits.MaxBudgetUSD, &ownCapabilities, &rootCapabilities,
 		&messageMark, &startedAt, &finishedAt, &updatedAt, &interruptsSuspended,
@@ -317,7 +318,7 @@ func scanRunRow(row scanRow, pendingPolicy pendingReadPolicy) (rundomain.Run, er
 	if err != nil {
 		return rundomain.Run{}, fmt.Errorf("run %q: %w", id, err)
 	}
-	selection, err := modelref.New(provider, model)
+	selection, err := modelref.NewWithReasoningEffort(provider, model, reasoningEffort)
 	if err != nil {
 		return rundomain.Run{}, fmt.Errorf("decode run %q model selection: %w", id, err)
 	}

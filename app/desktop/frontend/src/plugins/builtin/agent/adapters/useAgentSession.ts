@@ -177,7 +177,7 @@ export function useAgentSession(makeDriver: () => AgentDriver, sessionId: string
         response: response.response,
       }));
       runOpening.begin(
-        (signal) => driver.resume(asRunId(runId), wireResponses, signal),
+        (signal) => driver.resume(asRunId(runId), { responses: wireResponses }, signal),
         onSettled ? () => onSettled() : undefined,
         onStartError,
       );

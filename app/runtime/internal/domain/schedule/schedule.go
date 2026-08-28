@@ -79,8 +79,7 @@ type Patch struct {
 	Title        *string
 	Instructions *string
 	CWD          *string
-	Provider     *string
-	Model        *string
+	Selection    *modelref.Selection
 	Cron         *string
 	Enabled      *bool
 }
@@ -97,19 +96,8 @@ func (s Schedule) Apply(p Patch) (Schedule, error) {
 	if p.CWD != nil {
 		s.CWD = *p.CWD
 	}
-	if p.Provider != nil || p.Model != nil {
-		provider, model := s.ModelSelection.Provider(), s.ModelSelection.Model()
-		if p.Provider != nil {
-			provider = *p.Provider
-		}
-		if p.Model != nil {
-			model = *p.Model
-		}
-		selection, err := modelref.New(provider, model)
-		if err != nil {
-			return Schedule{}, err
-		}
-		s.ModelSelection = selection
+	if p.Selection != nil {
+		s.ModelSelection = *p.Selection
 	}
 	if p.Cron != nil {
 		s.Cron = *p.Cron
@@ -124,6 +112,9 @@ func (s Schedule) Apply(p Patch) (Schedule, error) {
 // parseable cron are required. Create/update call
 // it so the rule lives on the entity, not at an input boundary.
 func (s Schedule) Validate() error {
+	if err := s.ModelSelection.Validate(); err != nil {
+		return fmt.Errorf("schedule: model selection: %w", err)
+	}
 	if s.Instructions == "" {
 		return ErrInstructionsRequired
 	}

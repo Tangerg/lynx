@@ -7,7 +7,7 @@ import (
 	"github.com/Tangerg/scope/app/runtime/internal/domain/session"
 )
 
-const sessionColumns = `id, title, workspace_path, parent_id, started_at, updated_at, provider, model, favorite, isolated, revision`
+const sessionColumns = `id, title, workspace_path, parent_id, started_at, updated_at, provider, model, reasoning_effort, favorite, isolated, revision`
 
 // rowToSession decodes one DB row into a product session.Session. Execution
 // continuation state deliberately lives in its dedicated sidecar table, never
@@ -16,18 +16,19 @@ func rowToSession(scanner interface {
 	Scan(dest ...any) error
 }) (session.Session, error) {
 	var (
-		snapshot       session.Snapshot
-		startedAtNanos int64
-		updatedAtNanos int64
-		favoriteInt    int64
-		isolatedInt    int64
-		provider       string
-		model          string
-		workspacePath  string
+		snapshot        session.Snapshot
+		startedAtNanos  int64
+		updatedAtNanos  int64
+		favoriteInt     int64
+		isolatedInt     int64
+		provider        string
+		model           string
+		reasoningEffort string
+		workspacePath   string
 	)
 	if err := scanner.Scan(
 		&snapshot.ID, &snapshot.Title, &workspacePath, &snapshot.ParentID,
-		&startedAtNanos, &updatedAtNanos, &provider, &model,
+		&startedAtNanos, &updatedAtNanos, &provider, &model, &reasoningEffort,
 		&favoriteInt, &isolatedInt, &snapshot.Revision,
 	); err != nil {
 		return session.Session{}, err
@@ -41,7 +42,7 @@ func rowToSession(scanner interface {
 		return session.Session{}, err
 	}
 	snapshot.Workspace = workspace
-	selection, err := modelref.New(provider, model)
+	selection, err := modelref.NewWithReasoningEffort(provider, model, reasoningEffort)
 	if err != nil {
 		return session.Session{}, err
 	}

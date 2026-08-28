@@ -41,6 +41,12 @@ type Store interface {
 	Save(ctx context.Context, expectedRevision uint64, replacement session.Session) error
 }
 
+// ModelAdmitter validates an exact model choice before it becomes durable
+// Session policy.
+type ModelAdmitter interface {
+	AdmitSelection(selection modelref.Selection) error
+}
+
 // InterruptStore is the lifecycle coordinator's read view of open HITL
 // interrupt. Consuming an interrupt is part of the run coordinator's atomic
 // segment-opening commit; deleting one is part of an atomic write-set
@@ -230,6 +236,7 @@ type Coordinator struct {
 	forgetter             Forgetter
 	executionReleaser     ExecutionReleaser
 	paths                 WorkspaceResolver
+	models                ModelAdmitter
 	defaultModelSelection modelref.Selection
 	// checkpoints resets the working tree to a run-boundary checkpoint for a file
 	// rollback and drops a deleted session's snapshots; nil disables both (file
@@ -276,6 +283,7 @@ type Dependencies struct {
 	Forgetter             Forgetter
 	ExecutionReleaser     ExecutionReleaser
 	Paths                 WorkspaceResolver
+	Models                ModelAdmitter
 	DefaultModelSelection modelref.Selection
 	Checkpoints           WorkspaceCheckpoints
 	Sandbox               SandboxDiscarder
@@ -319,6 +327,7 @@ func New(deps Dependencies) (*Coordinator, error) {
 		{"session forgetter", deps.Forgetter},
 		{"execution releaser", deps.ExecutionReleaser},
 		{"workspace resolver", deps.Paths},
+		{"model admitter", deps.Models},
 		{"admissions", deps.Admissions},
 		{"session id generator", deps.NewID},
 		{"run id generator", deps.NewRunID},
@@ -358,6 +367,9 @@ func New(deps Dependencies) (*Coordinator, error) {
 	if !deps.DefaultModelSelection.Configured() {
 		return nil, errors.New("sessions: configured default model selection is required")
 	}
+	if err := deps.Models.AdmitSelection(deps.DefaultModelSelection); err != nil {
+		return nil, fmt.Errorf("sessions: default model selection is not admitted: %w", err)
+	}
 	return &Coordinator{
 		sessions:              deps.Sessions,
 		interrupts:            deps.Interrupts,
@@ -370,6 +382,7 @@ func New(deps Dependencies) (*Coordinator, error) {
 		forgetter:             deps.Forgetter,
 		executionReleaser:     deps.ExecutionReleaser,
 		paths:                 deps.Paths,
+		models:                deps.Models,
 		defaultModelSelection: deps.DefaultModelSelection,
 		checkpoints:           deps.Checkpoints,
 		sandbox:               deps.Sandbox,

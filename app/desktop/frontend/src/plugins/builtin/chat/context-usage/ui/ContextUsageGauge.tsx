@@ -1,22 +1,26 @@
 import { Gauge, Pressable, RichTooltip } from "@/ui";
 import { fmtTokens } from "@/lib/format";
 import { useT } from "@/lib/i18n";
-import { useSessionContextTokens } from "@/plugins/builtin/agent/public/run";
+import { useCurrentRootMaterial } from "@/plugins/builtin/agent/public/run";
 import { useActiveSessionId, useAgentSessions } from "@/plugins/builtin/agent/public/session";
 import { useModels } from "@/plugins/builtin/settings/providers/public/queries";
 import { contextUsageReadout } from "../application/contextUsageReadout";
 
 export function ContextUsageGauge() {
   const t = useT();
-  const contextTokens = useSessionContextTokens();
+  const currentRun = useCurrentRootMaterial();
   const activeSessionId = useActiveSessionId();
   const { data: sessions } = useAgentSessions();
   const { data: models = [] } = useModels();
-  const servedSelection = sessions?.find((session) => session.id === activeSessionId);
+  const servedSelection =
+    currentRun.modelSelection ?? sessions?.find((session) => session.id === activeSessionId);
   const servedModel = models.find(
     (model) => model.provider === servedSelection?.provider && model.id === servedSelection?.model,
   );
-  const readout = contextUsageReadout(contextTokens ?? undefined, servedModel?.contextWindow);
+  const readout = contextUsageReadout(
+    currentRun.contextTokens ?? undefined,
+    servedModel?.contextWindow,
+  );
   if (!readout) return null;
 
   const label = t("context.usage.aria", { percent: readout.percent });

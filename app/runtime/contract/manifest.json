@@ -4381,11 +4381,11 @@
       "rules": [
         {
           "field": "version",
-          "constraint": "minimum(23)"
+          "constraint": "minimum(24)"
         },
         {
           "field": "version",
-          "constraint": "maximum(23)"
+          "constraint": "maximum(24)"
         }
       ]
     },

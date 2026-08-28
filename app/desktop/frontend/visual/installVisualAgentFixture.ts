@@ -71,22 +71,24 @@ import {
   type VisualAgentState,
 } from "./agentSessionSnapshots";
 import { installVisualRuntimeServiceStatusPort } from "./installVisualRuntimeServiceStatusPort";
+import { VISUAL_PRIMARY_MODEL_CONTEXT_WINDOW } from "./agentFixtureFacts";
 
 const VISUAL_MODELS: SelectableModel[] = [
   new SelectableModel({
-    id: "gpt-5.6",
+    id: "gpt-5.6-sol",
     provider: "openai",
-    label: "GPT-5.6",
-    inputModalities: ["text", "image"],
+    label: "GPT-5.6 Sol",
+    inputModalities: ["text", "image", "pdf"],
     outputModalities: ["text"],
-    contextWindow: 256_000,
-    maxInputTokens: 224_000,
-    maxOutputTokens: 32_000,
+    contextWindow: VISUAL_PRIMARY_MODEL_CONTEXT_WINDOW,
+    maxInputTokens: 922_000,
+    maxOutputTokens: 128_000,
     reasoning: true,
-    reasoningLevels: ["low", "medium", "high"],
+    reasoningLevels: ["none", "low", "medium", "high", "xhigh", "max"],
     reasoningDefaultLevel: "medium",
     toolUse: true,
     structuredOutput: true,
+    knowledgeCutoff: "2026-02-16T00:00:00Z",
   }),
   new SelectableModel({
     id: "qwen-mt-plus",
@@ -111,6 +113,7 @@ function visualSession(state: VisualAgentState): AgentSessionSummary {
           : "idle",
     provider: VISUAL_MODELS[0]!.provider,
     model: VISUAL_MODELS[0]!.id,
+    reasoningEffort: VISUAL_MODELS[0]!.reasoningDefaultLevel,
     workspace: { path: "/Users/visual/scope", availability: "available" },
     time: "2026-07-31T08:00:00.000Z",
   };
@@ -289,8 +292,14 @@ export async function installVisualAgentFixture(
     value: state === "steer" ? "Tighten the error copy and continue." : "",
     images: [],
     pastes: [],
-    provider: VISUAL_MODELS[0]!.provider,
-    model: VISUAL_MODELS[0]!.id,
+    modelPreference: {
+      kind: "explicit",
+      provider: VISUAL_MODELS[0]!.provider,
+      model: VISUAL_MODELS[0]!.id,
+      ...(VISUAL_MODELS[0]!.reasoningDefaultLevel
+        ? { reasoningEffort: VISUAL_MODELS[0]!.reasoningDefaultLevel }
+        : {}),
+    },
   });
 
   let view = projectAgentSessionSnapshot(AGENT_SESSION_SNAPSHOTS[state]);

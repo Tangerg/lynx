@@ -22,16 +22,16 @@ func TestCapabilitiesAdmitInputUsesExactCatalogModel(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := (Capabilities{}).AdmitInput(textOnly, messages); !errors.Is(err, ErrUnsupportedInputModality) {
-		t.Fatalf("text-only model error = %v, want ErrUnsupportedInputModality", err)
+	if admitErr := (Capabilities{}).AdmitInput(textOnly, messages); !errors.Is(admitErr, ErrUnsupportedInputModality) {
+		t.Fatalf("text-only model error = %v, want ErrUnsupportedInputModality", admitErr)
 	}
 
 	imageCapable, err := modelref.New("openai", "gpt-5.6-sol")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := (Capabilities{}).AdmitInput(imageCapable, messages); err != nil {
-		t.Fatalf("image-capable model error = %v", err)
+	if admitErr := (Capabilities{}).AdmitInput(imageCapable, messages); admitErr != nil {
+		t.Fatalf("image-capable model error = %v", admitErr)
 	}
 }
 

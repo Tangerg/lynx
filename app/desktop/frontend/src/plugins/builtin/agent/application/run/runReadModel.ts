@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type {
   AgentProblem,
   AgentRunMetrics,
+  AgentModelSelection,
   AgentRunOutcome,
   AgentRunView,
   TimelineEntry,
@@ -30,6 +31,7 @@ export class CurrentRootMaterial {
   /** Latest model prompt footprint for this Run. Unlike cumulative usage, this
    * is the number that occupies the model's context window. */
   readonly contextTokens: number | null;
+  readonly modelSelection: AgentModelSelection | null;
   readonly attention: AgentRootAttention;
 
   private constructor(run: AgentRunView | null) {
@@ -38,6 +40,7 @@ export class CurrentRootMaterial {
     this.outcome = run?.outcome ?? null;
     this.metrics = run?.metrics ?? null;
     this.contextTokens = run?.progress?.contextTokens ?? null;
+    this.modelSelection = run?.modelSelection ?? null;
     this.attention = Object.freeze(
       run ? { status: run.status, runId: run.id } : { status: "idle", runId: null },
     );
@@ -75,10 +78,6 @@ export class CurrentRootMaterial {
 export function useCurrentRootMaterial(): CurrentRootMaterial {
   const run = agentSessionView().useCurrentRootRun();
   return useMemo(() => CurrentRootMaterial.from(run), [run]);
-}
-
-export function useSessionContextTokens(): number | null {
-  return agentSessionView().useContextTokens();
 }
 
 export function useIsCurrentRootRunning(): boolean {

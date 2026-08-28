@@ -7,7 +7,6 @@ import {
 } from "@/plugins/sdk/types/agentSessionView";
 import {
   selectCurrentRootAttention,
-  selectSessionContextTokens,
   selectDelegatedRunNarratives,
   selectRootNarrativeMessages,
   selectRunTree,
@@ -162,22 +161,5 @@ describe("root attention", () => {
         view([rootRun("finished", "2026-01-01T00:00:00.000Z", "finished")]),
       ),
     ).toEqual({ status: "finished", runId: "finished" });
-  });
-});
-
-describe("Session context footprint", () => {
-  it("keeps the latest authoritative root footprint until its successor publishes one", () => {
-    const previous = rootRun("previous", "2026-01-01T00:00:00.000Z");
-    previous.progress = { contextTokens: 87_900 };
-    const opening = rootRun("opening", "2026-01-02T00:00:00.000Z", "running");
-
-    const projection = view([previous, opening]);
-    expect(selectSessionContextTokens(projection)).toBe(87_900);
-
-    opening.progress = { contextTokens: 0 };
-    expect(selectSessionContextTokens(view([previous, opening]))).toBe(87_900);
-
-    opening.progress = { contextTokens: 91_000 };
-    expect(selectSessionContextTokens(view([previous, opening]))).toBe(91_000);
   });
 });

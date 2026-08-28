@@ -306,7 +306,7 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
 ### 4.1 Session / Workspace
 
 `Session` 是会话聚合：身份（`id` / `title` / `createdAt`）、绑定（`workspace: WorkspaceInfo`）、默认
-`provider` + `model` 精确选择、
+`provider` + `model` + 可选 `reasoningEffort` 精确选择、
 派生 `status`（`running|waiting|idle`）与乐观并发的 `revision`。
 
 - **`revision` 是条件写的唯一凭证**：`sessions.update` 必带 `expectedRevision`，过期返回 `revision_conflict`
@@ -338,6 +338,8 @@ profile，会被**拒绝**而不是降级投递——降级等于给同一个 Ru
   刻意的（见 §13）。
 - **没有 `mode` 字段**：agent/chat/plan 这套 per-run 模式已移除——run 永远是带工具的 agent 循环，"计划"是一个
   **全局审批姿态**（`ApprovalMode = "plan"`，见 §C.2）。
+- **模型选择是 Run 冻结事实**：`provider` / `model` 必须共同存在，`reasoningEffort` 只属于该 exact model；
+  opening 后即使 Session 默认被修改，active/history Run 的执行、恢复与 Context window 仍使用自己的选择。
 - **非 error 终态的 `detail?`**：让客户端区分"被用户取消" vs "被超时取消"、给 maxBudget 显示花费/上限；
   `runs.cancel` 的 `reason` 经此回流到 outcome。error 的人读说明在 `outcome.error.detail`（§4.6）。
 
@@ -474,13 +476,16 @@ process、session、审批或模型循环的只读诊断能力。
 ### 4.9 Provider / Model
 
 provider 凭证只回 `apiKeyMasked`，永不可逆推。per-run 的 provider + model **显式配对**（缺一即错；都缺时读取
-既有 Session 的 durable pair，只有 fresh Session admission 才安装 Runtime 默认），provider **不从 model 名推断**。
+既有 Session 的 durable selection，只有 fresh Session admission 才安装 Runtime 默认），provider **不从 model 名推断**。
+可选 `reasoningEffort` 是该 exact model 的执行参数：已知 catalog model 只接受其 `reasoningLevels` 中的值；
+effort 不能脱离 pair 存在，私有 catalog miss 则保持可用。
 `models.list` 的 `contextWindow` 配 live `RunProgress.contextTokens` 或 durable
 `RunRef.contextTokens` 做占用条。
 
-Session 同样持久化完整 provider + model pair，并作为省略 per-run 选择时的唯一默认 owner。显式 Run 选择成功进入
-opening write-set 后原子替换该 pair；创建、schedule、fork 与 artifact round-trip 都保留完整身份。两个 provider
-发布同名 model 时不得按 model id 取首项或回落全局默认。
+Session 同样持久化完整 selection，并作为省略 per-run 选择时的唯一默认 owner。reasoning-only update 保留 identity；
+切换 provider/model 而省略 reasoning 时清空旧 effort。显式 Run 选择成功进入 opening write-set 后原子替换 Session
+默认并冻结到 Run；创建、Goal、Schedule/occurrence、fork、checkpoint 与 artifact round-trip 都保留完整选择。
+两个 provider 发布同名 model 时不得按 model id 取首项或回落全局默认。
 
 ### 4.10 Workspace 周边 / 可选域类型
 
@@ -640,6 +645,11 @@ registry 的一个变体。`plan.updated` 与 `plan.get` 使用同一个 `Plan` 
    `segmentId`）。
 5. 续段像普通流一样，直到下一个 outcome。
 
+可选 `input` 是这次 continuation 的真实用户补充，不是 response 的展示备注。Runtime 在同一 answer-claim/opening
+边界原子提交 answer、User Item、checkpoint removal 与 next Segment；返回的可选 `userItemId` 指向这条已提交 Item。
+Agent 在同一 safe boundary 先结算 answer Tool result、再应用 input steer，Conversation 因而以 provider 合法的
+`tool → user` 顺序各追加一次。恢复或后续 steer projection必须携带 exact projected Item identity，不能创建第二条 Item。
+
 **关联键 = `itemId`**（无单独 requestId）。**拒绝 ≠ 取消**：拒绝是 `runs.resume` 带 `decision:"deny"`，run 继续
 （agent 据理由换方案）；取消是 `runs.cancel`，硬终止整个 run。成功结果是闭合联合：
 root 返回 `{type:"root", run}`；child 返回 `{type:"child", run, rootRun}`。其中被寻址的
@@ -721,10 +731,10 @@ Run 创建时把这份声明冻进 `RunProtocolProfile.interruptTypes`（§3.2�
   `restoreType` 可选还原文件（`features.checkpoints`），并把**边界那一刻的 Plan 作为一次新写入重新发布**
   （§5.3）。返回 `droppedRuns: DroppedRun[]`（每条带 `run: RunSummary` + 触发它的 `userInput`），所以客户端能
   告诉人"回退丢了哪些回合"。session 有 run 在飞时拒绝（`session_busy`），不去和正在 append 的历史赛跑。
-- **`export` / `import` 是同一份 `SessionArtifact`（v23）的两端**（AUX_API §4.3）：终态 run + 完整 Item 历史 +
+- **`export` / `import` 是同一份 `SessionArtifact`（v24）的两端**（AUX_API §4.3）：Session 与每条 Run 的 exact model/reasoning selection + 终态 run + 完整 Item 历史 +
   chat 消息 + offload 的工具正文 + 显式 `plan` 语义值（不带 revision / updatedAt —— 那是源 runtime 的排序
   凭证，带过去会让导入值声称一个目标 runtime 从未发出的位置）。import 是**替换语义**（同 id 覆盖），版本不认识就
-  确定性拒绝、**不迁移**，只接受当前 v23 shape。
+  确定性拒绝、**不迁移**，只接受当前 v24 shape。
 
 ### 7.3 runs.\*
 
@@ -1047,7 +1057,7 @@ dispatcher、discovery 与客户端 preflight 读的是同一份）。
   exhaustive switch，§2.3）、加一等事件/资源、改语义 / 删字段 / 改字段类型。
 - **判据不是"加还是改"，而是"老客户端会不会做错事"**。这条规则由 CI 强制：compatibility differ 拿本次产物与
   上一版基线对比，判定 breaking 就要求同批 bump（§14）。
-- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **23**）：一份归档可能被一个更新的
+- `SessionArtifactVersion` 与 `protocolVersion` 各自独立编号（本定稿 artifact = **24**）：一份归档可能被一个更新的
   runtime 读到。不认识的版本确定性拒绝，**dev 阶段不写 migration**。
 - HTTP URL 里的 `/v2/`（wire major epoch）与日期 `protocolVersion`（epoch 内请求版本）是两个层级
   （见 TRANSPORT §6.1）。
@@ -1091,7 +1101,7 @@ capability 规则在 dispatcher / discovery / SDK preflight 三方等价；schem
 每条 system invariant 有跨 projection fixture；TS 产物可编译且**都有消费者**；canonical 样本三方通过（含一个不
 参与生产的 JSON Schema 验证器）；list query fixture；**protocol manifest / canonical 文档 / 代码 / canonical 样本
 版本一致**；错误 type↔code 单一源；Plan 的 live event、cold read、Session material 与 archive shape 一致；
-Artifact v23 round-trip；compatibility differ 判定 breaking 并要求同批 bump（§12）。
+Artifact v24 round-trip；compatibility differ 判定 breaking 并要求同批 bump（§12）。
 
 ---
 

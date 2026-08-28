@@ -248,6 +248,8 @@ func (passthroughRunWorkingContext) AdmitInput(modelref.Selection, []chat.Messag
 	return nil
 }
 
+func (passthroughRunWorkingContext) AdmitSelection(modelref.Selection) error { return nil }
+
 type inertRunControl struct{}
 
 func (inertRunControl) RequestRootCancellation(context.Context, runs.ExecutorRef, string) error {
@@ -363,7 +365,7 @@ func newTestServer(rt testRuntime) *Server {
 		RootCancellation:                   inertRunControl{},
 		Conversation:                       conversation,
 		WorkingContexts:                    passthroughRunWorkingContext{},
-		ModelInputs:                        passthroughRunWorkingContext{},
+		Models:                             passthroughRunWorkingContext{},
 		Continuation:                       rt,
 		WaitingRestorer:                    inertRunControl{},
 		Steering:                           rt,
@@ -463,7 +465,7 @@ func (executionStub) BeginRoot(context.Context, runs.ExecutorRef) error { return
 func (executionStub) StageContinuation(_ context.Context, continuation runs.WaitingContinuation) (runs.ExecutorRef, error) {
 	return runs.ExecutorRef{SessionID: continuation.SessionID, ExecutorID: continuation.ExecutorID}, nil
 }
-func (executionStub) BeginContinuation(context.Context, runs.ExecutorRef, []runs.InterruptAnswer, []interrupt.Kind) error {
+func (executionStub) BeginContinuation(context.Context, runs.ExecutorRef, []runs.InterruptAnswer, *runs.CommittedUserInput, []interrupt.Kind) error {
 	return nil
 }
 func (executionStub) Release(context.Context, runs.ExecutorRef) error { return nil }
@@ -509,9 +511,10 @@ func (s stubRuntime) BeginContinuation(
 	ctx context.Context,
 	ref runs.ExecutorRef,
 	answers []runs.InterruptAnswer,
+	input *runs.CommittedUserInput,
 	allowed []interrupt.Kind,
 ) error {
-	return s.executionController().BeginContinuation(ctx, ref, answers, allowed)
+	return s.executionController().BeginContinuation(ctx, ref, answers, input, allowed)
 }
 
 func (s stubRuntime) ValidateRootStart(req runs.RootExecutionStart) error {
@@ -904,6 +907,7 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 		Forgetter:             s,
 		ExecutionReleaser:     stubExecutionReleaser{rt: s},
 		Paths:                 workspacepath.Resolver{},
+		Models:                allowModelSelections{},
 		DefaultModelSelection: fixtureDefaultModelSelection(),
 		Checkpoints:           checkpoints,
 		Admissions:            admissions,
@@ -936,6 +940,10 @@ func (s *stubRuntime) sessionsCoordinatorWithRestorer(checkpoints sessions.Works
 	}
 	return coordinator
 }
+
+type allowModelSelections struct{}
+
+func (allowModelSelections) AdmitSelection(modelref.Selection) error { return nil }
 
 func fixtureDefaultModelSelection() modelref.Selection {
 	selection, err := modelref.New("test-provider", "test-model")

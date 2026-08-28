@@ -47,6 +47,7 @@ func retainedRunBytes(run run.Run) int {
 		snapshot.Detail,
 		snapshot.ModelSelection.Provider(),
 		snapshot.ModelSelection.Model(),
+		snapshot.ModelSelection.ReasoningEffort(),
 	)
 	if snapshot.Failure != nil {
 		bytes += len(snapshot.Failure.Detail) + len(snapshot.Failure.DocURL)

@@ -63,7 +63,7 @@ func Open(ctx context.Context, path string) (*sql.DB, error) {
 // schemaEpoch identifies the one storage shape this build understands. It is an
 // epoch rather than a version because nothing connects two values: a database
 // stamped with any other number is refused, never upgraded.
-const schemaEpoch = 83
+const schemaEpoch = 84
 
 func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 	var epoch int
@@ -96,6 +96,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			updated_at  INTEGER NOT NULL,
 			provider    TEXT    NOT NULL CHECK (provider <> ''),
 			model       TEXT    NOT NULL CHECK (model <> ''),
+			reasoning_effort TEXT NOT NULL DEFAULT '',
 			favorite    INTEGER NOT NULL DEFAULT 0,
 			isolated    INTEGER NOT NULL DEFAULT 0,
 			revision    INTEGER NOT NULL DEFAULT 1
@@ -165,6 +166,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			outcome            TEXT    NOT NULL DEFAULT '',
 			provider           TEXT    NOT NULL DEFAULT '',
 			model              TEXT    NOT NULL DEFAULT '',
+			reasoning_effort   TEXT    NOT NULL DEFAULT '',
 			goal_incarnation_id      TEXT    NOT NULL DEFAULT '',
 			detail             TEXT    NOT NULL DEFAULT '',
 			steps              INTEGER NOT NULL DEFAULT 0,
@@ -447,6 +449,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			reason_detail TEXT    NOT NULL DEFAULT '',
 			provider   TEXT    NOT NULL DEFAULT '',
 			model      TEXT    NOT NULL DEFAULT '',
+			reasoning_effort TEXT NOT NULL DEFAULT '',
 			capabilities TEXT  NOT NULL DEFAULT '',
 			budget     TEXT    NOT NULL,
 			used       TEXT    NOT NULL,
@@ -502,6 +505,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			cwd         TEXT    NOT NULL DEFAULT '',
 			provider    TEXT    NOT NULL DEFAULT '',
 			model       TEXT    NOT NULL DEFAULT '',
+			reasoning_effort TEXT NOT NULL DEFAULT '',
 			cron        TEXT    NOT NULL,
 			enabled     INTEGER NOT NULL DEFAULT 1,
 			last_run_at INTEGER NOT NULL DEFAULT 0,
@@ -519,6 +523,7 @@ func installCurrentSchema(ctx context.Context, db *sql.DB, path string) error {
 			cwd         TEXT    NOT NULL DEFAULT '',
 			provider    TEXT    NOT NULL DEFAULT '',
 			model       TEXT    NOT NULL DEFAULT '',
+			reasoning_effort TEXT NOT NULL DEFAULT '',
 			cron        TEXT    NOT NULL,
 			due_at      INTEGER NOT NULL,
 			fired_at    INTEGER NOT NULL,

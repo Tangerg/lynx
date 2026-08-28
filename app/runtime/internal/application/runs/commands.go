@@ -58,10 +58,11 @@ var (
 	// durable executor checkpoint and the application Run must be recovered lost.
 	ErrExecutorStateLost = errors.New("runs: executor state lost")
 
-	ErrInputRequired     = errors.New("runs: input required")
-	ErrUnsupportedMedia  = errors.New("runs: unsupported media")
-	ErrInvalidRunLimit   = errors.New("runs: invalid run limit")
-	ErrInvalidRunOptions = errors.New("runs: invalid run options")
+	ErrInputRequired             = errors.New("runs: input required")
+	ErrUnsupportedMedia          = errors.New("runs: unsupported media")
+	ErrUnsupportedModelSelection = errors.New("runs: unsupported model selection")
+	ErrInvalidRunLimit           = errors.New("runs: invalid run limit")
+	ErrInvalidRunOptions         = errors.New("runs: invalid run options")
 	// ErrInvalidCancellationReason reports a cancellation note that cannot be
 	// represented by the Runtime product contract.
 	ErrInvalidCancellationReason = errors.New("runs: invalid cancellation reason")
@@ -205,14 +206,23 @@ func (s StartCommand) MaterializeInput() (message string, images []*media.Media,
 type ResumeCommand struct {
 	RunID     string
 	Responses []ResumeResponse
-	// Input is optional user content committed with the continuation. It rides the
-	// same opening write-set as the resume itself, so "answered the interrupt" and
-	// "said this as well" cannot come apart.
+	// Input is optional user content whose transcript Item commits with the
+	// continuation opening. Its model-visible Conversation projection follows the
+	// answered Tool result at the first safe model boundary.
 	Input []transcript.ContentBlock
 	// CallerCapabilities is what this request can handle. A resume does not
 	// renegotiate the Run's frozen capabilities; a caller missing any of them is
 	// refused rather than served reduced behavior.
 	CallerCapabilities run.Capabilities
+}
+
+// CommittedUserInput is optional follow-up content whose transcript Item has
+// already committed with a continuation opening. The executor must make it
+// visible after the interrupt answers at the same Strategy boundary, append it
+// to Conversation once, and never project a second transcript Item.
+type CommittedUserInput struct {
+	ItemID  string
+	Content []transcript.ContentBlock
 }
 
 type ResumeResponseKind string
@@ -396,6 +406,9 @@ func validateOptions(options *corechat.Options) error {
 	}
 	if options.Model != "" {
 		return fmt.Errorf("%w: Options.Model must stay empty; use Provider and Model", ErrInvalidRunOptions)
+	}
+	if options.ReasoningEffort != "" {
+		return fmt.Errorf("%w: Options.ReasoningEffort must stay empty; use ModelSelection", ErrInvalidRunOptions)
 	}
 	return nil
 }

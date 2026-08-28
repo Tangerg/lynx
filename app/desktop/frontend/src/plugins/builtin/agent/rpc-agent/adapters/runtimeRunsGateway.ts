@@ -49,7 +49,11 @@ class DefaultRuntimeRunsGateway implements RuntimeRunsGateway {
       signal,
     );
     return {
-      result: { runId: asRunId(result.runId), segmentId: asSegmentId(result.segmentId) },
+      result: {
+        runId: asRunId(result.runId),
+        segmentId: asSegmentId(result.segmentId),
+        ...(result.userItemId ? { userItemId: asItemId(result.userItemId) } : {}),
+      },
       events,
     };
   }

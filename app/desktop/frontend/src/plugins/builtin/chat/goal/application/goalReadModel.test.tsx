@@ -23,6 +23,7 @@ const state = (objective: string): GoalState => ({
     used: { runs: 0, costUsd: 0, steps: 0 },
     provider: "openai",
     model: "gpt-5",
+    reasoningEffort: "high",
     createdAt: "2026-08-18T00:00:00Z",
     updatedAt: "2026-08-18T00:00:00Z",
   },

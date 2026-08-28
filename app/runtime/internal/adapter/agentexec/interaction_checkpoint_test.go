@@ -25,7 +25,7 @@ func TestInteractionPendingSteersRoundTripCanonicalContent(t *testing.T) {
 		}}},
 		secondID: {content: []transcript.ContentBlock{{
 			Kind: transcript.TextContent, Text: "revise",
-		}}},
+		}}, projectedItemID: "item_followup"},
 	}
 	wire, err := encodeInteractionPendingSteers(pending)
 	if err != nil {
@@ -88,7 +88,7 @@ func TestDecodeInteractionPendingSteersRejectsNoncanonicalWire(t *testing.T) {
 }
 
 func TestDecodeInteractionCheckpointRejectsPreviousSchema(t *testing.T) {
-	if _, err := decodeInteractionCheckpointPayload([]byte(`{"schema_version":3}`)); err == nil {
+	if _, err := decodeInteractionCheckpointPayload([]byte(`{"schema_version":4}`)); err == nil {
 		t.Fatal("decode accepted previous checkpoint schema")
 	}
 }

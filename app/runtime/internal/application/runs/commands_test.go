@@ -45,14 +45,16 @@ func TestStartExecutionValidateDelegatesCoreOptions(t *testing.T) {
 func TestStartExecutionValidateKeepsModelSelectionOutsideOptions(t *testing.T) {
 	t.Parallel()
 
-	err := (RootExecutionStart{
-		Message: "hello",
-		Options: &corechat.Options{
-			Model: "model-inside-options",
-		},
-	}).Validate()
-	if !errors.Is(err, ErrInvalidRunOptions) {
-		t.Fatalf("Validate() error = %v, want ErrInvalidRunOptions", err)
+	for name, options := range map[string]corechat.Options{
+		"model":            {Model: "model-inside-options"},
+		"reasoning effort": {ReasoningEffort: "high"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			err := (RootExecutionStart{Message: "hello", Options: &options}).Validate()
+			if !errors.Is(err, ErrInvalidRunOptions) {
+				t.Fatalf("Validate() error = %v, want ErrInvalidRunOptions", err)
+			}
+		})
 	}
 }
 

@@ -31,7 +31,7 @@ func TestDesktopWindowGeometry(t *testing.T) {
 }
 
 // The one assertion that replaced a file. The compact toolbar style is what pins the
-// titlebar at 40pt, and 40pt is what puts the platform's marks on the centre line of the
+// titlebar at 40pt, and 40pt is what puts the platform's marks on the center line of the
 // app's 42pt header; the automatic style resolves to 66pt and drops them 26pt down, well
 // below any header. It used to be set from Objective-C after the window existed, because
 // v2 had no option for it — so nothing could assert it. Here it is a value.

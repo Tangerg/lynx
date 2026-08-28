@@ -143,7 +143,8 @@ func TestGoalStore_RoundTrip(t *testing.T) {
 		ChildRuns:      true,
 		InterruptKinds: []interrupt.Kind{interrupt.Approval, interrupt.Question},
 	}
-	g, err := goal.New(sess, "ship the feature", testModelSelection(t, "anthropic", "claude"), goal.Budget{MaxRuns: 5, MaxCostUSD: 2.5}, wantCapabilities, "lease-round-trip", now)
+	selection := testReasoningSelection(t, "anthropic", "claude", "high")
+	g, err := goal.New(sess, "ship the feature", selection, goal.Budget{MaxRuns: 5, MaxCostUSD: 2.5}, wantCapabilities, "lease-round-trip", now)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -160,6 +161,7 @@ func TestGoalStore_RoundTrip(t *testing.T) {
 		got.Budget.MaxRuns != 5 || got.Budget.MaxCostUSD != 2.5 ||
 		got.Used.Runs != 1 || got.Used.CostUSD != 0.4 || got.Used.Steps != 3 ||
 		got.ModelSelection.Provider() != "anthropic" || got.ModelSelection.Model() != "claude" ||
+		got.ModelSelection.ReasoningEffort() != "high" ||
 		!got.Capabilities.Equal(wantCapabilities) {
 		t.Fatalf("round-trip mismatch: %+v", got)
 	}
@@ -168,11 +170,11 @@ func TestGoalStore_RoundTrip(t *testing.T) {
 	}
 }
 
-func testModelSelection(t testing.TB, provider, model string) modelref.Selection {
+func testReasoningSelection(t testing.TB, provider, model, effort string) modelref.Selection {
 	t.Helper()
-	selection, err := modelref.New(provider, model)
+	selection, err := modelref.NewWithReasoningEffort(provider, model, effort)
 	if err != nil {
-		t.Fatalf("modelref.New(%q, %q): %v", provider, model, err)
+		t.Fatalf("modelref.NewWithReasoningEffort(%q, %q, %q): %v", provider, model, effort, err)
 	}
 	return selection
 }

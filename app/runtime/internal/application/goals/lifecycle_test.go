@@ -8,11 +8,13 @@ import (
 	"time"
 
 	"github.com/Tangerg/scope/app/runtime/internal/application/runs"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 )
 
 type alreadyTerminalRuns struct{}
 
 func (alreadyTerminalRuns) WaitSessionStartable(context.Context, string) error { return nil }
+func (alreadyTerminalRuns) AdmitSelection(modelref.Selection) error            { return nil }
 func (alreadyTerminalRuns) Start(context.Context, runs.StartCommand) (runs.StartResult, error) {
 	return runs.StartResult{}, nil
 }

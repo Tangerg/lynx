@@ -7,6 +7,7 @@ import { t } from "@/lib/i18n";
 import { discardOlderVersions } from "@/lib/persistedStore";
 import { notifyError } from "@/plugins/sdk";
 import type { ComposerImage, PastedText } from "../domain/draft";
+import type { ComposerModelPreference } from "../application/ports/state";
 import {
   emptyComposerDraft,
   loadComposerDraft,
@@ -36,12 +37,11 @@ interface ComposerState {
   value: string;
   images: ComposerImage[];
   pastes: PastedText[];
-  // provider/model are a GLOBAL in-process preference — an explicit pick
+  // modelPreference is a GLOBAL in-process preference — an explicit pick
   // carries across sessions (it's not per-conversation work), so they stay
   // top-level and unmirrored. On a cold start the active durable Session owns
   // the fallback; the catalog owns it only on the no-session welcome surface.
-  provider: string | null;
-  model: string | null;
+  modelPreference: ComposerModelPreference;
   /** Per-session draft archive, keyed by sessionId ("" = the no-session scratch
    *  draft on the welcome screen). */
   drafts: ComposerDraftArchive;
@@ -61,7 +61,7 @@ interface ComposerState {
 
 interface ComposerActions {
   setValue: (v: string) => void;
-  setModel: (provider: string | null, model: string | null) => void;
+  setModel: (preference: ComposerModelPreference) => void;
   /** Wipe the active session's text + every staged image (one call per submit). */
   clear: () => void;
   /** Stage one or more already-decoded images (ids auto-assigned). */
@@ -111,8 +111,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
         value: "",
         images: [],
         pastes: [],
-        provider: null,
-        model: null,
+        modelPreference: { kind: "session" },
         drafts: {},
         activeSid: "",
         history: {},
@@ -120,7 +119,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
         histDraft: "",
         // Editing (and clearing) exits history-recall mode (histIndex: -1).
         setValue: (value) => set((s) => ({ ...mirrorComposerDraft(s, { value }), histIndex: -1 })),
-        setModel: (provider, model) => set({ provider, model }),
+        setModel: (modelPreference) => set({ modelPreference }),
         clear: () => {
           stagingGen++;
           set((s) => ({ ...mirrorComposerDraft(s, emptyComposerDraft()), histIndex: -1 }));
@@ -206,7 +205,7 @@ export const useComposerStore = create<ComposerState & ComposerActions>()(
       storage: createJSONStorage(() => localStorage),
       version: 1,
       migrate: discardOlderVersions,
-      // Persist text-only drafts. value/images/provider/model are NOT persisted:
+      // Persist text-only drafts. value/images/modelPreference are NOT persisted:
       // value/images rehydrate from drafts via the cold-start loadSession below,
       // images are transient; model fallback comes from the active Session.
       partialize: (s) => ({ drafts: persistedComposerDrafts(s.drafts) }),

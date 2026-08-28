@@ -47,21 +47,6 @@ export function selectCurrentRootRun(view: AgentSessionView): AgentRunView | nul
   return latestOpen ?? latest;
 }
 
-/**
- * The Session's last authoritative prompt footprint. A newly opened root Run
- * inherits nothing into its own facts, but it also must not blank the Context
- * gauge before its first model response: walk root history newest-first and use
- * the first footprint Runtime actually reported.
- */
-export function selectSessionContextTokens(view: AgentSessionView): number | null {
-  const roots = selectRootRuns(view);
-  for (let index = roots.length - 1; index >= 0; index -= 1) {
-    const contextTokens = roots[index]!.progress?.contextTokens;
-    if (contextTokens !== undefined && contextTokens > 0) return contextTokens;
-  }
-  return null;
-}
-
 export function selectCurrentRootAttention(view: AgentSessionView): AgentRootAttention {
   const root = selectCurrentRootRun(view);
   return root ? { status: root.status, runId: root.id } : { status: "idle", runId: null };

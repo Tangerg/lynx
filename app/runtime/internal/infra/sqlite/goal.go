@@ -41,7 +41,7 @@ type goalUsed struct {
 // Get returns the session's goal, or (zero, false, nil) when it has none.
 func (g *GoalStore) Get(ctx context.Context, sessionID string) (goal.Goal, bool, error) {
 	row := conn(ctx, g.db).QueryRowContext(ctx,
-		`SELECT session_id, objective, status, reason_code, reason_detail, provider, model, capabilities, budget, used, incarnation_id, revision, created_at, updated_at
+		`SELECT session_id, objective, status, reason_code, reason_detail, provider, model, reasoning_effort, capabilities, budget, used, incarnation_id, revision, created_at, updated_at
 		 FROM goals WHERE session_id = ?`, sessionID)
 	loaded, err := scanGoal(row)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -85,10 +85,10 @@ func (g *GoalStore) Save(ctx context.Context, record goal.Goal, expected goal.Ve
 	}
 	if expected == (goal.Version{}) {
 		res, execContextErr := conn(ctx, g.db).ExecContext(ctx,
-			`INSERT INTO goals(session_id, objective, status, reason_code, reason_detail, provider, model, capabilities, budget, used, incarnation_id, revision, created_at, updated_at)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			`INSERT INTO goals(session_id, objective, status, reason_code, reason_detail, provider, model, reasoning_effort, capabilities, budget, used, incarnation_id, revision, created_at, updated_at)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 			 ON CONFLICT(session_id) DO NOTHING`,
-			record.SessionID, record.Objective, string(record.Status), string(record.Reason.Code), record.Reason.Detail, record.ModelSelection.Provider(), record.ModelSelection.Model(),
+			record.SessionID, record.Objective, string(record.Status), string(record.Reason.Code), record.Reason.Detail, record.ModelSelection.Provider(), record.ModelSelection.Model(), record.ModelSelection.ReasoningEffort(),
 			capabilities, string(budget), string(used), record.IncarnationID, record.Revision, record.CreatedAt.UTC().UnixNano(), record.UpdatedAt.UTC().UnixNano())
 		if execContextErr != nil {
 			return goal.Goal{}, false, fmt.Errorf("sqlite: insert goal: %w", execContextErr)
@@ -100,9 +100,9 @@ func (g *GoalStore) Save(ctx context.Context, record goal.Goal, expected goal.Ve
 		return record, true, nil
 	}
 	res, err := conn(ctx, g.db).ExecContext(ctx,
-		`UPDATE goals SET objective = ?, status = ?, reason_code = ?, reason_detail = ?, provider = ?, model = ?, capabilities = ?, budget = ?, used = ?, incarnation_id = ?, revision = ?, created_at = ?, updated_at = ?
+		`UPDATE goals SET objective = ?, status = ?, reason_code = ?, reason_detail = ?, provider = ?, model = ?, reasoning_effort = ?, capabilities = ?, budget = ?, used = ?, incarnation_id = ?, revision = ?, created_at = ?, updated_at = ?
 		 WHERE session_id = ? AND incarnation_id = ? AND revision = ?`,
-		record.Objective, string(record.Status), string(record.Reason.Code), record.Reason.Detail, record.ModelSelection.Provider(), record.ModelSelection.Model(),
+		record.Objective, string(record.Status), string(record.Reason.Code), record.Reason.Detail, record.ModelSelection.Provider(), record.ModelSelection.Model(), record.ModelSelection.ReasoningEffort(),
 		capabilities, string(budget), string(used), record.IncarnationID, record.Revision, record.CreatedAt.UTC().UnixNano(), record.UpdatedAt.UTC().UnixNano(),
 		record.SessionID, expected.IncarnationID, expected.Revision)
 	if err != nil {
@@ -221,7 +221,7 @@ func (g *GoalStore) ClearIf(ctx context.Context, sessionID string, expected goal
 // List returns every stored goal (for the boot reconcile).
 func (g *GoalStore) List(ctx context.Context) ([]goal.Goal, error) {
 	rows, err := conn(ctx, g.db).QueryContext(ctx,
-		`SELECT session_id, objective, status, reason_code, reason_detail, provider, model, capabilities, budget, used, incarnation_id, revision, created_at, updated_at FROM goals`)
+		`SELECT session_id, objective, status, reason_code, reason_detail, provider, model, reasoning_effort, capabilities, budget, used, incarnation_id, revision, created_at, updated_at FROM goals`)
 	if err != nil {
 		return nil, fmt.Errorf("sqlite: list goals: %w", err)
 	}
@@ -245,21 +245,21 @@ func (g *GoalStore) List(ctx context.Context) ([]goal.Goal, error) {
 // *sql.Row (Get) and *sql.Rows (List) alike.
 func scanGoal(row scanRow) (goal.Goal, error) {
 	var (
-		g                    goal.Goal
-		status               string
-		reasonCode           string
-		provider, model      string
-		capabilitiesJSON     string
-		budgetJSON, usedJSON string
-		createdAt, updatedAt int64
+		g                                goal.Goal
+		status                           string
+		reasonCode                       string
+		provider, model, reasoningEffort string
+		capabilitiesJSON                 string
+		budgetJSON, usedJSON             string
+		createdAt, updatedAt             int64
 	)
-	if err := row.Scan(&g.SessionID, &g.Objective, &status, &reasonCode, &g.Reason.Detail, &provider, &model, &capabilitiesJSON, &budgetJSON, &usedJSON, &g.IncarnationID, &g.Revision, &createdAt, &updatedAt); err != nil {
+	if err := row.Scan(&g.SessionID, &g.Objective, &status, &reasonCode, &g.Reason.Detail, &provider, &model, &reasoningEffort, &capabilitiesJSON, &budgetJSON, &usedJSON, &g.IncarnationID, &g.Revision, &createdAt, &updatedAt); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return goal.Goal{}, err
 		}
 		return goal.Goal{}, fmt.Errorf("sqlite: scan goal: %w", err)
 	}
-	selection, err := modelref.New(provider, model)
+	selection, err := modelref.NewWithReasoningEffort(provider, model, reasoningEffort)
 	if err != nil {
 		return goal.Goal{}, fmt.Errorf("sqlite: decode goal model selection: %w", err)
 	}

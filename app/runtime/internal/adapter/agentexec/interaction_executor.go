@@ -265,7 +265,7 @@ func (i *InteractionExecutor) StageRoot(
 		return runs.ExecutorRef{}, err
 	}
 	input, err := agent.EncodeInput(interaction.Input{
-		Messages: cloneChatMessages(start.WorkingContext), Options: clonedOptions(start.Options),
+		Messages: cloneChatMessages(start.WorkingContext), Options: executionOptions(start.ModelSelection, start.Options),
 	})
 	if err != nil {
 		_ = session.engine.Close()
@@ -741,6 +741,7 @@ func (i *InteractionExecutor) BeginContinuation(
 	ctx context.Context,
 	ref runs.ExecutorRef,
 	answers []runs.InterruptAnswer,
+	input *runs.CommittedUserInput,
 	allowedInterrupts []interrupt.Kind,
 ) error {
 	session, err := i.session(ref)
@@ -758,10 +759,14 @@ func (i *InteractionExecutor) BeginContinuation(
 	if err != nil {
 		return err
 	}
+	committedInput, err := session.prepareCommittedContinuationInput(input)
+	if err != nil {
+		return err
+	}
 	// The previous Agent Process lifetime includes the human wait. Reset the
 	// i's Segment clock before any answer can make that Process runnable.
 	session.segmentClock.start()
-	if err := session.deliverContinuationAnswers(ctx, prepared); err != nil {
+	if err := session.deliverContinuationAnswers(ctx, prepared, committedInput); err != nil {
 		return err
 	}
 	if err := session.resumePausedProcesses(ctx, paused); err != nil {
@@ -774,6 +779,14 @@ func (i *InteractionExecutor) BeginContinuation(
 type preparedInteractionAnswer struct {
 	process *agent.Process
 	signal  agent.SignalRequest
+}
+
+type preparedCommittedInteractionInput struct {
+	process  *agent.Process
+	signalID agent.SignalID
+	signal   agent.SignalRequest
+	itemID   string
+	content  []transcript.ContentBlock
 }
 
 func (i *interactionSession) prepareContinuationAnswers(
@@ -845,11 +858,35 @@ func (i *interactionSession) prepareContinuationAnswers(
 func (i *interactionSession) deliverContinuationAnswers(
 	ctx context.Context,
 	answers []preparedInteractionAnswer,
+	input *preparedCommittedInteractionInput,
 ) error {
+	deliveryContext := runExecutionContext(ctx, i.scope, i.start)
+	inputDelivered := false
+	if input != nil {
+		i.state.mu.Lock()
+		if _, exists := i.state.pendingSteers[input.signalID]; exists {
+			i.state.mu.Unlock()
+			return errors.New("agentexec: committed continuation input Signal is already pending")
+		}
+		i.state.pendingSteers[input.signalID] = pendingInteractionSteer{
+			content: transcript.CloneContent(input.content), projectedItemID: input.itemID,
+		}
+		i.state.mu.Unlock()
+		defer func() {
+			if !inputDelivered {
+				i.removePendingSteer(input.signalID)
+			}
+		}()
+	}
 	for _, answer := range answers {
-		accepted, err := answer.process.DeliverSignal(
-			runExecutionContext(ctx, i.scope, i.start), answer.signal,
-		)
+		var accepted bool
+		var err error
+		if input != nil && answer.process == input.process {
+			accepted, err = answer.process.DeliverSignals(deliveryContext, answer.signal, input.signal)
+			inputDelivered = accepted
+		} else {
+			accepted, err = answer.process.DeliverSignal(deliveryContext, answer.signal)
+		}
 		if err != nil {
 			return fmt.Errorf("agentexec: deliver Interaction answer Signal: %w", err)
 		}
@@ -857,7 +894,48 @@ func (i *interactionSession) deliverContinuationAnswers(
 			return errors.New("agentexec: Interaction answer Signal was already accepted")
 		}
 	}
+	if input != nil && !inputDelivered {
+		accepted, err := input.process.DeliverSignal(deliveryContext, input.signal)
+		if err != nil {
+			return fmt.Errorf("agentexec: deliver committed continuation input Signal: %w", err)
+		}
+		if !accepted {
+			return errors.New("agentexec: committed continuation input Signal was already accepted")
+		}
+		inputDelivered = true
+	}
 	return nil
+}
+
+func (i *interactionSession) prepareCommittedContinuationInput(
+	input *runs.CommittedUserInput,
+) (*preparedCommittedInteractionInput, error) {
+	if input == nil {
+		return nil, nil
+	}
+	if strings.TrimSpace(input.ItemID) == "" || input.ItemID != strings.TrimSpace(input.ItemID) {
+		return nil, errors.New("agentexec: committed continuation input Item identity is invalid")
+	}
+	message, err := runs.MaterializeUserMessage(input.Content)
+	if err != nil {
+		return nil, fmt.Errorf("agentexec: materialize committed continuation input: %w", err)
+	}
+	signalID, err := interactionCommittedInputSignalID(input.ItemID)
+	if err != nil {
+		return nil, err
+	}
+	signal, err := interaction.NewSteerSignal(signalID, message)
+	if err != nil {
+		return nil, fmt.Errorf("agentexec: construct committed continuation input Signal: %w", err)
+	}
+	process := i.state.processHandle()
+	if process == nil {
+		return nil, runs.ErrExecutorNotLive
+	}
+	return &preparedCommittedInteractionInput{
+		process: process, signalID: signalID, signal: signal, itemID: input.ItemID,
+		content: transcript.CloneContent(input.Content),
+	}, nil
 }
 
 // SubmitSteer queues one user message for the next Interaction safe boundary.
@@ -894,6 +972,13 @@ func interactionAnswerSignalID(
 	return agent.ParseSignalID("answer:" + hex.EncodeToString(digest.Sum(nil)))
 }
 
+const interactionCommittedInputSignalDomain = "continuation-input:"
+
+func interactionCommittedInputSignalID(itemID string) (agent.SignalID, error) {
+	digest := sha256.Sum256([]byte(itemID))
+	return agent.ParseSignalID(interactionCommittedInputSignalDomain + hex.EncodeToString(digest[:]))
+}
+
 func rootExecutionScope(start runs.RootExecutionStart) runs.ExecutionScope {
 	return runs.ExecutionScope{
 		SessionID: start.SessionID, CWD: start.CWD, WorkspaceCWD: start.WorkspaceCWD,
@@ -910,7 +995,9 @@ func runExecutionContext(
 		ChildRuns:      start.ChildRunAdmissionEnabled,
 		InterruptKinds: slices.Clone(start.InterruptKinds),
 	}.Normalized()
-	return executionctx.WithRunCapabilities(executionctx.WithScope(ctx, scope), capabilities)
+	ctx = executionctx.WithScope(ctx, scope)
+	ctx = executionctx.WithRunCapabilities(ctx, capabilities)
+	return executionctx.WithModelSelection(ctx, start.ModelSelection)
 }
 
 // Release tears down one staged or terminal per-root Engine. It is idempotent
@@ -1037,6 +1124,12 @@ func clonedOptions(options *corechat.Options) corechat.Options {
 		return corechat.Options{}
 	}
 	return options.Clone()
+}
+
+func executionOptions(selection modelref.Selection, options *corechat.Options) corechat.Options {
+	cloned := clonedOptions(options)
+	cloned.ReasoningEffort = corechat.ReasoningEffort(selection.ReasoningEffort())
+	return cloned
 }
 
 var (

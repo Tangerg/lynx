@@ -45,16 +45,18 @@ P192 不改变 Runtime Protocol、Artifact v23、SQLite epoch 83、Desktop bindi
 
 P193 不改变 Runtime Protocol、Artifact v23、SQLite epoch 83、Desktop binding、Agent Framework release、checkpoint schema v4或CLI。Runtime internal model-limit边界一次性收敛为immutable `modelref.TokenLimits`，把provider独立发布的context window、max input与max output事实映射到同一值对象；显式`runs.start.params.maxTokens`必须在durable Run admission前满足selected catalog model的output上限，并从总context中保留对应generation空间。catalog未知的私有兼容model仍允许通过，未显式设置output ceiling时不猜provider默认值。provider usage为零表示缺失，不产生虚构校准；负值、溢出与其他非法usage继续由既有`chat.Response`校验拒绝，正值仍是同一Process下一次调用的唯一校准事实。
 
+P196 将模型选择从 exact provider/model pair 一次性扩展为 exact provider/model + 可选、model-owned `reasoningEffort`。Session 是可编辑默认的唯一 durable owner；Run 在 opening 时冻结自己的选择，Goal 与 Schedule 同样冻结完整选择，恢复、fork、occurrence、interrupt、checkpoint 与 Artifact 不得丢失该事实。仅修改 effort 保留 identity；显式切换 provider/model 而未同时给 effort 时清空旧 effort，禁止把上一模型的等级泄漏给新模型。已知 catalog model 在任何 durable write/staging 前校验 effort 是否属于其精确等级集合；catalog miss 的私有模型继续允许。`runs.resume` 的可选 `input` 与已接受 HITL responses 在同一 continuation opening 中提交：answer claim、用户 Item、checkpoint removal 与 next Segment 只有一个 durable winner；Agent 在同一 safe boundary 先结算 answer Tool result、再应用 input steer，Conversation 按同一合法 `tool → user` 顺序各追加一次，已由 opening 创建的 exact Item 不得重复投影。Artifact 前移到 v24、SQLite 前移到 epoch 84、executor-owned Interaction checkpoint envelope 前移到 private schema v5；旧 shape 全部确定性拒绝，不双读、不迁移。Desktop 直接消费 catalog 的 context/input/output limits、reasoning/default/levels、modalities、tool use 与 structured-output 事实；Composer 控件写回同一选择，active Run 的 Context gauge 使用该 Run 冻结的选择，不被 Session 后续默认修改污染。CLI/TUI 不变。
+
 ## 2. Runtime Protocol Baseline 2
 
 机器真相源位于 [`../contract`](../contract)：
 
 | 制品 | SHA-256 |
 |---|---|
-| `contract/manifest.json` | `5b533aff6081876805f60035ed603b34ba9dc93fc04c42c1b91486726f63f0f6` |
-| `contract/openrpc.json` | `6aac79ba0c991f8574bfd30d37f6a8fccb850951bde80076eeb1477e9a0d1413` |
-| `contract/schema.json` | `516210a8095029d787b31d6bda50b98a2a80c1211c678957483364815912c6be` |
-| `contract/go-api.json` | `6c7da682d772ea661861d5a0fc59cb76e65484fad319539d29b19107030cbd88` |
+| `contract/manifest.json` | `30918e3265162772af307e56eff2ec3b83241d1fba83739272d6f396adbf073a` |
+| `contract/openrpc.json` | `3af6c440fa61e406a715d17c49bd1c3fff5ed29540b13e2521569a22e14ad6fc` |
+| `contract/schema.json` | `50edd5a8c7a5548387d0c0349a37a4af25f275dd8a7c78ba77568fb219db6737` |
+| `contract/go-api.json` | `6d5034c2002cf6ea5b185c76fb28c02e543ece98a7e9a9c4e37003979d78a74b` |
 
 TypeScript generated files 是派生制品，不单独定义语义。它们必须由同一个 contract generator 产生且 diff-free；当前前端/TUI/CLI 是否已经消费最新 shape，由 P10/P12 的 consumer handoff 记录，不通过兼容字段掩盖。
 
@@ -68,7 +70,7 @@ TypeScript generated files 是派生制品，不单独定义语义。它们必�
 
 本文件不复制 method、field、error 或 example catalog。
 
-当前协议版本为精确值 `2026-08-28`，Artifact 为 v23，不存在兼容范围或旧归档 reader。Session 在 Domain、SQLite、Protocol 与生成消费者上只发布 exact provider/model selection；省略 Run selection 时读取该 durable pair，不按 model id 推断 provider。Session workspace 在 Domain 中是 exact value，SQLite 只保存 `workspace_path`；Protocol/Artifact 既有 `WorkspaceRef` shape 不因内部 owner 收敛虚增版本。RunEvent 只有七个 Runtime 实际生产的一等变体，Interrupt/response 只有 approval 与 question；没有 custom 旁路、clientTools feature 或 toolResult interrupt。Plan 是一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan` 合同，不再经过通用 state registry、key、scope/writer metadata 或 `states[]` union。Feature 与 Method 合同只发布能改变协商或消费决策的事实，不携带恒为 `stable` 的 stability 标签；method policy 同时发布 idempotency 与 run replay cursor applicability，只有 `runs.start`、`runs.resume`、`runs.subscribe` 接受 run cursor。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
+当前协议版本为精确值 `2026-08-28`，Artifact 为 v24，不存在兼容范围或旧归档 reader。Session 在 Domain、SQLite、Protocol 与生成消费者上只发布 exact provider/model/reasoning selection；省略 Run selection 时读取该 durable selection，不按 model id 推断 provider，也不从上一模型继承 reasoning effort。Session workspace 在 Domain 中是 exact value，SQLite 只保存 `workspace_path`；Protocol/Artifact 既有 `WorkspaceRef` shape 不因内部 owner 收敛虚增版本。RunEvent 只有七个 Runtime 实际生产的一等变体，Interrupt/response 只有 approval 与 question；没有 custom 旁路、clientTools feature 或 toolResult interrupt。Plan 是一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan` 合同，不再经过通用 state registry、key、scope/writer metadata 或 `states[]` union。Feature 与 Method 合同只发布能改变协商或消费决策的事实，不携带恒为 `stable` 的 stability 标签；method policy 同时发布 idempotency 与 run replay cursor applicability，只有 `runs.start`、`runs.resume`、`runs.subscribe` 接受 run cursor。唯一 replay scope 是 `runtimeInstanceRootSegment`：它准确表达一个 Runtime instance 内的一条 root Segment replay buffer；旧 `processRootSegment` 已直接删除。消费者 breaking surface 与未接线事实由 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md) 唯一记录。
 
 P153 直接删除 Codebase semantic-index contract：公共 Go surface、三项 operation、feature、runtime topic、DTO/enum/sample 及 Desktop/CLI direct consumer 同批消失；不存在旧同日 Protocol shape reader、disabled capability 或 compatibility binding。当前 manifest 精确发布 86 个 methods、17 个 features 与 15 个 runtime topics。Embedding role 仍是 Agent Memory 的可选配置，不是被删除能力的残留别名。
 
@@ -158,7 +160,7 @@ identity 后才读写，域内 symlink 的 alias 本身保持不变；跨进程 
 
 ### 3.1 SQLite
 
-- 当前 `schemaEpoch = 83`；
+- 当前 `schemaEpoch = 84`；Session、Run、Goal、Schedule 与 Schedule occurrence 各自持久化严格解码的 `reasoning_effort`，不允许 identity/effort 分裂或旧 epoch 迁移；
 - P183 将 Runtime 稳定领域枚举直接持久化为其命名文本，并把 `session_permission_modes.mode/restore_mode` 从 INTEGER 改为 TEXT；旧 ordinal/数字字符串与新领域值不兼容，故一次性提升 epoch，不迁移、不双读、不保留 codec 映射表；
 - P184 把 operation 注册/typed invocation 的 Go 1.27 泛型行为归还 `Registry` / `Endpoint`，让就近声明的 `operation.Name` 成为注册与 embedded binding 共用的唯一 method identity，并收紧 Hook verdict 与 Tool mutation scope 的 internal zero-value 边界；不改变 Protocol method text、Artifact 或 SQLite shape；
 - P185 迁移到 Agent Baseline 31 的 `SchemaFor` owner并整体升级 Runtime/Desktop/Frontend 依赖图；不改变 Protocol method text、Artifact、SQLite、checkpoint 或公共 Go surface；
@@ -200,7 +202,7 @@ P7 延续的 continuation payload baseline 是 Agent Framework TreeSnapshot v4 �
 
 ### 3.3 Artifact 与 Transcript
 
-Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。Session Artifact 当前唯一版本为 23；其他版本在任何写入前确定性拒绝，不从旧 artifact 猜测缺失事实或改写版本号。Artifact 以显式 `plan` steps 携带 Plan 语义，并以必填 provider/model pair 保存 Session 的精确模型身份；它不携带源 Runtime 的 revision/timestamp。Artifact Run 保留最新权威 prompt footprint，因此导入前后 Context gauge 的事实一致。AgentMessage 的 `phase` 是 Runtime 在模型调用边界写入的过程说明 / 最终回答语义，并随 Transcript、Artifact 与客户端恢复保持一致。Question Item 的 `answers` 是唯一已接受响应；未回答或取消保持字段缺失，claim 成功时与 pending/checkpoint 变更同事务写入 Transcript。ToolCall 的 `approvalDecision` 是该调用实际接受的人类决定，和 Pending consume/checkpoint invalidation/commit receipt 同事务写入，并随续跑终态与 artifact 保留；自动放行不伪造。ToolCall lifecycle 与可选 exact execution duration 是两个事实：后者排除审批等待，无法证明时保持 unknown。Tool failure taxonomy 将工具所属 Run 的取消导致的在途终止表示为 `toolCanceled`，不与执行失败、审批拒绝或父 Run 上的 `childRunCanceled` 合并。
+Artifact、Transcript Item 和 ToolCall timing 的当前机器 shape 仍由 Runtime contract/store codec 拥有。Session Artifact 当前唯一版本为 24；其他版本在任何写入前确定性拒绝，不从旧 artifact 猜测缺失事实或改写版本号。Artifact 以显式 `plan` steps 携带 Plan 语义，并以必填 provider/model 与可选 `reasoningEffort` 保存 Session 的精确模型选择；每条 Artifact Run 也保存自己的 frozen exact selection。它不携带源 Runtime 的 revision/timestamp。Artifact Run 保留最新权威 prompt footprint，因此导入前后 Context gauge 的事实一致。AgentMessage 的 `phase` 是 Runtime 在模型调用边界写入的过程说明 / 最终回答语义，并随 Transcript、Artifact 与客户端恢复保持一致。Question Item 的 `answers` 是唯一已接受响应；未回答或取消保持字段缺失，claim 成功时与 pending/checkpoint 变更同事务写入 Transcript。ToolCall 的 `approvalDecision` 是该调用实际接受的人类决定，和 Pending consume/checkpoint invalidation/commit receipt 同事务写入，并随续跑终态与 artifact 保留；自动放行不伪造。ToolCall lifecycle 与可选 exact execution duration 是两个事实：后者排除审批等待，无法证明时保持 unknown。Tool failure taxonomy 将工具所属 Run 的取消导致的在途终止表示为 `toolCanceled`，不与执行失败、审批拒绝或父 Run 上的 `childRunCanceled` 合并。
 
 ## 4. Agent Framework 消费 Baseline
 
@@ -219,7 +221,7 @@ P7 的两个前置缺口已经由真实 Runtime consumer 在 Agent Framework 中
 
 `PreparedStepAcknowledger` 仍只回调单 Process Snapshot，Runtime 初版不启用。durable recovery baseline 只有已提交 quiescent complete-tree checkpoint；active-step crash 不伪装为可恢复。
 
-Runtime 的 executor-owned opaque checkpoint envelope 当前 schema 为 v4：除完整 TreeSnapshot、指令上下文、accounting 与 Agent steer Signal identity 到产品消息内容的精确映射外，还保存每个已accounted Process最近一次完整主请求的provider-reported/Runtime-estimated token pair。Application 仍只持有 opaque bytes；Agent Framework 不见 Transcript 内容、token估算策略或 Runtime persistence。旧 envelope 不双读，恢复时确定性 fail closed。
+Runtime 的 executor-owned opaque checkpoint envelope 当前 schema 为 v5：除完整 TreeSnapshot、指令上下文、accounting、exact model/reasoning selection 与 Agent steer Signal identity 到产品消息内容的精确映射外，还保存每个已accounted Process最近一次完整主请求的provider-reported/Runtime-estimated token pair，并为 Resume input 保存已由 opening 创建的 exact projected Item identity；恢复后 Conversation 仍会在安全边界追加一次，但 Transcript 不会重复创建 Item。Application 仍只持有 opaque bytes；Agent Framework 不见 Transcript 内容、token估算策略或 Runtime persistence。旧 envelope 不双读，恢复时确定性 fail closed。
 
 ### 4.1 允许的 import 边界
 

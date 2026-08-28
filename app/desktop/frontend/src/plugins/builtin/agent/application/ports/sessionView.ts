@@ -90,8 +90,6 @@ export interface AgentSessionViewPort {
   /** One exact root Run snapshot. Consumers derive attention, metrics and
    * outcome from this identity instead of independently sampled fragments. */
   useCurrentRootRun(): AgentRunView | null;
-  /** Last authoritative root prompt footprint for the active Session. */
-  useContextTokens(): number | null;
   useToolCalls(): Record<string, ToolCall>;
   useSessionTimeline(): TimelineEntry[];
   useRootNarrativeMessages(): Message[];

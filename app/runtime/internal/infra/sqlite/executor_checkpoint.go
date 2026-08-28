@@ -128,15 +128,16 @@ type executorCapabilitiesWire struct {
 }
 
 type executorPolicyWire struct {
-	SchemaVersion uint16                    `json:"schema_version"`
-	Scope         executorScopeWire         `json:"scope"`
-	Provider      string                    `json:"provider"`
-	Model         string                    `json:"model"`
-	Limits        executorLimitsWire        `json:"limits"`
-	Capabilities  *executorCapabilitiesWire `json:"capabilities"`
+	SchemaVersion   uint16                    `json:"schema_version"`
+	Scope           executorScopeWire         `json:"scope"`
+	Provider        string                    `json:"provider"`
+	Model           string                    `json:"model"`
+	ReasoningEffort string                    `json:"reasoning_effort"`
+	Limits          executorLimitsWire        `json:"limits"`
+	Capabilities    *executorCapabilitiesWire `json:"capabilities"`
 }
 
-const executorPolicySchemaVersion uint16 = 2
+const executorPolicySchemaVersion uint16 = 3
 
 type executorModelUsageWire struct {
 	Model            string  `json:"model"`
@@ -331,8 +332,9 @@ func encodeExecutorPolicy(checkpoint ExecutorCheckpointRecord) ([]byte, error) {
 			Isolated:          checkpoint.Scope.Isolated,
 			GoalIncarnationID: checkpoint.Scope.GoalIncarnationID,
 		},
-		Provider: checkpoint.ModelSelection.Provider(),
-		Model:    checkpoint.ModelSelection.Model(),
+		Provider:        checkpoint.ModelSelection.Provider(),
+		Model:           checkpoint.ModelSelection.Model(),
+		ReasoningEffort: checkpoint.ModelSelection.ReasoningEffort(),
 		Limits: executorLimitsWire{
 			MaxTotalTokens: checkpoint.Limits.MaxTotalTokens,
 			MaxBudgetUSD:   checkpoint.Limits.MaxBudgetUSD,
@@ -404,11 +406,12 @@ func decodeExecutorPolicy(data string) (ExecutorCheckpointRecord, error) {
 	if err := capabilities.Validate(); err != nil {
 		return ExecutorCheckpointRecord{}, err
 	}
-	selection, err := modelref.New(wire.Provider, wire.Model)
+	selection, err := modelref.NewWithReasoningEffort(wire.Provider, wire.Model, wire.ReasoningEffort)
 	if err != nil {
 		return ExecutorCheckpointRecord{}, fmt.Errorf("policy model selection: %w", err)
 	}
-	if wire.Provider != strings.TrimSpace(wire.Provider) || wire.Model != strings.TrimSpace(wire.Model) {
+	if wire.Provider != strings.TrimSpace(wire.Provider) || wire.Model != strings.TrimSpace(wire.Model) ||
+		wire.ReasoningEffort != strings.TrimSpace(wire.ReasoningEffort) {
 		return ExecutorCheckpointRecord{}, errors.New("policy model selection has surrounding whitespace")
 	}
 	return ExecutorCheckpointRecord{

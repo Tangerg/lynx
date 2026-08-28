@@ -62,6 +62,7 @@ describe("Goal status surface", () => {
       used: { runs: 1, costUsd: 0, steps: 2 },
       provider: "openai",
       model: "gpt-5",
+      reasoningEffort: "",
       createdAt: "2026-08-12T08:00:00Z",
       updatedAt: "2026-08-12T08:01:00Z",
     };

@@ -1,6 +1,6 @@
 import { useModels } from "@/plugins/builtin/settings/providers/public/queries";
 import { useActiveSessionId, useAgentSessions } from "@/plugins/builtin/agent/public/session";
-import { resolveComposerModel } from "../application/modelSelection";
+import { resolveComposerModelSelection } from "../application/modelSelection";
 import { useComposerModelPreference } from "./modelPreference";
 
 /** The model the next run will use: composerStore's provider+model pair
@@ -13,7 +13,7 @@ import { useComposerModelPreference } from "./modelPreference";
  *  One home for "which model is selected" so the surfaces that gate on its
  *  exact input modalities — the toolbar attach button and the composer's
  *  paste/drop image staging — can't disagree. */
-export function useSelectedModel() {
+export function useSelectedModelSelection() {
   const { data: models = [] } = useModels();
   const preference = useComposerModelPreference();
   const activeSessionId = useActiveSessionId();
@@ -23,8 +23,18 @@ export function useSelectedModel() {
       ? undefined
       : (() => {
           const session = sessions.find((candidate) => candidate.id === activeSessionId);
-          return session ? { provider: session.provider, model: session.model } : null;
+          return session
+            ? {
+                provider: session.provider,
+                model: session.model,
+                reasoningEffort: session.reasoningEffort,
+              }
+            : null;
         })()
     : null;
-  return resolveComposerModel(models, preference, activeSessionSelection);
+  return resolveComposerModelSelection(models, preference, activeSessionSelection);
+}
+
+export function useSelectedModel() {
+  return useSelectedModelSelection()?.model;
 }

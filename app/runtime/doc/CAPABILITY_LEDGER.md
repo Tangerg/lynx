@@ -13,9 +13,9 @@
 
 - Runtime 是 ScopeApp 的应用后端，同时提供 HTTP Runtime Protocol 与同进程 Go binding。
 - 公共 Go API 仅由 `runtime/protocol`、`runtime/embedded` 和窄部署交接包 `runtime/localruntime` 拥有；内部 exported identifiers 不构成兼容承诺。
-- 当前合同为 Protocol `2026-08-28`、Artifact v23、SQLite epoch 83、Agent Framework Baseline 33（canonical `agent/v0.2.0`）。
+- 当前合同为 Protocol `2026-08-28`、Artifact v24、SQLite epoch 84、Agent Framework Baseline 33（canonical `agent/v0.2.0`）。
 - Runtime/Desktop 只接受当前精确 Protocol 版本；没有上一发行版 baseline、版本范围或兼容 reader。生产协议不再声明无生产者的 `custom` RunEvent、`clientTools` feature 或 `toolResult` interrupt/response variant。
-- Plan 是一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan` 资源；没有通用 state registry、state key/scope/writer metadata、Artifact union 或 Desktop shared-state Plan reader。Artifact v23 只接受当前显式 `plan` shape。
+- Plan 是一等 `plan.updated` / `plan.changed` / `plan.get` / `SessionSnapshot.plan` / `SessionArtifact.plan` 资源；没有通用 state registry、state key/scope/writer metadata、Artifact union 或 Desktop shared-state Plan reader。Artifact v24 只接受当前显式 `plan` shape。
 - Desktop 只加载编译进同一 bundle 的内置插件；Wails Bootstrap 只返回本地 Runtime 连接，不扫描 `~/.scopeapp/plugins`，前端不执行用户目录 JavaScript、不发布 `window.__SCOPEAPP__`，也没有外部 manifest、Host API version、permission whitelist、origin 双态或 lazy-activation placeholder。图片、粘贴和 `@file` 附件仍由 Composer 自己拥有。
 - Runtime 只经 `internal/adapter/agentexec` 消费 Agent Framework public API；Domain、Application、Infra、Delivery 和通用 Toolset 对 Agent Framework 零依赖。
 - 真实产品是一个 Desktop actor 对一个逻辑 Runtime。HTTP、socket、同进程 binding、连接重建和 Runtime 进程重启不改变这个拓扑。SQLite 仍是 durable winner；局部 generation 只决定可替换进程内 owner 的提交权。
@@ -78,7 +78,7 @@
 ### 2.2 Application
 
 - Application use case 组织完整业务纵切、授权、事务输入和提交后的事件发布，不直接解析 Agent Framework private snapshot 或 SQLite shape。
-- Session Application 是 Runtime 默认模型的唯一安装点：fresh/scheduled admission 把 configured provider/model pair 写入聚合；Runs 省略选择时只读 Session pair，不再持有第二份全局默认。
+- Session Application 是 Runtime 默认模型的唯一安装点：fresh/scheduled admission 把 configured provider/model + optional model-owned reasoning effort 写入聚合；Runs 省略选择时只读 Session selection，不再持有第二份全局默认。
 - Session Application 是 workspace admission 的唯一协调点：filesystem port 证明存在性并返回物理 canonical identity，随后构造 Domain `Workspace`；restore/fork/relocation 不绕过同一 exact value。
 - Run pump 是 authoritative model/tool observation 的唯一 reducer owner；外部调用事实只有在完整 write-set 提交后才能替换 live state。
 - fresh autonomous Goal opening 显式区分 model-only control input：opening transaction 原子提交 provider Conversation 而不创建用户 Transcript Item；普通外部 start/resume input 仍同时进入两种投影。
@@ -102,7 +102,7 @@
 ### 3.1 Root execution
 
 - 支持 root Run fresh start、观察、取消、终态和资源释放；durable opening 成功后才激活 Agent Framework Process。
-- Session 永久拥有 exact provider/model selection；显式 Run pair 在 executor staging 成功后随 opening 原子替换，省略 pair 使用 Session durable identity，provider 不从 model id 推断。
+- Session 永久拥有 exact provider/model + optional model-owned reasoning selection；reasoning-only patch 保留 identity，显式切换 pair 未带 effort 时清空旧 effort。显式 Run selection 在 executor staging 成功后随 opening 原子替换 Session 默认并冻结在 Run，省略 selection 使用 Session durable value，provider 不从 model id 推断。
 - model/tool observation 通过单一有序 stream 进入 Application；pre-call failure 禁止外呼，post-call receipt failure 形成 unknown 并由事务证明收敛。
 - checkpoint 由 Application 持有 envelope identity，payload 对其不透明；`adapter/agentexec` 独占 Agent Framework TreeSnapshot v4。
 
@@ -136,7 +136,7 @@
 
 ### 5.1 SQLite
 
-- 当前 schema epoch 83；一个 build 只接受一个精确 epoch，没有 migration chain、dual read 或 compatibility column。
+- 当前 schema epoch 84；一个 build 只接受一个精确 epoch，没有 migration chain、dual read 或 compatibility column。Session/Run/Goal/Schedule/occurrence 的 `reasoning_effort` 由同一个 strict selection codec 恢复。
 - `sessions.workspace_path` 非空；读回时必须重新构造 exact `Workspace`，相对路径或 lexical-unclean row 即使绕过正常 writer 也 fail closed。
 - `agent_memory_items.embedding_space` 与 vector 必须成对为空或成对有效；reader 只恢复有限、4-byte aligned 的 vector。Search 只消费当前 space 且维度匹配的 cache，写入以 item id + content digest + active status 为条件；prior-epoch 裸 vector 不读取。
 - Session/Run/Interrupt/Goal/Transcript/checkpoint 的跨表不变量由事务和 strict reader 校验共同守住。
@@ -200,7 +200,7 @@
 - Session title maintenance 只有 `runsegment.Finalizer` 一个 owner，并只经 Session Application first-writer 持久提交；utility model 缺失、空回复或 provider error 时，opening user text 的首个有效行提供 Unicode-safe、有界 deterministic fallback。provider error 仍进入既有 maintenance telemetry，不以“未命名会话”或 Frontend 第二 writer 吞掉降级事实。
 - Goal、Plan、HITL/审批只呈现当前 projection generation；accepted mutation intent 可在 authoritative projection 追平前保持稳定 busy 反馈，不写第二 cache。
 - Plan 只在 active Run 期间以环形进度和“第 N / M 步”pill 呈现；完整 Session plan 由同一 projection 在 hover/focus tooltip 展开，不复制成 disclosure card、progress bar 或第二 expanded state。Plan 位于 composer overlay，Goal 使用 overlay 中的 attached top tray；空 contribution 不留下固定边线或高度。
-- Composer Context 环把当前 root Run 的 live `segment.progress.contextTokens` 或 durable `RunRef.contextTokens` 与 active Session exact provider/model 对应的 `contextWindow` 配对，按 `min(used, window) / window` 投影占比；只按 model id 命中同名 provider 候选是非法推断。Run progress writer、SQLite durable shape、Artifact v23、Protocol/generated surface 与 mounted Session projection 共同持久化最后一次正值 footprint。Session view 从 root history 选择最新正值，尚无模型响应的 successor 不会抹掉已有证据；终态、renderer reload、Runtime restart 与 Artifact import 均恢复同一读数。缺任一权威事实时不绘制，Session 累计 usage 或客户端估算不参与该读数。触发器是保持原 glyph 光学中心的 28px 可聚焦按钮，hover 与 keyboard focus 共用同一 tooltip。
+- Composer Context 环把当前 root Run 的 live `segment.progress.contextTokens` 或 durable `RunRef.contextTokens` 与该 active Run frozen exact selection 对应的 `contextWindow` 配对；只有 Run material 尚无 selection 时才回落 editable Session selection。按 `min(used, window) / window` 投影占比；只按 model id 命中同名 provider 候选是非法推断。Run progress writer、SQLite durable shape、Artifact v24、Protocol/generated surface 与 mounted Session projection 共同持久化最后一次正值 footprint。Session view 从 root history 选择最新正值，尚无模型响应的 successor 不会抹掉已有证据；终态、renderer reload、Runtime restart 与 Artifact import 均恢复同一读数。缺任一权威事实时不绘制，Session 累计 usage 或客户端估算不参与该读数。触发器是保持原 glyph 光学中心的 28px 可聚焦按钮，hover 与 keyboard focus 共用同一 tooltip。
 - 设置主色的唯一状态 owner 是 appearance preference；preset/custom 控件、`aria-pressed`、document CSS paint 与 localStorage 恢复都消费同一次 mutation。custom theme plugin 对单键 `COLOR_THEME` contribution 持有 exact disposable，更新时先退休旧 contribution 再发布新值，cleanup/HMR 同步退订 listener 并释放 contribution；不得以重复注册、异常吞噬、刷新或第二 theme cache 代替 replacement lifecycle。
 - 标题栏不呈现 Session 累计 token/cost；普通 completed/failed Run 不在最终回答后重复绘制耗时、步数、token、费用或“完成”结算条。canceled/limit 的 quiet reason 与 actionable failure recovery 仍按各自既有 owner 呈现。
 - Composer 的 composition lifecycle 是 Enter 提交判定的唯一 owner：`compositionend` 后保留一次性 commit intent，首个无修饰 `Enter/keyCode=13/isComposing=false` 只结束中文输入法的中英混合文本提交，随后明确 Enter 才发送。active composition、浏览器缺失 `compositionend` 的 plain-input recovery、focus/pointer/paste/drop retirement 与 Mod/Shift shortcut 均消费同一 intent，不使用 timeout、timestamp/UA 猜测、第二 draft 或第二发送入口。
@@ -214,14 +214,14 @@
 - 中栏 Markdown presentation 由一个 renderer owner 统一持有：semantic rich/plain table copy 与展开预览、Shiki code wrap/copy、HTML/SVG fence 隔离、Mermaid、selection copy、matched citation、image-only grouping、message-scoped image gallery、inline/fenced LTR isolation、Han/RTL direction、Codex heading/paragraph/list/task/blockquote/rule rhythm 均消费同一 message material。表格正文固定 14/21px、表头 14/16px、容器零额外块间距；task checkbox 是 list grid 的直接子项，正文统一位于第二列；行内代码使用可换行的 cloned neutral well、0.92em 字号、6px 圆角与 `overflow-wrap:anywhere`。图库在 nearest exact message-content root 内提供全屏 90% 黑色画布、显式关闭、前后/方向键导航、Escape、100–400% 缩放与切图重置，并排除 nested delegated message；代码块使用同材质 14px sans caption、4×8px header、8px source inset，且不设人工高度上限。模型 raw HTML 只允许无属性 basic inline 标签与 `br`；远程图片、style、native disclosure/layout 和属性注入不会成为活动 DOM。上述能力不持久化、不注册全局 owner。
 - KaTeX 样式由既有 Markdown 动态 loader 唯一拥有；构建分块必须把 `katex.min.css` 与静态可达的 KaTeX JavaScript 分离，产物可以存在但不得由 `index.html` 提前引用。当前启动 CSS 为 112.8KB，动态 math CSS 为 29.0KB，bundle gate 同时约束启动预算和 lazy ownership。
 - context compaction 使用左对齐 quiet activity row 而非居中 divider；压缩图标保持可见，Runtime 提供 summary 时沿同一可键盘操作的 disclosure 展开，不增加第二 transcript/material owner。
-- Agent message 的 authoritative phase 已进入公共能力：terminal AgentMessage 必带 `commentary | finalAnswer`，running shell 不带 phase；Runtime completion/termination boundary、Domain Transcript、SQLite durable shape、Artifact v23、Protocol/generated Go/TypeScript surface 与 Frontend published SDK 共同持有该事实。Frontend 不从 streaming、位置或文案推断分组，live/replay/mixed hydration 都把 final answer 归入稳定 `final:<itemId>` row。
+- Agent message 的 authoritative phase 已进入公共能力：terminal AgentMessage 必带 `commentary | finalAnswer`，running shell 不带 phase；Runtime completion/termination boundary、Domain Transcript、SQLite durable shape、Artifact v24、Protocol/generated Go/TypeScript surface 与 Frontend published SDK 共同持有该事实。Frontend 不从 streaming、位置或文案推断分组，live/replay/mixed hydration 都把 final answer 归入稳定 `final:<itemId>` row。
 - 图片预览 Download 是 Desktop 应用能力而非 Runtime Protocol：Frontend gallery 把当前 restricted inline image 交给 `DesktopHost.SaveImage`，Host 在打开原生 save sheet 前校验 MIME 与解码内容，Wails adapter 绑定 exact window 并只在用户选定目的地后写入；取消返回 `false`，remote URL 与 browser download 没有 fallback。
 
 ## 7. 公共合同
 
 - Runtime Protocol 当前版本 `2026-08-28`，唯一 replay scope 为 `runtimeInstanceRootSegment`。
-- Artifact 当前版本 23；旧版本在写入前确定性拒绝，不猜测缺失事实。
-- SQLite 当前 epoch 83；shape 变化必须一次前移 owner codec、fresh schema tests、baseline 与生成物。
+- Artifact 当前版本 24；Session 与每条 Run 保存 exact provider/model/reasoning selection，旧版本在写入前确定性拒绝，不猜测缺失事实。
+- SQLite 当前 epoch 84；shape 变化必须一次前移 owner codec、fresh schema tests、baseline 与生成物。
 - Agent Framework 当前 Baseline 33 / `agent/v0.2.0`；Runtime 不依赖 private state 或迁移前 module path。
 - 所有生成合同必须 diff-free；consumer 缺口记录在 [`CONSUMER_HANDOFF.md`](CONSUMER_HANDOFF.md)，服务端不为消费者恢复旧字段。
 
@@ -454,6 +454,8 @@ P194 完成provider-owned input count与阈值压缩的同一请求闭环。失�
 P194 门禁覆盖Runtime workspace/standalone full test/vet/build、full race、Staticcheck 2026.2.1、golangci-lint、govulncheck、external-module consumer、direct provider HTTP回归与tidy/generate零漂移；Core、两份protocol及两份wrapper完成standalone race/test/vet/build、govulncheck、`gorelease`与五个canonical `v0.0.2`注解标签。Desktop workspace test/vet/build通过；CLI/TUI零diff，仅保留既有macOS deployment-target linker warning。
 
 P195 把 Runtime 已发布但 consumer 丢失的模型能力收回为真实产品合同。Desktop 的 `SelectableModel` 完整且不可变地拥有 limits、reasoning、modalities 与 execution features；picker、Context gauge 和 Composer image admission 不再各自派生 boolean。Runs Application 在任何 staging/executor side effect 前对 current input、composed history 与 Steer 做 exact selected-model admission，切换到 text-only known model 后携图历史确定拒绝，私有 catalog miss 仍可用。production visual browser 回归同时验证 capability 可见性与 image action 撤权；Runtime 全量 test/vet/build、Frontend 314 files / 1958 tests和完整静态/构建门禁全绿。公共 Protocol、Artifact、SQLite、Core/Model release、Desktop native binding、CLI 与 TUI 不变，当前完成范围为 P0–P195。
+
+P196 实施候选把 exact reasoning selection 与 Resume follow-up input 收回唯一执行/恢复边界。`modelref.Selection`、Session/Run/Goal/Schedule/occurrence、SQLite、Interrupt/checkpoint、Artifact、Protocol/generated SDK 和 Core options 共同携带 provider/model + optional model-owned effort；已知 catalog model 在 durable write/staging 前校验等级，切模未带 effort 时清空旧值。Desktop model picker 展示完整 limits/modalities/reasoning/execution facts，effort 控件提交同一选择，active Run Context gauge 使用 frozen Run selection。Resume 可选 input 与 answer claim、User Item、checkpoint removal 和 next Segment opening 原子提交；Agent 同一 safe boundary 先结算 answer Tool result、再应用 input，Conversation 保持 `tool → user`，checkpoint schema v5 的 exact projected Item identity 防止 Transcript 重放双写。当前合同为 Artifact v24、SQLite epoch 84；统一测试、真实 E2E、浏览器验收与发布完成前不把该候选记为最终验收完成，CLI/TUI 保持零改动。
 
 P0–P164 已把已证明无 owner 的文档、设计资产、客户端风险推断、生命周期 facade、测试 convenience API、转发层、平行返回类型、无消费者订阅/selector、历史源码 marker 守卫，以及 added-then-abandoned 的条件解析、状态 patch、动态插件、内容渲染和独立 Codebase 向量索引纵切从生产面删除；Session 模型身份从分散的 model-only/global-default 推断收敛为一个可恢复 exact pair owner，workspace identity 也从裸 `cwd` 和多份 read-model 字段收敛为一个 exact Domain value 与一次 consumer projection，operation 带外元数据也从 binding 私有行为收敛为 Registry 单一方法事实，Agent Memory cache 从无身份裸 vector/curation backfill 收敛为 Search-owned exact-space/digest 条件缓存，recall corpus 从只消费 project scope 收敛为 exact-project + user 的单次联合 ranking，durable content、target cardinality、negative-history retention 与 prompt material 也有了 Domain/consumer 各自唯一且可证明一致的上限；Skill Proposal 也从 content-addressed pending history 收敛为 name-owned current revision、exact review CAS 与有限 document/queue envelope；Knowledge `SCOPEAPP.md` 也从无界管理/prompt material 收敛为 Domain-owned 1 MiB complete document；Lifecycle Hook config 从无界文件/集合/action 收敛为 Domain-owned complete policy cascade，Hook process 也从无界 buffer/孤儿后代/宽松 decode 收敛为 bounded output 与完整 cleanup owner；request-detached auxiliary model call 进一步统一到显式 input-byte/output-token envelope。两个 app module 的 Go 基线统一为 1.27.0，Bootstrap 关闭图不再把 terminal diagnostic 误当成可重试生命周期状态，也不再让 caller timeout 取消唯一 Host shutdown generation。Git/workspace source discovery 只在明确 non-repository/unavailable 时进入 filesystem fallback，取消和仓库故障保持可见。保留项都有生成入口、运行时消费者、动态入口、测试基础设施或发布兼容义务。
 

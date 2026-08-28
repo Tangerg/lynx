@@ -368,10 +368,18 @@ type PlanUpdated struct {
 	State plan.State
 }
 
-// SteerMessagesApplied reports the ordered user messages first made visible
-// to one executor model call. The reducer commits the complete batch atomically
-// so transcript projection cannot expose a prefix of one model boundary.
+// AppliedSteerMessage is one ordered user message first made visible to a model
+// call. ProjectedItemID names the exact transcript Item already committed by a
+// continuation opening; an empty identity asks the reducer to create the Item.
+// Both paths still append the message to Conversation at this model boundary.
+type AppliedSteerMessage struct {
+	Content         []transcript.ContentBlock
+	ProjectedItemID string
+}
+
+// SteerMessagesApplied reports one ordered model-boundary batch. The reducer
+// commits its remaining transcript and Conversation projections atomically.
 type SteerMessagesApplied struct {
 	executionFactBase
-	Messages [][]transcript.ContentBlock
+	Messages []AppliedSteerMessage
 }

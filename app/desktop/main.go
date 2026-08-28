@@ -48,10 +48,10 @@ func desktopApplicationOptions(host *DesktopHost) application.Options {
 // bars.
 //
 // UseToolbar is here for its HEIGHT, not for a toolbar: it is what makes the titlebar
-// taller than 32pt, and the frame buttons are centred in whatever height it has. The
+// taller than 32pt, and the frame buttons are centered in whatever height it has. The
 // compact style then pins that height at 40pt, which puts the marks 20pt down — within a
-// pixel of the centre line of a 42pt header. That last pixel is why the marks' centre is
-// measured rather than assumed: the control beside them centres on THEM and the header's
+// pixel of the center line of a 42pt header. That last pixel is why the marks' center is
+// measured rather than assumed: the control beside them centers on THEM and the header's
 // text on the header, and at the 5pt apart that a toolbarless window leaves them, no
 // amount of measuring makes those two read as one row.
 //

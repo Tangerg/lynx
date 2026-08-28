@@ -1473,8 +1473,8 @@ func (a ArtifactSession) ValidateWire() error {
 
 func (s SessionArtifact) ValidateWire() error {
 	return collectWireViolations("SessionArtifact",
-		minimumNumber("version", s.Version, 23),
-		maximumNumber("version", s.Version, 23),
+		minimumNumber("version", s.Version, 24),
+		maximumNumber("version", s.Version, 24),
 	)
 }
 

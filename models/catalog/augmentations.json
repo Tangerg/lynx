@@ -40,6 +40,50 @@
     }
   },
   "openai": {
+    "gpt-5.6": {
+      "levels": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "default_level": "medium"
+    },
+    "gpt-5.6-luna": {
+      "levels": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "default_level": "medium"
+    },
+    "gpt-5.6-sol": {
+      "levels": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "default_level": "medium"
+    },
+    "gpt-5.6-terra": {
+      "levels": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "default_level": "medium"
+    },
     "gpt-5.5": {
       "levels": [
         "low",

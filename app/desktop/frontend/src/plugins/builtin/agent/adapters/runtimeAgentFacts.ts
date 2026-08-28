@@ -118,6 +118,14 @@ export function runtimeRunFact(run: RunRef): AgentRunFact {
       `agent.adapter.run.unexpectedTerminalFacts:run=${run.id};status=${run.status};outcome=${run.outcome?.type ?? "missing"};finishedAt=${run.finishedAt ?? "missing"}`,
     );
   }
+  if ((run.provider === undefined) !== (run.model === undefined)) {
+    throw new Error(
+      `agent.adapter.run.modelSelectionIncomplete:run=${run.id};provider=${run.provider ?? "missing"};model=${run.model ?? "missing"}`,
+    );
+  }
+  if (run.reasoningEffort !== undefined && run.provider === undefined) {
+    throw new Error(`agent.adapter.run.reasoningWithoutModel:run=${run.id}`);
+  }
 
   return {
     id: run.id,
@@ -128,6 +136,15 @@ export function runtimeRunFact(run: RunRef): AgentRunFact {
     status: run.status,
     activeSegmentId: run.activeSegmentId ?? null,
     outcome: run.outcome ? runtimeRunOutcome(run.outcome) : null,
+    ...(run.provider !== undefined && run.model !== undefined
+      ? {
+          modelSelection: {
+            provider: run.provider,
+            model: run.model,
+            ...(run.reasoningEffort !== undefined ? { reasoningEffort: run.reasoningEffort } : {}),
+          },
+        }
+      : {}),
     metrics: runtimeRunMetrics(run.metrics),
     ...(run.contextTokens !== undefined && run.contextTokens > 0
       ? { contextTokens: run.contextTokens }

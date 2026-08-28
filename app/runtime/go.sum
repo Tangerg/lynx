@@ -19,8 +19,8 @@ github.com/Tangerg/scope/agent v0.2.0 h1:ou2uGp6Pf+C8ELhx5iI78zJU7zd4jqIcEYyg6oU
 github.com/Tangerg/scope/agent v0.2.0/go.mod h1:bWzzF8xosQtR0k8r7Ex7O29TEiU0z8hbnqGklFtrbA0=
 github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827193246-c8f317e53b29 h1:DtrNYCn7gYbm8t2ZDofa2sBGALj3qgC10JH7vVnBfV4=
 github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827193246-c8f317e53b29/go.mod h1:d51+/uizmvXEbmuj8OiLE19h+3WQydgOarO5sUfNd98=
-github.com/Tangerg/scope/core v0.0.2 h1:HQCLpNLONomJOCAiSuaN08bj8cvAGZRXUMHcxjBT1Dk=
-github.com/Tangerg/scope/core v0.0.2/go.mod h1:GmtH7T7+Tk3KdWFxg8F/gA7pP7R2BieSoWJrY4qybYY=
+github.com/Tangerg/scope/core v0.0.3 h1:01HeEIqd0Xdk4Yxe7UC1vBidXGWKlX3CGBvxgMImSsM=
+github.com/Tangerg/scope/core v0.0.3/go.mod h1:GmtH7T7+Tk3KdWFxg8F/gA7pP7R2BieSoWJrY4qybYY=
 github.com/Tangerg/scope/mcp v0.0.1 h1:RHgxDGZnRYqNfj6B2hUtKm6VRtYJ9CACFeVsrRpWq+0=
 github.com/Tangerg/scope/mcp v0.0.1/go.mod h1:azo++UlodJwWZFJ+xef7T1FGCzQo3XPBOAwAKMQr5h4=
 github.com/Tangerg/scope/models/alibaba v0.0.1 h1:6+wxaXQ1sh3nt48LehFJ38/QhWQ42f+td8MzP1HSMHg=

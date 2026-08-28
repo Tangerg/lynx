@@ -79,17 +79,17 @@ func (d *Driver) Available() bool { return d != nil && d.goals != nil }
 // AutonomousRuns is the Goal driver's narrow view of the Run entry point.
 type AutonomousRuns interface {
 	WaitSessionStartable(ctx context.Context, sessionID string) error
+	AdmitSelection(selection modelref.Selection) error
 	Start(ctx context.Context, cmd runs.StartCommand) (runs.StartResult, error)
 	// Cancel returns after the Run has reached its complete terminal boundary.
 	Cancel(ctx context.Context, cmd runs.CancelCommand) (runs.CancelResult, error)
 }
 
-// SessionExists reports whether a session id refers to a live session. The
-// driver refuses to open a goal for a session that does not exist (no orphan
-// goals), and the boot reconcile clears goals whose session was deleted while
-// the runtime was down.
-type SessionExists interface {
-	Exists(ctx context.Context, sessionID string) (bool, error)
+// SessionPolicyReader returns the durable model policy together with Session
+// existence. A Goal with no explicit override freezes that exact policy before
+// it is persisted, so every autonomous Run and restart uses one selection.
+type SessionPolicyReader interface {
+	ModelSelection(ctx context.Context, sessionID string) (modelref.Selection, bool, error)
 }
 
 // DriveLease is the cross-process ownership of one Session's autonomous Goal
@@ -127,7 +127,7 @@ type RunInstructionBuilder func(RunInstructionInput) string
 type Driver struct {
 	goals          Store
 	runs           AutonomousRuns
-	sessions       SessionExists
+	sessions       SessionPolicyReader
 	tasks          *taskgroup.Group
 	now            func() time.Time
 	newIncarnation func() string
@@ -143,7 +143,7 @@ type Driver struct {
 func NewDriver(
 	store Store,
 	autonomousRuns AutonomousRuns,
-	sessions SessionExists,
+	sessions SessionPolicyReader,
 	mutations *SessionMutations,
 	ownership DriveOwnership,
 	instructions RunInstructionBuilder,
@@ -187,12 +187,18 @@ func (d *Driver) Start(
 	if d.closed.Load() {
 		return goal.Goal{}, ErrClosed
 	}
-	exists, err := d.sessions.Exists(ctx, sessionID)
+	sessionSelection, exists, err := d.sessions.ModelSelection(ctx, sessionID)
 	if err != nil {
 		return goal.Goal{}, err
 	}
 	if !exists {
 		return goal.Goal{}, ErrNoSession
+	}
+	if !selection.Configured() {
+		selection = sessionSelection
+	}
+	if admissionErr := d.runs.AdmitSelection(selection); admissionErr != nil {
+		return goal.Goal{}, admissionErr
 	}
 	existing, ok, err := d.goals.Get(ctx, sessionID)
 	if err != nil {
@@ -592,7 +598,7 @@ func (d *Driver) Reconcile(ctx context.Context) error {
 			// facts are not crash leftovers for this process to rewrite.
 			continue
 		}
-		exists, err := d.sessions.Exists(ctx, g.SessionID)
+		_, exists, err := d.sessions.ModelSelection(ctx, g.SessionID)
 		if err != nil {
 			lease.Release()
 			return err

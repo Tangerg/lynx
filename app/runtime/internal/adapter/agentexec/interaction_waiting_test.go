@@ -117,11 +117,17 @@ func TestInteractionExecutorRestoresWaitingTreeAndDeliversSemanticAnswer(t *test
 		Resolution: interrupt.Resolution{Answers: [][]string{{"chosen"}}},
 	}}
 	if err := executor.BeginContinuation(
-		t.Context(), restored, answers, []interrupt.Kind{interrupt.Approval},
+		t.Context(), restored, answers, nil, []interrupt.Kind{interrupt.Approval},
 	); err == nil {
 		t.Fatal("BeginContinuation accepted capabilities that differ from staging")
 	}
-	if err := executor.BeginContinuation(t.Context(), restored, answers, []interrupt.Kind{interrupt.Question}); err != nil {
+	committedInput := &runs.CommittedUserInput{
+		ItemID: "item_followup",
+		Content: []transcript.ContentBlock{{
+			Kind: transcript.TextContent, Text: "also include edge cases",
+		}},
+	}
+	if err := executor.BeginContinuation(t.Context(), restored, answers, committedInput, []interrupt.Kind{interrupt.Question}); err != nil {
 		t.Fatal(err)
 	}
 	events := <-resumedEvents
@@ -140,6 +146,15 @@ func TestInteractionExecutorRestoresWaitingTreeAndDeliversSemanticAnswer(t *test
 	defer mu.Unlock()
 	if len(requests) != 2 || requests[0][0].Text() != "current question" || requests[1][0].Text() != "current question" {
 		t.Fatalf("restored model context = %#v", requests)
+	}
+	if got := requests[1][len(requests[1])-1].Text(); got != "also include edge cases" {
+		t.Fatalf("continuation follow-up = %q, want committed input", got)
+	}
+	steers := payloadsOf[runs.SteerMessagesApplied](events)
+	if len(steers) != 1 || len(steers[0].Messages) != 1 ||
+		steers[0].Messages[0].ProjectedItemID != committedInput.ItemID ||
+		len(steers[0].Messages[0].Content) != 1 || steers[0].Messages[0].Content[0].Text != "also include edge cases" {
+		t.Fatalf("committed continuation input projection = %#v", steers)
 	}
 	if !reflect.DeepEqual(compactor.adjustments, []int{0, -98}) {
 		t.Fatalf("restored model context calibration = %v, want [0 -98]", compactor.adjustments)
@@ -202,7 +217,7 @@ func TestInteractionExecutorRestoresRuntimeAskUserTool(t *testing.T) {
 		InterruptItemID: "item_ask_user", MemberID: binding.MemberID,
 		RequestID:  binding.RequestID,
 		Resolution: interrupt.Resolution{Answers: [][]string{{"chosen"}}},
-	}}, []interrupt.Kind{interrupt.Question}); err != nil {
+	}}, nil, []interrupt.Kind{interrupt.Question}); err != nil {
 		t.Fatal(err)
 	}
 	observed := <-events
@@ -272,7 +287,7 @@ func TestInteractionExecutorRestoresInteractiveApprovalWithoutRepeatingPolicyOrH
 		InterruptItemID: "item_approval", MemberID: binding.MemberID,
 		RequestID:  binding.RequestID,
 		Resolution: interrupt.Resolution{Approved: true},
-	}}, []interrupt.Kind{interrupt.Approval}); err != nil {
+	}}, nil, []interrupt.Kind{interrupt.Approval}); err != nil {
 		t.Fatal(err)
 	}
 	observed := <-events
@@ -336,7 +351,7 @@ func TestInteractionExecutorCancellationStopsApprovedInflightTool(t *testing.T) 
 	if err := executor.BeginContinuation(t.Context(), ref, []runs.InterruptAnswer{{
 		InterruptItemID: "item_approval", MemberID: binding.MemberID,
 		RequestID: binding.RequestID, Resolution: interrupt.Resolution{Approved: true},
-	}}, []interrupt.Kind{interrupt.Approval}); err != nil {
+	}}, nil, []interrupt.Kind{interrupt.Approval}); err != nil {
 		t.Fatal(err)
 	}
 	select {
@@ -411,7 +426,7 @@ func TestInteractionExecutorCancellationStopsApprovedForegroundShell(t *testing.
 	if err := executor.BeginContinuation(t.Context(), ref, []runs.InterruptAnswer{{
 		InterruptItemID: "item_approval", MemberID: binding.MemberID,
 		RequestID: binding.RequestID, Resolution: interrupt.Resolution{Approved: true},
-	}}, []interrupt.Kind{interrupt.Approval}); err != nil {
+	}}, nil, []interrupt.Kind{interrupt.Approval}); err != nil {
 		t.Fatal(err)
 	}
 	deadline := time.Now().Add(time.Second)
@@ -504,7 +519,7 @@ func TestInteractionExecutorPreservesDeferredAdvertisementAcrossWaitingRestore(t
 		InterruptItemID: "item_question", MemberID: binding.MemberID,
 		RequestID:  binding.RequestID,
 		Resolution: interrupt.Resolution{Answers: [][]string{{"yes"}}},
-	}}, []interrupt.Kind{interrupt.Question}); err != nil {
+	}}, nil, []interrupt.Kind{interrupt.Question}); err != nil {
 		t.Fatal(err)
 	}
 	observed := <-events
@@ -849,8 +864,8 @@ func TestInteractionExecutorAppliesSteerAtNextModelBoundary(t *testing.T) {
 	}
 	steers := payloadsOf[runs.SteerMessagesApplied](observed)
 	if len(steers) != 1 || len(steers[0].Messages) != 2 ||
-		len(steers[0].Messages[0]) != 1 || steers[0].Messages[0][0].Text != "add evidence" ||
-		len(steers[0].Messages[1]) != 1 || steers[0].Messages[1][0].Text != "then shorten it" {
+		len(steers[0].Messages[0].Content) != 1 || steers[0].Messages[0].Content[0].Text != "add evidence" ||
+		len(steers[0].Messages[1].Content) != 1 || steers[0].Messages[1].Content[0].Text != "then shorten it" {
 		t.Fatalf("steer projections = %#v", steers)
 	}
 	steerIndex, secondModelIndex := -1, -1
