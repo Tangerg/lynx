@@ -18,7 +18,7 @@ import (
 	corechat "github.com/Tangerg/scope/core/chat"
 )
 
-const interactionCheckpointSchemaVersion uint16 = 3
+const interactionCheckpointSchemaVersion uint16 = 4
 
 type interactionCheckpointPayloadWire struct {
 	SchemaVersion uint16                        `json:"schema_version"`
@@ -26,6 +26,7 @@ type interactionCheckpointPayloadWire struct {
 	Instructions  []corechat.Message            `json:"instructions,omitempty"`
 	Members       []interactionMemberCallsWire  `json:"members,omitempty"`
 	Carried       []interactionModelCallsWire   `json:"carried,omitempty"`
+	Contexts      []interactionModelContextWire `json:"contexts,omitempty"`
 	PendingSteers []interactionPendingSteerWire `json:"pending_steers,omitempty"`
 }
 
@@ -37,6 +38,12 @@ type interactionMemberCallsWire struct {
 type interactionModelCallsWire struct {
 	Model string `json:"model"`
 	Calls int    `json:"calls"`
+}
+
+type interactionModelContextWire struct {
+	MemberID        string `json:"member_id"`
+	ReportedTokens  int64  `json:"reported_tokens"`
+	EstimatedTokens int    `json:"estimated_tokens"`
 }
 
 type interactionPendingSteerWire struct {
@@ -55,6 +62,7 @@ type interactionCheckpointState struct {
 	tree             agent.TreeSnapshot
 	callsByProcess   map[agent.ProcessID]map[string]int
 	carriedCallCount map[string]int
+	contextByProcess map[agent.ProcessID]ModelContextTokenCalibration
 	instructions     []corechat.Message
 	pendingSteers    map[agent.SignalID]pendingInteractionSteer
 }
@@ -86,6 +94,7 @@ func encodeInteractionCheckpointPayload(
 	tree agent.TreeSnapshot,
 	usageByProcess map[agent.ProcessID]map[string]accounting.ModelUsage,
 	carriedUsage map[string]accounting.ModelUsage,
+	contextByProcess map[agent.ProcessID]ModelContextTokenCalibration,
 	instructions []corechat.Message,
 	pendingSteers map[agent.SignalID]pendingInteractionSteer,
 ) ([]byte, error) {
@@ -120,6 +129,10 @@ func encodeInteractionCheckpointPayload(
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: encode carried Interaction accounting: %w", err)
 	}
+	wire.Contexts, err = encodeInteractionModelContexts(contextByProcess)
+	if err != nil {
+		return nil, fmt.Errorf("agentexec: encode Interaction model contexts: %w", err)
+	}
 	wire.PendingSteers, err = encodeInteractionPendingSteers(pendingSteers)
 	if err != nil {
 		return nil, fmt.Errorf("agentexec: encode pending Interaction steers: %w", err)
@@ -129,6 +142,32 @@ func encodeInteractionCheckpointPayload(
 		return nil, fmt.Errorf("agentexec: encode Interaction checkpoint: %w", err)
 	}
 	return payload, nil
+}
+
+func encodeInteractionModelContexts(
+	contexts map[agent.ProcessID]ModelContextTokenCalibration,
+) ([]interactionModelContextWire, error) {
+	values := make([]interactionModelContextWire, 0, len(contexts))
+	for processID, calibration := range contexts {
+		if !processID.Valid() {
+			return nil, errors.New("model context calibration has an invalid Process identity")
+		}
+		if err := calibration.Validate(); err != nil {
+			return nil, err
+		}
+		if calibration == (ModelContextTokenCalibration{}) {
+			continue
+		}
+		values = append(values, interactionModelContextWire{
+			MemberID:        processID.String(),
+			ReportedTokens:  calibration.ReportedTokens(),
+			EstimatedTokens: calibration.EstimatedTokens(),
+		})
+	}
+	slices.SortFunc(values, func(left, right interactionModelContextWire) int {
+		return strings.Compare(left.MemberID, right.MemberID)
+	})
+	return values, nil
 }
 
 func encodeInteractionPendingSteers(
@@ -219,6 +258,7 @@ func decodeInteractionCheckpointPayload(payload []byte) (interactionCheckpointSt
 	state := interactionCheckpointState{
 		tree: tree, callsByProcess: make(map[agent.ProcessID]map[string]int, len(wire.Members)),
 		carriedCallCount: make(map[string]int, len(wire.Carried)),
+		contextByProcess: make(map[agent.ProcessID]ModelContextTokenCalibration, len(wire.Contexts)),
 		instructions:     cloneChatMessages(wire.Instructions),
 		pendingSteers:    make(map[agent.SignalID]pendingInteractionSteer, len(wire.PendingSteers)),
 	}
@@ -256,11 +296,50 @@ func decodeInteractionCheckpointPayload(payload []byte) (interactionCheckpointSt
 	if err != nil {
 		return interactionCheckpointState{}, fmt.Errorf("agentexec: Interaction checkpoint carried calls: %w", err)
 	}
+	state.contextByProcess, err = decodeInteractionModelContexts(wire.Contexts, processes, state.callsByProcess)
+	if err != nil {
+		return interactionCheckpointState{}, fmt.Errorf("agentexec: Interaction checkpoint model contexts: %w", err)
+	}
 	state.pendingSteers, err = decodeInteractionPendingSteers(wire.PendingSteers)
 	if err != nil {
 		return interactionCheckpointState{}, fmt.Errorf("agentexec: Interaction checkpoint pending steers: %w", err)
 	}
 	return state, nil
+}
+
+func decodeInteractionModelContexts(
+	values []interactionModelContextWire,
+	processes map[agent.ProcessID]struct{},
+	callsByProcess map[agent.ProcessID]map[string]int,
+) (map[agent.ProcessID]ModelContextTokenCalibration, error) {
+	contexts := make(map[agent.ProcessID]ModelContextTokenCalibration, len(values))
+	previous := ""
+	for index, value := range values {
+		if strings.TrimSpace(value.MemberID) == "" || value.MemberID != strings.TrimSpace(value.MemberID) ||
+			index > 0 && value.MemberID <= previous {
+			return nil, errors.New("model contexts are not canonical")
+		}
+		processID, err := agent.ParseProcessID(value.MemberID)
+		if err != nil {
+			return nil, fmt.Errorf("model context member identity: %w", err)
+		}
+		if _, found := processes[processID]; !found {
+			return nil, errors.New("model context names a foreign member")
+		}
+		if len(callsByProcess[processID]) == 0 {
+			return nil, errors.New("model context has no matching member accounting")
+		}
+		calibration, err := NewModelContextTokenCalibration(
+			value.ReportedTokens,
+			value.EstimatedTokens,
+		)
+		if err != nil {
+			return nil, err
+		}
+		contexts[processID] = calibration
+		previous = value.MemberID
+	}
+	return contexts, nil
 }
 
 func decodeInteractionPendingSteers(

@@ -39,6 +39,8 @@ P189 不改变任何 public contract或持久化 shape。Runtime internal contex
 
 P190 不改变任何生产合同、wire或storage shape。真实retry-exhaustion与SIGKILL回归确认SQLite conversation+Run watermark事务是compaction唯一durable commit；运行中的未结算Strategy generation不构成可恢复状态，失败后按既有failed/lost语义退出。没有新增journal、checkpoint字段、两阶段提交、SQLite epoch、Agent protocol、Runtime operation/event或Desktop binding；HTTP E2E测试数增至45。
 
+P191 不改变 Runtime Protocol、Artifact v23、SQLite epoch 83、Desktop binding、Agent Framework release或CLI。主模型上下文预算改为完整provider-neutral request的单一估算：全部Message Part、metadata、Tool manifest与Options同属一个owner，media transport payload不冒充文本token；provider成功响应的input usage校准同一Process下一次调用的阈值判断。低于message/token阈值仍不运行hook、summary或rewrite。executor-owned opaque Interaction checkpoint envelope因新增per-Process calibration从schema v3一次性升至v4；这是Runtime internal recovery shape，旧schema确定拒绝且不双读。
+
 ## 2. Runtime Protocol Baseline 2
 
 机器真相源位于 [`../contract`](../contract)：
@@ -213,7 +215,7 @@ P7 的两个前置缺口已经由真实 Runtime consumer 在 Agent Framework 中
 
 `PreparedStepAcknowledger` 仍只回调单 Process Snapshot，Runtime 初版不启用。durable recovery baseline 只有已提交 quiescent complete-tree checkpoint；active-step crash 不伪装为可恢复。
 
-Runtime 的 executor-owned opaque checkpoint envelope 当前 schema 为 v3：除完整 TreeSnapshot、指令上下文和 accounting 外，只在 `adapter/agentexec` 内保存 Agent steer Signal identity 到产品消息内容的精确映射。Application 仍只持有 opaque bytes；Agent Framework 不见 Transcript 内容或 Runtime persistence。旧 envelope 不双读，恢复时确定性 fail closed。
+Runtime 的 executor-owned opaque checkpoint envelope 当前 schema 为 v4：除完整 TreeSnapshot、指令上下文、accounting 与 Agent steer Signal identity 到产品消息内容的精确映射外，还保存每个已accounted Process最近一次完整主请求的provider-reported/Runtime-estimated token pair。Application 仍只持有 opaque bytes；Agent Framework 不见 Transcript 内容、token估算策略或 Runtime persistence。旧 envelope 不双读，恢复时确定性 fail closed。
 
 ### 4.1 允许的 import 边界
 

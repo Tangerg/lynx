@@ -79,6 +79,65 @@ func TestInteractionExecutorProjectsAuthoritativeModelToolLifecycleAndAccounting
 	}
 }
 
+func TestInteractionExecutorCalibratesNextModelContextFromProviderUsage(t *testing.T) {
+	type echoInput struct {
+		Value string `json:"value"`
+	}
+	echo, err := toolcontract.NewFunc(toolcontract.FuncConfig{
+		Name: "echo", Description: "Return the supplied value.",
+	}, func(_ context.Context, input echoInput) (string, error) {
+		return input.Value, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	compactor := &calibrationCaptureCompactor{estimatedTokens: 100}
+	model := &observationScriptModel{responses: []*chat.Response{
+		interactionToolResponse(chat.ToolCall{
+			ID: "provider_call", Name: "echo", Arguments: `{"value":"hello"}`,
+		}, 7, 2),
+		interactionUsageTextResponse("done", 11, 3),
+	}}
+	executor := newObservedTestInteractionExecutor(t, model, InteractionExecutorConfig{
+		ToolResolver:    staticInteractionTools{manifest: toolset.Manifest{Visible: []toolcontract.Tool{echo}}},
+		ToolInterpreter: testInteractionToolInterpreter{}, ToolAuthorizer: allowInteractionTools{},
+		ModelContextCompactor: compactor, ModelContextState: emptyInteractionModelContextState{},
+	})
+
+	runInteractionHarness(context.Background(), t, executor, interactionTestStart(), nil)
+	if !slices.Equal(compactor.adjustments, []int{0, -93}) {
+		t.Fatalf("model context calibration adjustments = %v, want [0 -93]", compactor.adjustments)
+	}
+}
+
+type calibrationCaptureCompactor struct {
+	estimatedTokens int
+	adjustments     []int
+}
+
+func (c *calibrationCaptureCompactor) CompactModelContext(
+	_ context.Context,
+	request ModelContextCompaction,
+) (ModelContextCompactionResult, error) {
+	c.adjustments = append(c.adjustments, request.TokenEstimateAdjustment())
+	return NewModelContextCompactionResult(
+		request.Candidate(),
+		false,
+		false,
+		len(request.Candidate()),
+		c.estimatedTokens,
+	)
+}
+
+type emptyInteractionModelContextState struct{}
+
+func (emptyInteractionModelContextState) CurrentSessionState(
+	context.Context,
+	string,
+) ([]chat.Message, error) {
+	return nil, nil
+}
+
 func TestInteractionExecutorCancellationStopsCooperativeInflightTool(t *testing.T) {
 	toolStarted := make(chan struct{})
 	toolReturned := make(chan struct{})

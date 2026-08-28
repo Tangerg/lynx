@@ -2,6 +2,7 @@ package agentexec
 
 import (
 	"encoding/base64"
+	"math"
 	"reflect"
 	"testing"
 
@@ -87,7 +88,78 @@ func TestDecodeInteractionPendingSteersRejectsNoncanonicalWire(t *testing.T) {
 }
 
 func TestDecodeInteractionCheckpointRejectsPreviousSchema(t *testing.T) {
-	if _, err := decodeInteractionCheckpointPayload([]byte(`{"schema_version":2}`)); err == nil {
+	if _, err := decodeInteractionCheckpointPayload([]byte(`{"schema_version":3}`)); err == nil {
 		t.Fatal("decode accepted previous checkpoint schema")
+	}
+}
+
+func TestInteractionModelContextsRoundTripCanonicalCalibration(t *testing.T) {
+	first, err := agent.ParseProcessID("process:context-02")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := agent.ParseProcessID("process:context-01")
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstCalibration, err := NewModelContextTokenCalibration(12_000, 10_000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondCalibration, err := NewModelContextTokenCalibration(8_000, 9_000)
+	if err != nil {
+		t.Fatal(err)
+	}
+	contexts := map[agent.ProcessID]ModelContextTokenCalibration{
+		first: firstCalibration, second: secondCalibration,
+	}
+
+	wire, err := encodeInteractionModelContexts(contexts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(wire) != 2 || wire[0].MemberID != second.String() || wire[1].MemberID != first.String() {
+		t.Fatalf("model context order = %#v", wire)
+	}
+	processes := map[agent.ProcessID]struct{}{first: {}, second: {}}
+	calls := map[agent.ProcessID]map[string]int{
+		first: {"model": 1}, second: {"model": 1},
+	}
+	decoded, err := decodeInteractionModelContexts(wire, processes, calls)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(decoded, contexts) {
+		t.Fatalf("decoded model contexts = %#v, want %#v", decoded, contexts)
+	}
+}
+
+func TestModelContextTokenCalibrationKeepsExactMaxIntDelta(t *testing.T) {
+	calibration, err := NewModelContextTokenCalibration(int64(math.MaxInt), math.MaxInt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if adjustment := calibration.Adjustment(); adjustment != 0 {
+		t.Fatalf("exact MaxInt calibration adjustment = %d, want 0", adjustment)
+	}
+}
+
+func TestDecodeInteractionModelContextsRejectsForeignOrUnaccountedMember(t *testing.T) {
+	processID, err := agent.ParseProcessID("process:context")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wire := []interactionModelContextWire{{
+		MemberID: processID.String(), ReportedTokens: 100, EstimatedTokens: 90,
+	}}
+	if _, err := decodeInteractionModelContexts(wire, nil, nil); err == nil {
+		t.Fatal("foreign model context decoded")
+	}
+	if _, err := decodeInteractionModelContexts(
+		wire,
+		map[agent.ProcessID]struct{}{processID: {}},
+		nil,
+	); err == nil {
+		t.Fatal("unaccounted model context decoded")
 	}
 }

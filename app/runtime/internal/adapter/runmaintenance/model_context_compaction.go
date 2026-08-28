@@ -2,7 +2,6 @@ package runmaintenance
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
@@ -78,26 +77,33 @@ func (c *Compactor) CompactModelContext(
 	if info, ok := catalog.Default.Lookup(selection.Provider(), selection.Model()); ok {
 		contextWindow = int(info.Limits.ContextWindow)
 	}
-	reservedTokens, err := fixedContextTokens(
+	budget := newModelContextBudget(
+		c.maxMessages,
+		c.tokenTrigger(contextWindow),
 		request.Instructions(),
 		ephemeral,
 		request.Tools(),
 		request.Options(),
+		request.TokenEstimateAdjustment(),
 	)
+	plan, err := c.planCompactionWithProtectedTail(history, budget, protectedTail)
 	if err != nil {
 		return agentexec.ModelContextCompactionResult{}, err
 	}
-	historyBudget := c.tokenTrigger(contextWindow) - reservedTokens
-	plan := c.planCompactionWithProtectedTail(history, historyBudget, protectedTail)
 	if plan.action == noCompaction {
-		if c.shouldCompact(history, historyBudget) {
+		if plan.required {
 			return agentexec.ModelContextCompactionResult{}, ErrModelContextCannotFit
+		}
+		estimatedTokens, estimateErr := budget.estimatedTokens(history)
+		if estimateErr != nil {
+			return agentexec.ModelContextCompactionResult{}, estimateErr
 		}
 		return agentexec.NewModelContextCompactionResult(
 			candidate,
 			false,
 			false,
 			len(candidate),
+			estimatedTokens,
 		)
 	}
 	if !request.AllowsCompaction(ctx) {
@@ -112,15 +118,24 @@ func (c *Compactor) CompactModelContext(
 	if err != nil {
 		return agentexec.ModelContextCompactionResult{}, err
 	}
-	if c.shouldCompact(replacement, historyBudget) {
+	overBudget, err := budget.exceeded(replacement)
+	if err != nil {
+		return agentexec.ModelContextCompactionResult{}, err
+	}
+	if overBudget {
 		return agentexec.ModelContextCompactionResult{}, ErrModelContextCannotFit
 	}
 	effective := append(cloneMessages(replacement), ephemeral...)
+	estimatedTokens, err := budget.estimatedTokens(replacement)
+	if err != nil {
+		return agentexec.ModelContextCompactionResult{}, err
+	}
 	result, err := agentexec.NewModelContextCompactionResult(
 		effective,
 		true,
 		summarized,
 		len(candidate),
+		estimatedTokens,
 	)
 	if err != nil {
 		return agentexec.ModelContextCompactionResult{}, err
@@ -174,23 +189,6 @@ func (c *Compactor) materializeModelContextPlan(
 	default:
 		return nil, false, 0, 0, errors.New("runmaintenance: unsupported model-context compaction plan")
 	}
-}
-
-func fixedContextTokens(
-	instructions []chat.Message,
-	ephemeral []chat.Message,
-	tools []chat.ToolDefinition,
-	options chat.Options,
-) (int, error) {
-	fixedMessages := append(cloneMessages(instructions), ephemeral...)
-	payload, err := json.Marshal(struct {
-		Tools   []chat.ToolDefinition `json:"tools,omitempty"`
-		Options chat.Options          `json:"options,omitzero"`
-	}{Tools: tools, Options: options})
-	if err != nil {
-		return 0, fmt.Errorf("runmaintenance: encode fixed model context: %w", err)
-	}
-	return estimateTokens(fixedMessages) + len(payload)/charsPerToken, nil
 }
 
 func cloneMessages(messages []chat.Message) []chat.Message {

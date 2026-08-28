@@ -142,6 +142,86 @@ func TestModelContextCompactionChecksEveryCallButRewritesOnlyAtThreshold(t *test
 	}
 }
 
+func TestModelContextCompactionCalibratesThresholdFromProviderUsage(t *testing.T) {
+	store := newCompactionTestStore()
+	const sessionID = "session:provider-calibration"
+	large := strings.Repeat("x", 2_000)
+	history := []chat.Message{
+		chat.NewUserMessage(chat.NewTextPart("q1" + large)),
+		chat.NewAssistantMessage(chat.NewTextPart("a1" + large)),
+		chat.NewUserMessage(chat.NewTextPart("q2" + large)),
+		chat.NewAssistantMessage(chat.NewTextPart("a2" + large)),
+		chat.NewUserMessage(chat.NewTextPart("q3" + large)),
+		chat.NewAssistantMessage(chat.NewTextPart("a3" + large)),
+	}
+	if err := store.Write(t.Context(), sessionID, history...); err != nil {
+		t.Fatal(err)
+	}
+	instructions := []chat.Message{chat.NewSystemMessage("frozen instructions")}
+	rawEstimate, err := estimateModelContextTokens(
+		append(cloneMessages(instructions), history...),
+		nil,
+		chat.Options{},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calibration, err := agentexec.NewModelContextTokenCalibration(
+		int64(rawEstimate+200),
+		rawEstimate,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := newTextStubModel("CALIBRATED SUMMARY")
+	client, err := chatclient.New(model, chatclient.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	compactor := NewCompactor(
+		store,
+		constClient(client),
+		nil,
+		CompactionConfig{MaxMessages: 100, MaxTokens: rawEstimate + 100, KeepRecent: 2},
+	)
+
+	below, err := compactor.CompactModelContext(
+		t.Context(),
+		durableContextRequest(t, sessionID, history, 0, nil),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if below.Changed() || store.rewrites != 0 || len(model.requests) != 0 {
+		t.Fatalf(
+			"uncalibrated context = changed:%t rewrites:%d summaries:%d, want below threshold",
+			below.Changed(), store.rewrites, len(model.requests),
+		)
+	}
+
+	atThreshold, err := compactor.CompactModelContext(
+		t.Context(),
+		durableContextRequestWithCalibration(
+			t,
+			sessionID,
+			history,
+			0,
+			calibration,
+			nil,
+		),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !atThreshold.Changed() || !atThreshold.Summarized() ||
+		store.rewrites != 1 || len(model.requests) != 1 {
+		t.Fatalf(
+			"calibrated context = changed:%t summarized:%t rewrites:%d summaries:%d",
+			atThreshold.Changed(), atThreshold.Summarized(), store.rewrites, len(model.requests),
+		)
+	}
+}
+
 func TestFirstModelContextCompactionPreservesCurrentUserMessageVerbatim(t *testing.T) {
 	store := newCompactionTestStore()
 	const sessionID = "session:first-call"
@@ -328,6 +408,24 @@ func durableContextRequest(
 	protectedTail int,
 	preCompact func(context.Context) bool,
 ) agentexec.ModelContextCompaction {
+	return durableContextRequestWithCalibration(
+		t,
+		sessionID,
+		candidate,
+		protectedTail,
+		agentexec.ModelContextTokenCalibration{},
+		preCompact,
+	)
+}
+
+func durableContextRequestWithCalibration(
+	t *testing.T,
+	sessionID string,
+	candidate []chat.Message,
+	protectedTail int,
+	calibration agentexec.ModelContextTokenCalibration,
+	preCompact func(context.Context) bool,
+) agentexec.ModelContextCompaction {
 	t.Helper()
 	selection, err := modelref.New("anthropic", "claude-test")
 	if err != nil {
@@ -340,6 +438,7 @@ func durableContextRequest(
 		candidate,
 		nil,
 		chat.Options{},
+		calibration,
 		protectedTail,
 		preCompact,
 	)

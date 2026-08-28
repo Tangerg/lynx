@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 
 	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
@@ -11,6 +12,60 @@ import (
 )
 
 var errInvalidModelContextCompaction = errors.New("agentexec: invalid model-context compaction")
+
+// ModelContextTokenCalibration binds one provider-reported prompt footprint to
+// the provider-neutral estimate of that exact request. The next request reuses
+// only their delta, so provider framing/tokenizer behavior calibrates the same
+// complete-request budget instead of creating a second token ledger.
+type ModelContextTokenCalibration struct {
+	reported  int64
+	estimated int
+}
+
+func NewModelContextTokenCalibration(
+	reported int64,
+	estimated int,
+) (ModelContextTokenCalibration, error) {
+	if reported <= 0 {
+		return ModelContextTokenCalibration{}, fmt.Errorf(
+			"%w: reported context tokens must be positive",
+			errInvalidModelContextCompaction,
+		)
+	}
+	if estimated <= 0 {
+		return ModelContextTokenCalibration{}, fmt.Errorf(
+			"%w: estimated context tokens must be positive",
+			errInvalidModelContextCompaction,
+		)
+	}
+	return ModelContextTokenCalibration{reported: reported, estimated: estimated}, nil
+}
+
+func (m ModelContextTokenCalibration) Validate() error {
+	if m == (ModelContextTokenCalibration{}) {
+		return nil
+	}
+	if m.reported <= 0 || m.estimated <= 0 {
+		return fmt.Errorf(
+			"%w: token calibration requires positive reported and estimated values",
+			errInvalidModelContextCompaction,
+		)
+	}
+	return nil
+}
+
+func (m ModelContextTokenCalibration) ReportedTokens() int64 { return m.reported }
+func (m ModelContextTokenCalibration) EstimatedTokens() int  { return m.estimated }
+
+func (m ModelContextTokenCalibration) Adjustment() int {
+	if m == (ModelContextTokenCalibration{}) {
+		return 0
+	}
+	if m.reported > int64(math.MaxInt) {
+		return math.MaxInt
+	}
+	return int(m.reported) - m.estimated
+}
 
 type modelContextPersistence uint8
 
@@ -31,6 +86,7 @@ type ModelContextCompaction struct {
 	candidate     []corechat.Message
 	tools         []corechat.ToolDefinition
 	options       corechat.Options
+	calibration   ModelContextTokenCalibration
 	protectedTail int
 	preCompact    func(context.Context) bool
 }
@@ -45,6 +101,7 @@ func NewDurableModelContextCompaction(
 	candidate []corechat.Message,
 	tools []corechat.ToolDefinition,
 	options corechat.Options,
+	calibration ModelContextTokenCalibration,
 	protectedDurableTail int,
 	preCompact func(context.Context) bool,
 ) (ModelContextCompaction, error) {
@@ -56,6 +113,7 @@ func NewDurableModelContextCompaction(
 		candidate,
 		tools,
 		options,
+		calibration,
 		protectedDurableTail,
 		preCompact,
 	)
@@ -70,6 +128,7 @@ func NewTransientModelContextCompaction(
 	candidate []corechat.Message,
 	tools []corechat.ToolDefinition,
 	options corechat.Options,
+	calibration ModelContextTokenCalibration,
 	protectedTail int,
 	preCompact func(context.Context) bool,
 ) (ModelContextCompaction, error) {
@@ -81,6 +140,7 @@ func NewTransientModelContextCompaction(
 		candidate,
 		tools,
 		options,
+		calibration,
 		protectedTail,
 		preCompact,
 	)
@@ -94,6 +154,7 @@ func newModelContextCompaction(
 	candidate []corechat.Message,
 	tools []corechat.ToolDefinition,
 	options corechat.Options,
+	calibration ModelContextTokenCalibration,
 	protectedTail int,
 	preCompact func(context.Context) bool,
 ) (ModelContextCompaction, error) {
@@ -171,6 +232,9 @@ func newModelContextCompaction(
 			err,
 		)
 	}
+	if err := calibration.Validate(); err != nil {
+		return ModelContextCompaction{}, err
+	}
 	frozenTools := make([]corechat.ToolDefinition, len(tools))
 	for index := range tools {
 		frozenTools[index] = tools[index].Clone()
@@ -183,6 +247,7 @@ func newModelContextCompaction(
 		candidate:     cloneChatMessages(candidate),
 		tools:         frozenTools,
 		options:       options.Clone(),
+		calibration:   calibration,
 		protectedTail: protectedTail,
 		preCompact:    preCompact,
 	}, nil
@@ -219,8 +284,14 @@ func (m ModelContextCompaction) Tools() []corechat.ToolDefinition {
 	return tools
 }
 
-// Options returns the exact model-call options for fixed-overhead estimation.
+// Options returns the exact model-call options included in the complete request estimate.
 func (m ModelContextCompaction) Options() corechat.Options { return m.options.Clone() }
+
+// TokenEstimateAdjustment returns the provider calibration delta applied to
+// every candidate built from this request's immutable model identity.
+func (m ModelContextCompaction) TokenEstimateAdjustment() int {
+	return m.calibration.Adjustment()
+}
 
 // ProtectedTail returns how many candidate messages must remain verbatim.
 func (m ModelContextCompaction) ProtectedTail() int { return m.protectedTail }
@@ -234,10 +305,11 @@ func (m ModelContextCompaction) AllowsCompaction(ctx context.Context) bool {
 // one compaction decision. Summarized distinguishes a semantic history fold
 // from a coordinate-preserving deterministic trim.
 type ModelContextCompactionResult struct {
-	messages       []corechat.Message
-	changed        bool
-	summarized     bool
-	messagesBefore int
+	messages        []corechat.Message
+	changed         bool
+	summarized      bool
+	messagesBefore  int
+	estimatedTokens int
 }
 
 // NewModelContextCompactionResult validates and freezes one effective suffix.
@@ -246,6 +318,7 @@ func NewModelContextCompactionResult(
 	changed bool,
 	summarized bool,
 	messagesBefore int,
+	estimatedTokens int,
 ) (ModelContextCompactionResult, error) {
 	if len(messages) == 0 {
 		return ModelContextCompactionResult{}, fmt.Errorf(
@@ -266,6 +339,12 @@ func NewModelContextCompactionResult(
 			messagesBefore,
 		)
 	}
+	if estimatedTokens <= 0 {
+		return ModelContextCompactionResult{}, fmt.Errorf(
+			"%w: result token estimate must be positive",
+			errInvalidModelContextCompaction,
+		)
+	}
 	for index := range messages {
 		if err := messages[index].Validate(); err != nil {
 			return ModelContextCompactionResult{}, fmt.Errorf(
@@ -277,10 +356,11 @@ func NewModelContextCompactionResult(
 		}
 	}
 	return ModelContextCompactionResult{
-		messages:       cloneChatMessages(messages),
-		changed:        changed,
-		summarized:     summarized,
-		messagesBefore: messagesBefore,
+		messages:        cloneChatMessages(messages),
+		changed:         changed,
+		summarized:      summarized,
+		messagesBefore:  messagesBefore,
+		estimatedTokens: estimatedTokens,
 	}, nil
 }
 
@@ -299,6 +379,11 @@ func (m ModelContextCompactionResult) Summarized() bool { return m.summarized }
 func (m ModelContextCompactionResult) MessageCounts() (before int, after int) {
 	return m.messagesBefore, len(m.messages)
 }
+
+// EstimatedTokens returns the raw provider-neutral estimate for the exact
+// request material returned by this reduction. The accounting owner pairs it
+// with the provider's eventual input-token report.
+func (m ModelContextCompactionResult) EstimatedTokens() int { return m.estimatedTokens }
 
 // ModelContextCompactor owns the optional Runtime implementation of model-call
 // context reduction. It may persist durable root history but never owns the

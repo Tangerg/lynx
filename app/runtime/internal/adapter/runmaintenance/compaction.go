@@ -46,6 +46,7 @@ const (
 
 type compactionPlan struct {
 	action         compactionAction
+	required       bool
 	messagesBefore int
 	cutoff         int
 	trimmed        []chat.Message
@@ -113,7 +114,7 @@ func (c *Compactor) tokenTrigger(contextWindow int) int {
 }
 
 // CompactIfNeeded inspects sessionID's history. When either trigger
-// (message count or estimated token footprint, see [shouldCompact]) is
+// (message count or complete-request token footprint, see [modelContextBudget]) is
 // breached it runs a ladder, cheapest rung first: a non-LLM trim of oversized
 // tool-call arguments and old tool-result bodies (see trimForBudgetBefore);
 // only if that leaves the footprint over budget is the older slice summarized by
@@ -140,7 +141,11 @@ func (c *Compactor) CompactIfNeeded(ctx context.Context, sessionID string, conte
 	if err != nil {
 		return CompactionResult{}, fmt.Errorf("compactor: read: %w", err)
 	}
-	plan := c.planCompaction(msgs, maxTokens)
+	budget := newModelContextBudget(c.maxMessages, maxTokens, nil, nil, nil, chat.Options{}, 0)
+	plan, err := c.planCompaction(msgs, budget)
+	if err != nil {
+		return CompactionResult{}, err
+	}
 	if plan.action == noCompaction {
 		return CompactionResult{}, nil
 	}
@@ -188,52 +193,82 @@ func (c *Compactor) CompactIfNeeded(ctx context.Context, sessionID string, conte
 	}, nil
 }
 
-func (c *Compactor) planCompaction(messages []chat.Message, maxTokens int) compactionPlan {
-	return c.planCompactionWithProtectedTail(messages, maxTokens, 0)
+func (c *Compactor) planCompaction(
+	messages []chat.Message,
+	budget modelContextBudget,
+) (compactionPlan, error) {
+	return c.planCompactionWithProtectedTail(messages, budget, 0)
 }
 
 func (c *Compactor) planCompactionWithProtectedTail(
 	messages []chat.Message,
-	maxTokens int,
+	budget modelContextBudget,
 	protectedTail int,
-) compactionPlan {
-	if !c.shouldCompact(messages, maxTokens) || len(messages) == 0 {
-		return compactionPlan{}
+) (compactionPlan, error) {
+	overBudget, err := budget.triggered(messages)
+	if err != nil {
+		return compactionPlan{}, err
+	}
+	if !overBudget || len(messages) == 0 {
+		return compactionPlan{}, nil
 	}
 	if protectedTail < 0 || protectedTail > len(messages) {
-		return compactionPlan{}
+		return compactionPlan{required: true}, nil
 	}
 	foldableLimit := len(messages) - protectedTail
-	if foldableLimit == 0 || c.shouldCompact(messages[foldableLimit:], maxTokens) {
-		return compactionPlan{}
+	protectedOverBudget, err := budget.exceeded(messages[foldableLimit:])
+	if err != nil {
+		return compactionPlan{}, err
+	}
+	if foldableLimit == 0 || protectedOverBudget {
+		return compactionPlan{required: true}, nil
 	}
 	cutoff := c.summaryCutoffWithProtectedTail(messages, protectedTail)
 	if cutoff == 0 {
-		return compactionPlan{}
+		return compactionPlan{required: true}, nil
 	}
 	trimmed, changed := trimForBudgetBefore(messages, cutoff)
-	if changed && !c.shouldCompact(trimmed, maxTokens) {
-		return compactionPlan{action: trimCompaction, messagesBefore: len(messages), trimmed: trimmed}
+	trimmedOverBudget, err := budget.exceeded(trimmed)
+	if err != nil {
+		return compactionPlan{}, err
+	}
+	if changed && !trimmedOverBudget {
+		return compactionPlan{
+			action: trimCompaction, required: true,
+			messagesBefore: len(messages), trimmed: trimmed,
+		}, nil
 	}
 	// KeepRecent is a preference, not a license to preserve a suffix that is
 	// already over budget by itself. In that case the preferred prefix summary
 	// cannot converge: every later pass would keep the same oversized turn.
 	// Widen the deterministic rung first; only summarize the complete, finished
 	// history when cheap trimming still cannot make it executable.
-	if c.shouldCompact(trimmed[cutoff:], maxTokens) {
+	recentOverBudget, err := budget.exceeded(trimmed[cutoff:])
+	if err != nil {
+		return compactionPlan{}, err
+	}
+	if recentOverBudget {
 		cutoff = foldableLimit
 		trimmed, changed = trimForBudgetBefore(messages, cutoff)
-		if changed && !c.shouldCompact(trimmed, maxTokens) {
-			return compactionPlan{action: trimCompaction, messagesBefore: len(messages), trimmed: trimmed}
+		trimmedOverBudget, err = budget.exceeded(trimmed)
+		if err != nil {
+			return compactionPlan{}, err
+		}
+		if changed && !trimmedOverBudget {
+			return compactionPlan{
+				action: trimCompaction, required: true,
+				messagesBefore: len(messages), trimmed: trimmed,
+			}, nil
 		}
 	}
 	return compactionPlan{
 		action:         summarizeCompaction,
+		required:       true,
 		messagesBefore: len(messages),
 		cutoff:         cutoff,
 		older:          trimmed[:cutoff],
 		recent:         trimmed[cutoff:],
-	}
+	}, nil
 }
 
 // summaryCutoffWithProtectedTail returns a complete-turn boundary near the

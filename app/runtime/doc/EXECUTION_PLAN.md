@@ -1,8 +1,8 @@
 # ScopeApp Runtime 执行计划
 
-> 状态：P0–P190 已完成；P191 已准入。
+> 状态：P0–P191 已完成；P192 已准入。
 >
-> 最近基线：2026-08-28，P190 已完成。
+> 最近基线：2026-08-28，P191 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,7 +15,8 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P191 已准入：继续审计模型上下文 token预算估算的真实性，优先构造CJK/emoji、多模态part、Tool schema与provider-specific window的真实反例；在证明现有估算会漏过阈值或错误拒绝前，不增加安全倍率、tokenizer facade、配置旋钮或第二预算表示。
+- P192 已准入：继续审计“上一请求provider校准 + 本轮新增material差量”对首次出现的media、极大Tool schema与provider usage缺失/异常的边界；先证明真实模型窗口错误，再决定是否需要provider-owned estimator，禁止在provider-neutral Runtime加入图片patch公式、安全倍率或第二token ledger。
+- P191 已准入并完成：失败优先反例证明旧`raw transcript bytes / 4`完全遗漏reasoning/signature、16KiB ToolCall arguments、Tool manifest与Options；配套反例证明朴素完整JSON估算也不能把inline media transport大小误当文本成本。`modelContextBudget`现在一次估算完整provider-neutral request；CJK/emoji、全部Part/metadata/Tools/Options均入账，media source规范为最小合法占位。provider成功响应把reported input与同一exact request estimate绑定，下一主调用只沿用delta；waiting checkpoint private schema升至v4。每次主调用仍检查，但低于message/token阈值绝不hook、summary或SQLite rewrite，压缩后也不继承旧窗口校准立即二次压缩。
 - P190 已准入并完成：真实Runtime↔HTTP↔TypeScript切点先用有序steer把同一Run推到第24条message阈值，summary与Run watermarks提交后阻塞下一主provider调用。retry window持续503时Run确定failed；同点SIGKILL后Run由startup recovery确定lost。两种路径的下一fresh Run首个provider request都只含已提交summary、不含旧开场前缀，并仍带主模型Tool manifest，证明预算检查没有立即再次压缩。
 - P190 裁决运行中Agent Strategy state不是第三个durable participant：普通in-flight model effect没有可恢复checkpoint，provider failure或进程死亡都会终止该Process generation；只有HITL waiting boundary持久化Strategy checkpoint，而该处没有未结算主模型Effect。因此SQLite conversation+Run watermark事务继续是唯一durable compaction winner，不新增journal、双写、两阶段提交、补偿重放或兼容状态。45条真实HTTP E2E、Frontend 313 files / 1954 tests与完整静态/bundle门禁全绿；生产代码、Protocol、Artifact、SQLite、Agent release、Desktop binding与CLI均不改变。
 - P189 已准入并完成：真实长 Run红例证明开局 Plan被错误冻结为 Deployment instruction；`set_plan`后旧 `## Current Plan`仍驻留，压缩又注入新 Plan，provider同见双值。active Goal objective则只依赖开场 control与摘要保留，摘要遗漏时没有确定性 owner。现在 Goal/Plan由独立、canonical、可替换的 Session-state context持有：每次主模型预算检查先剥离旧快照、从 durable reader重读并验证，再重接到纯 Conversation之外；Plan从 summary reminder删除，process-only reminder只保留 running shells。
@@ -127,7 +128,7 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 - 对 app2 的裁决：采纳 finite complete-list、target capacity、negative-history retention 与 explicit-user revival；把其约束适配到 app/runtime 已有 active-sticky fold、联合 project/user search 和纯文本 curation，不复制 revision shape、独立 runtimehost、数据库迁移链或分页兼容面。Protocol、Artifact v23、SQLite epoch 82、生成合同、公共 Go API、Desktop、Agent Framework 与 CLI 均不改变。
 - P158 的 Runtime test/vet/build/standalone/full-race/Go 1.27-compatible Staticcheck/tidy/generate、Desktop test/vet/build/standalone/Staticcheck、根 workspace tests、Frontend 313 files / 1950 tests 与完整静态/bundle 门禁、Wails v3 production build 全绿。临时 Staticcheck 二进制和目录已精确删除，无残留 Vite/Vitest/Wails/race 进程；未启动 agent-browser。
 - P157 已完成，修改范围仅为 `app/runtime`；`app/desktop` 没有直接爆炸半径，`app/cli` 未修改、未暂存。失败优先反例证明辅助模型公共 helper 不设置 output `MaxTokens`，128 条 8KiB Tool result 会把普通维护 transcript 放大到约 1.05MiB，原 compaction 的 per-result cap 仍会形成约 518KiB 总输入。
-- 唯一根修复是 `adapter/utilitymodel.Prompt` request envelope + `runmaintenance` semantic renderer：每次 auxiliary call 必须显式声明并在 provider I/O 前验证 aggregate input bytes/output tokens；maintenance 使用 512KiB hard request、384KiB transcript、24KiB per-message 公平 head/tail policy，不存在 uncapped mode。Title/Memory/Compaction/Skill 分别提交 64/默认 2048/4096/4096 output-token ceiling；compaction trigger 独立测量未裁剪原始 footprint。
+- 唯一根修复是 `adapter/utilitymodel.Prompt` request envelope + `runmaintenance` semantic renderer：每次 auxiliary call 必须显式声明并在 provider I/O 前验证 aggregate input bytes/output tokens；maintenance 使用 512KiB hard request、384KiB transcript、24KiB per-message 公平 head/tail policy，不存在 uncapped mode。Title/Memory/Compaction/Skill 分别提交 64/默认 2048/4096/4096 output-token ceiling；P191后主模型compaction trigger独立测量完整未裁剪request footprint，而不是auxiliary transcript投影。
 - Memory curation 同批把 current auto memory 与 ledger 分配到独立 whole-entry budget；watermark 只推进到真正进入 prompt 的 ledger prefix 末项，裁掉的 durable fact 保持 pending。对 app2 采纳显式 `MaxTokens`、384KiB aggregate transcript 与 fair-share；拒绝复制 `runtimehost` facade、第二 model resolver、公共协议 shape 或 consumer fallback。本批不改变 Protocol、Artifact v23、SQLite epoch 82、生成合同、公共 Go API、Desktop、Agent Framework 或 CLI。
 - P157 的 Runtime test/vet/build/standalone/full-race/Go 1.27-compatible Staticcheck/tidy/generate、Desktop test/vet/build/standalone/Staticcheck、根 workspace tests、Frontend 313 files / 1950 tests 与完整静态/bundle 门禁、Wails v3 production build 全绿。临时 Staticcheck 目录已删除，无残留 Vite/Vitest/Wails/race 进程；未启动 agent-browser。
 - P156 已完成，修改范围仅为 `app/runtime` 与 `app/desktop`，`app/cli` 未修改、未暂存。失败优先反例证明 Domain/wire 会接受 4097 个 Unicode 字符的 memory，且 pinned prompt 的首项即使超过 4096-token budget 仍被完整注入；per-turn recall 只有 top-k，也没有 aggregate token bound。
@@ -514,10 +515,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P188     | 单个长 Run 的模型调用前上下文生命周期闭环                                                     | Agent effective-context 状态同步；Runtime protected-tail 规划、SQLite CAS rewrite、PreCompact 与真实跨 Run E2E                                  |
 | P189     | Goal/Plan 长 Run 模型上下文同值闭环                                                          | replaceable Session-state context；stable Deployment instructions；active Goal + Plan revision + threshold E2E                                  |
 | P190     | Compaction commit到Strategy settlement的崩溃裁决                                             | retry-exhaustion + SIGKILL真实HTTP切点；SQLite唯一durable winner；拒绝journal/双写                                                              |
+| P191     | 主模型上下文完整请求预算与provider校准                                                       | 全Part/Tools/Options单一ledger；media transport去文本化；reported usage校准；checkpoint schema v4                                               |
 
 ## 5. 当前里程碑结论
 
-P113–P190 共同建立了以下不可回退的心智模型：
+P113–P191 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -570,7 +572,7 @@ P113–P190 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 313 files / 1954 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime、`localruntime` 独立子模块与 Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1，Runtime 与 `localruntime` 的 full `go test -race ./...`，以及 Runtime/Desktop 的 `GOWORK=off` test/vet/build 通过；根 workspace Runtime+Desktop tests、三模块 tidy、Runtime generate 零漂移和 `wails3 task build` production native build 通过。P175–P180 的 Runtime-only delta 又分别通过 workspace/standalone full test/vet/build、full race、Staticcheck、根 Runtime+Desktop tests 与 tidy/generate 零漂移；没有 Desktop/Frontend/Wails/contract source delta，故不重复其生产包矩阵。P183 的 Runtime full test/vet 与 schema rejection gate 通过，CLI mutation settlement 同批收敛为共享命名 outcome；P184 的 receiver-method、`operation.Name` identity、Hook/Tool 边界与 operation architecture gate 由 Runtime full test/vet/build 和 generate 零漂移重新验收。P185–P190 进一步完成全仓依赖升级、85个非 app module的 `v0.0.1`发布、ScopeApp身份切换、长 Run compaction/Goal/Plan同值闭环，以及compaction crash-cutpoint裁决；最近一批通过Runtime standalone full test/vet/build、full race、Go 1.27-built Staticcheck、golangci-lint、45条真实HTTP E2E、Desktop standalone test/vet/build、Frontend完整门禁与Runtime tidy/generate零漂移。当前合同为 Artifact v23、SQLite epoch 83、Protocol `2026-08-28`、Agent Baseline 33、Interaction state/protocol v8/v8；仅观察到既有 macOS deployment-target linker warning，未启动 agent-browser。所有验证进程均已 join，无临时检查器或生成物漂移。
+最近一次完整验收基线：Frontend 313 files / 1954 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime、`localruntime` 独立子模块与 Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1，Runtime 与 `localruntime` 的 full `go test -race ./...`，以及 Runtime/Desktop 的 `GOWORK=off` test/vet/build 通过；根 workspace Runtime+Desktop tests、三模块 tidy、Runtime generate 零漂移和 `wails3 task build` production native build 通过。P175–P180 的 Runtime-only delta 又分别通过 workspace/standalone full test/vet/build、full race、Staticcheck、根 Runtime+Desktop tests 与 tidy/generate 零漂移；没有 Desktop/Frontend/Wails/contract source delta，故不重复其生产包矩阵。P183 的 Runtime full test/vet 与 schema rejection gate 通过，CLI mutation settlement 同批收敛为共享命名 outcome；P184 的 receiver-method、`operation.Name` identity、Hook/Tool 边界与 operation architecture gate 由 Runtime full test/vet/build 和 generate 零漂移重新验收。P185–P191 进一步完成全仓依赖升级、85个非 app module的 `v0.0.1`发布、ScopeApp身份切换、长 Run compaction/Goal/Plan同值闭环、compaction crash-cutpoint裁决，以及完整主请求预算/provider校准；最近一批通过Runtime workspace/standalone full test/vet/build、full race、Go 1.27-built Staticcheck 2026.2.1、golangci-lint、45条真实HTTP E2E、Desktop workspace/standalone test/vet/build、Frontend完整门禁与Runtime tidy/generate零漂移。当前合同为 Artifact v23、SQLite epoch 83、Protocol `2026-08-28`、Agent Baseline 33、Interaction state/protocol v8/v8，executor-owned Interaction checkpoint private schema为v4；仅观察到既有 macOS deployment-target linker warning，未启动 agent-browser。所有验证进程均已 join，无临时检查器或生成物漂移。
 
 ## 6. 新阶段准入
 
@@ -583,4 +585,4 @@ P113–P190 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P190 已完成，P191 从模型上下文 token预算估算的多语言、多模态与Tool schema真实反例开始。开始新纵切时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P191 已完成，P192 从首次出现media、极大Tool schema与provider usage异常时的上下文差量真实性开始。开始新纵切时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

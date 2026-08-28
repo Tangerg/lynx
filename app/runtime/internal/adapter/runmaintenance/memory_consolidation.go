@@ -302,16 +302,3 @@ func (m *MemoryConsolidator) resolveClient(ctx context.Context) *chatclient.Clie
 	}
 	return m.client(ctx)
 }
-
-func estimateTextTokens(text string) int {
-	ascii := 0
-	tokens := 0
-	for _, r := range text {
-		if r <= 0x7f {
-			ascii++
-		} else {
-			tokens++
-		}
-	}
-	return tokens + (ascii+charsPerToken-1)/charsPerToken
-}

@@ -3,6 +3,7 @@ package agentexec
 import (
 	"context"
 	"errors"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -58,9 +59,11 @@ func TestInteractionExecutorRestoresWaitingTreeAndDeliversSemanticAnswer(t *test
 		mu.Unlock()
 		return model.Call(ctx, request)
 	})
+	compactor := &calibrationCaptureCompactor{estimatedTokens: 100}
 	executor := newObservedTestInteractionExecutor(t, recordingModel, InteractionExecutorConfig{
 		ToolResolver:    staticInteractionTools{manifest: toolset.Manifest{Visible: []toolcontract.Tool{question}}},
 		ToolInterpreter: testInteractionToolInterpreter{}, ToolAuthorizer: allowInteractionTools{},
+		ModelContextCompactor: compactor, ModelContextState: emptyInteractionModelContextState{},
 	})
 	start := interactionTestStart()
 	start.CWD, start.WorkspaceCWD = workspace, workspace
@@ -137,6 +140,9 @@ func TestInteractionExecutorRestoresWaitingTreeAndDeliversSemanticAnswer(t *test
 	defer mu.Unlock()
 	if len(requests) != 2 || requests[0][0].Text() != "current question" || requests[1][0].Text() != "current question" {
 		t.Fatalf("restored model context = %#v", requests)
+	}
+	if !reflect.DeepEqual(compactor.adjustments, []int{0, -98}) {
+		t.Fatalf("restored model context calibration = %v, want [0 -98]", compactor.adjustments)
 	}
 	if err := executor.Release(t.Context(), restored); err != nil {
 		t.Fatal(err)

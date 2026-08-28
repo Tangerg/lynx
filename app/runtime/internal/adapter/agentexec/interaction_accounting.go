@@ -20,13 +20,21 @@ import (
 // retired Processes, and the root's Tool-call count. These facts share the
 // accounting snapshot/checkpoint invariant but not the Process-tree lock.
 type interactionAccounting struct {
-	mu             sync.Mutex
-	usageByProcess map[agent.ProcessID]map[string]accounting.ModelUsage
-	carriedUsage   map[string]accounting.ModelUsage
-	provider       string
-	fallbackModel  string
-	pricing        accounting.Pricing
-	toolCalls      int
+	mu                       sync.Mutex
+	usageByProcess           map[agent.ProcessID]map[string]accounting.ModelUsage
+	carriedUsage             map[string]accounting.ModelUsage
+	contextByProcess         map[agent.ProcessID]ModelContextTokenCalibration
+	preparedContextByProcess map[agent.ProcessID]preparedModelContext
+	provider                 string
+	fallbackModel            string
+	pricing                  accounting.Pricing
+	toolCalls                int
+}
+
+type preparedModelContext struct {
+	effectID  agent.EffectID
+	sequence  uint32
+	estimated int
 }
 
 func newInteractionAccounting(
@@ -35,12 +43,44 @@ func newInteractionAccounting(
 	pricing accounting.Pricing,
 ) interactionAccounting {
 	return interactionAccounting{
-		usageByProcess: make(map[agent.ProcessID]map[string]accounting.ModelUsage),
-		carriedUsage:   make(map[string]accounting.ModelUsage),
-		provider:       provider,
-		fallbackModel:  fallbackModel,
-		pricing:        pricing,
+		usageByProcess:           make(map[agent.ProcessID]map[string]accounting.ModelUsage),
+		carriedUsage:             make(map[string]accounting.ModelUsage),
+		contextByProcess:         make(map[agent.ProcessID]ModelContextTokenCalibration),
+		preparedContextByProcess: make(map[agent.ProcessID]preparedModelContext),
+		provider:                 provider,
+		fallbackModel:            fallbackModel,
+		pricing:                  pricing,
 	}
+}
+
+func (i *interactionAccounting) modelContextCalibration(
+	invocation interaction.ModelInvocation,
+) ModelContextTokenCalibration {
+	if i == nil || !invocation.Valid() {
+		return ModelContextTokenCalibration{}
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.contextByProcess[invocation.Relation().ProcessID()]
+}
+
+func (i *interactionAccounting) prepareModelContext(
+	invocation interaction.ModelInvocation,
+	estimated int,
+) error {
+	if i == nil || !invocation.Valid() || estimated <= 0 {
+		return errors.New("agentexec: prepare model context requires valid attribution and estimate")
+	}
+	processID := invocation.Relation().ProcessID()
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	if _, exists := i.preparedContextByProcess[processID]; exists {
+		return fmt.Errorf("agentexec: Process %s already has a prepared model context", processID)
+	}
+	i.preparedContextByProcess[processID] = preparedModelContext{
+		effectID: invocation.EffectID(), sequence: invocation.ModelCallSequence(), estimated: estimated,
+	}
+	return nil
 }
 
 func (i *interactionAccounting) providerName() string { return i.provider }
@@ -94,22 +134,26 @@ func mergeInteractionUsage(
 func (i *interactionAccounting) restore(
 	usageByProcess map[agent.ProcessID]map[string]accounting.ModelUsage,
 	carriedUsage map[string]accounting.ModelUsage,
+	contextByProcess map[agent.ProcessID]ModelContextTokenCalibration,
 ) {
 	i.mu.Lock()
 	i.usageByProcess = usageByProcess
 	i.carriedUsage = carriedUsage
+	i.contextByProcess = contextByProcess
+	i.preparedContextByProcess = make(map[agent.ProcessID]preparedModelContext)
 	i.mu.Unlock()
 }
 
 func (i *interactionAccounting) checkpointLocked() (
 	map[agent.ProcessID]map[string]accounting.ModelUsage,
 	map[string]accounting.ModelUsage,
+	map[agent.ProcessID]ModelContextTokenCalibration,
 ) {
 	usageByProcess := make(map[agent.ProcessID]map[string]accounting.ModelUsage, len(i.usageByProcess))
 	for processID, byModel := range i.usageByProcess {
 		usageByProcess[processID] = maps.Clone(byModel)
 	}
-	return usageByProcess, maps.Clone(i.carriedUsage)
+	return usageByProcess, maps.Clone(i.carriedUsage), maps.Clone(i.contextByProcess)
 }
 
 func (i *interactionSession) interactionCheckpointPayload(
@@ -120,7 +164,7 @@ func (i *interactionSession) interactionCheckpointPayload(
 	// without making every model call contend with Process lifecycle transitions.
 	i.accounting.mu.Lock()
 	i.state.mu.Lock()
-	usageByProcess, carried := i.accounting.checkpointLocked()
+	usageByProcess, carried, contexts := i.accounting.checkpointLocked()
 	pendingSteers := make(map[agent.SignalID]pendingInteractionSteer, len(i.state.pendingSteers))
 	for signalID, pending := range i.state.pendingSteers {
 		pendingSteers[signalID] = pendingInteractionSteer{content: transcript.CloneContent(pending.content)}
@@ -132,7 +176,14 @@ func (i *interactionSession) interactionCheckpointPayload(
 	if err != nil {
 		return nil, err
 	}
-	return encodeInteractionCheckpointPayload(tree, usageByProcess, carried, instructions, pendingSteers)
+	return encodeInteractionCheckpointPayload(
+		tree,
+		usageByProcess,
+		carried,
+		contexts,
+		instructions,
+		pendingSteers,
+	)
 }
 
 func (i *interactionAccounting) accountModelCall(
@@ -147,6 +198,11 @@ func (i *interactionAccounting) accountModelCall(
 	i.mu.Lock()
 	defer i.mu.Unlock()
 	processID := invocation.Relation().ProcessID()
+	prepared, preparedFound := i.preparedContextByProcess[processID]
+	if preparedFound && (prepared.effectID != invocation.EffectID() ||
+		prepared.sequence != invocation.ModelCallSequence()) {
+		return runs.ModelCallCompleted{}, errors.New("agentexec: model response has no matching prepared context")
+	}
 	usageByModel := i.usageByProcess[processID]
 	if usageByModel == nil {
 		usageByModel = make(map[string]accounting.ModelUsage)
@@ -187,6 +243,16 @@ func (i *interactionAccounting) accountModelCall(
 	var usage corechat.Usage
 	if response.Metadata != nil {
 		usage = response.Metadata.Usage
+	}
+	if preparedFound {
+		delete(i.preparedContextByProcess, processID)
+	}
+	if preparedFound && usage.InputTokens > 0 {
+		calibration, err := NewModelContextTokenCalibration(usage.InputTokens, prepared.estimated)
+		if err != nil {
+			return runs.ModelCallCompleted{}, err
+		}
+		i.contextByProcess[processID] = calibration
 	}
 	return runs.ModelCallCompleted{
 		CallID: callID, Message: modelOutput.Message.Clone(), TokenUsage: total.TokenUsage,

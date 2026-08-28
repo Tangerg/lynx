@@ -44,7 +44,7 @@ func (i *interactionSession) initializeRestoredContinuation(
 	if err != nil {
 		return fmt.Errorf("%w: restore Delegate bindings: %w", runs.ErrExecutorStateLost, err)
 	}
-	i.accounting.restore(usageByProcess, carriedUsage)
+	i.accounting.restore(usageByProcess, carriedUsage, checkpoint.contextByProcess)
 	i.state.mu.Lock()
 	defer i.state.mu.Unlock()
 	if i.state.begun || i.state.finished || i.state.process != nil {

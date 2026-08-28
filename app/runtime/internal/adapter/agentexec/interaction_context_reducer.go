@@ -84,6 +84,7 @@ func (i *interactionModelContextReducer) ReduceModelContext(
 			i.start.CWD,
 		)
 	}
+	calibration := i.session.accounting.modelContextCalibration(invocation)
 
 	var (
 		compaction ModelContextCompaction
@@ -101,6 +102,7 @@ func (i *interactionModelContextReducer) ReduceModelContext(
 			candidate,
 			request.Tools,
 			request.Options,
+			calibration,
 			protectedTail,
 			preCompact,
 		)
@@ -125,6 +127,7 @@ func (i *interactionModelContextReducer) ReduceModelContext(
 			candidate,
 			request.Tools,
 			request.Options,
+			calibration,
 			protectedTail,
 			preCompact,
 		)
@@ -144,6 +147,9 @@ func (i *interactionModelContextReducer) ReduceModelContext(
 	validation.Messages = effective
 	if err := validation.Validate(); err != nil {
 		return nil, fmt.Errorf("agentexec: compacted model context: %w", err)
+	}
+	if err := i.session.accounting.prepareModelContext(invocation, result.EstimatedTokens()); err != nil {
+		return nil, err
 	}
 	if result.Summarized() {
 		before, after := result.MessageCounts()
