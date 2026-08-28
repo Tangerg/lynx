@@ -17,8 +17,8 @@ github.com/Tangerg/scope/a2a v0.0.1 h1:hfl4NUL7kNPtAgxr0pEcF2iNVKLn5n+G315cNyQwu
 github.com/Tangerg/scope/a2a v0.0.1/go.mod h1:l+jxCO8pNr9MHplpR6viuu2uGDxZzbns/LTAF6boA6U=
 github.com/Tangerg/scope/agent v0.2.0 h1:ou2uGp6Pf+C8ELhx5iI78zJU7zd4jqIcEYyg6oUjdPw=
 github.com/Tangerg/scope/agent v0.2.0/go.mod h1:bWzzF8xosQtR0k8r7Ex7O29TEiU0z8hbnqGklFtrbA0=
-github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827193246-c8f317e53b29 h1:DtrNYCn7gYbm8t2ZDofa2sBGALj3qgC10JH7vVnBfV4=
-github.com/Tangerg/scope/app/runtime/localruntime v0.0.0-20260827193246-c8f317e53b29/go.mod h1:d51+/uizmvXEbmuj8OiLE19h+3WQydgOarO5sUfNd98=
+github.com/Tangerg/scope/app/runtime/localruntime v0.0.1 h1:Gz0lvZRnypAEoYSev3Q3HXagkatYitSipqrw0H2sMjc=
+github.com/Tangerg/scope/app/runtime/localruntime v0.0.1/go.mod h1:d51+/uizmvXEbmuj8OiLE19h+3WQydgOarO5sUfNd98=
 github.com/Tangerg/scope/core v0.0.3 h1:01HeEIqd0Xdk4Yxe7UC1vBidXGWKlX3CGBvxgMImSsM=
 github.com/Tangerg/scope/core v0.0.3/go.mod h1:GmtH7T7+Tk3KdWFxg8F/gA7pP7R2BieSoWJrY4qybYY=
 github.com/Tangerg/scope/mcp v0.0.1 h1:RHgxDGZnRYqNfj6B2hUtKm6VRtYJ9CACFeVsrRpWq+0=
@@ -29,8 +29,8 @@ github.com/Tangerg/scope/models/anthropic v0.0.2 h1:scikUYnIWyo5SYO2piOX4zoYcciV
 github.com/Tangerg/scope/models/anthropic v0.0.2/go.mod h1:6doXzLF9x/6GDnN90AO87amyebCOJKgi2FEIehsAI5U=
 github.com/Tangerg/scope/models/azureopenai v0.0.1 h1:LhOYpGqE7pZUtbdOsi//PWM06DuX2+7KYcAQGqRBkYU=
 github.com/Tangerg/scope/models/azureopenai v0.0.1/go.mod h1:m86cHouVxg4xF+DLhhsfxyUSJoJo4Y63DQdH8fhaxCc=
-github.com/Tangerg/scope/models/catalog v0.0.1 h1:CW6w4FvD182WhMnsYPsPUVB6kNnNMrhgnChcXM0Fkjo=
-github.com/Tangerg/scope/models/catalog v0.0.1/go.mod h1:jNDya6rG8SINI63ENjmb7C+ViMvN8bCrtxxrGlg6Z2k=
+github.com/Tangerg/scope/models/catalog v0.0.2 h1:E3zbHT7SZOnjwArD3GVX9RiVFmOh+kI2gKfDy0aBqCs=
+github.com/Tangerg/scope/models/catalog v0.0.2/go.mod h1:jNDya6rG8SINI63ENjmb7C+ViMvN8bCrtxxrGlg6Z2k=
 github.com/Tangerg/scope/models/deepseek v0.0.1 h1:t/Ti2kTm9K1ycwvP/lv/zhaEL8M2bEmyP1B59/VjVJ8=
 github.com/Tangerg/scope/models/deepseek v0.0.1/go.mod h1:XO4x19oBknCPD+IfkKm9m2/gexWFyGFyQrOpIAZe8to=
 github.com/Tangerg/scope/models/fireworks v0.0.1 h1:0sy+ROERgwfhGNSa602pEs0H2WynHs4//k/NSQMaIG8=
