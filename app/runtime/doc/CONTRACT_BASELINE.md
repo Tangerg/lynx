@@ -33,7 +33,9 @@ P186 为仓库内 85 个非 `app/**` Go module 建立首个 canonical `v0.0.1`�
 
 P187 将产品身份一次性切换为 `scopeapp` / `ScopeApp`：协议元数据、OpenRPC 扩展键、生成 TypeScript package 与公共客户端名称不再发布旧品牌。Runtime 只接受 `SCOPEAPP_*` 环境变量，默认 durability 只位于 `~/.scopeapp`，知识文件只名为 `SCOPEAPP.md`；旧环境变量、目录、文件名、别名与兼容 reader 均不存在。共享 `localruntime.DataDirectory` 是 Runtime/Desktop 对 database 与 local-token 布局的唯一部署值对象。该 breaking cutover 将 Protocol 精确前移到 `2026-08-28`；Artifact v23 与 SQLite epoch 83 的数据 shape 不变。
 
-P188 不改变 Runtime Protocol Baseline 2、Artifact v23、SQLite epoch 83 或 public Go/Desktop binding shape。它把内部模型上下文压缩从 terminal Run maintenance 扩展到每次主模型调用前：durable root rewrite 继续使用同一 SQLite transaction/CAS owner，transient Delegate 只更新 Agent recovery state；compaction Item仍使用既有 Protocol shape。Runtime 独立 module消费 canonical `agent/v0.2.0`、Agent Baseline 33 与 Interaction state/protocol v8/v8，不双读 v7 settlement。Agent 的 `ToolInvocation.ModelResult` 是普通 Tool model-visible result 的唯一映射 owner；Runtime 不从 client presentation 反推 provider Conversation。
+P188 不改变 Runtime Protocol Baseline 2、Artifact v23、SQLite epoch 83 或 public Go/Desktop binding shape。它把内部模型上下文的预算检查从 terminal Run maintenance 扩展到每次主模型调用前，但只有 message/token footprint达到阈值才执行压缩与 durable rewrite；阈值以下不运行 hook、摘要或写事务，压缩后也不立即重复。durable root rewrite继续使用同一 SQLite transaction/CAS owner，transient Delegate只更新 Agent recovery state；compaction Item仍使用既有 Protocol shape。Runtime 独立 module消费 canonical `agent/v0.2.0`、Agent Baseline 33 与 Interaction state/protocol v8/v8，不双读 v7 settlement。Agent 的 `ToolInvocation.ModelResult` 是普通 Tool model-visible result 的唯一映射 owner；Runtime 不从 client presentation 反推 provider Conversation。
+
+P189 不改变任何 public contract或持久化 shape。Runtime internal context provenance新增 isolated `session_goal` data source，并把 `session_plan`从 instruction重新归类为 data；两者只在每次主模型调用的 fixed Session-state context中出现，不进入 Deployment identity、Conversation store、summary或 public Protocol。configured Goal/Plan read failure与非法/foreign state现在 fail closed。Agent release、Interaction protocol/state version、Artifact v23、SQLite epoch 83、Desktop generated binding与 CLI均保持不变。
 
 ## 2. Runtime Protocol Baseline 2
 

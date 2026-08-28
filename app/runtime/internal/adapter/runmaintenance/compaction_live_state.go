@@ -14,18 +14,15 @@ type RunningShell struct {
 	Command string
 }
 
-// LiveStateSnapshot is the still-active execution state an LLM history summary
-// silently drops — background jobs and in-progress tasks the model started
-// before its earlier Runs were folded into a summary. Reminding the model of it
-// keeps it from forgetting a running command or an unfinished plan across a
-// compaction.
+// LiveStateSnapshot is non-durable process state an LLM history summary cannot
+// reconstruct. Durable Goal and Plan aggregates are refreshed separately before
+// every model call; only running OS resources belong in this reminder.
 type LiveStateSnapshot struct {
 	Shells []RunningShell
-	Plan   []string // in-progress task descriptions
 }
 
 func (l LiveStateSnapshot) empty() bool {
-	return len(l.Shells) == 0 && len(l.Plan) == 0
+	return len(l.Shells) == 0
 }
 
 // LiveStateSnapshotter snapshots a session's active execution state at the moment a
@@ -35,8 +32,8 @@ type LiveStateSnapshotter func(ctx context.Context, sessionID string) LiveStateS
 
 // liveStateReminder renders snap as a system-reminder message to append after a
 // compaction summary, or reports false when there is nothing active to carry
-// over. The tool names it points at (read_shell_output / stop_shell / set_plan) are
-// the stable names of the tools that produced the state.
+// over. The tool names it points at (read_shell_output / stop_shell) are the
+// stable names of the tools that own that state.
 func liveStateReminder(snap LiveStateSnapshot) (chat.Message, bool) {
 	if snap.empty() {
 		return chat.Message{}, false
@@ -47,13 +44,6 @@ func liveStateReminder(snap LiveStateSnapshot) (chat.Message, bool) {
 		b.WriteString("\nBackground shells (read their output with read_shell_output, stop them with stop_shell):")
 		for _, sh := range snap.Shells {
 			fmt.Fprintf(&b, "\n  - %s: %s", sh.ID, sh.Command)
-		}
-		b.WriteByte('\n')
-	}
-	if len(snap.Plan) > 0 {
-		b.WriteString("\nIn-progress tasks from your set_plan list:")
-		for _, task := range snap.Plan {
-			fmt.Fprintf(&b, "\n  - %s", task)
 		}
 		b.WriteByte('\n')
 	}

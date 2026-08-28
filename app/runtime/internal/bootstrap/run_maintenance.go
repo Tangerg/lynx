@@ -30,7 +30,7 @@ func buildRunMaintenance(
 	compactor := runmaintenance.NewCompactor(
 		conversationServices.messages,
 		resolveUtility,
-		runmaintenance.NewLiveStateSnapshotter(shells, cfg.PlanStore),
+		runmaintenance.NewLiveStateSnapshotter(shells),
 		runmaintenance.CompactionConfig{ContextWindow: window},
 	)
 	if cfg.Maintenance != nil {

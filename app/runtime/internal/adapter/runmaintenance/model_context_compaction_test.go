@@ -18,15 +18,15 @@ func TestModelContextCompactionRewritesDurableHistoryAndPreservesPendingInput(t 
 	store := newCompactionTestStore()
 	const sessionID = "session:mid-run"
 	history := completeContextTurns()
-	if err := store.Write(t.Context(), sessionID, history...); err != nil {
-		t.Fatal(err)
+	if writeErr := store.Write(t.Context(), sessionID, history...); writeErr != nil {
+		t.Fatal(writeErr)
 	}
 	pending := chat.NewUserMessage(chat.NewTextPart("steer that has not been projected yet"))
 	candidate := append(cloneMessages(history), pending)
 	model := newTextStubModel("MID-RUN SUMMARY")
-	client, err := chatclient.New(model, chatclient.Config{})
-	if err != nil {
-		t.Fatal(err)
+	client, clientErr := chatclient.New(model, chatclient.Config{})
+	if clientErr != nil {
+		t.Fatal(clientErr)
 	}
 	compactor := NewCompactor(
 		store,
@@ -58,6 +58,87 @@ func TestModelContextCompactionRewritesDurableHistoryAndPreservesPendingInput(t 
 	}
 	if len(model.requests) != 1 {
 		t.Fatalf("summary model calls = %d, want one", len(model.requests))
+	}
+}
+
+func TestModelContextCompactionChecksEveryCallButRewritesOnlyAtThreshold(t *testing.T) {
+	store := newCompactionTestStore()
+	const sessionID = "session:threshold"
+	history := completeContextTurns()
+	if err := store.Write(t.Context(), sessionID, history...); err != nil {
+		t.Fatal(err)
+	}
+	model := newTextStubModel("THRESHOLD SUMMARY")
+	client, err := chatclient.New(model, chatclient.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	compactor := NewCompactor(
+		store,
+		constClient(client),
+		nil,
+		CompactionConfig{MaxMessages: len(history) + 1, KeepRecent: 2},
+	)
+	preCompactCalls := 0
+	preCompact := func(context.Context) bool {
+		preCompactCalls++
+		return true
+	}
+
+	below, err := compactor.CompactModelContext(
+		t.Context(),
+		durableContextRequest(t, sessionID, history, 0, preCompact),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if below.Changed() || preCompactCalls != 0 || store.rewrites != 0 || len(model.requests) != 0 {
+		t.Fatalf(
+			"below threshold = changed:%t hook:%d rewrites:%d summaries:%d, want no work",
+			below.Changed(), preCompactCalls, store.rewrites, len(model.requests),
+		)
+	}
+
+	current := chat.NewUserMessage(chat.NewTextPart("the exact threshold message stays verbatim"))
+	history = append(history, current)
+	if writeErr := store.Write(t.Context(), sessionID, current); writeErr != nil {
+		t.Fatal(writeErr)
+	}
+	atThreshold, err := compactor.CompactModelContext(
+		t.Context(),
+		durableContextRequest(t, sessionID, history, 1, preCompact),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !atThreshold.Changed() || !atThreshold.Summarized() ||
+		preCompactCalls != 1 || store.rewrites != 1 || len(model.requests) != 1 {
+		t.Fatalf(
+			"at threshold = changed:%t summarized:%t hook:%d rewrites:%d summaries:%d",
+			atThreshold.Changed(), atThreshold.Summarized(), preCompactCalls,
+			store.rewrites, len(model.requests),
+		)
+	}
+	stored, err := store.Read(t.Context(), sessionID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if stored[len(stored)-1].Text() != current.Text() {
+		t.Fatalf("protected threshold message = %q, want %q", stored[len(stored)-1].Text(), current.Text())
+	}
+
+	after, err := compactor.CompactModelContext(
+		t.Context(),
+		durableContextRequest(t, sessionID, stored, 0, preCompact),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if after.Changed() || preCompactCalls != 1 || store.rewrites != 1 || len(model.requests) != 1 {
+		t.Fatalf(
+			"after compaction = changed:%t hook:%d rewrites:%d summaries:%d, want no immediate repeat",
+			after.Changed(), preCompactCalls, store.rewrites, len(model.requests),
+		)
 	}
 }
 

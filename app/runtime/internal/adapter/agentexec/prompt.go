@@ -2,14 +2,17 @@ package agentexec
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/Tangerg/scope/app/runtime/internal/adapter/planpresentation"
 	"github.com/Tangerg/scope/app/runtime/internal/adapter/promptsource"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/agentmemory"
 	"github.com/Tangerg/scope/app/runtime/internal/domain/knowledge"
+	plandomain "github.com/Tangerg/scope/app/runtime/internal/domain/plan"
 	corechat "github.com/Tangerg/scope/core/chat"
 )
 
@@ -59,12 +62,13 @@ task is ambiguous, ask one focused question rather than guess.`
 // discovered files.
 // A configured Knowledge reader supplies one complete cascade, so a read error
 // fails prompt construction instead of silently deleting user instructions.
-// Memory and Plan remain best-effort enrichment. An existing Agent document is
+// Memory remains best-effort enrichment. Current Goal and Plan are authoritative
+// Session state: configured read failures fail construction instead of silently
+// retaining or deleting an old snapshot. An existing Agent document is likewise
 // authoritative authored input: invalid or individually unprojectable material
 // fails construction instead of silently deleting instructions.
 func (w *WorkingContextComposer) composeSystemMessage(
 	ctx context.Context,
-	sessionID string,
 	cwd string,
 ) (corechat.Message, error) {
 	var prompt promptComposition
@@ -142,28 +146,84 @@ func (w *WorkingContextComposer) composeSystemMessage(
 		documents.appendTo(&prompt)
 	}
 
-	w.appendSessionPlan(ctx, &prompt, sessionID)
 	return prompt.systemMessage()
 }
 
-// appendSessionPlan appends the turn's Plan when the configured reader has
-// steps for the Session. Plan context is informative and remains best-effort.
-func (w *WorkingContextComposer) appendSessionPlan(
+// CurrentSessionState returns the complete model-facing snapshot of durable
+// Session state that can change during one Interaction. Goal precedes Plan in a
+// canonical order; each is an isolated message so the reducer can replace the
+// old snapshot without changing frozen deployment instructions.
+func (w *WorkingContextComposer) CurrentSessionState(
 	ctx context.Context,
-	prompt *promptComposition,
 	sessionID string,
-) {
+) ([]corechat.Message, error) {
+	if w == nil {
+		return nil, errors.New("agentexec: working-context composer is nil")
+	}
+	messages := make([]corechat.Message, 0, 2)
+	if w.config.Goal != nil && sessionID != "" {
+		current, found, err := w.config.Goal.Current(ctx, sessionID)
+		if err != nil {
+			return nil, fmt.Errorf("agentexec: load current Session Goal: %w", err)
+		}
+		if found {
+			if err := current.ValidateSnapshot(); err != nil {
+				return nil, fmt.Errorf("agentexec: current Session Goal is invalid: %w", err)
+			}
+			if current.SessionID != sessionID {
+				return nil, errors.New("agentexec: current Session Goal belongs to another Session")
+			}
+			var prompt promptComposition
+			prompt.append(
+				"## Current Autonomous Goal\n\nObjective: "+strconv.Quote(current.Objective)+
+					"\nStatus: "+string(current.Status)+
+					"\n\nThis snapshot is current for this model call. Use get_goal for full budget, usage, and reason details.",
+				contextSourceSessionGoal.source(sessionID),
+			)
+			message, err := prompt.systemMessage()
+			if err != nil {
+				return nil, err
+			}
+			messages = append(messages, message)
+		}
+	}
+	currentPlan, found, err := w.currentSessionPlan(ctx, sessionID)
+	if err != nil {
+		return nil, err
+	}
+	if found {
+		messages = append(messages, currentPlan)
+	}
+	return messages, nil
+}
+
+func (w *WorkingContextComposer) currentSessionPlan(
+	ctx context.Context,
+	sessionID string,
+) (corechat.Message, bool, error) {
 	if w.config.Plan == nil || sessionID == "" {
-		return
+		return corechat.Message{}, false, nil
 	}
-	steps, err := w.config.Plan.List(ctx, sessionID)
-	if err != nil || len(steps) == 0 {
-		return
+	steps, listErr := w.config.Plan.List(ctx, sessionID)
+	if listErr != nil {
+		return corechat.Message{}, false, fmt.Errorf("agentexec: load current Session Plan: %w", listErr)
 	}
+	if validationErr := plandomain.ValidateSteps(steps); validationErr != nil {
+		return corechat.Message{}, false, fmt.Errorf("agentexec: current Session Plan is invalid: %w", validationErr)
+	}
+	if len(steps) == 0 {
+		return corechat.Message{}, false, nil
+	}
+	var prompt promptComposition
 	prompt.append(
 		"## Current Plan\n\n"+planpresentation.Render(steps),
 		contextSourceSessionPlan.source(sessionID),
 	)
+	message, err := prompt.systemMessage()
+	if err != nil {
+		return corechat.Message{}, false, err
+	}
+	return message, true, nil
 }
 
 // appendPinned appends the pinned items of src to dst.

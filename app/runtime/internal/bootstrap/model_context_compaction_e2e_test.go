@@ -101,13 +101,20 @@ func TestRuntimeCompactsDuringOneLongRunBeforeTheNextMainModelCall(t *testing.T)
 		secondFinished.Outcome.Type != protocol.OutcomeCompleted {
 		t.Fatalf("fresh Run after compaction = %+v, want completed", secondFinished)
 	}
-	mainCalls, summaryCalls, compactedMainCalls := model.Snapshot()
+	mainCalls, summaryCalls, compactedMainCalls, summaryAtMainCalls := model.Snapshot()
 	if mainCalls != modelCallsBeforeMidRunCompaction+2 || summaryCalls != 1 || compactedMainCalls != 2 {
 		t.Fatalf(
 			"model calls = main:%d summary:%d with_compacted_context:%d",
 			mainCalls,
 			summaryCalls,
 			compactedMainCalls,
+		)
+	}
+	if len(summaryAtMainCalls) != 1 || summaryAtMainCalls[0] != modelCallsBeforeMidRunCompaction {
+		t.Fatalf(
+			"summary call boundaries = %v, want exactly once after main call %d",
+			summaryAtMainCalls,
+			modelCallsBeforeMidRunCompaction,
 		)
 	}
 	history, err := stores.ChatHistory.Read(ctx, session.ID)
@@ -126,6 +133,7 @@ type longContextModel struct {
 	mainCalls          int
 	summaryCalls       int
 	compactedMainCalls int
+	summaryAtMainCalls []int
 }
 
 func (l *longContextModel) Call(_ context.Context, request *chat.Request) (*chat.Response, error) {
@@ -133,6 +141,7 @@ func (l *longContextModel) Call(_ context.Context, request *chat.Request) (*chat
 	defer l.mu.Unlock()
 	if isCompactionRequest(request) {
 		l.summaryCalls++
+		l.summaryAtMainCalls = append(l.summaryAtMainCalls, l.mainCalls)
 		return completedTextResponse("## Goal\nKeep the long Run stable.\n\n## Progress\nTool rounds completed."), nil
 	}
 	l.mainCalls++
@@ -172,10 +181,15 @@ func (l *longContextModel) Stream(
 	}
 }
 
-func (l *longContextModel) Snapshot() (mainCalls int, summaryCalls int, compactedMainCalls int) {
+func (l *longContextModel) Snapshot() (
+	mainCalls int,
+	summaryCalls int,
+	compactedMainCalls int,
+	summaryAtMainCalls []int,
+) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-	return l.mainCalls, l.summaryCalls, l.compactedMainCalls
+	return l.mainCalls, l.summaryCalls, l.compactedMainCalls, append([]int(nil), l.summaryAtMainCalls...)
 }
 
 func isCompactionRequest(request *chat.Request) bool {

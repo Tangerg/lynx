@@ -86,6 +86,7 @@ type InteractionExecutorConfig struct {
 	MCPToolAutoApproved       func(server, tool string) bool
 	Maintenance               RunMaintenance
 	ModelContextCompactor     ModelContextCompactor
+	ModelContextState         InteractionModelContextState
 	LifecycleHooks            InteractionLifecycleHooks
 	ToolResultStore           toolResultOffloader
 	ToolResultThreshold       int
@@ -120,6 +121,10 @@ func NewInteractionExecutor(config InteractionExecutorConfig) (*InteractionExecu
 	if config.DefaultClient == nil && isNilInteractionCapability(config.ChatResolver) {
 		return nil, errors.New("agentexec: Interaction requires a chat client or resolver")
 	}
+	if isNilInteractionCapability(config.ModelContextCompactor) !=
+		isNilInteractionCapability(config.ModelContextState) {
+		return nil, errors.New("agentexec: model-context compactor and state source must be configured together")
+	}
 	if err := config.DefaultSelection.Validate(); err != nil {
 		return nil, fmt.Errorf("agentexec: Interaction default model selection: %w", err)
 	}
@@ -139,6 +144,7 @@ func NewInteractionExecutor(config InteractionExecutorConfig) (*InteractionExecu
 		{name: "Tool hooks", value: config.ToolHooks},
 		{name: "Run maintenance", value: config.Maintenance},
 		{name: "model-context compactor", value: config.ModelContextCompactor},
+		{name: "model-context state", value: config.ModelContextState},
 		{name: "lifecycle hooks", value: config.LifecycleHooks},
 		{name: "Tool-result store", value: config.ToolResultStore},
 	} {

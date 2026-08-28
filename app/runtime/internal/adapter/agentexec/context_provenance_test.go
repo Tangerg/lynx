@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	apphooks "github.com/Tangerg/scope/app/runtime/internal/application/hooks"
@@ -25,9 +26,9 @@ func TestSystemPromptProvenanceMatchesVisibleComposition(t *testing.T) {
 	if err := os.WriteFile(document, []byte("agent document"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	canonicalDocument, err := filepath.EvalSymlinks(document)
-	if err != nil {
-		t.Fatal(err)
+	canonicalDocument, canonicalErr := filepath.EvalSymlinks(document)
+	if canonicalErr != nil {
+		t.Fatal(canonicalErr)
 	}
 	knowledge := &stubKnowledgeStore{home: "user rule", cwd: "workspace rule"}
 	memory := provenanceMemoryReader{items: []agentmemory.Item{{
@@ -38,9 +39,9 @@ func TestSystemPromptProvenanceMatchesVisibleComposition(t *testing.T) {
 		AgentMemory: memory,
 		Plan:        provenancePlanReader{},
 	})
-	message, err := composer.composeSystemMessage(t.Context(), "session:one", cwd)
-	if err != nil {
-		t.Fatal(err)
+	message, composeErr := composer.composeSystemMessage(t.Context(), cwd)
+	if composeErr != nil {
+		t.Fatal(composeErr)
 	}
 	if err := message.Validate(); err != nil {
 		t.Fatal(err)
@@ -53,7 +54,6 @@ func TestSystemPromptProvenanceMatchesVisibleComposition(t *testing.T) {
 		contextSourcePinnedMemory,
 		contextSourceProjectKnowledge,
 		contextSourceAgentDocument,
-		contextSourceSessionPlan,
 	}
 	gotKinds := make([]contextSourceKind, len(provenance.Sources))
 	for index, source := range provenance.Sources {
@@ -64,9 +64,19 @@ func TestSystemPromptProvenanceMatchesVisibleComposition(t *testing.T) {
 	}
 	if provenance.Sources[2].Reference != "memory:pinned" ||
 		provenance.Sources[2].Purpose != contextPurposeData ||
-		provenance.Sources[4].Reference != canonicalDocument ||
-		provenance.Sources[5].Reference != "session:one" {
+		provenance.Sources[4].Reference != canonicalDocument {
 		t.Fatalf("provenance=%+v", provenance)
+	}
+	currentState, stateErr := composer.CurrentSessionState(t.Context(), "session:one")
+	if stateErr != nil || len(currentState) != 1 {
+		t.Fatalf("CurrentSessionState messages=%d error=%v", len(currentState), stateErr)
+	}
+	planProvenance := decodeContextProvenance(t, currentState[0].Metadata)
+	if len(planProvenance.Sources) != 1 ||
+		planProvenance.Sources[0].Kind != contextSourceSessionPlan ||
+		planProvenance.Sources[0].Reference != "session:one" ||
+		planProvenance.Sources[0].Purpose != contextPurposeData {
+		t.Fatalf("Plan provenance=%+v", planProvenance)
 	}
 }
 
@@ -156,6 +166,31 @@ func TestInteractionInstructionContextStopsBeforeDurableSummary(t *testing.T) {
 	}
 	if len(instructions) != 1 || instructions[0].Text() != "runtime instructions" {
 		t.Fatalf("instructions = %#v, want only provenance-owned prompt", instructions)
+	}
+}
+
+func TestInteractionInstructionContextStopsBeforeReplaceableSessionPlan(t *testing.T) {
+	composer := NewWorkingContextComposer(WorkingContextConfig{Plan: provenancePlanReader{}})
+	instructions, err := composer.composeSystemMessage(t.Context(), t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	currentState, err := composer.CurrentSessionState(t.Context(), "session:one")
+	if err != nil || len(currentState) != 1 {
+		t.Fatalf("CurrentSessionState messages=%d error=%v", len(currentState), err)
+	}
+	messages := []corechat.Message{
+		instructions,
+		currentState[0],
+		corechat.NewUserMessage(corechat.NewTextPart("continue")),
+	}
+
+	frozen, err := interactionInstructionContext(messages)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(frozen) != 1 || strings.Contains(frozen[0].Text(), "verify provenance") {
+		t.Fatalf("frozen instructions = %#v, want no Session Plan", frozen)
 	}
 }
 

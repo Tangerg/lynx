@@ -31,6 +31,7 @@ type WorkingContextConfig struct {
 	AgentMemory       AgentMemoryReader
 	AgentMemorySearch AgentMemorySearcher
 	Plan              PlanReader
+	Goal              GoalReader
 	Hooks             WorkingContextHookResolver
 }
 
@@ -93,17 +94,22 @@ func (w *WorkingContextComposer) ComposeWorkingContext(
 		return nil, applyToErr
 	}
 
-	system, err := w.composeSystemMessage(ctx, input.SessionID, input.CWD)
+	system, err := w.composeSystemMessage(ctx, input.CWD)
 	if err != nil {
 		return nil, err
 	}
-	contextMessages := make([]corechat.Message, 0, len(seed)+2)
+	contextMessages := make([]corechat.Message, 0, len(seed)+3)
 	contextMessages = append(contextMessages, system)
-	if recalled, found, err := w.recallMessage(ctx, input.CWD, input.PromptText); err != nil {
-		return nil, err
+	if recalled, found, recallErr := w.recallMessage(ctx, input.CWD, input.PromptText); recallErr != nil {
+		return nil, recallErr
 	} else if found {
 		contextMessages = append(contextMessages, recalled)
 	}
+	currentState, err := w.CurrentSessionState(ctx, input.SessionID)
+	if err != nil {
+		return nil, err
+	}
+	contextMessages = append(contextMessages, currentState...)
 	contextMessages = append(contextMessages, seed...)
 	return contextMessages, nil
 }

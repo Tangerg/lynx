@@ -75,7 +75,7 @@ func TestComposePromptReturnsKnowledgeReadFailure(t *testing.T) {
 	failure := errors.New("knowledge document is oversized")
 	_, err := NewWorkingContextComposer(WorkingContextConfig{
 		Knowledge: &stubKnowledgeStore{err: failure},
-	}).composeSystemMessage(t.Context(), "", "/projects/alpha")
+	}).composeSystemMessage(t.Context(), "/projects/alpha")
 	if !errors.Is(err, failure) {
 		t.Fatalf("composeSystemMessage error = %v, want knowledge read failure", err)
 	}
@@ -136,7 +136,7 @@ func TestComposePromptRejectsSilentlyDroppedAgentDocument(t *testing.T) {
 	}
 
 	if _, err := NewWorkingContextComposer(WorkingContextConfig{}).
-		composeSystemMessage(t.Context(), "", workspace); !errors.Is(err, workspaceapp.ErrPromptSourceTooLarge) {
+		composeSystemMessage(t.Context(), workspace); !errors.Is(err, workspaceapp.ErrPromptSourceTooLarge) {
 		t.Fatalf("composeSystemMessage error = %v, want ErrPromptSourceTooLarge", err)
 	}
 }
@@ -147,7 +147,7 @@ func TestComposePromptRejectsSilentlyDroppedAgentDocument(t *testing.T) {
 
 func composeSystemPromptText(t *testing.T, config WorkingContextConfig, cwd string) string {
 	t.Helper()
-	message, err := NewWorkingContextComposer(config).composeSystemMessage(t.Context(), "", cwd)
+	message, err := NewWorkingContextComposer(config).composeSystemMessage(t.Context(), cwd)
 	if err != nil {
 		t.Fatal(err)
 	}

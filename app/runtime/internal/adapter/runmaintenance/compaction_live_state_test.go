@@ -9,16 +9,15 @@ import (
 	"github.com/Tangerg/scope/core/chatclient"
 )
 
-func TestLiveStateReminderRendersShellsAndPlan(t *testing.T) {
+func TestLiveStateReminderRendersRunningShells(t *testing.T) {
 	msg, ok := liveStateReminder(LiveStateSnapshot{
 		Shells: []RunningShell{{ID: "bg_1", Command: "npm run dev"}},
-		Plan:   []string{"Wire the search index"},
 	})
 	if !ok {
 		t.Fatal("non-empty snapshot should render a reminder")
 	}
 	body := msg.Text()
-	for _, want := range []string{"<system-reminder>", "bg_1", "npm run dev", "read_shell_output", "Wire the search index"} {
+	for _, want := range []string{"<system-reminder>", "bg_1", "npm run dev", "read_shell_output"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("reminder missing %q:\n%s", want, body)
 		}
@@ -48,7 +47,6 @@ func TestCompactorAppendsLiveStateReminder(t *testing.T) {
 		}
 		return LiveStateSnapshot{
 			Shells: []RunningShell{{ID: "bg_7", Command: "go test ./..."}},
-			Plan:   []string{"Finish the compaction reminder"},
 		}
 	}
 
@@ -70,8 +68,7 @@ func TestCompactorAppendsLiveStateReminder(t *testing.T) {
 		t.Fatalf("after[0] should be the summary, got %q", after[0].Text())
 	}
 	reminder := after[1].Text()
-	if !strings.Contains(reminder, "<system-reminder>") || !strings.Contains(reminder, "bg_7") ||
-		!strings.Contains(reminder, "Finish the compaction reminder") {
+	if !strings.Contains(reminder, "<system-reminder>") || !strings.Contains(reminder, "bg_7") {
 		t.Fatalf("after[1] should be the live-state reminder, got %q", reminder)
 	}
 }

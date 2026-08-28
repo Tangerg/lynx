@@ -1,8 +1,8 @@
 # ScopeApp Runtime 执行计划
 
-> 状态：P0–P188 已完成；P189 已准入。
+> 状态：P0–P189 已完成；P190 已准入。
 >
-> 最近基线：2026-08-28，P188 已完成。
+> 最近基线：2026-08-28，P189 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,9 +15,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P189 已准入：继续以 `/Users/tangerg/Desktop/study/codex-server` 的真实服务端纵切为参考，下一批审计 active Goal/Plan 在压缩、重启、长时间运行与恢复期间的同值关系。必须先形成能证明 durable winner 的失败反例；不复制 Codex wire、DTO、daemon facade、兼容层或平行状态机。
+- P190 已准入：继续审计调用前 compaction的 crash cutpoint，重点验证 SQLite conversation/Run watermark事务提交后、Agent effective-context settlement前发生 provider failure或 SIGKILL时，恢复是否仍只有一个 durable winner。必须先构造真实失败反例再决定是否需要更改 effect protocol或 persistence write-set；禁止先加 journal、重试 facade、双写或兼容状态。
+- P189 已准入并完成：真实长 Run红例证明开局 Plan被错误冻结为 Deployment instruction；`set_plan`后旧 `## Current Plan`仍驻留，压缩又注入新 Plan，provider同见双值。active Goal objective则只依赖开场 control与摘要保留，摘要遗漏时没有确定性 owner。现在 Goal/Plan由独立、canonical、可替换的 Session-state context持有：每次主模型预算检查先剥离旧快照、从 durable reader重读并验证，再重接到纯 Conversation之外；Plan从 summary reminder删除，process-only reminder只保留 running shells。
+- P189 的真实 Bootstrap/SQLite E2E把 active Goal、Plan revision 1→2与 12轮 Tool loop放进同一 Run：Goal首次 provider调用被闸门阻塞时，SQLite objective/active status/incarnation已存在；摘要模型故意完全遗漏 Goal/Plan，达到第 24条 message阈值后仍只压缩一次，第13次主调用只看到当前 objective/status与当前 Plan，报告 outcome后的调用看到 complete状态，最终 Goal结算清除且 Plan revision 2保留。Runtime standalone full test/vet/build、full race、Go 1.27-built Staticcheck、golangci-lint、tidy/generate零漂移、43条真实 HTTP E2E，Desktop standalone test/vet/build，以及 Frontend 313 files / 1952 tests与完整静态/bundle门禁全绿；Runtime Protocol、Artifact、SQLite、Desktop binding、Agent release与 CLI均不改变。
 - P188 已准入并完成：真实长 Run 反例证明旧 compaction 只在 Run terminal 后运行，同一 Interaction 的多轮模型→Tool 可在 maintenance 获得执行机会前越过模型窗口。Agent Framework 新增中性的调用前 `ModelContextReducer`，成功 settlement 把 effective messages 安装回 Strategy WorkingContext；Runtime adapter 则拥有模型窗口、protected tail、summary、lifecycle veto 与 durable/transient 策略。
-- P188 的 durable root compaction 在主模型调用前读取并语义核对 SQLite history，先完成 summary/trim，再以既有 `RewriteForCompaction` CAS 事务同时替换 conversation 与重基 Run watermarks；失败、漂移、超出 protected/fixed context 或 PreCompact veto 都在主模型零调用时 fail closed。真实 Runtime/SQLite E2E 在一个 Run 内完成 12 轮 `get_goal` Tool loop、第 13 次调用前压缩、继续完成，并证明下一 fresh Run 仍从 summary 继续；完整 43 条 Runtime↔HTTP↔TypeScript E2E 继续覆盖 Goal/Plan、HITL、restart 与 SIGKILL recovery。Agent canonical release 前移到 `agent/v0.2.0`、Baseline 33、Interaction state/protocol v8/v8；Runtime Protocol、Artifact、SQLite shape 与 Desktop binding不变。
+- P188 的 durable root compaction 在每次主模型调用前读取、语义核对并检查预算；低于 message/token 阈值时原样早退，不运行 PreCompact、不调用摘要模型、不写 SQLite，只有达到阈值才先完成 summary/trim，再以既有 `RewriteForCompaction` CAS事务同时替换 conversation与重基 Run watermarks。失败、漂移、超出 protected/fixed context或 PreCompact veto都在主模型零调用时 fail closed。真实 Runtime/SQLite E2E在一个 Run内证明前 12 次主调用只检查不压缩、达到第 24 条 message阈值后在第 13 次调用前仅压缩一次、继续完成，并证明下一 fresh Run从 summary继续且不立即再次压缩；完整 43 条 Runtime↔HTTP↔TypeScript E2E继续覆盖 Goal/Plan、HITL、restart与 SIGKILL recovery。Agent canonical release前移到 `agent/v0.2.0`、Baseline 33、Interaction state/protocol v8/v8；Runtime Protocol、Artifact、SQLite shape与 Desktop binding不变。
 - P188 的套件级恢复红例进一步关闭两处双真相：Tool 完成事实分别持有 Agent owner生成的 exact model result 与 Runtime client presentation，Conversation 不再从展示 JSON 反推；fresh opening transaction 持久化与 executor 实际接收的 composed User message，hook context只进入 provider Conversation，原始用户输入仍独立投影到 Transcript。审批恢复允许相邻 Tool message分组差异，但 role、part payload、ToolCall/ToolResult identity与内容仍严格同值。
 - P187 已准入并完成：app 产品身份已一次性切换为暂定 canonical brand `scopeapp` / `ScopeApp`。Runtime executable、Desktop bundle/window、durable home、config/env、knowledge filename、telemetry、协议元数据、OpenRPC 扩展、生成 TypeScript package/client、Frontend 文案/主题/storage/plugin identity 与测试 fixture 均已迁移；旧名称、alias、fallback、双读双写和 compatibility shim 均不存在。共享 `localruntime.DataDirectory` 值对象唯一拥有 `~/.scopeapp`、`scopeapp.db` 与 `local-token` 的跨进程布局，Runtime/Desktop 不再各自拼路径。
 - P187 将 breaking protocol identity 精确前移到 `2026-08-28` 并冻结 Runtime Protocol Baseline 2；Artifact v23 与 SQLite epoch 83 shape 不变。受版本控制的全仓品牌审计（冻结 `app/cli` 与参考 `study` 除外）、Runtime workspace/standalone test/vet/build/full race、Frontend 313 files/1952 tests 与完整静态/bundle 门禁、43 条真实 Runtime↔HTTP↔TypeScript E2E、Desktop test/vet/build、contract generate 零漂移及 Wails v3 production package/strict codesign 全绿。`app/cli` 零 diff；本地含密钥配置未读取、未改写。
@@ -508,10 +510,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P186     | 非 app module 首次 canonical 发布                                                            | 85 个 module 按 DAG 发布 `v0.0.1`；Runtime 只消费正式标签                                                                                       |
 | P187     | ScopeApp 产品身份无兼容切换                                                                   | `scopeapp` / `ScopeApp`、durable layout 与 Protocol Baseline 2 单一身份                                                                         |
 | P188     | 单个长 Run 的模型调用前上下文生命周期闭环                                                     | Agent effective-context 状态同步；Runtime protected-tail 规划、SQLite CAS rewrite、PreCompact 与真实跨 Run E2E                                  |
+| P189     | Goal/Plan 长 Run 模型上下文同值闭环                                                          | replaceable Session-state context；stable Deployment instructions；active Goal + Plan revision + threshold E2E                                  |
 
 ## 5. 当前里程碑结论
 
-P113–P188 共同建立了以下不可回退的心智模型：
+P113–P189 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -564,7 +567,7 @@ P113–P188 共同建立了以下不可回退的心智模型：
 - 普通 ToolCall 属于 Agent work narrative，不按运行/失败/拒绝状态切换卡片类型；mark、summary、accessory 与按需 disclosure 共享一行，展开后的 shell/patch/reasoning material 各自拥有 reading-edge inset。颜色只能辅助 exact verdict，不能制造第二套风险或完成层级。
 - 动态单键 extension contribution 是可替换的 plugin-owned resource：每次偏好更新先退休 exact previous contribution，再发布新 material；plugin cleanup/HMR 同步释放 subscription 与 contribution。控件反馈、document paint 和持久化必须消费同一 preference mutation，不允许 listener 异常制造半结算。
 
-最近一次完整验收基线：Frontend 313 files / 1952 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime、`localruntime` 独立子模块与 Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1，Runtime 与 `localruntime` 的 full `go test -race ./...`，以及 Runtime/Desktop 的 `GOWORK=off` test/vet/build 通过；根 workspace Runtime+Desktop tests、三模块 tidy、Runtime generate 零漂移和 `wails3 task build` production native build 通过。P175–P180 的 Runtime-only delta 又分别通过 workspace/standalone full test/vet/build、full race、Staticcheck、根 Runtime+Desktop tests 与 tidy/generate 零漂移；没有 Desktop/Frontend/Wails/contract source delta，故不重复其生产包矩阵。P183 的 Runtime full test/vet 与 schema rejection gate 通过，CLI mutation settlement 同批收敛为共享命名 outcome；P184 的 receiver-method、`operation.Name` identity、Hook/Tool 边界与 operation architecture gate 由 Runtime full test/vet/build 和 generate 零漂移重新验收。P185 进一步通过 Runtime workspace/standalone full test/vet/build、43 条真实 HTTP E2E、Frontend 完整门禁、`npm outdated` 零更新、534 packages 零漏洞、Desktop workspace/standalone test/vet/build 与 Wails v3 beta.14 production build；TypeScript native compiler、Runtime E2E、Wails、Vite 与测试进程均已 join。当前合同为 Artifact v23、SQLite epoch 83、Protocol `2026-08-24`、Agent Baseline 31；仅观察到既有 macOS deployment-target linker warning，未启动 agent-browser。cross-build artifacts 与临时检查器均已回收。
+最近一次完整验收基线：Frontend 313 files / 1952 tests 全绿，96 条 published context edge 无环，86/86 Runtime operation fact families、3/3 sidecars、15/15 events 有产品消费者；type/lint/format/knip/circular/context/published-boundary/layer/port/API/style/design/token/chrome/locales/bootstrap/bundle 全门禁通过。Runtime、`localruntime` 独立子模块与 Desktop 在 Go 1.27.0 toolchain 下的 `go test ./...`、`go vet ./...`、`go build ./...`、Staticcheck 2026.2.1，Runtime 与 `localruntime` 的 full `go test -race ./...`，以及 Runtime/Desktop 的 `GOWORK=off` test/vet/build 通过；根 workspace Runtime+Desktop tests、三模块 tidy、Runtime generate 零漂移和 `wails3 task build` production native build 通过。P175–P180 的 Runtime-only delta 又分别通过 workspace/standalone full test/vet/build、full race、Staticcheck、根 Runtime+Desktop tests 与 tidy/generate 零漂移；没有 Desktop/Frontend/Wails/contract source delta，故不重复其生产包矩阵。P183 的 Runtime full test/vet 与 schema rejection gate 通过，CLI mutation settlement 同批收敛为共享命名 outcome；P184 的 receiver-method、`operation.Name` identity、Hook/Tool 边界与 operation architecture gate 由 Runtime full test/vet/build 和 generate 零漂移重新验收。P185–P189 进一步完成全仓依赖升级、85个非 app module的 `v0.0.1`发布、ScopeApp身份切换，以及长 Run compaction与Goal/Plan同值闭环；最近一批通过 Runtime standalone full test/vet/build、full race、Go 1.27-built Staticcheck、golangci-lint、43条真实 HTTP E2E、Desktop standalone test/vet/build、Frontend完整门禁与Runtime tidy/generate零漂移。当前合同为 Artifact v23、SQLite epoch 83、Protocol `2026-08-28`、Agent Baseline 33、Interaction state/protocol v8/v8；仅观察到既有 macOS deployment-target linker warning，未启动 agent-browser。所有验证进程均已 join，无临时检查器或生成物漂移。
 
 ## 6. 新阶段准入
 
@@ -577,4 +580,4 @@ P113–P188 共同建立了以下不可回退的心智模型：
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P188 已完成，P189 从 Goal/Plan 与长运行恢复的真实同值反例开始。开始新纵切时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P189 已完成，P190 从 compaction commit与 Agent settlement之间的真实 crash cutpoint开始。开始新纵切时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

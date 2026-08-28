@@ -64,8 +64,8 @@ type CompactionResult struct {
 
 // NewCompactor builds a Compactor over the chat history store and a
 // per-call chat-client resolver. liveState (nil to disable) snapshots a
-// session's still-active execution state so an LLM summary rung can remind the
-// model of running shells / in-progress tasks the summary would otherwise drop.
+// session's still-active process state so an LLM summary rung can remind the
+// model of running shells the summary cannot reconstruct.
 // Zero / out-of-range config fields fall back to the package defaults.
 func NewCompactor(store compactionStore, client utilitymodel.Resolver, liveState LiveStateSnapshotter, cfg CompactionConfig) *Compactor {
 	maxMessages := cfg.MaxMessages
@@ -163,8 +163,8 @@ func (c *Compactor) CompactIfNeeded(ctx context.Context, sessionID string, conte
 	rewritten := make([]chat.Message, 0, 2+len(plan.recent))
 	rewritten = append(rewritten, summary)
 	// Right after the summary, carry over the live execution state the summary
-	// dropped (running background shells, in-progress tasks) so the model does not
-	// forget a job it started before the compacted Runs. Deterministic, no model
+	// dropped (running background shells) so the model does not forget a process
+	// it started before the compacted Runs. Deterministic, no model
 	// call; omitted entirely when nothing is active.
 	if c.liveState != nil {
 		if reminder, ok := liveStateReminder(c.liveState(ctx, sessionID)); ok {

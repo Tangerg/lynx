@@ -17,6 +17,7 @@ const rootOpeningMessageCount = 1
 
 type interactionModelContextReducer struct {
 	compactor    ModelContextCompactor
+	state        InteractionModelContextState
 	session      *interactionSession
 	start        runs.RootExecutionStart
 	instructions []corechat.Message
@@ -24,12 +25,14 @@ type interactionModelContextReducer struct {
 
 func newInteractionModelContextReducer(
 	compactor ModelContextCompactor,
+	state InteractionModelContextState,
 	session *interactionSession,
 	start runs.RootExecutionStart,
 	instructions []corechat.Message,
 ) *interactionModelContextReducer {
 	return &interactionModelContextReducer{
 		compactor:    compactor,
+		state:        state,
 		session:      session,
 		start:        start,
 		instructions: cloneChatMessages(instructions),
@@ -62,7 +65,18 @@ func (i *interactionModelContextReducer) ReduceModelContext(
 			prefixMatches,
 		)
 	}
-	candidate := cloneChatMessages(request.Messages[len(i.instructions):])
+	candidate, err := withoutReplaceableSessionState(request.Messages[len(i.instructions):])
+	if err != nil {
+		return nil, err
+	}
+	fixedContext := cloneChatMessages(i.instructions)
+	if i.state != nil {
+		currentState, stateErr := i.state.CurrentSessionState(ctx, i.start.SessionID)
+		if stateErr != nil {
+			return nil, stateErr
+		}
+		fixedContext = append(fixedContext, currentState...)
+	}
 	preCompact := func(ctx context.Context) bool {
 		return i.session.lifecycleHooks == nil || i.session.lifecycleHooks.BeforeCompaction(
 			ctx,
@@ -83,7 +97,7 @@ func (i *interactionModelContextReducer) ReduceModelContext(
 		compaction, buildErr = NewDurableModelContextCompaction(
 			i.start.SessionID,
 			i.start.ModelSelection,
-			i.instructions,
+			fixedContext,
 			candidate,
 			request.Tools,
 			request.Options,
@@ -107,7 +121,7 @@ func (i *interactionModelContextReducer) ReduceModelContext(
 		compaction, buildErr = NewTransientModelContextCompaction(
 			i.start.SessionID,
 			i.start.ModelSelection,
-			i.instructions,
+			fixedContext,
 			candidate,
 			request.Tools,
 			request.Options,
@@ -123,7 +137,7 @@ func (i *interactionModelContextReducer) ReduceModelContext(
 		return nil, err
 	}
 	effective := append(
-		cloneChatMessages(i.instructions),
+		fixedContext,
 		result.Messages()...,
 	)
 	validation := request.Clone()
@@ -142,6 +156,50 @@ func (i *interactionModelContextReducer) ReduceModelContext(
 		})
 	}
 	return effective, nil
+}
+
+// withoutReplaceableSessionState removes prior per-call Goal and Plan snapshots
+// from the mutable Strategy context. The reducer re-reads and reattaches the
+// current durable values above, so a Tool call or external replacement cannot
+// leave an opening snapshot masquerading as current state.
+func withoutReplaceableSessionState(messages []corechat.Message) ([]corechat.Message, error) {
+	candidate := cloneChatMessages(messages)
+	goalSeen := false
+	planSeen := false
+	for len(candidate) > 0 && candidate[0].Role == corechat.RoleSystem {
+		provenance, found, err := candidate[0].Metadata.Decode[contextProvenance](
+			contextProvenanceMetadataKey,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("agentexec: decode mutable model-context provenance: %w", err)
+		}
+		if !found {
+			break
+		}
+		stateKind, replaceable, err := provenance.replaceableSessionState()
+		if err != nil {
+			return nil, fmt.Errorf("agentexec: mutable model-context provenance: %w", err)
+		}
+		if !replaceable {
+			return nil, errors.New("agentexec: mutable model context starts with frozen provenance")
+		}
+		switch stateKind {
+		case contextSourceSessionGoal:
+			if goalSeen || planSeen {
+				return nil, errors.New("agentexec: mutable Session state is not canonical Goal-then-Plan")
+			}
+			goalSeen = true
+		case contextSourceSessionPlan:
+			if planSeen {
+				return nil, errors.New("agentexec: mutable Session state repeats the Plan")
+			}
+			planSeen = true
+		default:
+			return nil, errors.New("agentexec: mutable Session state has an unknown source")
+		}
+		candidate = candidate[1:]
+	}
+	return candidate, nil
 }
 
 func trailingUserMessageCount(messages []corechat.Message) int {

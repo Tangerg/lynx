@@ -203,6 +203,7 @@ func buildExecutionComposition(
 		AgentMemory:       cfg.AgentMemoryStore,
 		AgentMemorySearch: modelServices.agentMemorySearch,
 		Plan:              cfg.PlanStore,
+		Goal:              policy.goalReader,
 		Hooks:             cfg.HooksResolver,
 	})
 	toolAuthorizer, err := agentexec.NewToolAuthorizer(policy.approvals)
@@ -241,6 +242,7 @@ func buildExecutionComposition(
 		},
 		Maintenance:           runMaintenance,
 		ModelContextCompactor: modelContextCompactor,
+		ModelContextState:     workingContexts,
 		LifecycleHooks:        workingContexts,
 		Pricing:               cfg.Pricing,
 		Provider:              cfg.Provider,

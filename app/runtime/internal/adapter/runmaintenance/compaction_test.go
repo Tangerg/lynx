@@ -24,7 +24,10 @@ func constClient(c *chatclient.Client) utilitymodel.Resolver {
 	return func(context.Context) *chatclient.Client { return c }
 }
 
-type compactionTestStore struct{ *conversationfixture.Store }
+type compactionTestStore struct {
+	*conversationfixture.Store
+	rewrites int
+}
 
 func newCompactionTestStore() *compactionTestStore {
 	return &compactionTestStore{Store: conversationfixture.New()}
@@ -44,7 +47,11 @@ func (c *compactionTestStore) RewriteForCompaction(
 	if len(current) != expectedCount {
 		return fmt.Errorf("test compaction count changed from %d to %d", expectedCount, len(current))
 	}
-	return c.Replace(ctx, sessionID, messages...)
+	if err := c.Replace(ctx, sessionID, messages...); err != nil {
+		return err
+	}
+	c.rewrites++
+	return nil
 }
 
 // TestCompactor_NopBelowThreshold doesn't talk to a real LLM —

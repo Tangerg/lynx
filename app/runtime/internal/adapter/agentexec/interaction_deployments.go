@@ -162,6 +162,7 @@ func (i *interactionDeploymentBuilder) buildAtDepth(depth int, next agent.Deploy
 	if i.executor.config.ModelContextCompactor != nil {
 		contextReducer = newInteractionModelContextReducer(
 			i.executor.config.ModelContextCompactor,
+			i.executor.config.ModelContextState,
 			i.session,
 			i.start,
 			i.instructions,
@@ -278,17 +279,24 @@ func interactionInstructionContext(messages []corechat.Message) ([]corechat.Mess
 		if err := messages[index].Validate(); err != nil {
 			return nil, fmt.Errorf("agentexec: invalid Interaction instruction[%d]: %w", index, err)
 		}
-		provenance, found, err := messages[index].Metadata.Decode[contextProvenance](
+		provenance, found, decodeErr := messages[index].Metadata.Decode[contextProvenance](
 			contextProvenanceMetadataKey,
 		)
-		if err != nil {
-			return nil, fmt.Errorf("agentexec: decode Interaction instruction[%d] provenance: %w", index, err)
+		if decodeErr != nil {
+			return nil, fmt.Errorf("agentexec: decode Interaction instruction[%d] provenance: %w", index, decodeErr)
 		}
 		if !found {
 			break
 		}
-		if err := provenance.validate(); err != nil {
+		if validationErr := provenance.validate(); validationErr != nil {
+			return nil, fmt.Errorf("agentexec: Interaction instruction[%d] provenance: %w", index, validationErr)
+		}
+		_, sessionState, err := provenance.replaceableSessionState()
+		if err != nil {
 			return nil, fmt.Errorf("agentexec: Interaction instruction[%d] provenance: %w", index, err)
+		}
+		if sessionState {
+			break
 		}
 		instructions = append(instructions, messages[index].Clone())
 	}

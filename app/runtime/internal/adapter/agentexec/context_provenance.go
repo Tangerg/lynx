@@ -25,6 +25,7 @@ const (
 	contextSourceSessionPlan      contextSourceKind = "session_plan"
 	contextSourceLifecycleHook    contextSourceKind = "lifecycle_hook"
 	contextSourceRecalledMemory   contextSourceKind = "recalled_memory"
+	contextSourceSessionGoal      contextSourceKind = "session_goal"
 )
 
 type contextPurpose string
@@ -40,13 +41,15 @@ func (c contextSourceKind) source(reference string) contextSource {
 
 func (c contextSourceKind) purpose() contextPurpose {
 	switch c {
-	case contextSourcePinnedMemory, contextSourceRecalledMemory:
+	case contextSourcePinnedMemory,
+		contextSourceRecalledMemory,
+		contextSourceSessionGoal,
+		contextSourceSessionPlan:
 		return contextPurposeData
 	case contextSourceBasePrompt,
 		contextSourceUserKnowledge,
 		contextSourceProjectKnowledge,
 		contextSourceAgentDocument,
-		contextSourceSessionPlan,
 		contextSourceLifecycleHook:
 		return contextPurposeInstruction
 	default:
@@ -71,6 +74,29 @@ func (c contextProvenance) validate() error {
 	}
 	_, err := contextSources(c.Sources).provenance()
 	return err
+}
+
+// replaceableSessionState reports the isolated state kind carried by this
+// message. Goal and Plan must never share a message with each other or with
+// frozen deployment instructions because each can change mid-Interaction.
+func (c contextProvenance) replaceableSessionState() (contextSourceKind, bool, error) {
+	if err := c.validate(); err != nil {
+		return "", false, err
+	}
+	var stateKind contextSourceKind
+	for _, source := range c.Sources {
+		if source.Kind == contextSourceSessionGoal || source.Kind == contextSourceSessionPlan {
+			stateKind = source.Kind
+			break
+		}
+	}
+	if stateKind == "" {
+		return "", false, nil
+	}
+	if len(c.Sources) != 1 || c.Sources[0].Kind != stateKind {
+		return "", false, fmt.Errorf("agentexec: replaceable Session state must be an isolated source")
+	}
+	return stateKind, true, nil
 }
 
 type contextSources []contextSource
