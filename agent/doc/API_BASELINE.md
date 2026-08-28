@@ -1,14 +1,14 @@
 # Agent Framework 公共合同基线
 
-> 状态：Baseline 33 已冻结
-> 冻结日期：2026-08-28
+> 状态：Baseline 34 已冻结
+> 冻结日期：2026-08-29
 > 适用范围：`agent` 根 package、`agent/agenttest`、`agent/interaction`、`agent/planning`、`agent/planning/goap`、`agent/workflow`、`agent/platform`、Process Snapshot v6、TreeSnapshot v4、child/framework-effect protocol v2、Interaction state/protocol v8/v8、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
 
 本文只记录已经由 P3 真实 Interaction、P4 child composition、八个独立 command consumer、P5 真实 Planning/GOAP、P6 managed Workflow、P8 Platform 与恢复合同共同证明的公共合同基线。目标架构、ADR、工程标准和实施进度仍由各自文档拥有；这里不复制它们。
 
 ## 1. 基线的含义
 
-Baseline 33 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、派生 JSON Schema、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
+Baseline 34 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、派生 JSON Schema、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
 
 1. 先用真实 Strategy 或 consumer 证明变化必要；
 2. 更新或追加 ADR，不保留 alias、双读、双写或兼容 shim；
@@ -47,7 +47,7 @@ Baseline 33 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和现有 GoDoc 的任何漂移都会失败。AST 守卫只强制关键接口及其每个具名方法拥有契约注释，同时要求公开 callable 的参数使用语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链；constructor、codec、clone、validate、简单 accessor、字段与 sentinel error 不因导出而被迫生成复述型注释。Baseline 33 public digest：
+`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和现有 GoDoc 的任何漂移都会失败。AST 守卫只强制关键接口及其每个具名方法拥有契约注释，同时要求公开 callable 的参数使用语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链；constructor、codec、clone、validate、简单 accessor、字段与 sentinel error 不因导出而被迫生成复述型注释。Baseline 34 public digest：
 
 P25 将 Agent 的 JSON Schema 派生与编译归并到 Core 共享 owner；P24 已将 Planning `Truth` 纳入同一稳定文本值对象规则：
 
@@ -59,12 +59,12 @@ P25 将 Agent 的 JSON Schema 派生与编译归并到 Core 共享 owner；P24 �
 - workflow：`f0f995aa9a543e0985d650ca9815d6baac1aa6367f6d75483b958489113fda16`
 - platform：`f55a3f35ae808a709284bc828e0bd8dcdc8d258bf2a8185ebe2a88da39a97d1e`
 
-Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 33 wire digest：
+Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 34 wire digest：
 
 下列 digest 冻结当前 Kernel、Interaction 与 Planning 的完整 wire 类型形状：
 
 - Kernel snapshot/protocol wire：`41b91a73b202a4654f3e5248a5b01a56e313a5c5ff70d39af65655df667aebc6`
-- Framework Event/Delta observation wire：`77e8e0aa2ba047879e0c3e477acf315a118e14d45092eee8d852a107acca1994`
+- Framework Event/Delta observation wire：`a087b14412eddf40b5bddcc051a4a02f0620b150daa94977816882c80f3ccf1f`
 - Interaction state/protocol wire：`ef93719a0d98d6400c6696bc47e00b2308710b89cdb5dfd0d0ee19e2b3f8ca72`
 - Planning state/protocol wire：`dc6f02ca28f1fbb9e14899bd3103a781b4f5341a397cd8d8bbef279d198a784e`
 - Workflow state wire：`2d4d33d0c9996077abb594f3d2aab47d37059c6e126ad5e971ee8d484bb4442d`
@@ -163,6 +163,8 @@ P29 依据 ADR-A2-084 形成 Baseline 32。真实 Runtime 长 Run 证明只在 R
 
 P30 依据 ADR-A2-085 形成 Baseline 33。真实 approval 恢复与 presenter consumer 证明 Tool 可执行返回值到模型 `ToolResult` 的错误分类、有界诊断和 control-plane 排除规则只能由 Interaction 单点拥有。`ToolInvocation.ModelResult` 公开这一纯映射，Dispatcher 与 Host 投影共用同一 rich attribution value；UI presentation 仍是独立输出。Interaction state/protocol、Kernel 与其他 owner wire 全部不变。
 
+P32 依据 ADR-A2-087 形成 Baseline 34。失败 `agent.process.finished` event 直接投影 resolved Termination 已拥有的 `failure_kind` 与 `failure_code`，让 listener 能区分 limit、capability、tree、contract 与外部失败；非失败事件省略字段，Failure message不进入新增观测维度。公共 API、Process/Tree snapshot、Framework/child protocol 与 Strategy wire全部不变，只有 observation digest有意升级。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 33 保持唯一 `agent` module、一次性 prepared authority、mutable owner pointer identity、提交式取消请求、Interaction-owned steer 归因与准确 JSON wire schema 合同。Delta barrier 只表达 Framework-owned observation ordering，不接收 Host callback、事务或资源 identity；Interaction host-failure 标记只表达外部调用前的 Host 拒绝，不携带 Runtime、RPC、数据库或产品终态。Model context reducer 只替换模型可见 messages 并回写 Strategy 状态，不拥有持久化、压缩算法或产品事件。ToolInvocation 只拥有一个实际 Tool 边界的精确模型结果映射，不拥有 Host transcript/persistence。Core Chat 的单 Output 是 Interaction 唯一模型响应合同，不提供复数候选或旧 Result wire 兼容读取。具有稳定文本身份的枚举与 Planning `Truth` 使用 named string value object；仅用于进程内控制的 FSM 判别值、位掩码和计数仍保持与其运算语义匹配的数值表示。JSON Schema 的通用反射与编译由 Core 单点拥有，领域值只通过 typed model 描述自己的 wire；规则不认识 Runtime/provider，也不泄露第三方 schema 实现。模块路径变化不引入 alias、replace compatibility 或旧 wire 双读。七个公共 package及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`agenttest` 不模拟 Framework 生命周期；`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow Topology 只是 sealed algebra 的静态投影，不是可执行图。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 34 保持唯一 `agent` module、一次性 prepared authority、mutable owner pointer identity、提交式取消请求、Interaction-owned steer 归因与准确 JSON wire schema 合同。Delta barrier 只表达 Framework-owned observation ordering，不接收 Host callback、事务或资源 identity；Interaction host-failure 标记只表达外部调用前的 Host 拒绝，不携带 Runtime、RPC、数据库或产品终态。Model context reducer 只替换模型可见 messages 并回写 Strategy 状态，不拥有持久化、压缩算法或产品事件。ToolInvocation 只拥有一个实际 Tool 边界的精确模型结果映射，不拥有 Host transcript/persistence。Core Chat 的单 Output 是 Interaction 唯一模型响应合同，不提供复数候选或旧 Result wire 兼容读取。具有稳定文本身份的枚举与 Planning `Truth` 使用 named string value object；仅用于进程内控制的 FSM 判别值、位掩码和计数仍保持与其运算语义匹配的数值表示。JSON Schema 的通用反射与编译由 Core 单点拥有，领域值只通过 typed model 描述自己的 wire；规则不认识 Runtime/provider，也不泄露第三方 schema 实现。模块路径变化不引入 alias、replace compatibility 或旧 wire 双读。七个公共 package及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`agenttest` 不模拟 Framework 生命周期；`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow Topology 只是 sealed algebra 的静态投影，不是可执行图。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

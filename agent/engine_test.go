@@ -713,7 +713,8 @@ func TestKillWaitsForInflightEffectSettlement(t *testing.T) {
 func TestStepFailureDiscardsMutatedExecutionAndPreservesCursor(t *testing.T) {
 	definition := newEngineTestDefinition(t, "engine.fail", "fail")
 	deployment := engineTestDeployment(t, definition, &engineTestDispatcher{policy: ReplayPolicyNever})
-	engine, _ := NewEngine(EngineConfig{})
+	listener := &recordingEventListener{}
+	engine, _ := NewEngine(EngineConfig{EventListeners: []EventListener{listener}})
 	input, _ := EncodeInput(engineTestInput{Value: "stable"})
 	process, err := engine.Start(context.Background(), deployment, input)
 	if err != nil {
@@ -731,6 +732,17 @@ func TestStepFailureDiscardsMutatedExecutionAndPreservesCursor(t *testing.T) {
 	state, _ := wireJSON.decode[engineTestState](wire.LastStableState.Payload())
 	if state.Phase != "ready" || wire.Mailbox.SignalCursor != 0 || wire.Prepared != nil {
 		t.Fatalf("last stable state=%+v cursor=%d prepared=%v", state, wire.Mailbox.SignalCursor, wire.Prepared)
+	}
+	var finished processFinishedEventPayload
+	for _, event := range listener.snapshot() {
+		if event.Name() == EventProcessFinished {
+			if err := json.Unmarshal(event.Payload(), &finished); err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+	if finished.FailureKind != FailureKindExecution || finished.FailureCode != "execution.step.failed" {
+		t.Fatalf("finished failure = %s/%q", finished.FailureKind, finished.FailureCode)
 	}
 }
 

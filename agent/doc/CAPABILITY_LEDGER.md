@@ -703,3 +703,9 @@
 - Delta 队列同样是 Engine-owned best-effort 异步生命周期：listener 获得发出 Delta 时的 context values，但不能通过请求取消撤销已经接受的投递。回归同时锁定值传播与无 cancellation channel。
 - prepared waiting-subtree cancellation 原先分别持有 operation 与 quiescence release，表示上允许部分释放。私有 `quiescedTree` 将两者组成一个幂等 capability；prepare failure、Apply 与 Discard都只能释放同一 owner。
 - Event 构造的同型位置参数收敛为私有具名 spec，归因字段由编译期字段名表达。上述变化未修改任何公共 API、GoDoc、wire 或 schema version，Baseline 33 保持不变。
+
+## 29. P32 终态失败观察归因证据
+
+- `Termination` 是 Status/Cause/Failure 的唯一终态 owner；观察协议原先只投影 Status/Cause，导致不同稳定 Failure code 在 Event 边界永久丢失，OTel 或其他 listener 无法事后还原。
+- 失败 `agent.process.finished` 现在同时投影 Failure kind/code；非失败终态省略字段。bounded diagnostic message不进入协议新增字段，避免高基数与秘密泄露。
+- 变更只升级 observation wire digest；公共 API、Process/Tree snapshot、Framework effect、child protocol 与全部 Strategy state/protocol保持原版本。

@@ -36,6 +36,8 @@ type signalAcceptedEventPayload struct {
 type processFinishedEventPayload struct {
 	ProcessStatus    Status           `json:"process_status"`
 	TerminationCause TerminationCause `json:"termination_cause"`
+	FailureKind      FailureKind      `json:"failure_kind,omitempty"`
+	FailureCode      string           `json:"failure_code,omitempty"`
 }
 
 type stepFinishedEventPayload struct {

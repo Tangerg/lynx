@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	currentAPIBaseline         = 33
-	currentAPIBaselineFrozenOn = "2026-08-28"
+	currentAPIBaseline         = 34
+	currentAPIBaselineFrozenOn = "2026-08-29"
 )
 
 var exportedAPIBaselines = []struct {
@@ -342,7 +342,7 @@ func TestWireBaselinesCoverEveryProductionWireType(t *testing.T) {
 func TestObservationWireBaseline(t *testing.T) {
 	shape := observationWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "77e8e0aa2ba047879e0c3e477acf315a118e14d45092eee8d852a107acca1994"
+	const want = "a087b14412eddf40b5bddcc051a4a02f0620b150daa94977816882c80f3ccf1f"
 	if got != want {
 		t.Fatalf("observation wire changed: got %s, want %s\n%s", got, want, shape)
 	}

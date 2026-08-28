@@ -721,3 +721,11 @@
 - 决策：所有脱离请求生命周期的执行边界统一使用 `context.WithoutCancel`：保留值，明确移除 deadline、Done 与 cancellation cause。根 Process 仍服从 Host 启动 context；只有已获 Engine 生命周期所有权的子 Process、恢复后代和 best-effort Delta 队列脱离请求取消。tree operation 与 quiescence barrier 收敛为一个私有、幂等释放的 `quiescedTree` capability，prepared subtree cancellation 只能整体持有和释放它。Event 构造改用私有具名 spec，禁止同型位置参数表达归因。
 - 决策：这些变化不新增 context key、公共 hook、Host abstraction、第二 lifecycle 或兼容入口；Context value 的具体含义仍由调用方拥有。公开 API、GoDoc、Framework/Strategy wire、snapshot version 与 observation schema均不变。
 - 后果：长时间 child/restore/Delta 工作既不被短请求误杀，也不会丢失调用链值；等待子树变更只有一个释放 owner，Event attribution 由字段名而非参数位置约束。Baseline 33 的全部 digest保持不变。
+
+## ADR-A2-087：Process 终态事件必须携带现有的稳定失败归因
+
+- 状态：已接受并实施；形成 Baseline 34。
+- 证据：`Termination` 已经权威拥有 `Failure.Kind` 与稳定 `Failure.Code`，但 `agent.process.finished` payload 只投影 Status/Cause。`engine.limit.steps`、`engine.capability.denied` 与 `engine.child.tree_limit` 因而在观察协议中坍缩成相同的粗粒度 failure cause；外部 adapter 无法恢复已经被丢弃的领域事实，也不应解析 diagnostic message猜测。
+- 决策：`processFinishedEventPayload` 在失败终态增加可选 `failure_kind` 与 `failure_code`，直接从同一个 resolved Termination 投影；非失败终态省略两字段。Event 不携带 Failure message，避免把诊断文本、外部 payload 或潜在秘密提升为低基数遥测维度。OTel adapter 可直接把 kind/code用于 span 与 process-exit metric。
+- 决策：不增加 logger、callback、Host failure map、重试分类或第二 termination owner。公开 API、Process/Tree snapshot、Framework/Strategy protocol 与 schema version均不变；observation wire 有意 breaking，旧 shape 不双写。
+- 后果：Framework 的稳定失败分类终于能被 traces/metrics消费；observation digest 升级并形成 Baseline 34，其余 public/wire digest保持不变。
