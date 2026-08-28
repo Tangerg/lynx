@@ -45,10 +45,7 @@ import goal from "@/plugins/builtin/chat/goal";
 import type { GoalState } from "@/plugins/builtin/chat/goal/application/goalReadModel";
 import planProgress from "@/plugins/builtin/chat/plan-progress";
 import { kernelChat } from "@/plugins/builtin/shell/kernel";
-import {
-  MODELS_KEY,
-  type SelectableModel,
-} from "@/plugins/builtin/settings/providers/public/queries";
+import { MODELS_KEY, SelectableModel } from "@/plugins/builtin/settings/providers/public/queries";
 import { installWorkspaceNavigationPort } from "@/plugins/builtin/workspace/adapters/navigationStatePort";
 import { installRuntimeCapabilityPort } from "@/plugins/builtin/runtime/adapters/runtimeConnectionProjection";
 import { RUNTIME_STREAM_PORTS } from "@/plugins/builtin/runtime/public/ports";
@@ -76,13 +73,29 @@ import {
 import { installVisualRuntimeServiceStatusPort } from "./installVisualRuntimeServiceStatusPort";
 
 const VISUAL_MODELS: SelectableModel[] = [
-  {
+  new SelectableModel({
     id: "gpt-5.6",
     provider: "openai",
     label: "GPT-5.6",
-    multimodal: true,
+    inputModalities: ["text", "image"],
+    outputModalities: ["text"],
     contextWindow: 256_000,
-  },
+    maxInputTokens: 224_000,
+    maxOutputTokens: 32_000,
+    reasoning: true,
+    reasoningLevels: ["low", "medium", "high"],
+    reasoningDefaultLevel: "medium",
+    toolUse: true,
+    structuredOutput: true,
+  }),
+  new SelectableModel({
+    id: "qwen-mt-plus",
+    provider: "alibaba",
+    label: "Qwen MT Plus",
+    inputModalities: ["text"],
+    outputModalities: ["text"],
+    contextWindow: 32_768,
+  }),
 ];
 
 function visualSession(state: VisualAgentState): AgentSessionSummary {

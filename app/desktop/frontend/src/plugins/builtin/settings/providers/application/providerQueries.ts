@@ -1,15 +1,9 @@
 import { createDataQuery } from "@/plugins/sdk";
 import type { ProviderConfiguration, ProviderRole } from "./providerModels";
+import { SelectableModel } from "./selectableModel";
 
 export type { ProviderConfiguration, ProviderRole } from "./providerModels";
-
-export interface SelectableModel {
-  id: string;
-  provider: string;
-  label: string;
-  multimodal: boolean;
-  contextWindow?: number;
-}
+export { SelectableModel } from "./selectableModel";
 
 /**
  * A stored role is configuration intent, not proof that its provider is usable

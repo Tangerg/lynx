@@ -10,6 +10,7 @@ import {
   EMBEDDING_ROLE_KEY,
   MODELS_KEY,
   PROVIDERS_KEY,
+  SelectableModel,
   UTILITY_ROLE_KEY,
 } from "@/plugins/builtin/settings/providers/public/queries";
 import {
@@ -277,13 +278,26 @@ export function registerDefaultDataProviders(ctx: Contributor): void {
       // therefore a transport / protocol / service failure, not an empty model
       // catalog; preserve it so consumers can render the failure honestly.
       const lists = await Promise.all(enabled.map((p) => pageData(read.client.models.list(p.id))));
-      return lists.flat().map((m) => ({
-        id: m.id,
-        provider: m.provider,
-        label: m.displayName ?? m.id,
-        multimodal: m.capabilities?.multimodal ?? false,
-        contextWindow: m.contextWindow,
-      }));
+      return lists.flat().map(
+        (m) =>
+          new SelectableModel({
+            id: m.id,
+            provider: m.provider,
+            label: m.displayName ?? m.id,
+            contextWindow: m.contextWindow,
+            maxInputTokens: m.maxInputTokens,
+            maxOutputTokens: m.maxOutputTokens,
+            knowledgeCutoff: m.knowledgeCutoff,
+            deprecated: m.deprecated,
+            reasoning: m.capabilities?.reasoning,
+            reasoningLevels: m.capabilities?.reasoningLevels,
+            reasoningDefaultLevel: m.capabilities?.reasoningDefaultLevel,
+            inputModalities: m.capabilities?.inputModalities,
+            outputModalities: m.capabilities?.outputModalities,
+            toolUse: m.capabilities?.toolUse,
+            structuredOutput: m.capabilities?.structuredOutput,
+          }),
+      );
     },
   });
   contribute({

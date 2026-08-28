@@ -432,6 +432,23 @@ test("composer keeps one production edge and 6/8 footer inset", async ({ page })
     .not.toBe(ringBeforeFocus);
 });
 
+test("model capabilities drive the picker and image admission together", async ({ page }) => {
+  await page.goto("/visual/?fixture=agent&theme=light&state=empty");
+  await page.locator("html[data-visual-ready]").waitFor();
+
+  const attach = page.getByRole("button", { name: "Attach image" });
+  await expect(attach).toBeEnabled();
+  await page.getByRole("button", { name: "Switch model" }).click();
+  await expect(
+    page.getByRole("menuitem", {
+      name: "GPT-5.6 256K · text + image · low / medium / high",
+    }),
+  ).toBeVisible();
+  await page.getByRole("menuitem", { name: "Qwen MT Plus 32.8K · text" }).click();
+
+  await expect(attach).toBeDisabled();
+});
+
 test("the projectless composer owns Codex's inset rear project tray", async ({ page }) => {
   await page.goto("/visual/?fixture=agent&theme=light&state=empty");
   await page.locator("html[data-visual-ready]").waitFor();

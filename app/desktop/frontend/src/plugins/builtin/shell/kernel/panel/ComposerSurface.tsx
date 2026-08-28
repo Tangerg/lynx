@@ -34,7 +34,7 @@ export function ComposerSurface({ onSend }: { onSend: (input: UserInput) => bool
   const addPaste = useAddComposerPaste();
   // Gate image staging on the next run's model accepting images — keeps the
   // paste/drop path consistent with the (disabled) toolbar attach button.
-  const acceptsImages = useSelectedModel()?.multimodal ?? false;
+  const acceptsImages = useSelectedModel()?.acceptsInput("image") ?? false;
 
   return (
     <>

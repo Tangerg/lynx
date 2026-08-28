@@ -7,5 +7,5 @@ export {
   useModels,
   useProviders,
   type ProviderConfiguration,
-  type SelectableModel,
+  SelectableModel,
 } from "../application/providerQueries";

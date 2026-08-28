@@ -19,6 +19,35 @@ import { definePlugin } from "@/plugins/sdk";
 import { useAddComposerImageFiles } from "./public/attachments";
 import { useSetComposerModelPreference } from "./public/modelPreference";
 
+const TOKENS_PER_THOUSAND = 1_000;
+
+function compactTokenLimit(value: number): string {
+  if (value < TOKENS_PER_THOUSAND) return String(value);
+  const thousands = value / TOKENS_PER_THOUSAND;
+  return `${Number.isInteger(thousands) ? String(thousands) : thousands.toFixed(1)}K`;
+}
+
+function ModelCapabilities({ model }: { model: NonNullable<ReturnType<typeof useSelectedModel>> }) {
+  const capabilities = [
+    model.contextWindow ? compactTokenLimit(model.contextWindow) : null,
+    model.inputModalities.length > 0 ? model.inputModalities.join(" + ") : null,
+    model.reasoning
+      ? model.reasoningLevels.length > 0
+        ? model.reasoningLevels.join(" / ")
+        : "reasoning"
+      : null,
+  ].filter((value): value is string => value !== null);
+  if (capabilities.length === 0) return null;
+  return (
+    <span
+      className="block truncate text-ui-xs font-normal text-fg-faint"
+      title={capabilities.join(" · ")}
+    >
+      {capabilities.join(" · ")}
+    </span>
+  );
+}
+
 // The trigger wears the selected model's provider mark. Provider health is not
 // part of this app's state, so the control carries no status indicator.
 function ModelPicker() {
@@ -82,15 +111,18 @@ function ModelPicker() {
           </Button>
         }
       />
-      <DropdownMenu.Content align="start" sideOffset={6} className="min-w-[200px]">
+      <DropdownMenu.Content align="start" sideOffset={6} className="min-w-[280px]">
         {models.map((m) => (
           <DropdownMenu.Item
             key={`${m.provider}:${m.id}`}
             onClick={() => setModel(m.provider, m.id)}
-            className="grid-cols-[16px_minmax(0,1fr)_14px] px-2"
+            className="grid min-h-11 grid-cols-[16px_minmax(0,1fr)_14px] items-center px-2"
           >
             <ProviderIcon provider={m.provider} size="md" />
-            <span className="truncate">{m.label}</span>
+            <span className="min-w-0 text-pretty">
+              <span className="block truncate">{m.label}</span>
+              <ModelCapabilities model={m} />
+            </span>
             {m.provider === selected.provider && m.id === selected.id && (
               <Icon name="check" size="xs" className="text-accent" />
             )}
@@ -105,7 +137,7 @@ function AttachButton() {
   const t = useT();
   const addImageFiles = useAddComposerImageFiles();
   const inputRef = useRef<HTMLInputElement>(null);
-  const canAttach = useSelectedModel()?.multimodal ?? false;
+  const canAttach = useSelectedModel()?.acceptsInput("image") ?? false;
 
   return (
     <>

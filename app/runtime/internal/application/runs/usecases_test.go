@@ -21,6 +21,7 @@ import (
 	runfixture "github.com/Tangerg/scope/app/runtime/internal/testsupport/runfixture"
 	"github.com/Tangerg/scope/app/runtime/internal/testsupport/sessionfixture"
 	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/media"
 )
 
 type fakeRunSessions struct {
@@ -351,6 +352,31 @@ func (f *fakeExecutionPorts) PrepareWaitingSubtreeCancellation(
 func (f *fakeExecutionPorts) SubmitSteer(_ context.Context, ref ExecutorRef, input []transcript.ContentBlock) error {
 	f.steered = append(f.steered, ref)
 	f.steerInput = append([]transcript.ContentBlock(nil), input...)
+	return nil
+}
+
+type modelInputAdmissionProbe struct {
+	err      error
+	failAt   int
+	calls    int
+	selected []modelref.Selection
+	messages [][]corechat.Message
+}
+
+func (m *modelInputAdmissionProbe) AdmitInput(
+	selection modelref.Selection,
+	messages []corechat.Message,
+) error {
+	m.calls++
+	m.selected = append(m.selected, selection)
+	cloned := make([]corechat.Message, len(messages))
+	for index := range messages {
+		cloned[index] = messages[index].Clone()
+	}
+	m.messages = append(m.messages, cloned)
+	if m.err != nil && (m.failAt == 0 || m.calls == m.failAt) {
+		return m.err
+	}
 	return nil
 }
 
@@ -790,6 +816,15 @@ func (s staticConversationReader) Read(context.Context, string) ([]corechat.Mess
 		messages[index] = s.messages[index].Clone()
 	}
 	return messages, nil
+}
+
+func mustInputMedia(t *testing.T, mediaType string, content []byte) *media.Media {
+	t.Helper()
+	value, err := media.NewBytes(mediaType, content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return value
 }
 
 func TestStartSeparatesIsolatedExecutionDirFromPersistentWorkspace(t *testing.T) {
@@ -2377,6 +2412,83 @@ func TestSteerHidesExecutorHandle(t *testing.T) {
 		control.steerInput[0].Text != "wait" ||
 		control.steerInput[1].Kind != transcript.ImageContent {
 		t.Fatalf("steer input = %+v", control.steerInput)
+	}
+}
+
+func TestSteerRejectsInputOutsideSelectedModelCapabilities(t *testing.T) {
+	control := &fakeExecutionPorts{}
+	c, _ := liveCoordinator(t, runRecord(run.Running, testSegmentID, ""))
+	c.steering = control
+	probe := &modelInputAdmissionProbe{err: errors.New("selected model accepts text only")}
+	c.modelInputs = probe
+
+	err := c.Steer(t.Context(), SteerCommand{
+		RunID:             testRunID,
+		ExpectedSegmentID: testSegmentID,
+		Input: []transcript.ContentBlock{{
+			Kind: transcript.ImageContent, MediaType: "image/png", Bytes: []byte("image"),
+		}},
+	})
+	if !errors.Is(err, ErrUnsupportedMedia) {
+		t.Fatalf("Steer error = %v, want ErrUnsupportedMedia", err)
+	}
+	if probe.calls != 1 || len(probe.messages) != 1 || len(probe.messages[0]) != 1 {
+		t.Fatalf("model input admission = calls:%d messages:%+v", probe.calls, probe.messages)
+	}
+	if len(control.steered) != 0 {
+		t.Fatalf("rejected model input reached executor: %+v", control.steered)
+	}
+}
+
+func TestStartRejectsCurrentInputOutsideSelectedModelCapabilitiesBeforeStaging(t *testing.T) {
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{
+		ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/work"),
+	})}
+	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	c := newUseCaseCoordinator(&fakeExecutor{}, control, sessions, &fakeEffects{})
+	probe := &modelInputAdmissionProbe{err: errors.New("selected model accepts text only")}
+	c.modelInputs = probe
+
+	_, err := c.Start(t.Context(), StartCommand{
+		SessionID:      "ses_1",
+		ModelSelection: mustUseCaseSelection("provider", "text-model"),
+		Input: []transcript.ContentBlock{{
+			Kind: transcript.ImageContent, MediaType: "image/png", Bytes: []byte("image"),
+		}},
+	})
+	if !errors.Is(err, ErrUnsupportedMedia) {
+		t.Fatalf("Start error = %v, want ErrUnsupportedMedia", err)
+	}
+	if probe.calls != 1 || control.validated.ModelSelection.Configured() || control.started.ModelSelection.Configured() {
+		t.Fatalf("rejected input crossed staging boundary: probe=%d validated=%+v staged=%+v", probe.calls, control.validated, control.started)
+	}
+}
+
+func TestStartRevalidatesComposedHistoryAgainstSelectedModelBeforeStaging(t *testing.T) {
+	sessions := &fakeRunSessions{sess: sessionfixture.MustRestore(session.Snapshot{
+		ID: "ses_1", Workspace: sessionfixture.MustWorkspace("/work"),
+	})}
+	control := &fakeExecutionPorts{startRef: ExecutorRef{SessionID: "ses_1", ExecutorID: "turn_1"}}
+	c := newUseCaseCoordinator(&fakeExecutor{}, control, sessions, &fakeEffects{})
+	c.conversation = staticConversationReader{messages: []corechat.Message{
+		corechat.NewUserMessage(corechat.NewMediaPart(mustInputMedia(t, "image/png", []byte("history")))),
+	}}
+	probe := &modelInputAdmissionProbe{err: errors.New("selected model rejects historical image"), failAt: 2}
+	c.modelInputs = probe
+
+	_, err := c.Start(t.Context(), StartCommand{
+		SessionID:      "ses_1",
+		ModelSelection: mustUseCaseSelection("provider", "text-model"),
+		Input:          []transcript.ContentBlock{{Kind: transcript.TextContent, Text: "continue"}},
+	})
+	if !errors.Is(err, ErrUnsupportedMedia) {
+		t.Fatalf("Start error = %v, want ErrUnsupportedMedia", err)
+	}
+	if probe.calls != 2 || len(probe.messages[1]) != 2 {
+		t.Fatalf("composed admission = calls:%d messages:%+v", probe.calls, probe.messages)
+	}
+	if control.started.ModelSelection.Configured() {
+		t.Fatalf("rejected composed history reached staging: %+v", control.started)
 	}
 }
 

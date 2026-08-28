@@ -316,6 +316,7 @@ func buildAssemblyCore(
 		Releases:                           execution.executor,
 		RootCancellation:                   execution.executor,
 		Conversation:                       execution.conversation.messages,
+		ModelInputs:                        modelCapabilities,
 		Continuation:                       execution.executor,
 		WaitingRestorer:                    execution.executor,
 		Steering:                           execution.executor,

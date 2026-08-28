@@ -355,8 +355,8 @@ type StartResult struct {
 }
 
 // Validate checks the semantic Run-opening invariants before any Session is
-// created or mutated. Executor-specific model modality checks are performed by
-// [RootExecutionStarter.ValidateRootStart] in the same pre-admission phase.
+// created or mutated. The Coordinator performs selected-model input admission
+// separately because external capability policy belongs behind its own port.
 func (r RootExecutionStart) Validate() error {
 	if len(r.WorkingContext) == 0 && r.Message == "" && len(r.Media) == 0 {
 		return ErrInputRequired

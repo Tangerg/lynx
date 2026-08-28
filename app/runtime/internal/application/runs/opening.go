@@ -63,6 +63,9 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 	if validateErr := draft.Validate(); validateErr != nil {
 		return StartResult{}, validateErr
 	}
+	if admitErr := c.modelInputs.AdmitInput(cmd.ModelSelection, draft.WorkingContext); admitErr != nil {
+		return StartResult{}, fmt.Errorf("%w: %w", ErrUnsupportedMedia, admitErr)
+	}
 	if validateRootStartErr := c.rootStarts.ValidateRootStart(draft); validateRootStartErr != nil {
 		return StartResult{}, validateRootStartErr
 	}
@@ -95,6 +98,9 @@ func (c *Coordinator) Start(ctx context.Context, cmd StartCommand) (result Start
 	})
 	if err != nil {
 		return StartResult{}, fmt.Errorf("runs: compose working context: %w", err)
+	}
+	if admitErr := c.modelInputs.AdmitInput(cmd.ModelSelection, draft.WorkingContext); admitErr != nil {
+		return StartResult{}, fmt.Errorf("%w: %w", ErrUnsupportedMedia, admitErr)
 	}
 	ref, err := c.rootStarts.StageRoot(ctx, draft)
 	if err != nil {

@@ -1,8 +1,8 @@
 # ScopeApp Runtime 执行计划
 
-> 状态：P0–P194 已完成；P195 已准入。
+> 状态：P0–P195 已完成；P196 已准入。
 >
-> 最近基线：2026-08-28，P194 已完成。
+> 最近基线：2026-08-28，P195 已完成。
 
 本文只拥有四类信息：当前授权、长期约束、里程碑索引、下一阶段准入。能力现状由
 [`CAPABILITY_LEDGER.md`](CAPABILITY_LEDGER.md) 拥有；稳定合同由
@@ -15,7 +15,8 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 
 ## 1. 当前授权
 
-- P195 已准入：审计首次multimodal主请求在Runtime transport上限、Core media source/MIME与direct provider真实支持之间是否存在准入缺口；只从可复现HTTP/provider失败切点归还format、source与size owner，不新增通用media facade、兼容猜测或TUI改动。
+- P196 已准入：把“模型 + 思考强度”作为一个端到端选择语义审计并接线。切换模型时只保留新模型真实支持的当前强度，否则回落到该模型发布的默认强度；Desktop 控件、Session/Run durable identity、主模型请求与恢复必须消费同一事实。不得只做无执行效果的 UI 选项、provider 名称猜测、magic map、兼容字段或 TUI 改动。
+- P195 已准入并完成：Runtime `models.list` 原已发布 context/input/output limits、reasoning levels/default、input/output modalities、tool use、structured output 等完整能力，但 Desktop 投影只保留 image boolean 与 context window，Run admission 也不消费 exact model modality。现在 Desktop 以不可变 `SelectableModel` 领域对象完整保留能力，picker、Context gauge 与 attachment/paste/drop 共同消费；Runtime Runs Application 通过 `ModelInputAdmitter` 在 staging 前验证当前输入，并在 composed history 后再次验证切模历史，Steer 同样在 executor 前拒绝。已知 catalog model fail closed，私有 catalog miss 保持可用；未新增第二 catalog、provider 猜测或 TUI 变化。
 - P194 已准入并完成：首次含inline media的主调用在provider尚无usage校准时，provider-neutral占位估算无法证明真实input是否越过hard window。Runtime仍在每次主调用前做廉价完整请求预检；纯文本明显低于阈值时不发计数请求，只有本地估算达到阈值或请求含provider-priced media时才调用同一direct adapter的原生计数端点，并且只有精确值达到阈值才允许PreCompact、summary与原子rewrite。低于阈值或计数失败时SQLite durable history、Run watermarks与Agent Strategy state均不变。Direct OpenAI迁至Responses `/responses/input_tokens`，Anthropic使用`/messages/count_tokens`；compatible与Google不虚构能力，不猜像素公式、安全倍率、模态价格或第二ledger。Core及两份protocol、两份provider wrapper已按依赖顺序发布`v0.0.2`。
 - P193 已准入并完成：catalog扫描发现463个已知context、未知max input且max output大于窗口20%的模型，另有6个模型的input/output独立最大值之和超过context。`modelref.TokenLimits`现在唯一拥有三项事实，显式output reservation在durable Run admission、每次主调用与post-Run maintenance中同值消费；qwen 16,384/8,192真实反例在8,192输入上限而非旧13,107软阈值处压缩，gpt-5-pro超限HTTP请求在零Run/Item写入时返回`invalid_params`。zero provider usage不制造校准，非法值沿既有response validation拒绝，正值仍权威；没有margin、tokenizer、provider分支或第二budget ledger。
 - P192 已准入并完成：catalog扫描发现38个`MaxInputTokens < ContextWindow*80%`的真实模型，其中`openai/gpt-5.4-mini`的400k context / 272k input会在旧320k trigger前必然拒绝。Runtime现在每次主调用前以selected model同时读取两项catalog事实，有效token trigger为context软阈值受硬输入限制封顶。低于阈值仍零PreCompact/summary/SQLite rewrite，不增加媒体公式、安全倍率或第二token owner。
@@ -522,10 +523,11 @@ P0–P114 的逐批红例、文件清单和门禁原始记录已冻结在 Git �
 | P192     | Provider硬输入上限与压缩阈值同值闭环                                                   | selected-model context软阈值受max input封顶；不借用default identity；阈值下零副作用                                     |
 | P193     | 显式输出预留与模型限制值对象闭环                                                        | context/input/output单一Domain owner；admission与pre/post-call同值；缺失usage不伪校准                                    |
 | P194     | 首次multimodal主调用的provider-owned精确预算                                            | 每调用廉价预检；阈值/media才精确计数；阈值下零durable副作用；native-only capability；五个module `v0.0.2`                   |
+| P195     | 模型能力从 Runtime catalog 到 Desktop 与 Run admission 的同值闭环                       | immutable capability model；context/modality/reasoning可见；image交互门禁；current/history/steer pre-stage admission      |
 
 ## 5. 当前里程碑结论
 
-P113–P194 共同建立了以下不可回退的心智模型：
+P113–P195 共同建立了以下不可回退的心智模型：
 
 - 产品始终只有一个 Desktop actor 和一个逻辑 Runtime。renderer、Plugin Host、Runtime process、connection、command、query writer 和 mounted material 仅在真实可替换边界拥有局部 generation。
 - Runtime 每次进程实例发布新的 opaque `instanceId`；同 endpoint 重启只替换进程内资源，不替换逻辑 Runtime、SQLite durable identity 或 mutation store identity。
@@ -552,6 +554,7 @@ P113–P194 共同建立了以下不可回退的心智模型：
 - request-detached auxiliary model call 必须显式拥有 aggregate input-byte 与 output-token envelope；maintenance transcript 只有一个 bounded fair-share renderer，compaction trigger 独立观察 raw footprint。任何 ledger/cursor 只能推进到实际完整进入模型输入的最后一项。
 - 主模型上下文压缩必须区分“每调用检查”与“每调用压缩”：本地完整请求预检在每次主调用前执行，但纯文本明显低于阈值时不访问provider；只有本地阈值命中或存在provider-priced media时才允许同一direct adapter精确计数，且精确值未到阈值时不得运行PreCompact、summary、SQLite conversation/Run watermark rewrite或安装新的Agent Strategy context。compatible endpoint与无法证明完整同请求计数的provider不得冒充该能力。
 - Session 是下一次 Run 模型身份的唯一 durable owner：configured provider/model pair 从 admission 延续到 fork/export/import；Runs 与 Desktop 都不得按 model id 或全局默认重新推断。
+- `models.list` 发布的 capability 不是展示附注：Desktop 必须以不可变模型值保留 context/input/output limits、reasoning、modalities 与 execution features；Composer 的 image 入口和 Runtime 的 current/history/steer admission 消费同一个 exact provider/model 事实。已知模型不兼容时在 staging/executor 之前拒绝，catalog miss 的私有兼容模型不能被静态表误杀。
 - Session Workspace 是唯一 durable workspace identity：Domain 只接受必填、绝对、lexical-clean value，filesystem adapter 才证明存在性与物理 canonicalization；SQLite 与 Desktop 只保存或投影该值，不从 `cwd` 平行字段重建。
 - 进程内 owner replacement 先发布新实例，再同步退休旧实例。只有异步间隙可能发生 replacement，且后续会修改当前共享状态时，提交和 cleanup 才需要 exact owner proof。
 - `sessions.snapshot` 是挂载 Session 的原子 material owner；HITL、Plan、Goal、Run、Tool 不能再由独立 query/event/material 多路拼接。
@@ -598,4 +601,4 @@ P194 的provider-owned input count与阈值门禁通过Runtime workspace/standal
 5. 证明没有引入第二 writer、第二执行循环、兼容双读、刷新旁路、timer 掩盖或对 `app/cli` 的改动。
 6. 证明没有为多窗口、多服务端、假想 transport 组合或不可达状态引入抽象与防御分支。
 
-候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P194 已完成，P195 从首次multimodal主请求的transport、media source/MIME与direct provider支持矩阵反例开始；只有可复现产品失败切点才能改变准入 owner，不建立通用media facade、兼容猜测或第二表示。开始新纵切时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。
+候选方向保留在 [`inspiration/`](inspiration/)；它们不是实施授权。P195 已完成，P196 从 exact Session model identity、catalog reasoning levels/default、Core request options 与 direct provider adapter 的断点开始；只有真正到达主模型请求并可恢复的选择才进入 Desktop，不建立无执行效果控件、provider 猜测、magic map 或第二表示。开始新纵切时只在本文新建简短阶段条目，完成后更新里程碑结论与能力事实，不恢复逐提交流水账。

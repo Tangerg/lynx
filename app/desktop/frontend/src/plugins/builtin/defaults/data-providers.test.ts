@@ -23,6 +23,7 @@ import { respondSuccess, waitForRequest } from "@/rpc/transports/memory.testkit"
 import type { WireMethodName } from "@scopeapp/runtime-contract/methods";
 import { defaultDataProviders } from "./index";
 import { loadPluginsForTest } from "@/plugins/sdk/testKernel";
+import { SelectableModel } from "@/plugins/builtin/settings/providers/public/queries";
 
 afterEach(resetContainer);
 
@@ -305,9 +306,7 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
   });
 
   it("models: queries enabled providers only and maps their catalogs", async () => {
-    const { value, requests } = await runProvider<
-      Array<{ id: string; provider: string; label: string; multimodal: boolean }>
-    >("models", [
+    const { value, requests } = await runProvider<SelectableModel[]>("models", [
       [
         "providers.list",
         {
@@ -325,7 +324,19 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
               id: "gpt-test",
               provider: "openai",
               displayName: "GPT Test",
-              capabilities: { multimodal: true },
+              contextWindow: 258_000,
+              maxInputTokens: 250_000,
+              maxOutputTokens: 32_000,
+              capabilities: {
+                reasoning: true,
+                reasoningLevels: ["low", "medium", "high"],
+                reasoningDefaultLevel: "medium",
+                multimodal: true,
+                inputModalities: ["text", "image"],
+                outputModalities: ["text"],
+                toolUse: true,
+                structuredOutput: true,
+              },
             },
           ],
         },
@@ -336,9 +347,25 @@ describe("defaultDataProviders — providers over JSON-RPC", () => {
       { method: "providers.list", params: {} },
       { method: "models.list", params: { provider: "openai" } },
     ]);
-    expect(value).toEqual([
-      { id: "gpt-test", provider: "openai", label: "GPT Test", multimodal: true },
-    ]);
+    expect(value).toHaveLength(1);
+    expect(value[0]).toBeInstanceOf(SelectableModel);
+    expect(value[0]).toMatchObject({
+      id: "gpt-test",
+      provider: "openai",
+      label: "GPT Test",
+      contextWindow: 258_000,
+      maxInputTokens: 250_000,
+      maxOutputTokens: 32_000,
+      reasoning: true,
+      reasoningLevels: ["low", "medium", "high"],
+      reasoningDefaultLevel: "medium",
+      inputModalities: ["text", "image"],
+      outputModalities: ["text"],
+      toolUse: true,
+      structuredOutput: true,
+    });
+    expect(value[0]?.acceptsInput("image")).toBe(true);
+    expect(value[0]?.reasoningLevelOrDefault("unsupported")).toBe("medium");
   });
 
   it("keeps one multi-stage provider read on its admitted client generation", async () => {

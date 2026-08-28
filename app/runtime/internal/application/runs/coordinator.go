@@ -32,6 +32,7 @@ type Coordinator struct {
 	rootCancellation                   RunningRootCancellationRequester
 	conversation                       ConversationReader
 	workingContexts                    WorkingContextComposer
+	modelInputs                        ModelInputAdmitter
 	continuation                       WaitingExecutionContinuer
 	waitingRestorer                    WaitingExecutionRestorer
 	steering                           RunningExecutionSteerer
@@ -73,6 +74,7 @@ type Dependencies struct {
 	RootCancellation                   RunningRootCancellationRequester
 	Conversation                       ConversationReader
 	WorkingContexts                    WorkingContextComposer
+	ModelInputs                        ModelInputAdmitter
 	Continuation                       WaitingExecutionContinuer
 	WaitingRestorer                    WaitingExecutionRestorer
 	Steering                           RunningExecutionSteerer
@@ -116,6 +118,7 @@ func NewCoordinator(deps Dependencies) (*Coordinator, error) {
 		{"root cancellation requester", deps.RootCancellation},
 		{"conversation reader", deps.Conversation},
 		{"working context composer", deps.WorkingContexts},
+		{"model input admitter", deps.ModelInputs},
 		{"waiting execution continuer", deps.Continuation},
 		{"waiting execution restorer", deps.WaitingRestorer},
 		{"running execution steerer", deps.Steering},
@@ -154,6 +157,7 @@ func NewCoordinator(deps Dependencies) (*Coordinator, error) {
 		rootCancellation:                   deps.RootCancellation,
 		conversation:                       deps.Conversation,
 		workingContexts:                    deps.WorkingContexts,
+		modelInputs:                        deps.ModelInputs,
 		continuation:                       deps.Continuation,
 		waitingRestorer:                    deps.WaitingRestorer,
 		steering:                           deps.Steering,

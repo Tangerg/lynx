@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/Tangerg/scope/app/runtime/internal/application/sessionadmission"
+	"github.com/Tangerg/scope/app/runtime/internal/domain/modelref"
 	corechat "github.com/Tangerg/scope/core/chat"
 )
 
@@ -39,6 +40,10 @@ func (passthroughWorkingContext) ComposeWorkingContext(
 	return input.Seed, nil
 }
 
+type acceptAllModelInputs struct{}
+
+func (acceptAllModelInputs) AdmitInput(modelref.Selection, []corechat.Message) error { return nil }
+
 // mustNewCoordinator completes dependencies unrelated to a focused test. The
 // production constructor remains strict; tests opt into explicit inert doubles
 // instead of manufacturing partially valid Coordinators.
@@ -64,6 +69,9 @@ func mustNewCoordinator(deps Dependencies) *Coordinator {
 	}
 	if deps.WorkingContexts == nil {
 		deps.WorkingContexts = passthroughWorkingContext{}
+	}
+	if deps.ModelInputs == nil {
+		deps.ModelInputs = acceptAllModelInputs{}
 	}
 	if deps.Continuation == nil {
 		deps.Continuation = control

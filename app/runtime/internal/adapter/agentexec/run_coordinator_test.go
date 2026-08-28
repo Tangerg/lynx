@@ -19,6 +19,10 @@ func (passthroughRunWorkingContext) ComposeWorkingContext(
 	return input.Seed, nil
 }
 
+type acceptAllRunModelInputs struct{}
+
+func (acceptAllRunModelInputs) AdmitInput(modelref.Selection, []corechat.Message) error { return nil }
+
 func mustNewRunCoordinator(t *testing.T, deps runs.Dependencies) *runs.Coordinator {
 	t.Helper()
 	starter := any(deps.RootStarts)
@@ -30,6 +34,9 @@ func mustNewRunCoordinator(t *testing.T, deps runs.Dependencies) *runs.Coordinat
 	fillRunDependency(t, &deps.WaitingSubtreeCancellationPreparer, starter, "waiting subtree cancellation preparer")
 	if deps.WorkingContexts == nil {
 		deps.WorkingContexts = passthroughRunWorkingContext{}
+	}
+	if deps.ModelInputs == nil {
+		deps.ModelInputs = acceptAllRunModelInputs{}
 	}
 	sessions := any(deps.Session.Reader)
 	fillRunDependency(t, &deps.Session.Creator, sessions, "session creator")

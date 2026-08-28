@@ -244,6 +244,10 @@ func (passthroughRunWorkingContext) ComposeWorkingContext(
 	return input.Seed, nil
 }
 
+func (passthroughRunWorkingContext) AdmitInput(modelref.Selection, []chat.Message) error {
+	return nil
+}
+
 type inertRunControl struct{}
 
 func (inertRunControl) RequestRootCancellation(context.Context, runs.ExecutorRef, string) error {
@@ -359,6 +363,7 @@ func newTestServer(rt testRuntime) *Server {
 		RootCancellation:                   inertRunControl{},
 		Conversation:                       conversation,
 		WorkingContexts:                    passthroughRunWorkingContext{},
+		ModelInputs:                        passthroughRunWorkingContext{},
 		Continuation:                       rt,
 		WaitingRestorer:                    inertRunControl{},
 		Steering:                           rt,

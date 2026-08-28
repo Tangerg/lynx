@@ -11,7 +11,7 @@ import { useComposerModelPreference } from "./modelPreference";
  *  `undefined` when no provider is enabled yet.
  *
  *  One home for "which model is selected" so the surfaces that gate on its
- *  `multimodal` capability — the toolbar attach button and the composer's
+ *  exact input modalities — the toolbar attach button and the composer's
  *  paste/drop image staging — can't disagree. */
 export function useSelectedModel() {
   const { data: models = [] } = useModels();

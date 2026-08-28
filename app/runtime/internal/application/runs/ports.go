@@ -73,6 +73,14 @@ type WorkingContextComposer interface {
 	) ([]corechat.Message, error)
 }
 
+// ModelInputAdmitter validates provider-neutral input against the exact
+// selected model's known capabilities. Unknown-model behavior belongs behind
+// this port; the use case only knows that rejected input must not reach staging
+// or durable admission.
+type ModelInputAdmitter interface {
+	AdmitInput(selection modelref.Selection, messages []corechat.Message) error
+}
+
 // WorkingContextInput is the exact fresh-root context composition input. Seed
 // contains the canonical Host conversation followed by CurrentUserMessage.
 // PromptText is the user-authored text supplied to prompt hooks and relevance
