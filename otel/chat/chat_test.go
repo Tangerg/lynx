@@ -3,6 +3,7 @@ package chat_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"iter"
 	"testing"
 
@@ -201,6 +202,32 @@ func TestCallPreservesResponseAndError(t *testing.T) {
 		t.Fatal("failed calls must not emit token usage")
 	}
 	assertMetricAttribute(t, metrics, "gen_ai.client.operation.duration", "error.type", "*errors.errorString")
+}
+
+func TestCallClassifiesWrappedErrorsByCause(t *testing.T) {
+	tests := []struct {
+		name     string
+		cause    error
+		wantType string
+	}{
+		{name: "canceled", cause: context.Canceled, wantType: "context.canceled"},
+		{name: "deadline", cause: context.DeadlineExceeded, wantType: "context.deadline_exceeded"},
+		{name: "invalid response", cause: chat.ErrInvalidResponse, wantType: "chat.invalid_response"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			middleware, rig := newRig(t, "openai")
+			wrapped := fmt.Errorf("provider call: %w", test.cause)
+			model := middleware.Call(chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
+				return nil, wrapped
+			}))
+			if _, err := model.Call(t.Context(), request("gpt")); !errors.Is(err, test.cause) {
+				t.Fatalf("Call error = %v, want cause %v", err, test.cause)
+			}
+			metrics := collectMetrics(t, rig.reader)
+			assertMetricAttribute(t, metrics, "gen_ai.client.operation.duration", "error.type", test.wantType)
+		})
+	}
 }
 
 func TestStreamIsLazyAndAggregatesForObservation(t *testing.T) {

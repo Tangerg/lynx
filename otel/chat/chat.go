@@ -27,6 +27,19 @@ const (
 	chatOperationName              = "chat"
 	firstTokenReceivedEvent        = "first_token_received"
 	streamAccumulationFailureEvent = "gen_ai.stream.accumulation_error"
+	errorTypeContextCanceled       = "context.canceled"
+	errorTypeDeadlineExceeded      = "context.deadline_exceeded"
+	errorTypeInvalidRequest        = "chat.invalid_request"
+	errorTypeInvalidResponse       = "chat.invalid_response"
+	errorTypeInvalidMessage        = "chat.invalid_message"
+	errorTypeInvalidPart           = "chat.invalid_part"
+	errorTypeInvalidToolCall       = "chat.invalid_tool_call"
+	errorTypeInvalidToolResult     = "chat.invalid_tool_result"
+	errorTypeInvalidToolDefinition = "chat.invalid_tool_definition"
+	errorTypeInvalidOutputFormat   = "chat.invalid_output_format"
+	errorTypeInvalidOptions        = "chat.invalid_options"
+	errorTypeInvalidUsage          = "chat.invalid_usage"
+	errorTypeNilStream             = "otel.chat.nil_stream"
 )
 
 var (
@@ -149,7 +162,7 @@ func (m Middleware) Stream(next corechat.Streamer) corechat.Streamer {
 				if chunk != nil {
 					if accumulationErr := accumulator.Add(chunk); accumulationErr != nil {
 						span.AddEvent(streamAccumulationFailureEvent,
-							trace.WithAttributes(semconv.ErrorTypeKey.String(errorType(accumulationErr))),
+							trace.WithAttributes(errorTypeAttribute(accumulationErr)),
 						)
 					}
 				}
@@ -212,7 +225,7 @@ func (m Middleware) recordMetrics(
 ) {
 	attrs := metricAttributes(request, response)
 	if err != nil {
-		attrs = append(attrs, semconv.ErrorTypeKey.String(errorType(err)))
+		attrs = append(attrs, errorTypeAttribute(err))
 	}
 	m.duration.Record(ctx, elapsed.Seconds(),
 		genaiconv.OperationNameChat,
@@ -333,9 +346,35 @@ func hasGeneratedContent(response *corechat.Response) bool {
 	return response.Output != nil && response.Output.Message != nil && len(response.Output.Message.Parts) > 0
 }
 
-func errorType(err error) string {
-	if err == nil {
-		return ""
+func errorTypeAttribute(err error) attribute.KeyValue {
+	switch {
+	case errors.Is(err, context.Canceled):
+		return semconv.ErrorTypeKey.String(errorTypeContextCanceled)
+	case errors.Is(err, context.DeadlineExceeded):
+		return semconv.ErrorTypeKey.String(errorTypeDeadlineExceeded)
+	case errors.Is(err, corechat.ErrInvalidRequest):
+		return semconv.ErrorTypeKey.String(errorTypeInvalidRequest)
+	case errors.Is(err, corechat.ErrInvalidResponse):
+		return semconv.ErrorTypeKey.String(errorTypeInvalidResponse)
+	case errors.Is(err, corechat.ErrInvalidMessage):
+		return semconv.ErrorTypeKey.String(errorTypeInvalidMessage)
+	case errors.Is(err, corechat.ErrInvalidPart):
+		return semconv.ErrorTypeKey.String(errorTypeInvalidPart)
+	case errors.Is(err, corechat.ErrInvalidToolCall):
+		return semconv.ErrorTypeKey.String(errorTypeInvalidToolCall)
+	case errors.Is(err, corechat.ErrInvalidToolResult):
+		return semconv.ErrorTypeKey.String(errorTypeInvalidToolResult)
+	case errors.Is(err, corechat.ErrInvalidToolDefinition):
+		return semconv.ErrorTypeKey.String(errorTypeInvalidToolDefinition)
+	case errors.Is(err, corechat.ErrInvalidOutputFormat):
+		return semconv.ErrorTypeKey.String(errorTypeInvalidOutputFormat)
+	case errors.Is(err, corechat.ErrInvalidOptions):
+		return semconv.ErrorTypeKey.String(errorTypeInvalidOptions)
+	case errors.Is(err, corechat.ErrInvalidUsage):
+		return semconv.ErrorTypeKey.String(errorTypeInvalidUsage)
+	case errors.Is(err, ErrNilStream):
+		return semconv.ErrorTypeKey.String(errorTypeNilStream)
+	default:
+		return semconv.ErrorType(err)
 	}
-	return fmt.Sprintf("%T", err)
 }
