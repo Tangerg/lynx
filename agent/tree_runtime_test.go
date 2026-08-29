@@ -117,8 +117,11 @@ type treeRuntimeTestProbe struct {
 	blockedStepStarted  chan treeRuntimeStepContext
 	blockedStepCanceled chan struct{}
 	fastStepStarted     chan struct{}
+	fastStepReady       chan struct{}
+	fastStepRelease     chan struct{}
 	blockedStartedOnce  sync.Once
 	blockedCanceledOnce sync.Once
+	fastReadyOnce       sync.Once
 	fastStartedOnce     sync.Once
 }
 
@@ -127,6 +130,7 @@ func newTreeRuntimeTestProbe() *treeRuntimeTestProbe {
 		blockedStepStarted:  make(chan treeRuntimeStepContext, 1),
 		blockedStepCanceled: make(chan struct{}),
 		fastStepStarted:     make(chan struct{}),
+		fastStepReady:       make(chan struct{}),
 	}
 }
 
@@ -136,7 +140,7 @@ type treeRuntimeTestDefinition struct {
 	probe      *treeRuntimeTestProbe
 }
 
-func newTreeRuntimeTestDeployment(t *testing.T) (Deployment, *treeRuntimeTestProbe) {
+func newTreeRuntimeTestDeployment(t testing.TB) (Deployment, *treeRuntimeTestProbe) {
 	t.Helper()
 	inputSchema, err := SchemaFor[treeRuntimeTestInput]()
 	if err != nil {
@@ -206,6 +210,16 @@ func (e *treeRuntimeTestExecution) Step(ctx context.Context, signals []Signal) (
 	case treeRuntimeRoleRoot:
 		return e.stepRoot(signals)
 	case treeRuntimeRoleFast:
+		if e.definition.probe.fastStepRelease != nil {
+			e.definition.probe.fastReadyOnce.Do(func() {
+				close(e.definition.probe.fastStepReady)
+			})
+			select {
+			case <-e.definition.probe.fastStepRelease:
+			case <-ctx.Done():
+				return Transition{}, ctx.Err()
+			}
+		}
 		e.definition.probe.fastStartedOnce.Do(func() {
 			close(e.definition.probe.fastStepStarted)
 		})

@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"slices"
 	"testing"
 	"testing/synctest"
+	"time"
 )
 
 func TestTreeSnapshotStrictlyRejectsUnknownFields(t *testing.T) {
@@ -142,6 +144,27 @@ func TestEngineCapturesAndRestoresCompleteWaitingTree(t *testing.T) {
 	parsed, err := ParseTreeSnapshot(tree.JSON())
 	if err != nil || parsed.RootID() != tree.RootID() || len(parsed.ProcessSnapshots()) != 4 {
 		t.Fatalf("parsed tree = %#v, error = %v", parsed, err)
+	}
+	wire, err := tree.wire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	slices.Reverse(wire.ProcessSnapshots)
+	inputOrder := make([]ProcessID, len(wire.ProcessSnapshots))
+	for index, snapshot := range wire.ProcessSnapshots {
+		inputOrder[index] = snapshot.ProcessID()
+	}
+	rebuilt, err := newTreeSnapshot(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(rebuilt.JSON(), tree.JSON()) {
+		t.Fatal("private tree construction and strict parsing produced different canonical snapshots")
+	}
+	for index, snapshot := range wire.ProcessSnapshots {
+		if snapshot.ProcessID() != inputOrder[index] {
+			t.Fatal("private tree construction mutated the caller-owned Process order")
+		}
 	}
 
 	restoredEngine, err := NewEngine(EngineConfig{})
@@ -441,8 +464,8 @@ func assertNoChildWaitRegistrations(t *testing.T, engine *Engine) {
 	for _, runtime := range runtimes {
 		select {
 		case <-runtime.done:
-		default:
-			t.Fatal("tree runtime is still active")
+		case <-time.After(treeRuntimeProgressTimeout):
+			t.Fatal("tree runtime did not finish after all Processes settled")
 		}
 		if len(runtime.childWaits) != 0 {
 			t.Fatalf(

@@ -653,11 +653,11 @@ type childTestDefinition struct {
 	reference  DeploymentRef
 }
 
-func newChildTestDeployment(t *testing.T) Deployment {
+func newChildTestDeployment(t testing.TB) Deployment {
 	return newChildTestDeploymentWithDispatcher(t, childTestDispatcher{})
 }
 
-func newChildTestDeploymentWithDispatcher(t *testing.T, dispatcher Dispatcher) Deployment {
+func newChildTestDeploymentWithDispatcher(t testing.TB, dispatcher Dispatcher) Deployment {
 	t.Helper()
 	inputSchema, err := SchemaFor[childTestInput]()
 	if err != nil {

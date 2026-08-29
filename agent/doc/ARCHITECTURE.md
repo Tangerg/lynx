@@ -259,6 +259,8 @@ Strategy Effect payload 和所有 Signal payload 对 Engine 不透明。每个 S
 | GOAP | 消费观察/Action 结果，推进 observe → plan → act → reobserve 状态 |
 | Workflow | 推进一个有序 Stage 的纯归约、child start/wait 或稳定聚合边界 |
 
+这里必须使用三个不同的尺度理解 Kernel：**root tree 是一致性、提交与恢复单元；Process 是生命周期与 Strategy state 隔离单元；Step/Dispatcher job 是并发执行单元。** 向同一 tree 增加 Process 可以增加彼此隔离的候选计算和外部 I/O 并发，但不会增加 authoritative commit 并行度；需要独立提交吞吐时，应拆成不同 root tree，而不是绕过 owner line。
+
 任何 Strategy 的 Step 都不能执行模型、Tool、Action 或其他外部 I/O，不能隐藏无限循环或启动无所有者 goroutine。Runtime 从 `context.Background()` 构造 cancellation-only context；它不含 value、deadline 或 cause，只允许 tree owner 取消已经没有提交资格的计算。外部操作只能由 Effect 表达并由该 Strategy 的 dispatcher 执行。
 
 每棵 root tree 的私有 `treeRuntime` 是唯一 Framework commit owner，但纯计算不占有 owner line：同一 Process 至多有一个 Step job，不同 sibling 可以并行。owner 将 last-stable ExecutionState 与有序 Signal 前缀交给 job；job 完成 Step、Transition 校验和 candidate snapshot 后返回 attempt identity。只有 owner 可以再次校验并采用结果；Kill/Pause/Cancel 或新 incarnation 使 attempt 过期时，结果与 error 整体丢弃，Execution 从 last-stable state 重建。
@@ -717,6 +719,7 @@ OpenTelemetry adapter 位于独立 sibling module `otel/agent`，从集成层依
 - Step 的状态变更可在 snapshot 中完整表达。
 - Restore 验证 state kind/schema 和 Definition identity。
 - Strategy 不能修改共同 Process 私有状态，只能通过 Transition 表达意图。
+- 每个正式 Definition 至少以代表性的合法 Input/ExecutionState 样本运行 `agenttest.RunDefinitionConformance`，共同验证 Descriptor 稳定、并发 Start 隔离、Snapshot/Restore 精确和 Step 规范化等价；取消、失败、边界输入与领域不变量仍由该 Strategy 自己测试。
 
 ### 15.3 Retry 与副作用
 

@@ -44,6 +44,21 @@ func ParseTreeSnapshot(data json.RawMessage) (TreeSnapshot, error) {
 	if err != nil {
 		return TreeSnapshot{}, fmt.Errorf("%w: decode: %w", ErrInvalidTreeSnapshot, err)
 	}
+	return treeSnapshotFromWire(wire)
+}
+
+func newTreeSnapshot(wire treeSnapshotWire) (TreeSnapshot, error) {
+	owned := wire
+	owned.ProcessSnapshots = slices.Clone(wire.ProcessSnapshots)
+	owned.ChildWaits = slices.Clone(wire.ChildWaits)
+	if wire.IncarnationID != nil {
+		incarnationID := *wire.IncarnationID
+		owned.IncarnationID = &incarnationID
+	}
+	return treeSnapshotFromWire(owned)
+}
+
+func treeSnapshotFromWire(wire treeSnapshotWire) (TreeSnapshot, error) {
 	if validateErr := validateTreeSnapshot(wire); validateErr != nil {
 		return TreeSnapshot{}, validateErr
 	}
@@ -63,14 +78,6 @@ func ParseTreeSnapshot(data json.RawMessage) (TreeSnapshot, error) {
 		incarnationID: incarnationID, hasIncarnation: hasIncarnation,
 		processes: slices.Clone(wire.ProcessSnapshots),
 	}, nil
-}
-
-func newTreeSnapshot(wire treeSnapshotWire) (TreeSnapshot, error) {
-	data, err := json.Marshal(wire)
-	if err != nil {
-		return TreeSnapshot{}, fmt.Errorf("%w: encode: %w", ErrInvalidTreeSnapshot, err)
-	}
-	return ParseTreeSnapshot(data)
 }
 
 // JSON returns an independently owned tree snapshot representation.

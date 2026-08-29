@@ -192,6 +192,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 
 - Engine 为每棵 root tree 建立唯一 commit owner；Process 不是独立 Framework mutation owner。
 - Strategy Step 与 Dispatcher I/O 只作为 owner 外的有界 job运行，不创建第二套 runtime或直接提交状态。
+- root tree 是一致性、提交与恢复单元；Process 是生命周期与 Strategy state 隔离单元；Step/Dispatcher job 是并发执行单元。三者不得在 API、文档或性能判断中混称。
 - Workflow 不复制 event/snapshot/child scheduler；它只通过 Framework Effects 编排真实 child Process。
 - Extension 使用一个同质机制和结构化能力分发，不同时引入 Plugin、Hook、Advisor、Interceptor 等重叠体系。
 - Strategy 是主控制流，不伪装成 Extension。
@@ -407,8 +408,8 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 测试不只是回归门禁，还要证明抽象成立：
 
 - 每个接口至少由真实消费者 contract test 验证，而不是只做 compile assertion。
-- 每个 Strategy 用同一 Process contract test 证明共同语义，用自身测试证明专属语义。
-- Step contract 在无取消条件下验证相同 state/Signal 输入产生规范化等价的 candidate/Transition/Effect，并禁止隐式 clock/random/global state。
+- 每个 Strategy 用 `agenttest.RunDefinitionConformance` 和代表性合法样本证明共同 Definition/Execution 语义，用自身测试证明专属语义。
+- conformance 在 cancellation-only context 下验证 Descriptor 并发稳定、Start 实例隔离、Snapshot/Restore 精确，以及相同 state/Signal 输入产生字节等价的 candidate/Transition/Effect。它只能发现样本实际暴露的 hidden input；clock/random/global/I/O 禁令仍是代码评审、race 与 Strategy-owned 负面测试共同承担的合同，不能被一次通过冒充为静态证明。
 - 状态机覆盖所有合法和非法转换。
 - snapshot 覆盖每个合法挂起边界的 capture → restore → continue。
 - Signal contract 覆盖乱序到达、重复投递、未知 WaitID、消费游标与 candidate state 同步提交，以及失败 Step 不吞信号。

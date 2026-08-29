@@ -1326,6 +1326,16 @@ Flame migration 同时运行其 Runtime/application/adapter 集成测试。性�
 - sibling runnable fairness；
 - Flame transaction size 与 lock time。
 
+Scope 当前用三个无生产 hook 的 benchmark 冻结自己拥有的测量入口：
+
+- `BenchmarkTreeSnapshotBoundary` 对 1/15/63/255 Process 的 canonical tree 同时报告 `snapshot_bytes`，并分别测量 prospective build/encode/hash 与 strict parse/validate；
+- `BenchmarkExecutionReplayBoundary` 对 1 KiB/64 KiB Strategy state 测量 Restore → Step → Snapshot → Restore 的纯边界成本；
+- `BenchmarkTreeRuntimeFastSiblingLatency` 在一个 sibling Step 持续阻塞时，只计量释放后的 fast sibling 到 committed completion 的延迟，防止 owner line 重新吞并纯计算。
+
+这些 benchmark 是同机器、同 Go toolchain 下配合 `benchstat` 使用的回归测量，不冻结某台开发机的绝对阈值，也不授权看到一次数字就修改协议。Host callback latency、settlement-to-boundary queue、Flame transaction bytes/lock time 必须由 Flame 用同一 TreeIncarnationID/ProcessID/EffectID trace 关联测量；Scope 不为取得这些数字向生产 Kernel 增加万能 timing hook。
+
+首轮测量直接发现 private prospective construction 把已经 typed 的 `treeSnapshotWire` 先编码成 JSON、再走完整外部 strict parse、最后重新编码。该重复 round-trip 已被删除：内部路径取得独立 slice/pointer ownership 后直接执行同一 typed validation、canonical sort、单次 encode/hash；外部 `ParseTreeSnapshot` 的 strict decode/unknown-field rejection 完全保留，行为测试保证两条路径产生相同 canonical snapshot且内部构造不改写 caller order。
+
 只有真实 trace 证明瓶颈后，按顺序考虑：
 
 1. 避免重复 clone/encode；
