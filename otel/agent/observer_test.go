@@ -4,15 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"sync"
 	"testing"
+	"testing/synctest"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	"go.opentelemetry.io/otel/metric/noop"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 
 	agent "github.com/Tangerg/scope/agent"
+	"github.com/Tangerg/scope/agent/agenttest"
 	agentotel "github.com/Tangerg/scope/otel/agent"
 )
 
@@ -32,6 +37,7 @@ func TestObserverTracesRealProcessStepAndEffectLifecycle(t *testing.T) {
 	t.Cleanup(observer.Close)
 	deployment := testDeployment(t)
 	engine, err := agent.NewEngine(agent.EngineConfig{
+		TreeDurability: agenttest.NewMemoryTreeDurability(),
 		EventListeners: []agent.EventListener{observer},
 	})
 	if err != nil {
@@ -73,18 +79,33 @@ func TestObserverTracesRealProcessStepAndEffectLifecycle(t *testing.T) {
 	if got := stringAttribute(process.Attributes(), "agent.deployment.name"); got != "test.otel" {
 		t.Fatalf("deployment name attribute = %q", got)
 	}
+	if got := stringAttribute(process.Attributes(), "agent.process.activation"); got != "started" {
+		t.Fatalf("process activation attribute = %q", got)
+	}
+	incarnationID := stringAttribute(process.Attributes(), "agent.tree.incarnation_id")
+	if incarnationID == "" {
+		t.Fatal("durable Process span is missing tree incarnation attribution")
+	}
 	if got := stringAttribute(effect.Attributes(), "agent.effect.target"); got != "dispatcher" {
 		t.Fatalf("effect target attribute = %q", got)
 	}
 	if got := stringAttribute(effect.Attributes(), "agent.effect.status"); got != "succeeded" {
 		t.Fatalf("effect status attribute = %q", got)
 	}
+	for _, span := range append(steps, effect) {
+		if got := stringAttribute(span.Attributes(), "agent.process.id"); got != result.ProcessID().String() {
+			t.Fatalf("span %s Process ID = %q", span.Name(), got)
+		}
+		if got := stringAttribute(span.Attributes(), "agent.tree.incarnation_id"); got != incarnationID {
+			t.Fatalf("span %s incarnation = %q, want %q", span.Name(), got, incarnationID)
+		}
+	}
 	var metrics metricdata.ResourceMetrics
 	if err := reader.Collect(context.Background(), &metrics); err != nil {
 		t.Fatal(err)
 	}
-	if got := int64Sum(t, metricByName(t, metrics, "agent.process.starts")); got != 1 {
-		t.Fatalf("process starts = %d, want 1", got)
+	if got := int64Sum(t, metricByName(t, metrics, "agent.process.activations")); got != 1 {
+		t.Fatalf("process activations = %d, want 1", got)
 	}
 	if got := int64Sum(t, metricByName(t, metrics, "agent.process.exits")); got != 1 {
 		t.Fatalf("process exits = %d, want 1", got)
@@ -95,6 +116,23 @@ func TestObserverTracesRealProcessStepAndEffectLifecycle(t *testing.T) {
 	if got := histogramCount(t, metricByName(t, metrics, "agent.effect.duration")); got != 1 {
 		t.Fatalf("effect duration observations = %d, want 1", got)
 	}
+	if got := histogramCount(t, metricByName(t, metrics, "agent.process.activation.duration")); got != 1 {
+		t.Fatalf("process duration observations = %d, want 1", got)
+	}
+	for _, name := range []string{
+		"agent.process.activation.duration", "agent.step.duration", "agent.effect.duration",
+	} {
+		if got := metricByName(t, metrics, name).Unit; got != "s" {
+			t.Fatalf("metric %q unit = %q, want seconds", name, got)
+		}
+	}
+	usage := result.Usage()
+	assertInt64HistogramSum(t, metricByName(t, metrics, "agent.process.committed_steps"), int64(usage.CommittedSteps))
+	assertInt64HistogramSum(t, metricByName(t, metrics, "agent.process.prepared_effects"), int64(usage.PreparedEffects))
+	assertInt64HistogramSum(t, metricByName(t, metrics, "agent.process.accepted_signals"), int64(usage.AcceptedSignals))
+	assertHistogramAttribute(t, metricByName(t, metrics, "agent.step.duration"), "agent.deployment.name", "test.otel")
+	assertHistogramAttribute(t, metricByName(t, metrics, "agent.effect.duration"), "agent.deployment.name", "test.otel")
+	assertSumAttribute(t, metricByName(t, metrics, "agent.process.activations"), "agent.process.activation", "started")
 }
 
 func TestObserverRecordsStableProcessFailureAttribution(t *testing.T) {
@@ -141,6 +179,88 @@ func TestObserverRecordsStableProcessFailureAttribution(t *testing.T) {
 	exits := metricByName(t, metrics, "agent.process.exits")
 	assertSumAttribute(t, exits, "agent.failure.kind", "execution")
 	assertSumAttribute(t, exits, "agent.failure.code", "test.otel.failed")
+}
+
+func TestObserverDistinguishesRestoredProcessActivation(t *testing.T) {
+	deployment := testDeployment(t)
+	paused := make(chan struct{}, 1)
+	source, err := agent.NewEngine(agent.EngineConfig{EventListeners: []agent.EventListener{
+		agent.EventListenerFunc(func(_ context.Context, event agent.Event) {
+			if event.Name() == agent.EventProcessPaused {
+				paused <- struct{}{}
+			}
+		}),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := agent.EncodeInput(testInput{Value: "pause"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := source.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-paused
+	snapshot, err := source.CaptureTree(context.Background(), original.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if killErr := original.Kill(context.Background(), "source cleanup"); killErr != nil {
+		t.Fatal(killErr)
+	}
+	if _, awaitErr := original.Await(context.Background()); awaitErr != nil {
+		t.Fatal(awaitErr)
+	}
+	if closeErr := source.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	reader := sdkmetric.NewManualReader()
+	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
+	t.Cleanup(func() { _ = meterProvider.Shutdown(context.Background()) })
+	observer, err := agentotel.NewObserver(agentotel.ObserverConfig{
+		TracerProvider: provider, MeterProvider: meterProvider,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(observer.Close)
+	restoredEngine, err := agent.NewEngine(agent.EngineConfig{EventListeners: []agent.EventListener{observer}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, err := restoredEngine.RestoreTree(context.Background(), deployment, snapshot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := restored.Resume(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if result, awaitErr := restored.Await(context.Background()); awaitErr != nil || result.Status() != agent.StatusCompleted {
+		t.Fatalf("restored result = %s termination=%+v, error = %v", result.Status(), result.Termination(), awaitErr)
+	}
+	if err := restoredEngine.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	process := spanByName(t, recorder.Ended(), "agent.process", 0)
+	if got := stringAttribute(process.Attributes(), "agent.process.activation"); got != "restored" {
+		t.Fatalf("restored Process activation = %q", got)
+	}
+	var metrics metricdata.ResourceMetrics
+	if err := reader.Collect(context.Background(), &metrics); err != nil {
+		t.Fatal(err)
+	}
+	assertSumAttribute(t, metricByName(t, metrics, "agent.process.activations"), "agent.process.activation", "restored")
+	assertHistogramAttribute(
+		t, metricByName(t, metrics, "agent.process.activation.duration"),
+		"agent.process.activation", "restored",
+	)
 }
 
 func TestObserverRejectsTypedNilTracerProvider(t *testing.T) {
@@ -207,6 +327,104 @@ func TestObserverIgnoresEventsAfterClose(t *testing.T) {
 	}
 }
 
+func TestObserverCloseWaitsForInFlightObservation(t *testing.T) {
+	event := captureProcessStartedEvent(t)
+	synctest.Test(t, func(t *testing.T) {
+		entered := make(chan struct{})
+		release := make(chan struct{})
+		provider := startsBlockingMeterProvider{
+			MeterProvider: noop.NewMeterProvider(), entered: entered, release: release,
+		}
+		observer, err := agentotel.NewObserver(agentotel.ObserverConfig{MeterProvider: provider})
+		if err != nil {
+			t.Fatal(err)
+		}
+		observed := make(chan struct{})
+		go func() {
+			observer.OnEvent(context.Background(), event)
+			close(observed)
+		}()
+		<-entered
+
+		const concurrentCloseCalls = 2
+		closed := make([]chan struct{}, concurrentCloseCalls)
+		for index := range closed {
+			closed[index] = make(chan struct{})
+			go func(done chan struct{}) {
+				observer.Close()
+				close(done)
+			}(closed[index])
+		}
+		synctest.Wait()
+		for _, done := range closed {
+			select {
+			case <-done:
+				t.Fatal("Close returned while an observation was still in flight")
+			default:
+			}
+		}
+
+		close(release)
+		synctest.Wait()
+		select {
+		case <-observed:
+		default:
+			t.Fatal("observation did not finish after its metric was released")
+		}
+		for _, done := range closed {
+			select {
+			case <-done:
+			default:
+				t.Fatal("Close did not finish after the in-flight observation")
+			}
+		}
+	})
+}
+
+type startsBlockingMeterProvider struct {
+	metric.MeterProvider
+	entered chan struct{}
+	release <-chan struct{}
+}
+
+func (p startsBlockingMeterProvider) Meter(name string, options ...metric.MeterOption) metric.Meter {
+	return startsBlockingMeter{
+		Meter: p.MeterProvider.Meter(name, options...), entered: p.entered, release: p.release,
+	}
+}
+
+type startsBlockingMeter struct {
+	metric.Meter
+	entered chan struct{}
+	release <-chan struct{}
+}
+
+func (m startsBlockingMeter) Int64Counter(
+	name string,
+	options ...metric.Int64CounterOption,
+) (metric.Int64Counter, error) {
+	counter, err := m.Meter.Int64Counter(name, options...)
+	if err != nil || name != "agent.process.activations" {
+		return counter, err
+	}
+	return &blockingCounter{
+		Int64Counter: counter, entered: m.entered, release: m.release,
+	}, nil
+}
+
+type blockingCounter struct {
+	metric.Int64Counter
+	once    sync.Once
+	entered chan struct{}
+	release <-chan struct{}
+}
+
+func (c *blockingCounter) Add(ctx context.Context, value int64, options ...metric.AddOption) {
+	c.once.Do(func() { close(c.entered) })
+	<-c.release
+	c.Int64Counter.Add(ctx, value, options...)
+}
+
 type testInput struct {
 	Value string `json:"value"`
 }
@@ -255,6 +473,10 @@ func (t *testExecution) Step(context.Context, []agent.Signal) (agent.Transition,
 		return agent.Fail(0, failure)
 	}
 	if t.Phase == 0 {
+		if t.Value == "pause" {
+			t.Phase = 1
+			return agent.Pause(0, "test observation restore")
+		}
 		effect, err := agent.NewDispatcherEffect(json.RawMessage(`{"operation":"observe"}`))
 		if err != nil {
 			return agent.Transition{}, err
@@ -267,7 +489,11 @@ func (t *testExecution) Step(context.Context, []agent.Signal) (agent.Transition,
 		return agent.Transition{}, err
 	}
 	t.Phase = 2
-	return agent.Complete(1, output)
+	consumedSignals := uint32(1)
+	if t.Value == "pause" {
+		consumedSignals = 0
+	}
+	return agent.Complete(consumedSignals, output)
 }
 
 func (t *testExecution) Snapshot() (agent.ExecutionState, error) {
@@ -321,6 +547,35 @@ func testDeployment(t *testing.T) agent.Deployment {
 		t.Fatal(err)
 	}
 	return deployment
+}
+
+func captureProcessStartedEvent(t *testing.T) agent.Event {
+	t.Helper()
+	var started agent.Event
+	engine, err := agent.NewEngine(agent.EngineConfig{EventListeners: []agent.EventListener{
+		agent.EventListenerFunc(func(_ context.Context, event agent.Event) {
+			if event.Name() == agent.EventProcessStarted {
+				started = event
+			}
+		}),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := agent.EncodeInput(testInput{Value: "capture start"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result, runErr := engine.Run(context.Background(), testDeployment(t), input); runErr != nil || !result.Valid() {
+		t.Fatalf("capture run result = %#v, error = %v", result, runErr)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if !started.Valid() {
+		t.Fatal("Process started event was not captured")
+	}
+	return started
 }
 
 func spansByName(spans []sdktrace.ReadOnlySpan, name string) []sdktrace.ReadOnlySpan {
@@ -403,4 +658,34 @@ func histogramCount(t *testing.T, metric metricdata.Metrics) uint64 {
 		total += point.Count
 	}
 	return total
+}
+
+func assertInt64HistogramSum(t *testing.T, metric metricdata.Metrics, want int64) {
+	t.Helper()
+	data, ok := metric.Data.(metricdata.Histogram[int64])
+	if !ok {
+		t.Fatalf("metric %q data = %T, want int64 histogram", metric.Name, metric.Data)
+	}
+	var total int64
+	for _, point := range data.DataPoints {
+		total += point.Sum
+	}
+	if total != want {
+		t.Fatalf("metric %q sum = %d, want %d", metric.Name, total, want)
+	}
+}
+
+func assertHistogramAttribute(t *testing.T, metric metricdata.Metrics, key, want string) {
+	t.Helper()
+	data, ok := metric.Data.(metricdata.Histogram[float64])
+	if !ok {
+		t.Fatalf("metric %q data = %T, want float64 histogram", metric.Name, metric.Data)
+	}
+	for _, point := range data.DataPoints {
+		value, found := point.Attributes.Value(attribute.Key(key))
+		if found && value.AsString() == want {
+			return
+		}
+	}
+	t.Fatalf("metric %q attribute %s = %q is missing", metric.Name, key, want)
 }

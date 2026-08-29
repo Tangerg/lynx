@@ -43,6 +43,51 @@ observedStream := chat.WrapStream(providerStreamer, instrumentation.Stream)
 构造阶段取得官方全局 provider。没有安装 SDK provider 时，官方 provider
 为 noop，但 wrapper 自身仍会执行计时、属性读取和流式聚合。
 
+## Agent instrumentation
+
+`otel/agent.Observer` 是 `agent.EventListener` 的官方反向集成：Agent Kernel
+只发布自校验的 typed fact，不 import OTel；Observer 把一次 start 或 restore
+到 terminal 的运行区间解释为一次 Process activation，并为其中的 Step 与 Effect
+建立子 span。
+
+```go
+observer, err := agentotel.NewObserver(agentotel.ObserverConfig{
+	TracerProvider: tracerProvider,
+	MeterProvider:  meterProvider,
+})
+if err != nil {
+	return err
+}
+defer observer.Close()
+
+engine, err := agent.NewEngine(agent.EngineConfig{
+	EventListeners: []agent.EventListener{observer},
+})
+```
+
+Observer 发射以下稳定 instrument；所有 duration 都使用秒：
+
+| Instrument | 类型 | 含义 |
+|---|---|---|
+| `agent.process.activations` | counter | started/restored runtime activation |
+| `agent.process.exits` | counter | terminal Process outcome |
+| `agent.process.activation.duration` | histogram | 当前 activation 到 terminal 的耗时 |
+| `agent.process.committed_steps` | histogram | terminal Framework Usage 中的 committed Steps |
+| `agent.process.prepared_effects` | histogram | terminal Framework Usage 中的 prepared Effects |
+| `agent.process.accepted_signals` | histogram | terminal Framework Usage 中的 accepted Signals |
+| `agent.step.duration` | histogram | Execution Step attempt 耗时 |
+| `agent.effect.duration` | histogram | Framework/Dispatcher Effect attempt 耗时 |
+| `agent.delta.dropped` | counter | 被有界 observation 路径丢弃的 Delta increment |
+
+Process、Step 与 Effect span 携带 exact Process/tree、Deployment 和 activation
+归因；durable execution 额外携带 `agent.tree.incarnation_id`。metric 只使用
+Deployment name/version、activation、status/cause、Effect target/status 和稳定
+failure kind/code 等受控维度，不写入 raw payload、Input、Output 或产品身份。
+
+Observer 不保存 Event callback context，只保存仍在活动的 span。`Close` 先线性化
+拒绝新 observation，等待已经进入的 callback 完成，再以错误状态结束残留 span；
+因此可以安全地与 Engine shutdown 协调，也可以并发重复调用。
+
 ## Development sinks
 
 `otel/slog` 提供三个官方 SDK 接口实现：
@@ -79,10 +124,11 @@ Core 协议代码不变。
 ## Dependency direction
 
 ```text
+agent             <-- otel/agent        --> OpenTelemetry API
 core/chat         <-- otel/chat         --> OpenTelemetry API
-history       <-- otel/history  --> OpenTelemetry API
+history           <-- otel/history      --> OpenTelemetry API
 core/vectorstore  <-- otel/vectorstore  --> OpenTelemetry API
-                       otel/slog        --> OpenTelemetry SDK --> log/slog
+                       otel/slog         --> OpenTelemetry SDK --> log/slog
 ```
 
 - Core 用户不引入 `otel` 时，不承担任何 OTel 依赖。
