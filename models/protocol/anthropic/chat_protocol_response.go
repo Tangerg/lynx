@@ -180,117 +180,110 @@ func newProtocolStreamState(provider string) *protocolStreamState {
 	}
 }
 
-func (p *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnion) (*corechat.Response, bool, error) {
+func (p *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnion) (*corechat.Response, error) {
 	response := &corechat.Response{Metadata: &corechat.ResponseMetadata{ID: p.id, Model: p.model}}
 	if err := response.Metadata.Set(p.streamEventKey, event); err != nil {
-		return nil, false, err
+		return nil, err
 	}
-	var output *corechat.Output
-	include := true
-
-	switch value := event.AsAny().(type) {
-	case anthropicsdk.MessageStartEvent:
-		p.id = value.Message.ID
-		p.model = string(value.Message.Model)
-		response.Metadata.ID = p.id
-		response.Metadata.Model = p.model
-		p.usage = mapProtocolUsage(value.Message.Usage)
-		response.Metadata.Usage = p.usage
-		if err := response.Metadata.Set(protocolUsageKey, value.Message.Usage); err != nil {
-			return nil, false, err
-		}
-		if len(value.Message.Content) > 0 {
-			parts, err := mapProtocolContent(value.Message.Content, p.provider)
-			if err != nil {
-				return nil, false, err
-			}
-			if len(parts) > 0 {
-				message, err := p.protocolMessage(parts)
-				if err != nil {
-					return nil, false, err
-				}
-				output = &corechat.Output{Message: message}
-			}
-		}
-		include = true
-
-	case anthropicsdk.ContentBlockStartEvent:
-		part, hasPart, err := p.mapBlockStart(value)
-		if err != nil {
-			return nil, false, err
-		}
-		if hasPart {
-			message, err := p.protocolMessage([]corechat.Part{part})
-			if err != nil {
-				return nil, false, err
-			}
-			output = &corechat.Output{Message: message}
-			include = true
-		}
-
-	case anthropicsdk.ContentBlockDeltaEvent:
-		mapped, hasPart, extension, err := p.mapBlockDelta(value)
-		if err != nil {
-			return nil, false, err
-		}
-		if hasPart {
-			message, err := p.protocolMessage([]corechat.Part{mapped})
-			if err != nil {
-				return nil, false, err
-			}
-			output = &corechat.Output{Message: message}
-			include = true
-		} else if extension != nil {
-			output = &corechat.Output{Metadata: &corechat.OutputMetadata{}}
-			if err := output.Metadata.Set(protocolCitationDeltaKey, extension); err != nil {
-				return nil, false, err
-			}
-			include = true
-		}
-
-	case anthropicsdk.MessageDeltaEvent:
-		output = &corechat.Output{FinishReason: normalizeProtocolStopReason(value.Delta.StopReason)}
-		if value.Delta.StopReason != "" {
-			output.Metadata = &corechat.OutputMetadata{}
-			if err := output.Metadata.Set(protocolNativeStopReasonKey, value.Delta.StopReason); err != nil {
-				return nil, false, err
-			}
-		}
-		p.mergeDeltaUsage(value.Usage)
-		response.Metadata.Usage = p.usage
-		if err := response.Metadata.Set(protocolUsageKey, value.Usage); err != nil {
-			return nil, false, err
-		}
-		if value.Delta.StopSequence != "" {
-			if err := response.Metadata.Set(protocolStopSequenceKey, value.Delta.StopSequence); err != nil {
-				return nil, false, err
-			}
-		}
-		if output.FinishReason == "" && output.Metadata == nil {
-			output = nil
-		}
-		include = output != nil || len(response.Metadata.Extra) > 0
-
-	case anthropicsdk.ContentBlockStopEvent, anthropicsdk.MessageStopEvent:
-
-	default:
-		// Preserve forward-compatible events in StreamEventExtensionKey.
+	output, err := p.mapEventOutput(event, response)
+	if err != nil {
+		return nil, err
 	}
-
-	if output != nil {
-		response.Output = output
-	}
-	if !include {
-		return nil, false, nil
-	}
-	// Usage is a cumulative stream snapshot. Event-only chunks still carry the
-	// latest known value so observing native lifecycle events cannot make a
-	// consumer's view of usage move backwards.
+	response.Output = output
 	response.Metadata.Usage = p.usage
 	if err := response.Validate(); err != nil {
-		return nil, false, fmt.Errorf("anthropic: mapped stream response: %w", err)
+		return nil, fmt.Errorf("anthropic: mapped stream response: %w", err)
 	}
-	return response, true, nil
+	return response, nil
+}
+
+func (p *protocolStreamState) mapEventOutput(event anthropicsdk.MessageStreamEventUnion, response *corechat.Response) (*corechat.Output, error) {
+	switch value := event.AsAny().(type) {
+	case anthropicsdk.MessageStartEvent:
+		return p.mapMessageStart(value, response)
+	case anthropicsdk.ContentBlockStartEvent:
+		return p.mapBlockStartOutput(value)
+	case anthropicsdk.ContentBlockDeltaEvent:
+		return p.mapBlockDeltaOutput(value)
+	case anthropicsdk.MessageDeltaEvent:
+		return p.mapMessageDelta(value, response)
+	case anthropicsdk.ContentBlockStopEvent, anthropicsdk.MessageStopEvent:
+		return nil, nil
+	default:
+		return nil, nil
+	}
+}
+
+func (p *protocolStreamState) mapMessageStart(event anthropicsdk.MessageStartEvent, response *corechat.Response) (*corechat.Output, error) {
+	p.id = event.Message.ID
+	p.model = string(event.Message.Model)
+	response.Metadata.ID = p.id
+	response.Metadata.Model = p.model
+	p.usage = mapProtocolUsage(event.Message.Usage)
+	if err := response.Metadata.Set(protocolUsageKey, event.Message.Usage); err != nil {
+		return nil, err
+	}
+	parts, err := mapProtocolContent(event.Message.Content, p.provider)
+	if err != nil {
+		return nil, err
+	}
+	return protocolStreamOutput(parts), nil
+}
+
+func (p *protocolStreamState) mapBlockStartOutput(event anthropicsdk.ContentBlockStartEvent) (*corechat.Output, error) {
+	part, hasPart, err := p.mapBlockStart(event)
+	if err != nil || !hasPart {
+		return nil, err
+	}
+	return protocolStreamOutput([]corechat.Part{part}), nil
+}
+
+func (p *protocolStreamState) mapBlockDeltaOutput(event anthropicsdk.ContentBlockDeltaEvent) (*corechat.Output, error) {
+	part, hasPart, extension, err := p.mapBlockDelta(event)
+	if err != nil {
+		return nil, err
+	}
+	if hasPart {
+		return protocolStreamOutput([]corechat.Part{part}), nil
+	}
+	if extension == nil {
+		return nil, nil
+	}
+	output := &corechat.Output{Metadata: &corechat.OutputMetadata{}}
+	if err := output.Metadata.Set(protocolCitationDeltaKey, extension); err != nil {
+		return nil, err
+	}
+	return output, nil
+}
+
+func (p *protocolStreamState) mapMessageDelta(event anthropicsdk.MessageDeltaEvent, response *corechat.Response) (*corechat.Output, error) {
+	output := &corechat.Output{FinishReason: normalizeProtocolStopReason(event.Delta.StopReason)}
+	if event.Delta.StopReason != "" {
+		output.Metadata = &corechat.OutputMetadata{}
+		if err := output.Metadata.Set(protocolNativeStopReasonKey, event.Delta.StopReason); err != nil {
+			return nil, err
+		}
+	}
+	p.mergeDeltaUsage(event.Usage)
+	if err := response.Metadata.Set(protocolUsageKey, event.Usage); err != nil {
+		return nil, err
+	}
+	if event.Delta.StopSequence != "" {
+		if err := response.Metadata.Set(protocolStopSequenceKey, event.Delta.StopSequence); err != nil {
+			return nil, err
+		}
+	}
+	if output.FinishReason == "" && output.Metadata == nil {
+		return nil, nil
+	}
+	return output, nil
+}
+
+func protocolStreamOutput(parts []corechat.Part) *corechat.Output {
+	if len(parts) == 0 {
+		return nil
+	}
+	return &corechat.Output{Message: &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}}
 }
 
 func (p *protocolStreamState) mapBlockStart(event anthropicsdk.ContentBlockStartEvent) (corechat.Part, bool, error) {
@@ -377,10 +370,6 @@ func (p *protocolStreamState) mapBlockDelta(event anthropicsdk.ContentBlockDelta
 	default:
 		return corechat.Part{}, false, nil, nil
 	}
-}
-
-func (p *protocolStreamState) protocolMessage(parts []corechat.Part) (*corechat.Message, error) {
-	return &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}, nil
 }
 
 func (p *protocolStreamState) mergeDeltaUsage(usage anthropicsdk.MessageDeltaUsage) {

@@ -359,55 +359,70 @@ func protocolImageMIME(mediaType string) bool {
 func mapProtocolAssistant(message corechat.Message, provider string) ([]anthropicsdk.ContentBlockParamUnion, error) {
 	blocks := make([]anthropicsdk.ContentBlockParamUnion, 0, len(message.Parts))
 	for i := range message.Parts {
-		part := message.Parts[i]
-		switch part.Kind {
-		case corechat.PartText:
-			blocks = append(blocks, anthropicsdk.NewTextBlock(part.Text))
-		case corechat.PartReasoning:
-			issuer, issuerFound, err := part.Metadata.Decode[string](protocolReasoningProviderKey)
-			if err != nil {
-				return nil, fmt.Errorf("parts[%d].metadata[%q]: %w", i, protocolReasoningProviderKey, err)
-			}
-			if !issuerFound || issuer != provider {
-				// Opaque state is valid only for the provider that issued it.
-				continue
-			}
-			kind, found, err := part.Metadata.Decode[string](protocolReasoningKindKey)
-			if err != nil {
-				return nil, fmt.Errorf("parts[%d].metadata[%q]: %w", i, protocolReasoningKindKey, err)
-			}
-			if !found {
-				// Unsigned or foreign-provider reasoning is visible Core state,
-				// not valid Anthropic replay state.
-				continue
-			}
-			switch kind {
-			case protocolReasoningThinking:
-				if len(part.Signature) == 0 {
-					return nil, fmt.Errorf("parts[%d]: Anthropic thinking requires its provider signature", i)
-				}
-				blocks = append(blocks, anthropicsdk.NewThinkingBlock(string(part.Signature), part.Text))
-			case protocolReasoningRedacted:
-				if len(part.Signature) == 0 {
-					return nil, fmt.Errorf("parts[%d]: Anthropic redacted thinking requires opaque data", i)
-				}
-				blocks = append(blocks, anthropicsdk.NewRedactedThinkingBlock(string(part.Signature)))
-			default:
-				return nil, fmt.Errorf("parts[%d].metadata[%q]: unknown kind %q", i, protocolReasoningKindKey, kind)
-			}
-		case corechat.PartToolCall:
-			var input any
-			if part.ToolCall.Arguments == "" {
-				input = map[string]any{}
-			} else if err := json.Unmarshal([]byte(part.ToolCall.Arguments), &input); err != nil {
-				return nil, fmt.Errorf("parts[%d].tool_call.arguments: %w", i, err)
-			}
-			blocks = append(blocks, anthropicsdk.NewToolUseBlock(part.ToolCall.ID, input, part.ToolCall.Name))
-		default:
-			return nil, fmt.Errorf("parts[%d]: unsupported assistant part %q", i, part.Kind)
+		block, include, err := mapProtocolAssistantPart(i, message.Parts[i], provider)
+		if err != nil {
+			return nil, err
+		}
+		if include {
+			blocks = append(blocks, block)
 		}
 	}
 	return blocks, nil
+}
+
+func mapProtocolAssistantPart(index int, part corechat.Part, provider string) (anthropicsdk.ContentBlockParamUnion, bool, error) {
+	switch part.Kind {
+	case corechat.PartText:
+		return anthropicsdk.NewTextBlock(part.Text), true, nil
+	case corechat.PartReasoning:
+		return mapProtocolReasoningPart(index, part, provider)
+	case corechat.PartToolCall:
+		block, err := mapProtocolToolCall(index, *part.ToolCall)
+		return block, true, err
+	default:
+		return anthropicsdk.ContentBlockParamUnion{}, false, fmt.Errorf("parts[%d]: unsupported assistant part %q", index, part.Kind)
+	}
+}
+
+func mapProtocolReasoningPart(index int, part corechat.Part, provider string) (anthropicsdk.ContentBlockParamUnion, bool, error) {
+	issuer, found, err := part.Metadata.Decode[string](protocolReasoningProviderKey)
+	if err != nil {
+		return anthropicsdk.ContentBlockParamUnion{}, false, fmt.Errorf("parts[%d].metadata[%q]: %w", index, protocolReasoningProviderKey, err)
+	}
+	if !found || issuer != provider {
+		return anthropicsdk.ContentBlockParamUnion{}, false, nil
+	}
+	kind, found, err := part.Metadata.Decode[string](protocolReasoningKindKey)
+	if err != nil {
+		return anthropicsdk.ContentBlockParamUnion{}, false, fmt.Errorf("parts[%d].metadata[%q]: %w", index, protocolReasoningKindKey, err)
+	}
+	if !found {
+		return anthropicsdk.ContentBlockParamUnion{}, false, nil
+	}
+	switch kind {
+	case protocolReasoningThinking:
+		if len(part.Signature) == 0 {
+			return anthropicsdk.ContentBlockParamUnion{}, false, fmt.Errorf("parts[%d]: Anthropic thinking requires its provider signature", index)
+		}
+		return anthropicsdk.NewThinkingBlock(string(part.Signature), part.Text), true, nil
+	case protocolReasoningRedacted:
+		if len(part.Signature) == 0 {
+			return anthropicsdk.ContentBlockParamUnion{}, false, fmt.Errorf("parts[%d]: Anthropic redacted thinking requires opaque data", index)
+		}
+		return anthropicsdk.NewRedactedThinkingBlock(string(part.Signature)), true, nil
+	default:
+		return anthropicsdk.ContentBlockParamUnion{}, false, fmt.Errorf("parts[%d].metadata[%q]: unknown kind %q", index, protocolReasoningKindKey, kind)
+	}
+}
+
+func mapProtocolToolCall(index int, call corechat.ToolCall) (anthropicsdk.ContentBlockParamUnion, error) {
+	var input any
+	if call.Arguments == "" {
+		input = map[string]any{}
+	} else if err := json.Unmarshal([]byte(call.Arguments), &input); err != nil {
+		return anthropicsdk.ContentBlockParamUnion{}, fmt.Errorf("parts[%d].tool_call.arguments: %w", index, err)
+	}
+	return anthropicsdk.NewToolUseBlock(call.ID, input, call.Name), nil
 }
 
 func mapProtocolTools(definitions []corechat.ToolDefinition) ([]anthropicsdk.ToolUnionParam, error) {

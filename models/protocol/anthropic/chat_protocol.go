@@ -137,12 +137,12 @@ func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*cor
 		state := newProtocolStreamState(c.dialect.Provider)
 		for stream.Next() {
 			event := stream.Current()
-			response, include, mapErr := state.mapEvent(event)
+			response, mapErr := state.mapEvent(event)
 			if mapErr != nil {
 				yield(nil, mapErr)
 				return
 			}
-			if include && !yield(response, nil) {
+			if !yield(response, nil) {
 				return
 			}
 		}
