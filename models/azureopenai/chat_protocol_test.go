@@ -26,8 +26,7 @@ func TestChatUsesAzureOpenAIV1Protocol(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	model, err := azureopenai.NewChat(azureopenai.ChatConfig{
-		APIKey:  "test-key",
-		BaseURL: server.URL + "/openai/v1/",
+		Config: azureopenai.Config{APIKey: "test-key", BaseURL: server.URL + "/openai/v1/"},
 		DefaultOptions: corechat.Options{
 			Model: "gpt-deployment",
 		},

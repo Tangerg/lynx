@@ -1,9 +1,7 @@
 package azureopenai
 
 import (
-	"errors"
 	"fmt"
-	"net/http"
 
 	corechat "github.com/Tangerg/scope/core/chat"
 	"github.com/Tangerg/scope/models/protocol/openai"
@@ -24,34 +22,25 @@ var (
 type Chat = openai.Chat
 
 type ChatConfig struct {
-	APIKey         string
-	BaseURL        string
+	Config
 	DefaultOptions corechat.Options
-	HTTPClient     *http.Client
+}
+
+func (c ChatConfig) resolve() (endpointConfig, error) {
+	return resolveChatConfig(c.Config, c.DefaultOptions.Validate)
 }
 
 func (c ChatConfig) Validate() error {
-	if c.APIKey == "" {
-		return errors.New("azureopenai: APIKey is required")
-	}
-	if _, err := normalizeBaseURL(c.BaseURL); err != nil {
-		return err
-	}
-	if err := c.DefaultOptions.Validate(); err != nil {
-		return fmt.Errorf("azureopenai: DefaultOptions: %w", err)
-	}
-	return nil
+	_, err := c.resolve()
+	return err
 }
 
 func NewChat(config ChatConfig) (*Chat, error) {
-	if err := config.Validate(); err != nil {
-		return nil, err
-	}
-	baseURL, err := normalizeBaseURL(config.BaseURL)
+	endpoint, err := config.resolve()
 	if err != nil {
 		return nil, err
 	}
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: baseURL, HTTPClient: config.HTTPClient}, openai.Dialect{Provider: "azureopenai", TokenLimitField: openai.TokenLimitMaxTokens})
+	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: endpoint.apiKey, DefaultOptions: config.DefaultOptions, BaseURL: endpoint.baseURL, HTTPClient: endpoint.httpClient}, openai.Dialect{Provider: protocolProvider, TokenLimitField: openai.TokenLimitMaxTokens})
 	if err != nil {
 		return nil, fmt.Errorf("azureopenai: construct chat: %w", err)
 	}

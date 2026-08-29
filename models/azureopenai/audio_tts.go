@@ -2,34 +2,31 @@ package azureopenai
 
 import (
 	"errors"
-	"net/http"
 
 	tts "github.com/Tangerg/scope/core/speech"
 	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
 type AudioTTSModelConfig struct {
-	APIKey           string
-	BaseURL          string
+	Config
 	DefaultOptions   tts.Options
-	HTTPClient       *http.Client
 	MaxResponseBytes int64
 }
 
-func (a AudioTTSModelConfig) Validate() error {
-	if a.APIKey == "" {
-		return errors.New("azureopenai: APIKey is required")
-	}
-	if a.DefaultOptions.Model == "" {
-		return errors.New("azureopenai: DefaultOptions.Model is required")
-	}
-	if err := a.DefaultOptions.Validate(); err != nil {
-		return err
+func (a AudioTTSModelConfig) resolve() (endpointConfig, error) {
+	endpoint, err := resolveModelConfig(a.Config, a.DefaultOptions.Model, a.DefaultOptions.Validate)
+	if err != nil {
+		return endpointConfig{}, err
 	}
 	if a.MaxResponseBytes < 0 {
-		return errors.New("azureopenai: MaxResponseBytes must not be negative")
+		return endpointConfig{}, errors.New("azureopenai: MaxResponseBytes must not be negative")
 	}
-	return nil
+	return endpoint, nil
+}
+
+func (a AudioTTSModelConfig) Validate() error {
+	_, err := a.resolve()
+	return err
 }
 
 var (
@@ -40,19 +37,16 @@ var (
 type AudioTTSModel = openai.AudioTTSModel
 
 func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
-	if err := config.Validate(); err != nil {
-		return nil, err
-	}
-	baseURL, err := normalizeBaseURL(config.BaseURL)
+	endpoint, err := config.resolve()
 	if err != nil {
 		return nil, err
 	}
 	return openai.NewAudioTTSModel(openai.AudioTTSModelConfig{
-		Provider:         "azureopenai",
-		APIKey:           config.APIKey,
+		Provider:         protocolProvider,
+		APIKey:           endpoint.apiKey,
 		DefaultOptions:   config.DefaultOptions,
-		BaseURL:          baseURL,
-		HTTPClient:       config.HTTPClient,
+		BaseURL:          endpoint.baseURL,
+		HTTPClient:       endpoint.httpClient,
 		MaxResponseBytes: config.MaxResponseBytes,
 	})
 }

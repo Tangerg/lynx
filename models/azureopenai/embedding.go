@@ -1,31 +1,22 @@
 package azureopenai
 
 import (
-	"errors"
-	"net/http"
-
 	"github.com/Tangerg/scope/core/embedding"
 	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
 type EmbeddingModelConfig struct {
-	APIKey         string
-	BaseURL        string
+	Config
 	DefaultOptions embedding.Options
-	HTTPClient     *http.Client
+}
+
+func (e EmbeddingModelConfig) resolve() (endpointConfig, error) {
+	return resolveModelConfig(e.Config, e.DefaultOptions.Model, e.DefaultOptions.Validate)
 }
 
 func (e EmbeddingModelConfig) Validate() error {
-	if e.APIKey == "" {
-		return errors.New("azureopenai: APIKey is required")
-	}
-	if e.DefaultOptions.Model == "" {
-		return errors.New("azureopenai: DefaultOptions.Model is required")
-	}
-	if err := e.DefaultOptions.Validate(); err != nil {
-		return err
-	}
-	return nil
+	_, err := e.resolve()
+	return err
 }
 
 var _ embedding.Model = (*EmbeddingModel)(nil)
@@ -33,18 +24,15 @@ var _ embedding.Model = (*EmbeddingModel)(nil)
 type EmbeddingModel = openai.EmbeddingModel
 
 func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
-	if err := config.Validate(); err != nil {
-		return nil, err
-	}
-	baseURL, err := normalizeBaseURL(config.BaseURL)
+	endpoint, err := config.resolve()
 	if err != nil {
 		return nil, err
 	}
 	return openai.NewEmbeddingModel(openai.EmbeddingModelConfig{
-		Provider:       "azureopenai",
-		APIKey:         config.APIKey,
+		Provider:       protocolProvider,
+		APIKey:         endpoint.apiKey,
 		DefaultOptions: config.DefaultOptions,
-		BaseURL:        baseURL,
-		HTTPClient:     config.HTTPClient,
+		BaseURL:        endpoint.baseURL,
+		HTTPClient:     endpoint.httpClient,
 	})
 }
