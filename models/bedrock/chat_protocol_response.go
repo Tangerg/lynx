@@ -50,61 +50,76 @@ func mapProtocolConverseResponse(model string, output *bedrockruntime.ConverseOu
 func mapProtocolResponseBlocks(blocks []types.ContentBlock) ([]corechat.Part, error) {
 	parts := make([]corechat.Part, 0, len(blocks))
 	for index := range blocks {
-		switch block := blocks[index].(type) {
-		case *types.ContentBlockMemberText:
-			if block.Value != "" {
-				parts = append(parts, corechat.NewTextPart(block.Value))
-			}
-		case *types.ContentBlockMemberImage:
-			value, err := bedrockImageToMedia(block.Value)
-			if err != nil {
-				return nil, fmt.Errorf("bedrock: response content[%d]: %w", index, err)
-			}
-			parts = append(parts, corechat.NewMediaPart(value))
-		case *types.ContentBlockMemberAudio:
-			value, err := bedrockAudioToMedia(block.Value)
-			if err != nil {
-				return nil, fmt.Errorf("bedrock: response content[%d]: %w", index, err)
-			}
-			parts = append(parts, corechat.NewMediaPart(value))
-		case *types.ContentBlockMemberVideo:
-			value, err := bedrockVideoToMedia(block.Value)
-			if err != nil {
-				return nil, fmt.Errorf("bedrock: response content[%d]: %w", index, err)
-			}
-			parts = append(parts, corechat.NewMediaPart(value))
-		case *types.ContentBlockMemberReasoningContent:
-			switch reasoning := block.Value.(type) {
-			case *types.ReasoningContentBlockMemberReasoningText:
-				if reasoning.Value.Text == nil || reasoning.Value.Signature == nil {
-					return nil, fmt.Errorf("bedrock: response content[%d]: reasoning text lacks text or signature", index)
-				}
-				part, err := NewReasoningPart(*reasoning.Value.Text, []byte(*reasoning.Value.Signature))
-				if err != nil {
-					return nil, fmt.Errorf("bedrock: response content[%d]: %w", index, err)
-				}
-				parts = append(parts, part)
-			case *types.ReasoningContentBlockMemberRedactedContent:
-				part, err := NewRedactedReasoningPart(reasoning.Value)
-				if err != nil {
-					return nil, fmt.Errorf("bedrock: response content[%d]: %w", index, err)
-				}
-				parts = append(parts, part)
-			}
-		case *types.ContentBlockMemberToolUse:
-			if block.Value.ToolUseId == nil || block.Value.Name == nil {
-				return nil, fmt.Errorf("bedrock: response content[%d]: tool use lacks ID or name", index)
-			}
-			arguments, err := json.Marshal(block.Value.Input)
-			if err != nil {
-				return nil, fmt.Errorf("bedrock: response content[%d]: tool arguments: %w", index, err)
-			}
-			parts = append(parts, corechat.NewToolCallPart(corechat.ToolCall{
-				ID: *block.Value.ToolUseId, Name: *block.Value.Name, Arguments: string(arguments),
-			}))
+		part, include, err := mapProtocolResponseBlock(blocks[index])
+		if err != nil {
+			return nil, fmt.Errorf("bedrock: response content[%d]: %w", index, err)
+		}
+		if include {
+			parts = append(parts, part)
 		}
 	}
 	return parts, nil
+}
+
+func mapProtocolResponseBlock(block types.ContentBlock) (corechat.Part, bool, error) {
+	switch block := block.(type) {
+	case *types.ContentBlockMemberText:
+		return corechat.NewTextPart(block.Value), block.Value != "", nil
+	case *types.ContentBlockMemberImage:
+		value, err := bedrockImageToMedia(block.Value)
+		if err != nil {
+			return corechat.Part{}, false, err
+		}
+		return corechat.NewMediaPart(value), true, nil
+	case *types.ContentBlockMemberAudio:
+		value, err := bedrockAudioToMedia(block.Value)
+		if err != nil {
+			return corechat.Part{}, false, err
+		}
+		return corechat.NewMediaPart(value), true, nil
+	case *types.ContentBlockMemberVideo:
+		value, err := bedrockVideoToMedia(block.Value)
+		if err != nil {
+			return corechat.Part{}, false, err
+		}
+		return corechat.NewMediaPart(value), true, nil
+	case *types.ContentBlockMemberReasoningContent:
+		return mapProtocolReasoningContent(block.Value)
+	case *types.ContentBlockMemberToolUse:
+		part, err := mapProtocolToolUse(block.Value)
+		return part, err == nil, err
+	default:
+		return corechat.Part{}, false, nil
+	}
+}
+
+func mapProtocolReasoningContent(block types.ReasoningContentBlock) (corechat.Part, bool, error) {
+	switch reasoning := block.(type) {
+	case *types.ReasoningContentBlockMemberReasoningText:
+		if reasoning.Value.Text == nil || reasoning.Value.Signature == nil {
+			return corechat.Part{}, false, errors.New("reasoning text lacks text or signature")
+		}
+		part, err := NewReasoningPart(*reasoning.Value.Text, []byte(*reasoning.Value.Signature))
+		return part, err == nil, err
+	case *types.ReasoningContentBlockMemberRedactedContent:
+		part, err := NewRedactedReasoningPart(reasoning.Value)
+		return part, err == nil, err
+	default:
+		return corechat.Part{}, false, nil
+	}
+}
+
+func mapProtocolToolUse(value types.ToolUseBlock) (corechat.Part, error) {
+	if value.ToolUseId == nil || value.Name == nil {
+		return corechat.Part{}, errors.New("tool use lacks ID or name")
+	}
+	arguments, err := json.Marshal(value.Input)
+	if err != nil {
+		return corechat.Part{}, fmt.Errorf("tool arguments: %w", err)
+	}
+	return corechat.NewToolCallPart(corechat.ToolCall{
+		ID: *value.ToolUseId, Name: *value.Name, Arguments: string(arguments),
+	}), nil
 }
 
 func mapProtocolStopReason(reason types.StopReason) corechat.FinishReason {
