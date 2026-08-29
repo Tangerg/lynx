@@ -31,14 +31,14 @@ func TestReciprocalRankFusionUsesRanksInsteadOfRawScores(t *testing.T) {
 	if len(got) != 3 {
 		t.Fatalf("fused candidates = %d, want 3", len(got))
 	}
-	if got[0].Document != firstA {
+	if got[0].Document.Text != firstA.Text || got[0].Document == firstA {
 		t.Fatalf("top candidate = %#v, want first representative of identity a", got[0].Document)
 	}
 	want := 2.0 / float64(rag.DefaultReciprocalRankConstant+1)
 	if math.Abs(got[0].Score-want) > 1e-12 {
 		t.Fatalf("fused score = %v, want %v", got[0].Score, want)
 	}
-	if got[1].Document != b || got[2].Document != c {
+	if got[1].Document.ID != b.ID || got[2].Document.ID != c.ID {
 		t.Fatalf("equal-score order = %q, %q; want b, c", got[1].Document.ID, got[2].Document.ID)
 	}
 }
@@ -61,7 +61,7 @@ func TestReciprocalRankFusionDoesNotRewardDuplicateIdentityWithinOneRanking(t *t
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0].Document != b || got[1].Document != firstA {
+	if len(got) != 2 || got[0].Document.ID != b.ID || got[1].Document.Text != firstA.Text {
 		t.Fatalf("fused order = %#v, want b then the first a", got)
 	}
 	wantA := 1.0 / 11.0
@@ -86,15 +86,12 @@ func TestReciprocalRankFusionUsesStableFirstAppearanceForTies(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0].Document != a || got[1].Document != b || got[0].Score != got[1].Score {
+	if len(got) != 2 || got[0].Document.ID != a.ID || got[1].Document.ID != b.ID || got[0].Score != got[1].Score {
 		t.Fatalf("tie order = %#v, want a then b with equal scores", got)
 	}
 }
 
 func TestReciprocalRankFusionValidatesConfigurationAndChildren(t *testing.T) {
-	if err := (rag.ReciprocalRankFusionConfig{}).Validate(); err != nil {
-		t.Fatalf("zero-value configuration error = %v", err)
-	}
 	if _, err := rag.ReciprocalRankFusion(rag.ReciprocalRankFusionConfig{RankConstant: -1}, &fakeRetriever{}); !errors.Is(err, rag.ErrInvalidRankConstant) {
 		t.Fatalf("invalid rank constant error = %v", err)
 	}
@@ -114,6 +111,24 @@ func TestReciprocalRankFusionValidatesConfigurationAndChildren(t *testing.T) {
 	}
 	if _, err := fused.Retrieve(t.Context(), mustQuery(t, "query")); !errors.Is(err, rag.ErrInvalidCandidate) {
 		t.Fatalf("invalid child candidate error = %v", err)
+	}
+}
+
+func TestReciprocalRankFusionDoesNotOverflowLargeRankConstant(t *testing.T) {
+	doc := identifiedDocument(t, "doc", "document")
+	fused, err := rag.ReciprocalRankFusion(
+		rag.ReciprocalRankFusionConfig{RankConstant: int(^uint(0) >> 1)},
+		&fakeRetriever{docs: []rag.Candidate{candidate(doc)}},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, err := fused.Retrieve(t.Context(), mustQuery(t, "query"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got) != 1 || got[0].Score <= 0 || math.IsNaN(got[0].Score) || math.IsInf(got[0].Score, 0) {
+		t.Fatalf("fused result = %#v", got)
 	}
 }
 

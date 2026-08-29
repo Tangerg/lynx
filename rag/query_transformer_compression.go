@@ -69,7 +69,7 @@ func (c *CompressionTransformer) Transform(ctx context.Context, query Query) (Qu
 		return Query{}, err
 	}
 
-	history, err := c.extractHistory(query)
+	history, err := c.extractHistory(ctx, query)
 	if err != nil {
 		return Query{}, err
 	}
@@ -88,7 +88,7 @@ func (c *CompressionTransformer) Transform(ctx context.Context, query Query) (Qu
 // extractHistory pulls the conversation messages out of the query value under
 // [HistoryValueKey] and renders them as one string.
 // Returns "" when the slot is missing.
-func (c *CompressionTransformer) extractHistory(query Query) (string, error) {
+func (c *CompressionTransformer) extractHistory(ctx context.Context, query Query) (string, error) {
 	messages, exists, err := query.Value(historyValueKey)
 	if err != nil {
 		return "", fmt.Errorf("rag: read chat history: %w", err)
@@ -96,12 +96,15 @@ func (c *CompressionTransformer) extractHistory(query Query) (string, error) {
 	if !exists {
 		return "", nil
 	}
-	return c.formatHistory(messages)
+	return c.formatHistory(ctx, messages)
 }
 
-func (c *CompressionTransformer) formatHistory(messages []chat.Message) (string, error) {
+func (c *CompressionTransformer) formatHistory(ctx context.Context, messages []chat.Message) (string, error) {
 	var output strings.Builder
 	for messageIndex := range messages {
+		if err := ctx.Err(); err != nil {
+			return "", err
+		}
 		if err := messages[messageIndex].Validate(); err != nil {
 			return "", fmt.Errorf("rag: format chat history message %d: %w", messageIndex, err)
 		}

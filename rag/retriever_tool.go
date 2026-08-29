@@ -30,8 +30,6 @@ type RetrievalToolOutput struct {
 	Candidates Candidates `json:"candidates"`
 }
 
-func (o RetrievalToolOutput) Validate() error { return o.Candidates.Validate() }
-
 // RetrievalTool adapts a [Retriever] to the ordinary [tool.Tool] contract. It
 // can be advertised immediately or placed in an agent's DeferredTools set.
 type RetrievalTool struct {

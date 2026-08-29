@@ -82,8 +82,9 @@ type Query struct {
 	values map[*valueKeyIdentity]any
 }
 
+// NewQuery trims surrounding whitespace and creates a valid retrieval query.
 func NewQuery(text string) (Query, error) {
-	query := Query{text: text}
+	query := Query{text: strings.TrimSpace(text)}
 	if err := query.Validate(); err != nil {
 		return Query{}, err
 	}
@@ -91,8 +92,8 @@ func NewQuery(text string) (Query, error) {
 }
 
 func (q Query) Validate() error {
-	if strings.TrimSpace(q.text) == "" {
-		return fmt.Errorf("%w: text must not be blank", ErrInvalidQuery)
+	if q.text == "" || q.text != strings.TrimSpace(q.text) {
+		return fmt.Errorf("%w: text must be non-empty without surrounding whitespace", ErrInvalidQuery)
 	}
 	return nil
 }
@@ -145,7 +146,8 @@ func (q Query) WithText(text string) (Query, error) {
 	if err := q.Validate(); err != nil {
 		return Query{}, err
 	}
-	if strings.TrimSpace(text) == "" {
+	text = strings.TrimSpace(text)
+	if text == "" {
 		return Query{}, fmt.Errorf("%w: text must not be blank", ErrInvalidQuery)
 	}
 	return Query{text: text, values: maps.Clone(q.values)}, nil

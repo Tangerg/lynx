@@ -19,11 +19,13 @@ func Dedup() Refiner {
 
 // Refine returns the best candidate for every known document identity. Honors
 // ctx cancellation.
-func (d deduper) Refine(ctx context.Context, _ Query, candidates Candidates) (Candidates, error) {
+func (d deduper) Refine(ctx context.Context, query Query, candidates Candidates) (Candidates, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-
+	if err := query.Validate(); err != nil {
+		return nil, err
+	}
 	if err := candidates.Validate(); err != nil {
 		return nil, err
 	}

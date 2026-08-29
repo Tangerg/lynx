@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"slices"
 	"strings"
 
 	"github.com/samber/lo"
@@ -73,7 +72,7 @@ func (m modelRerankingOutput) rank(candidates Candidates) (Candidates, error) {
 		)
 	}
 
-	ranked := Candidates(slices.Clone(candidates))
+	ranked := candidates.Clone()
 	seen := make([]bool, len(candidates))
 	for position, item := range m.Scores {
 		if item.Index < 0 || item.Index >= len(candidates) {

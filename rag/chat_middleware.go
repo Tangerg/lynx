@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"slices"
 
 	"github.com/samber/lo"
 
@@ -15,6 +14,7 @@ import (
 var (
 	ErrNilChatResponse       = errors.New("rag: chat model returned a nil response")
 	ErrNilChatStreamSequence = errors.New("rag: chat streamer returned a nil sequence")
+	ErrNoFinalUserMessage    = errors.New("rag: chat request must end with a user message")
 )
 
 const (
@@ -24,8 +24,8 @@ const (
 
 var historyValueKey = mustValueKey[[]chat.Message]("chat history")
 
-// HistoryValueKey returns the immutable message snapshot slot populated
-// when a query originates from [NewMiddleware].
+// HistoryValueKey returns the immutable snapshot of messages before the active
+// user turn when a query originates from [NewMiddleware].
 func HistoryValueKey() ValueKey[[]chat.Message] { return historyValueKey }
 
 type MiddlewareConfig struct {
@@ -33,18 +33,18 @@ type MiddlewareConfig struct {
 	Retriever Retriever
 
 	// Augmenter folds retrieved documents into the outgoing user message.
-	// Nil means [IdentityAugmenter].
+	// Required; use [IdentityAugmenter] for retrieval without prompt changes.
 	Augmenter Augmenter
 }
 
-func (config MiddlewareConfig) normalized() (MiddlewareConfig, error) {
+func (config MiddlewareConfig) validate() error {
 	if lo.IsNil(config.Retriever) {
-		return MiddlewareConfig{}, ErrNilRetriever
+		return ErrNilRetriever
 	}
 	if lo.IsNil(config.Augmenter) {
-		config.Augmenter = IdentityAugmenter()
+		return ErrNilAugmenter
 	}
-	return config, nil
+	return nil
 }
 
 // Middleware owns retrieval and augmentation policy for both chat call modes.
@@ -72,37 +72,41 @@ func newPreparedChatRequest(request *chat.Request) (preparedChatRequest, error) 
 	return preparedChatRequest{request: clone}, nil
 }
 
-func (prepared preparedChatRequest) finalUserText() string {
-	for index := len(prepared.request.Messages) - 1; index >= 0; index-- {
-		if prepared.request.Messages[index].Role == chat.RoleUser {
-			return prepared.request.Messages[index].Text()
-		}
+func (prepared preparedChatRequest) finalUserText() (string, error) {
+	last := len(prepared.request.Messages) - 1
+	if last < 0 || prepared.request.Messages[last].Role != chat.RoleUser {
+		return "", ErrNoFinalUserMessage
 	}
-	return ""
+	return prepared.request.Messages[last].Text(), nil
 }
 
 func (prepared *preparedChatRequest) replaceFinalUserText(text string) {
-	for index := len(prepared.request.Messages) - 1; index >= 0; index-- {
-		if prepared.request.Messages[index].Role != chat.RoleUser {
-			continue
-		}
-		original := prepared.request.Messages[index]
-		parts := make([]chat.Part, 0, 1+len(original.Parts))
-		if text != "" {
-			parts = append(parts, chat.NewTextPart(text))
-		}
-		for partIndex := range original.Parts {
-			if original.Parts[partIndex].Kind == chat.PartMedia {
-				parts = append(parts, original.Parts[partIndex])
+	index := len(prepared.request.Messages) - 1
+	original := prepared.request.Messages[index]
+	parts := make([]chat.Part, 0, len(original.Parts))
+	replaced := false
+	for partIndex := range original.Parts {
+		switch original.Parts[partIndex].Kind {
+		case chat.PartText:
+			if !replaced {
+				parts = append(parts, chat.NewTextPart(text))
+				replaced = true
 			}
+		case chat.PartMedia:
+			parts = append(parts, original.Parts[partIndex].Clone())
 		}
-		prepared.request.Messages[index] = chat.Message{
-			Role:     chat.RoleUser,
-			Parts:    parts,
-			Metadata: original.Metadata.Clone(),
-		}
-		return
 	}
+	prepared.request.Messages[index] = chat.Message{
+		Role: chat.RoleUser, Parts: parts, Metadata: original.Metadata.Clone(),
+	}
+}
+
+func (prepared preparedChatRequest) history() []chat.Message {
+	history := make([]chat.Message, len(prepared.request.Messages)-1)
+	for index := range history {
+		history[index] = prepared.request.Messages[index].Clone()
+	}
+	return history
 }
 
 func (prepared preparedChatRequest) attachRetrievalMetadata(response *chat.Response) error {
@@ -163,8 +167,7 @@ func CitationsFromResponse(response *chat.Response) (Citations, bool, error) {
 }
 
 func NewMiddleware(config MiddlewareConfig) (*Middleware, error) {
-	config, err := config.normalized()
-	if err != nil {
+	if err := config.validate(); err != nil {
 		return nil, err
 	}
 	return &Middleware{retriever: config.Retriever, augmenter: config.Augmenter}, nil
@@ -175,12 +178,16 @@ func (middleware *Middleware) prepare(ctx context.Context, request *chat.Request
 	if err != nil {
 		return preparedChatRequest{}, err
 	}
-	query, err := NewQuery(prepared.finalUserText())
+	text, err := prepared.finalUserText()
+	if err != nil {
+		return preparedChatRequest{}, err
+	}
+	query, err := NewQuery(text)
 	if err != nil {
 		return preparedChatRequest{}, fmt.Errorf("rag: build query from final user message: %w", err)
 	}
 
-	query, err = query.WithValue(historyValueKey, slices.Clone(prepared.request.Messages))
+	query, err = query.WithValue(historyValueKey, prepared.history())
 	if err != nil {
 		return preparedChatRequest{}, fmt.Errorf("rag: attach chat history: %w", err)
 	}
@@ -189,12 +196,9 @@ func (middleware *Middleware) prepare(ctx context.Context, request *chat.Request
 	if err != nil {
 		return preparedChatRequest{}, err
 	}
-	augmentation, err := middleware.augmenter.Augment(ctx, query, candidates)
+	augmentation, err := augment(ctx, middleware.augmenter, query, candidates)
 	if err != nil {
 		return preparedChatRequest{}, err
-	}
-	if err := augmentation.Validate(); err != nil {
-		return preparedChatRequest{}, fmt.Errorf("rag: augmentation: %w", err)
 	}
 	prepared.candidates = candidates
 	prepared.citations = augmentation.Citations()

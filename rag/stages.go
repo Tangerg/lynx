@@ -27,9 +27,27 @@ type Candidate struct {
 	Score    float64            `json:"score"`
 }
 
+// Clone returns an independently owned candidate and document.
+func (c Candidate) Clone() Candidate {
+	c.Document = c.Document.Clone()
+	return c
+}
+
 // Candidates is an ordered retrieval result. Its methods never mutate the
 // receiver, preserving declaration and retrieval order where scores tie.
 type Candidates []Candidate
+
+// Clone returns an independently owned candidate sequence.
+func (c Candidates) Clone() Candidates {
+	if c == nil {
+		return nil
+	}
+	clone := make(Candidates, len(c))
+	for index, candidate := range c {
+		clone[index] = candidate.Clone()
+	}
+	return clone
+}
 
 func (c Candidates) Validate() error {
 	for index, candidate := range c {
@@ -48,17 +66,17 @@ func (c Candidates) uniqueBest() Candidates {
 	for _, candidate := range c {
 		id := candidate.Document.ID
 		if id == "" {
-			unique = append(unique, candidate)
+			unique = append(unique, candidate.Clone())
 			continue
 		}
 		position, exists := positions[id]
 		if !exists {
 			positions[id] = len(unique)
-			unique = append(unique, candidate)
+			unique = append(unique, candidate.Clone())
 			continue
 		}
 		if candidate.Score > unique[position].Score {
-			unique[position] = candidate
+			unique[position] = candidate.Clone()
 		}
 	}
 	return unique
@@ -67,7 +85,7 @@ func (c Candidates) uniqueBest() Candidates {
 // ranked returns an independent score-descending snapshot. Stable sorting
 // retains retrieval order when scores tie.
 func (c Candidates) ranked() Candidates {
-	ranked := slices.Clone(c)
+	ranked := c.Clone()
 	slices.SortStableFunc(ranked, func(left, right Candidate) int {
 		return cmp.Compare(right.Score, left.Score)
 	})

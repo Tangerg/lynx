@@ -13,6 +13,9 @@ import (
 // Retrieve is the validation boundary around a retriever, including custom
 // implementations supplied by callers.
 func Retrieve(ctx context.Context, retriever Retriever, query Query) (Candidates, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	if lo.IsNil(retriever) {
 		return nil, ErrNilRetriever
 	}
@@ -26,7 +29,10 @@ func Retrieve(ctx context.Context, retriever Retriever, query Query) (Candidates
 	if err := candidates.Validate(); err != nil {
 		return nil, err
 	}
-	return candidates, nil
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return candidates.Clone(), nil
 }
 
 // Parallel returns a [Retriever] that runs retrievers concurrently and unions
@@ -73,14 +79,11 @@ func WithTransformers(next Retriever, transformers ...Transformer) (Retriever, e
 		}
 		current := query
 		for i, transformer := range owned {
-			var err error
-			current, err = transformer.Transform(ctx, current)
+			transformed, err := transform(ctx, transformer, current)
 			if err != nil {
 				return nil, fmt.Errorf("rag: transformer %d: %w", i, err)
 			}
-			if err := current.Validate(); err != nil {
-				return nil, fmt.Errorf("rag: transformer %d returned an invalid query: %w", i, err)
-			}
+			current = transformed
 		}
 		return Retrieve(ctx, next, current)
 	}), nil
@@ -100,14 +103,10 @@ func WithExpander(next Retriever, expander Expander) (Retriever, error) {
 		if err := query.Validate(); err != nil {
 			return nil, err
 		}
-		queries, err := expander.Expand(ctx, query)
+		queries, err := expand(ctx, expander, query)
 		if err != nil {
 			return nil, fmt.Errorf("rag: expand query: %w", err)
 		}
-		if len(queries) == 0 {
-			return nil, ErrEmptyExpansion
-		}
-		queries = slices.Clone(queries)
 		return parallelCandidates(ctx, "rag.WithExpander", queries, "query",
 			func(ctx context.Context, _ int, q Query) (Candidates, error) {
 				return Retrieve(ctx, next, q)
@@ -137,16 +136,82 @@ func WithRefiners(next Retriever, refiners ...Refiner) (Retriever, error) {
 			return nil, err
 		}
 		for i, refiner := range owned {
-			docs, err = refiner.Refine(ctx, query, docs)
+			docs, err = refine(ctx, refiner, query, docs)
 			if err != nil {
 				return nil, fmt.Errorf("rag: refiner %d: %w", i, err)
-			}
-			if err := docs.Validate(); err != nil {
-				return nil, fmt.Errorf("rag: refiner %d returned invalid candidates: %w", i, err)
 			}
 		}
 		return docs, nil
 	}), nil
+}
+
+func transform(ctx context.Context, transformer Transformer, query Query) (Query, error) {
+	if err := ctx.Err(); err != nil {
+		return Query{}, err
+	}
+	if err := query.Validate(); err != nil {
+		return Query{}, err
+	}
+	transformed, err := transformer.Transform(ctx, query)
+	if err != nil {
+		return Query{}, err
+	}
+	if err := transformed.Validate(); err != nil {
+		return Query{}, fmt.Errorf("invalid transformed query: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return Query{}, err
+	}
+	return transformed, nil
+}
+
+func expand(ctx context.Context, expander Expander, query Query) ([]Query, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := query.Validate(); err != nil {
+		return nil, err
+	}
+	queries, err := expander.Expand(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	if len(queries) == 0 {
+		return nil, ErrEmptyExpansion
+	}
+	queries = slices.Clone(queries)
+	for index, expanded := range queries {
+		if err := expanded.Validate(); err != nil {
+			return nil, fmt.Errorf("%w: query %d: %w", ErrInvalidExpansion, index, err)
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return queries, nil
+}
+
+func refine(ctx context.Context, refiner Refiner, query Query, candidates Candidates) (Candidates, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if err := query.Validate(); err != nil {
+		return nil, err
+	}
+	if err := candidates.Validate(); err != nil {
+		return nil, err
+	}
+	refined, err := refiner.Refine(ctx, query, candidates.Clone())
+	if err != nil {
+		return nil, err
+	}
+	if err := refined.Validate(); err != nil {
+		return nil, fmt.Errorf("invalid refined candidates: %w", err)
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return refined.Clone(), nil
 }
 
 func parallelCandidates[Item any](

@@ -36,7 +36,7 @@ func TestRetrievalToolExposesStrictSchemaAndCandidates(t *testing.T) {
 	if err := json.Unmarshal(raw.Details, &output); err != nil {
 		t.Fatal(err)
 	}
-	if err := output.Validate(); err != nil {
+	if err := output.Candidates.Validate(); err != nil {
 		t.Fatal(err)
 	}
 	if len(output.Candidates) != 1 || output.Candidates[0].Document.ID != "go" || output.Candidates[0].Score != 0.8 {

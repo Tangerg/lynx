@@ -161,7 +161,7 @@ func TestContextualAugmenterAppliesWholeDocumentTokenBudget(t *testing.T) {
 	}
 	citations := augmentation.Citations()
 	if len(citations) != 2 || citations[0].Marker() != "[1]" || citations[1].Marker() != "[2]" ||
-		citations[0].Candidate.Document != first || citations[1].Candidate.Document != second {
+		citations[0].Candidate.Document.ID != first.ID || citations[1].Candidate.Document.ID != second.ID {
 		t.Fatalf("citations = %#v", citations)
 	}
 }
@@ -247,8 +247,7 @@ func TestLLMComponentsRejectTemplatesMissingRequiredFields(t *testing.T) {
 		},
 		"rewrite transformer": func() error {
 			_, err := rag.NewRewriteTransformer(rag.RewriteTransformerConfig{
-				Model:          model,
-				PromptTemplate: prompt,
+				Model: model, TargetSearchSystem: "search", PromptTemplate: prompt,
 			})
 			return err
 		},
@@ -392,16 +391,10 @@ func TestCompressionTransformerRejectsEmptyModelOutput(t *testing.T) {
 	}
 }
 
-func TestRewriteTransformer_DefaultsToVectorStoreTarget(t *testing.T) {
+func TestRewriteTransformerRequiresSearchTarget(t *testing.T) {
 	model := newFakeChatModel(t, "tightened query")
-	tr, _ := rag.NewRewriteTransformer(rag.RewriteTransformerConfig{Model: model})
-
-	q, _ := rag.NewQuery("user input")
-	if _, err := tr.Transform(t.Context(), q); err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(model.captured, "vector store") {
-		t.Fatalf("Target=vector store not threaded into prompt: %q", model.captured)
+	if _, err := rag.NewRewriteTransformer(rag.RewriteTransformerConfig{Model: model}); err == nil {
+		t.Fatal("missing search target must error")
 	}
 }
 

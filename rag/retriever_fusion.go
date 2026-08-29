@@ -21,11 +21,6 @@ type ReciprocalRankFusionConfig struct {
 	RankConstant int
 }
 
-func (c ReciprocalRankFusionConfig) Validate() error {
-	_, err := c.normalized()
-	return err
-}
-
 func (c ReciprocalRankFusionConfig) normalized() (ReciprocalRankFusionConfig, error) {
 	if c.RankConstant < 0 {
 		return ReciprocalRankFusionConfig{}, ErrInvalidRankConstant
@@ -95,7 +90,7 @@ func (r reciprocalRankFusion) fuse(ctx context.Context, rankings []Candidates) (
 				seen[identity] = struct{}{}
 			}
 
-			contribution := 1 / float64(r.rankConstant+index+1)
+			contribution := 1 / (float64(r.rankConstant) + float64(index) + 1)
 			if identity == "" {
 				candidate.Score = contribution
 				fused = append(fused, candidate)

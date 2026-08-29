@@ -4,11 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"slices"
 	"strings"
 )
 
-var ErrInvalidAugmentation = errors.New("rag: invalid augmentation")
+var (
+	ErrInvalidAugmentation = errors.New("rag: invalid augmentation")
+	ErrNilAugmenter        = errors.New("rag: augmenter must not be nil")
+)
 
 // Augmentation is the final text handed to a generation model after retrieval.
 // It is intentionally distinct from [Query]: a retrieval query carries
@@ -27,6 +29,18 @@ type Citation struct {
 // Citations is an ordered, one-based mapping between prompt markers and
 // retrieval candidates.
 type Citations []Citation
+
+// Clone returns an independently owned citation sequence.
+func (c Citations) Clone() Citations {
+	if c == nil {
+		return nil
+	}
+	clone := make(Citations, len(c))
+	for index, citation := range c {
+		clone[index] = citation.Clone()
+	}
+	return clone
+}
 
 func (c Citations) Validate() error {
 	for index, citation := range c {
@@ -47,11 +61,17 @@ func (c Citations) Validate() error {
 }
 
 func NewCitation(number int, candidate Candidate) (Citation, error) {
-	citation := Citation{Number: number, Candidate: candidate}
+	citation := Citation{Number: number, Candidate: candidate.Clone()}
 	if err := citation.Validate(); err != nil {
 		return Citation{}, err
 	}
 	return citation, nil
+}
+
+// Clone returns an independently owned citation and candidate.
+func (c Citation) Clone() Citation {
+	c.Candidate = c.Candidate.Clone()
+	return c
 }
 
 // Marker returns the stable prompt marker for this citation.
@@ -78,13 +98,19 @@ func NewAugmentation(text string) (Augmentation, error) {
 // Text returns the final generation input.
 func (a Augmentation) Text() string { return a.text }
 
+// Clone returns an independently owned augmentation.
+func (a Augmentation) Clone() Augmentation {
+	a.citations = a.citations.Clone()
+	return a
+}
+
 // Citations returns an independent citation-order snapshot.
-func (a Augmentation) Citations() Citations { return slices.Clone(a.citations) }
+func (a Augmentation) Citations() Citations { return a.citations.Clone() }
 
 // WithCitations returns an independent augmentation with citations. Numbers
 // must be consecutive and one-based so prompt markers have one interpretation.
 func (a Augmentation) WithCitations(citations Citations) (Augmentation, error) {
-	a.citations = slices.Clone(citations)
+	a.citations = citations.Clone()
 	if err := a.Validate(); err != nil {
 		return Augmentation{}, err
 	}
@@ -111,4 +137,27 @@ type AugmenterFunc func(context.Context, Query, Candidates) (Augmentation, error
 
 func (a AugmenterFunc) Augment(ctx context.Context, query Query, candidates Candidates) (Augmentation, error) {
 	return a(ctx, query, candidates)
+}
+
+func augment(ctx context.Context, augmenter Augmenter, query Query, candidates Candidates) (Augmentation, error) {
+	if err := ctx.Err(); err != nil {
+		return Augmentation{}, err
+	}
+	if err := query.Validate(); err != nil {
+		return Augmentation{}, err
+	}
+	if err := candidates.Validate(); err != nil {
+		return Augmentation{}, err
+	}
+	augmentation, err := augmenter.Augment(ctx, query, candidates.Clone())
+	if err != nil {
+		return Augmentation{}, err
+	}
+	if err := augmentation.Validate(); err != nil {
+		return Augmentation{}, err
+	}
+	if err := ctx.Err(); err != nil {
+		return Augmentation{}, err
+	}
+	return augmentation.Clone(), nil
 }

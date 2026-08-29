@@ -2,8 +2,6 @@ package rag
 
 import (
 	"context"
-	"errors"
-	"strings"
 
 	"github.com/Tangerg/scope/core/chat"
 	"github.com/Tangerg/scope/core/chatclient"
@@ -36,64 +34,30 @@ type TranslationTransformerConfig struct {
 	PromptTemplate *chatclient.Template
 }
 
-func (c TranslationTransformerConfig) validate() error {
-	if strings.TrimSpace(c.TargetLanguage) == "" {
-		return errors.New("rag: translation target language is required")
-	}
-	if c.TargetLanguage != strings.TrimSpace(c.TargetLanguage) {
-		return errors.New("rag: translation target language must not have surrounding whitespace")
-	}
-	return nil
-}
-
 var _ Transformer = (*TranslationTransformer)(nil)
 
 // TranslationTransformer translates queries into a configured language.
 type TranslationTransformer struct {
-	prompt         textModelPrompt
-	targetLanguage string
-}
-
-type translationPromptVariables struct {
-	Target string
-	Query  string
+	transformer targetedTextTransformer
 }
 
 func NewTranslationTransformer(config TranslationTransformerConfig) (*TranslationTransformer, error) {
-	if err := config.validate(); err != nil {
-		return nil, err
-	}
-	prompt, err := newTextModelPrompt(
+	transformer, err := newTargetedTextTransformer(
 		config.Model,
 		config.PromptTemplate,
 		translationDefaultTemplate,
-		promptVariableTarget,
-		promptVariableQuery,
+		config.TargetLanguage,
+		"translation target language",
 	)
 	if err != nil {
 		return nil, err
 	}
 
-	return &TranslationTransformer{
-		prompt:         prompt,
-		targetLanguage: config.TargetLanguage,
-	}, nil
+	return &TranslationTransformer{transformer: transformer}, nil
 }
 
 // Transform asks the LLM to translate the query and returns a clone with Text
 // replaced by the model output.
 func (t *TranslationTransformer) Transform(ctx context.Context, query Query) (Query, error) {
-	if err := query.Validate(); err != nil {
-		return Query{}, err
-	}
-
-	translated, err := t.prompt.call(ctx, translationPromptVariables{
-		Target: t.targetLanguage,
-		Query:  query.Text(),
-	})
-	if err != nil {
-		return Query{}, err
-	}
-
-	return query.WithText(translated)
+	return t.transformer.transform(ctx, query)
 }

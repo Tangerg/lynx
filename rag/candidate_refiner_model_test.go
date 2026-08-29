@@ -24,8 +24,11 @@ func TestModelRerankerUsesStructuredOutputAndOwnsScores(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 2 || got[0].Document != second || got[0].Score != 0.9 || got[1].Document != first || got[1].Score != 0.4 {
+	if len(got) != 2 || got[0].Document.ID != second.ID || got[0].Score != 0.9 || got[1].Document.ID != first.ID || got[1].Score != 0.4 {
 		t.Fatalf("reranked candidates = %#v", got)
+	}
+	if got[0].Document == second || got[1].Document == first {
+		t.Fatal("reranker returned caller-owned documents")
 	}
 	if input[0].Score != 100 || input[1].Score != -10 {
 		t.Fatalf("input scores mutated: %#v", input)

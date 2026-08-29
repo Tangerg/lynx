@@ -24,6 +24,10 @@ func TestNewQuery_RequiresText(t *testing.T) {
 	if _, err := rag.NewQuery(""); !errors.Is(err, rag.ErrInvalidQuery) {
 		t.Fatalf("NewQuery error = %v, want ErrInvalidQuery", err)
 	}
+	query, err := rag.NewQuery("  query  ")
+	if err != nil || query.Text() != "query" {
+		t.Fatalf("normalized query = %q, %v", query.Text(), err)
+	}
 }
 
 func TestAugmentationOwnsValidatedCitationOrder(t *testing.T) {
@@ -42,8 +46,12 @@ func TestAugmentationOwnsValidatedCitationOrder(t *testing.T) {
 	}
 	citations := augmentation.Citations()
 	citations[0].Number = 2
+	citations[0].Candidate.Document.Text = "mutated"
 	if augmentation.Citations()[0].Number != 1 {
 		t.Fatal("citation slice aliases caller mutation")
+	}
+	if augmentation.Citations()[0].Candidate.Document.Text != "evidence" || doc.Text != "evidence" {
+		t.Fatal("citation document aliases caller mutation")
 	}
 	if _, err := rag.NewCitation(0, candidate(doc)); !errors.Is(err, rag.ErrInvalidAugmentation) {
 		t.Fatalf("invalid citation number error = %v", err)
@@ -146,6 +154,25 @@ func TestRetrieveValidatesCandidates(t *testing.T) {
 	}
 }
 
+func TestRetrieveTransfersOwnedCandidates(t *testing.T) {
+	doc, _ := document.NewDocument("source", nil)
+	retriever := &fakeRetriever{docs: rag.Candidates{candidate(doc, 0.8)}}
+	query, _ := rag.NewQuery("query")
+
+	first, err := rag.Retrieve(t.Context(), retriever, query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	first[0].Document.Text = "mutated"
+	second, err := rag.Retrieve(t.Context(), retriever, query)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if doc.Text != "source" || second[0].Document.Text != "source" {
+		t.Fatalf("retrieval candidates alias source: source=%q second=%q", doc.Text, second[0].Document.Text)
+	}
+}
+
 func TestWithRefinersRejectsInvalidRetrieverOutputBeforeRefining(t *testing.T) {
 	refinerCalled := false
 	refined, err := rag.WithRefiners(
@@ -219,7 +246,7 @@ func TestWithTransformersFeedsTransformedQueryToRetriever(t *testing.T) {
 	if retriever.got != "hi?" {
 		t.Fatalf("retriever query = %q, want hi?", retriever.got)
 	}
-	if len(docs) != 1 || docs[0].Document != doc {
+	if len(docs) != 1 || docs[0].Document.Text != doc.Text || docs[0].Document == doc {
 		t.Fatalf("docs = %v", docs)
 	}
 	if retriever.hits != 1 {
@@ -354,6 +381,25 @@ func TestWithExpanderRejectsEmptyExpansion(t *testing.T) {
 	_, err = expanded.Retrieve(t.Context(), mustQuery(t, "hi"))
 	if !errors.Is(err, rag.ErrEmptyExpansion) {
 		t.Fatalf("Retrieve error = %v, want ErrEmptyExpansion", err)
+	}
+}
+
+func TestWithExpanderValidatesAllQueriesBeforeRetrieval(t *testing.T) {
+	retriever := &fakeRetriever{}
+	expanded, err := rag.WithExpander(
+		retriever,
+		rag.ExpanderFunc(func(context.Context, rag.Query) ([]rag.Query, error) {
+			return []rag.Query{mustQuery(t, "valid"), {}}, nil
+		}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := expanded.Retrieve(t.Context(), mustQuery(t, "source")); !errors.Is(err, rag.ErrInvalidExpansion) {
+		t.Fatalf("invalid expansion error = %v", err)
+	}
+	if retriever.hits != 0 {
+		t.Fatalf("retriever ran %d times before expansion validation completed", retriever.hits)
 	}
 }
 

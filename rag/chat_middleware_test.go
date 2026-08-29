@@ -9,6 +9,7 @@ import (
 
 	"github.com/Tangerg/scope/core/chat"
 	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/media"
 	"github.com/Tangerg/scope/rag"
 )
 
@@ -68,10 +69,15 @@ func TestNewMiddlewareRejectsInvalidConfig(t *testing.T) {
 	if _, err := rag.NewMiddleware(rag.MiddlewareConfig{Retriever: typedNilRetriever}); err == nil {
 		t.Fatal("typed nil retriever must error")
 	}
+	if _, err := rag.NewMiddleware(rag.MiddlewareConfig{Retriever: &stubRetriever{}}); !errors.Is(err, rag.ErrNilAugmenter) {
+		t.Fatalf("missing augmenter error = %v", err)
+	}
 }
 
 func TestMiddlewarePreservesMissingCapabilities(t *testing.T) {
-	middleware, err := rag.NewMiddleware(rag.MiddlewareConfig{Retriever: &stubRetriever{}})
+	middleware, err := rag.NewMiddleware(rag.MiddlewareConfig{
+		Retriever: &stubRetriever{}, Augmenter: rag.IdentityAugmenter(),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -131,11 +137,18 @@ func TestMiddlewarePreservesChatExtensionsAndExposesTypedHistory(t *testing.T) {
 		capturedHistory, _, err = query.Value(rag.HistoryValueKey())
 		return nil, err
 	})
-	middleware, err := rag.NewMiddleware(rag.MiddlewareConfig{Retriever: retriever})
+	middleware, err := rag.NewMiddleware(rag.MiddlewareConfig{
+		Retriever: retriever, Augmenter: rag.IdentityAugmenter(),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("question")))
+	request, _ := chat.NewRequest(
+		chat.NewSystemMessage("system"),
+		chat.NewUserMessage(chat.NewTextPart("first question")),
+		chat.NewAssistantMessage(chat.NewTextPart("first answer")),
+		chat.NewUserMessage(chat.NewTextPart("question")),
+	)
 	if setExtensionErr := request.Options.SetExtension("test/tenant", "acme"); setExtensionErr != nil {
 		t.Fatal(setExtensionErr)
 	}
@@ -155,8 +168,8 @@ func TestMiddlewarePreservesChatExtensionsAndExposesTypedHistory(t *testing.T) {
 	if downstreamTenant != "acme" {
 		t.Fatalf("downstream request extension = %q, want acme", downstreamTenant)
 	}
-	if len(capturedHistory) != 1 || capturedHistory[0].Text() != "question" {
-		t.Fatalf("chat history = %#v, want the request message", capturedHistory)
+	if len(capturedHistory) != 3 || capturedHistory[0].Text() != "system" || capturedHistory[2].Text() != "first answer" {
+		t.Fatalf("chat history = %#v, want messages before the active user turn", capturedHistory)
 	}
 }
 
@@ -201,7 +214,9 @@ func (c *countingRetriever) Retrieve(_ context.Context, _ rag.Query) (rag.Candid
 
 func TestMiddlewarePropagatesRetrieverError(t *testing.T) {
 	want := errors.New("boom")
-	middleware, err := rag.NewMiddleware(rag.MiddlewareConfig{Retriever: &errorRetriever{err: want}})
+	middleware, err := rag.NewMiddleware(rag.MiddlewareConfig{
+		Retriever: &errorRetriever{err: want}, Augmenter: rag.IdentityAugmenter(),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -242,6 +257,7 @@ func TestMiddlewarePreservesPartialModelResponse(t *testing.T) {
 	doc, _ := document.NewDocument("retrieved info", nil)
 	middleware, err := rag.NewMiddleware(rag.MiddlewareConfig{
 		Retriever: &stubRetriever{docs: rag.Candidates{candidate(doc)}},
+		Augmenter: rag.IdentityAugmenter(),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -259,6 +275,22 @@ func TestMiddlewarePreservesPartialModelResponse(t *testing.T) {
 	}
 	if _, found, decodeErr := rag.CandidatesFromResponse(response); decodeErr != nil || !found {
 		t.Fatalf("partial response document extension = present %v, error %v", found, decodeErr)
+	}
+}
+
+func TestMiddlewareRequiresActiveUserTurn(t *testing.T) {
+	middleware, err := rag.NewMiddleware(rag.MiddlewareConfig{
+		Retriever: &stubRetriever{}, Augmenter: rag.IdentityAugmenter(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := chat.NewRequest(chat.NewAssistantMessage(chat.NewTextPart("already answered")))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := middleware.Call(&echoChatModel{}).Call(t.Context(), request); !errors.Is(err, rag.ErrNoFinalUserMessage) {
+		t.Fatalf("final assistant message error = %v", err)
 	}
 }
 
@@ -291,5 +323,47 @@ func TestMiddlewareDoesNotMutateCallerMessages(t *testing.T) {
 	}
 	if got := request.Messages[0].Text(); got != "what is RAG?" {
 		t.Fatalf("caller message was mutated: %q", got)
+	}
+}
+
+func TestMiddlewarePreservesActiveUserPartOrder(t *testing.T) {
+	first, err := media.NewURI("image/png", "https://example.com/first.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := media.NewURI("image/png", "https://example.com/second.png")
+	if err != nil {
+		t.Fatal(err)
+	}
+	middleware, err := rag.NewMiddleware(rag.MiddlewareConfig{
+		Retriever: &stubRetriever{}, Augmenter: rag.IdentityAugmenter(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, err := chat.NewRequest(chat.NewUserMessage(
+		chat.NewMediaPart(first),
+		chat.NewTextPart("first"),
+		chat.NewMediaPart(second),
+		chat.NewTextPart("second"),
+	))
+	if err != nil {
+		t.Fatal(err)
+	}
+	model := chat.ModelFunc(func(_ context.Context, request *chat.Request) (*chat.Response, error) {
+		parts := request.Messages[len(request.Messages)-1].Parts
+		if len(parts) != 3 || parts[0].Kind != chat.PartMedia || parts[1].Kind != chat.PartText || parts[2].Kind != chat.PartMedia {
+			t.Fatalf("active user parts = %#v", parts)
+		}
+		if parts[1].Text != "firstsecond" || parts[0].Media == first || parts[2].Media == second {
+			t.Fatalf("active user parts were not independently preserved: %#v", parts)
+		}
+		return textResponse("answer"), nil
+	})
+	if _, err := middleware.Call(model).Call(t.Context(), request); err != nil {
+		t.Fatal(err)
+	}
+	if len(request.Messages[0].Parts) != 4 {
+		t.Fatalf("caller request was mutated: %#v", request.Messages[0].Parts)
 	}
 }
