@@ -98,15 +98,15 @@ func TestPreparedEffectPhaseOwnsMonotonicTransitions(t *testing.T) {
 	if record.Phase != effectPhasePlanned {
 		t.Fatalf("initial phase = %s, want %s", record.Phase, effectPhasePlanned)
 	}
-	if err := record.begin(); err != nil || record.Phase != effectPhasePending {
-		t.Fatalf("begin phase = %s, error = %v", record.Phase, err)
+	if beginErr := record.begin(); beginErr != nil || record.Phase != effectPhasePending {
+		t.Fatalf("begin phase = %s, error = %v", record.Phase, beginErr)
 	}
 	settlement, err := NewSettlement(record.ID, SettlementStatusUnknown, json.RawMessage(`null`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := record.settle(settlement); err != nil || !record.unknown() {
-		t.Fatalf("settle phase = %s, unknown = %t, error = %v", record.Phase, record.unknown(), err)
+	if settleErr := record.settle(settlement); settleErr != nil || !record.unknown() {
+		t.Fatalf("settle phase = %s, unknown = %t, error = %v", record.Phase, record.unknown(), settleErr)
 	}
 	definite, err := NewSettlement(record.ID, SettlementStatusSucceeded, json.RawMessage(`{"ok":true}`))
 	if err != nil {
@@ -212,8 +212,8 @@ func preparedEngineTestSnapshot(t testing.TB) ProcessSnapshot {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := engine.Run(context.Background(), deployment, input); err != nil {
-		t.Fatal(err)
+	if _, runErr := engine.Run(context.Background(), deployment, input); runErr != nil {
+		t.Fatal(runErr)
 	}
 	boundaries := durability.effectBoundaries()
 	if len(boundaries) == 0 || boundaries[0].Kind() != EffectBoundaryPending {

@@ -50,31 +50,31 @@ func (t *treeRuntime) applyCommand(command treeCommand) {
 		command.process.reply(processResponse{err: ErrProcessNotRunning})
 		return
 	}
-	processCommand := command.process
-	if processCommand.kind == commandHostTerminated {
+	requested := command.process
+	if requested.kind == commandHostTerminated {
 		if !process.status.Terminal() {
-			process.recordHostTermination(processCommand.hostErr)
+			process.recordHostTermination(requested.hostErr)
 			t.invalidateStep(process)
 			t.markRunnable(process.controller.processID)
 		}
 		return
 	}
-	if processCommand.kind == commandResolveUnknownEffect {
+	if requested.kind == commandResolveUnknownEffect {
 		if process.pendingControl.hasTerminalIntent() {
-			processCommand.reply(processResponse{err: ErrProcessFinished})
+			requested.reply(processResponse{err: ErrProcessFinished})
 			return
 		}
 		if t.engine.durability != nil {
-			if err := t.startUnknownResolutionCommit(process, processCommand); err != nil {
-				processCommand.reply(processResponse{err: err})
+			if err := t.startUnknownResolutionCommit(process, requested); err != nil {
+				requested.reply(processResponse{err: err})
 				if !errors.Is(err, ErrEffectNotPending) {
-					t.failDurability(err, process.controller.processID, processCommand.settlement.EffectID())
+					t.failDurability(err, process.controller.processID, requested.settlement.EffectID())
 				}
 			}
 			return
 		}
 	}
-	process.applyCommand(t.context, processCommand)
+	process.applyCommand(t.context, requested)
 	if process.pendingControl.hasTerminalIntent() || process.pendingControl.pauseReason != "" {
 		t.invalidateStep(process)
 	}
@@ -111,7 +111,7 @@ func (t *treeRuntime) completeFreeze() {
 	snapshot, err := t.captureTree()
 	if err != nil {
 		acquisition := t.freeze.acquisition
-		t.releaseFreeze(t.freeze.freeze)
+		t.releaseCurrentFreeze()
 		acquisition.response <- treeFreezeAcquisitionResult{err: err}
 		return
 	}
@@ -170,6 +170,14 @@ func (t *treeRuntime) releaseFreeze(freeze *treeFreeze) error {
 	if t.freeze == nil || freeze == nil || t.freeze.freeze != freeze {
 		return ErrEngineQuiescenceUnavailable
 	}
+	t.releaseCurrentFreeze()
+	return nil
+}
+
+// releaseCurrentFreeze is used only by the tree owner after it has selected
+// the active freeze. External capabilities still pass through releaseFreeze so
+// stale or foreign authority is rejected rather than silently accepted.
+func (t *treeRuntime) releaseCurrentFreeze() {
 	deferred := t.freeze.deferred
 	t.freeze = nil
 	t.freezeHeld.Store(false)
@@ -181,7 +189,6 @@ func (t *treeRuntime) releaseFreeze(freeze *treeFreeze) error {
 	for _, command := range deferred {
 		t.applyCommand(command)
 	}
-	return nil
 }
 
 func (t *treeRuntime) applyFreeze(

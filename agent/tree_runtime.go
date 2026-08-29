@@ -251,7 +251,7 @@ func (t *treeRuntime) addProcess(process *processState) {
 
 func (t *treeRuntime) run(rootContext context.Context) {
 	defer close(t.done)
-	for _, process := range t.processes {
+	for _, process := range t.processesInCanonicalOrder() {
 		if process.status.Terminal() {
 			continue
 		}
@@ -296,7 +296,7 @@ func (t *treeRuntime) run(rootContext context.Context) {
 			case command := <-t.commands:
 				t.applyCommand(command)
 			case <-t.freeze.acquisition.canceled:
-				t.releaseFreeze(t.freeze.freeze)
+				t.releaseCurrentFreeze()
 			}
 			continue
 		}
@@ -307,7 +307,7 @@ func (t *treeRuntime) run(rootContext context.Context) {
 			case completion := <-t.completions:
 				t.applyCompletion(completion)
 			case <-freezeCanceled:
-				t.releaseFreeze(t.freeze.freeze)
+				t.releaseCurrentFreeze()
 			}
 			continue
 		}
@@ -334,7 +334,7 @@ func (t *treeRuntime) tryFreezeCancellation() bool {
 	}
 	select {
 	case <-canceled:
-		t.releaseFreeze(t.freeze.freeze)
+		t.releaseCurrentFreeze()
 		return true
 	default:
 		return false

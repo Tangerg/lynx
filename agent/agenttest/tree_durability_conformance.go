@@ -59,8 +59,8 @@ func RunTreeDurabilityConformance(
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := process.ResolveUnknownEffect(context.Background(), settlement); err != nil {
-			t.Fatal(err)
+		if resolveErr := process.ResolveUnknownEffect(context.Background(), settlement); resolveErr != nil {
+			t.Fatal(resolveErr)
 		}
 		result, err := process.Await(context.Background())
 		if err != nil {

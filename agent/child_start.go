@@ -113,21 +113,21 @@ func (p *processState) prepareChildStart(
 }
 
 func (p *childStartPlan) execute(ctx context.Context) childStartJobResult {
-	deployment, err := p.resolveDeployment()
-	if err != nil {
+	deployment, resolveErr := p.resolveDeployment()
+	if resolveErr != nil {
 		return childStartJobResult{result: failedChildStart(
-			p.spec, FailureKindExternal, "engine.child.deployment_unavailable", err,
+			p.spec, FailureKindExternal, "engine.child.deployment_unavailable", resolveErr,
 		)}
 	}
-	if err := deployment.Descriptor().ValidateInput(p.spec.Input); err != nil {
+	if validateErr := deployment.Descriptor().ValidateInput(p.spec.Input); validateErr != nil {
 		return childStartJobResult{result: failedChildStart(
-			p.spec, FailureKindContract, "engine.child.input.invalid", err,
+			p.spec, FailureKindContract, "engine.child.input.invalid", validateErr,
 		)}
 	}
 	admission := newProcessAdmission(p.relation, deployment, p.spec.Budget, p.spec.Capabilities)
-	if err := requestProcessAdmission(ctx, p.engine.admitter, admission); err != nil {
+	if admissionErr := requestProcessAdmission(ctx, p.engine.admitter, admission); admissionErr != nil {
 		return childStartJobResult{result: failedChildStart(
-			p.spec, FailureKindExternal, "engine.child.admission.rejected", err,
+			p.spec, FailureKindExternal, "engine.child.admission.rejected", admissionErr,
 		)}
 	}
 	startedAt := time.Now().Round(0).UTC()

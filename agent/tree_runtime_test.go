@@ -59,8 +59,8 @@ func TestTreeRuntimeDoesNotLetSlowStepStarveSibling(t *testing.T) {
 		t.Fatalf("fast sibling status = %s, want %s", fastResult.Status(), StatusCompleted)
 	}
 
-	if err := blocked.Kill(context.Background(), "cancel blocked Step"); err != nil {
-		t.Fatal(err)
+	if killErr := blocked.Kill(context.Background(), "cancel blocked Step"); killErr != nil {
+		t.Fatal(killErr)
 	}
 	receiveTreeRuntimeProbe(t, probe.blockedStepCanceled)
 	blockedResult, err := blocked.Await(context.Background())

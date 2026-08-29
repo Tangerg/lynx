@@ -658,8 +658,8 @@ func TestRestoreDistinguishesPlannedFromPendingEffect(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if err := wire.Prepared.Effects[0].begin(); err != nil {
-			t.Fatal(err)
+		if beginErr := wire.Prepared.Effects[0].begin(); beginErr != nil {
+			t.Fatal(beginErr)
 		}
 		pending, err := newProcessSnapshot(wire)
 		if err != nil {
