@@ -10,31 +10,62 @@ import (
 	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
-func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
-	srv := modeltest.JSONServer(http.StatusOK, `{"text":"hello world"}`)
-	t.Cleanup(srv.Close)
-
+func TestAudioTextModels_Call_Mock(t *testing.T) {
 	opts, err := transcription.NewOptions("whisper-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := openai.NewAudioTranscriptionModel(openai.AudioTranscriptionModelConfig{
-		Provider:       "openai",
-		APIKey:         "test-key",
-		DefaultOptions: opts,
-		BaseURL:        srv.URL,
-	})
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name     string
+		response string
+		want     string
+		newModel func(string) (transcription.Model, error)
+	}{
+		{
+			name:     "transcription",
+			response: `{"text":"hello world"}`,
+			want:     "hello world",
+			newModel: func(baseURL string) (transcription.Model, error) {
+				return openai.NewAudioTranscriptionModel(openai.AudioTranscriptionModelConfig{
+					Provider: "openai", APIKey: "test-key", DefaultOptions: opts, BaseURL: baseURL,
+				})
+			},
+		},
+		{
+			name:     "translation",
+			response: `{"text":"good morning"}`,
+			want:     "good morning",
+			newModel: func(baseURL string) (transcription.Model, error) {
+				return openai.NewAudioTranslationModel(openai.AudioTranslationModelConfig{
+					Provider: "openai", APIKey: "test-key", DefaultOptions: opts, BaseURL: baseURL,
+				})
+			},
+		},
 	}
 
-	audio, _ := media.NewBytes("audio/mpeg", []byte("FAKE-AUDIO"))
-	req, _ := transcription.NewRequest(audio)
-	out, err := m.Call(t.Context(), req)
-	if err != nil {
-		t.Fatalf("Call: %v", err)
-	}
-	if out.Output == nil || out.Output.Text != "hello world" {
-		t.Fatalf("text = %v; want 'hello world'", out.Output)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			srv := modeltest.JSONServer(http.StatusOK, test.response)
+			t.Cleanup(srv.Close)
+			model, err := test.newModel(srv.URL)
+			if err != nil {
+				t.Fatal(err)
+			}
+			audio, err := media.NewBytes("audio/mpeg", []byte("FAKE-AUDIO"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			request, err := transcription.NewRequest(audio)
+			if err != nil {
+				t.Fatal(err)
+			}
+			response, err := model.Call(t.Context(), request)
+			if err != nil {
+				t.Fatalf("Call: %v", err)
+			}
+			if response.Output == nil || response.Output.Text != test.want {
+				t.Fatalf("text = %v; want %q", response.Output, test.want)
+			}
+		})
 	}
 }

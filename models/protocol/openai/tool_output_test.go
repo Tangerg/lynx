@@ -37,6 +37,14 @@ func TestResponsesToolOutputPreservesStructuredAndMultimodalContent(t *testing.T
 	if len(items) != 3 || items[0].OfInputText == nil || items[1].OfInputImage == nil || items[2].OfInputFile == nil {
 		t.Fatalf("mapped output = %#v", mapped)
 	}
+	mappedImage := items[1].OfInputImage
+	if mappedImage.FileID.Valid() || !mappedImage.ImageURL.Valid() || !strings.HasPrefix(mappedImage.ImageURL.Value, "data:image/png;base64,") {
+		t.Fatalf("mapped image = %#v", mappedImage)
+	}
+	mappedFile := items[2].OfInputFile
+	if !mappedFile.FileID.Valid() || mappedFile.FileID.Value != "file-id" || mappedFile.FileURL.Valid() || mappedFile.FileData.Valid() {
+		t.Fatalf("mapped file = %#v", mappedFile)
+	}
 }
 
 func TestOpenAIChatToolOutputRejectsMediaInsteadOfDroppingIt(t *testing.T) {

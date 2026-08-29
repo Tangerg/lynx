@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"maps"
 	"mime"
-	"slices"
 	"strings"
 
 	openaisdk "github.com/openai/openai-go/v3"
@@ -23,63 +21,16 @@ func (c *Chat) buildRequest(req *corechat.Request, stream bool) (*openaisdk.Chat
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("openai: request: %w", err)
 	}
-
 	params := openaisdk.ChatCompletionNewParams{}
-	if !c.dialect.DisableRawRequestExtension {
-		extensionKey := protocolRequestExtensionKey(c.dialect.Provider)
-		fields, err := decodeRequestFields(req.Options.Extensions, extensionKey,
-			"model", "messages", "tools", "frequency_penalty", "max_tokens",
-			"max_completion_tokens", "presence_penalty", "reasoning_effort", "response_format", "stop", "temperature", "top_p",
-		)
-		if err != nil {
-			return nil, err
-		}
-		if _, exists := fields["n"]; exists {
-			return nil, fmt.Errorf("openai: extension %q field %q is unsupported; Core Chat produces one output", extensionKey, "n")
-		}
-		params.SetExtraFields(fields)
+	if err := c.applyRequestExtension(req, &params); err != nil {
+		return nil, err
 	}
-
 	options, err := c.defaults.Resolve(req.Options)
 	if err != nil {
 		return nil, fmt.Errorf("openai: options: %w", err)
 	}
-	if options.Model == "" {
-		return nil, errors.New("openai: model is required in defaults or request options")
-	}
-	if options.TopK != nil {
-		return nil, errors.New("openai: options.top_k is not supported by Chat Completions")
-	}
-	params.Model = openaisdk.ChatModel(options.Model)
-	if options.FrequencyPenalty != nil {
-		params.FrequencyPenalty = openaisdk.Float(*options.FrequencyPenalty)
-	}
-	if options.MaxTokens != nil {
-		switch c.dialect.TokenLimitField {
-		case TokenLimitMaxTokens:
-			params.MaxTokens = openaisdk.Int(*options.MaxTokens)
-		case TokenLimitMaxCompletionTokens:
-			params.MaxCompletionTokens = openaisdk.Int(*options.MaxTokens)
-		default:
-			return nil, errors.New("openai: invalid max token field configuration")
-		}
-	}
-	if options.PresencePenalty != nil {
-		params.PresencePenalty = openaisdk.Float(*options.PresencePenalty)
-	}
-	reasoningEffort, err := mapReasoningEffort(options.ReasoningEffort)
-	if err != nil {
-		return nil, err
-	}
-	params.ReasoningEffort = reasoningEffort
-	if len(options.Stop) > 0 {
-		params.Stop.OfStringArray = slices.Clone(options.Stop)
-	}
-	if options.Temperature != nil {
-		params.Temperature = openaisdk.Float(*options.Temperature)
-	}
-	if options.TopP != nil {
-		params.TopP = openaisdk.Float(*options.TopP)
+	if applyErr := c.applyOptions(options, &params); applyErr != nil {
+		return nil, applyErr
 	}
 
 	params.Messages, err = mapRequestMessages(req.Messages, c.dialect.Provider)
@@ -90,27 +41,11 @@ func (c *Chat) buildRequest(req *corechat.Request, stream bool) (*openaisdk.Chat
 	if err != nil {
 		return nil, err
 	}
-	if err := applyChatOutputFormat(options.OutputFormat, &params, c.dialect); err != nil {
-		return nil, err
+	if formatErr := applyChatOutputFormat(options.OutputFormat, &params, c.dialect); formatErr != nil {
+		return nil, formatErr
 	}
-	if c.dialect.request != nil {
-		if err := c.dialect.request.PrepareRequest(req, &params); err != nil {
-			return nil, fmt.Errorf("openai: request dialect: %w", err)
-		}
-	}
-	if c.dialect.PrepareRequest != nil {
-		compatible := &CompatibleRequest{
-			model:       string(params.Model),
-			stream:      stream,
-			extraFields: maps.Clone(params.ExtraFields()),
-		}
-		if params.Temperature.Valid() {
-			compatible.temperature = &params.Temperature.Value
-		}
-		if err := c.dialect.PrepareRequest(req, compatible); err != nil {
-			return nil, fmt.Errorf("openai: compatible request dialect: %w", err)
-		}
-		params.SetExtraFields(compatible.extraFields)
+	if prepareErr := c.prepareRequest(req, stream, &params); prepareErr != nil {
+		return nil, prepareErr
 	}
 	return &params, nil
 }

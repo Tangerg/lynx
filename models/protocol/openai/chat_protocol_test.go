@@ -17,120 +17,128 @@ import (
 
 func TestCompatibleChat_CoreConformance(t *testing.T) {
 	modeltest.ChatSuite{
-		New: func(t *testing.T) (corechat.Model, corechat.Streamer) {
-			t.Helper()
-			server := newCoreChatServer(t)
-			t.Cleanup(server.Close)
-			adapter, err := scopeopenai.NewCompatibleChat(
-				scopeopenai.ChatConfig{
-					APIKey:         "test-key",
-					DefaultOptions: corechat.Options{Model: "gpt-default-must-be-overridden"},
-					BaseURL:        server.URL,
-				},
-				scopeopenai.ReasoningContentDialect("test"),
-			)
-			if err != nil {
-				t.Fatalf("NewChat: %v", err)
-			}
-			return adapter, adapter
-		},
-		Request: newCoreChatRequest,
-		AssertCall: func(t *testing.T, response *corechat.Response) {
-			t.Helper()
-			if _, found := response.Metadata.Extra["test/openai_response"]; !found {
-				t.Fatal("compatible response did not preserve the provider-scoped official response")
-			}
-			if _, found := response.Metadata.Extra[scopeopenai.ResponseExtensionKey]; found {
-				t.Fatal("compatible response leaked into OpenAI's native extension namespace")
-			}
-			if response.Metadata.ID != "chatcmpl-core" || response.Metadata.Model != "gpt-5.2" {
-				t.Fatalf("identity = %q/%q", response.Metadata.ID, response.Metadata.Model)
-			}
-			result := response.Output
-			if result.FinishReason != corechat.FinishReasonToolCalls {
-				t.Errorf("finish reason = %q", result.FinishReason)
-			}
-			if result.Message == nil || len(result.Message.Parts) != 4 {
-				t.Fatalf("result message = %#v; want reasoning/text/tool/media", result.Message)
-			}
-			if result.Message.Parts[0].Kind != corechat.PartReasoning || result.Message.Parts[0].Text != "checking sources" {
-				t.Errorf("reasoning part = %#v", result.Message.Parts[0])
-			}
-			call := result.Message.Parts[2].ToolCall
-			if call == nil || call.ID != "call-2" || call.Name != "search" {
-				t.Errorf("tool call = %#v", call)
-			}
-			audio := result.Message.Parts[3].Media
-			if audio == nil || audio.MIME != "audio/wav" || audio.Source.Kind != media.SourceReference || audio.Source.Ref != "audio-1" {
-				t.Errorf("audio = %#v", audio)
-			}
-			usage := response.Metadata.Usage
-			if usage.InputTokens != 12 || usage.OutputTokens != 7 ||
-				usage.ReasoningTokens == nil || *usage.ReasoningTokens != 3 ||
-				usage.CacheReadInputTokens == nil || *usage.CacheReadInputTokens != 5 {
-				t.Errorf("usage = %#v", usage)
-			}
-		},
-		AssertStream: func(t *testing.T, responses []*corechat.Response) {
-			t.Helper()
-			var text, reasoning strings.Builder
-			var toolIDs []string
-			var finalUsage corechat.Usage
-			for _, response := range responses {
-				if _, found := response.Metadata.Extra["test/openai_stream_chunk"]; !found {
-					t.Error("compatible stream did not preserve a provider-scoped official chunk")
-				}
-				if _, found := response.Metadata.Extra[scopeopenai.StreamChunkExtensionKey]; found {
-					t.Error("compatible stream leaked into OpenAI's native extension namespace")
-				}
-				finalUsage = response.Metadata.Usage
-				if response.Output == nil || response.Output.Message == nil {
-					continue
-				}
-				for _, part := range response.Output.Message.Parts {
-					switch part.Kind {
-					case corechat.PartText:
-						text.WriteString(part.Text)
-					case corechat.PartReasoning:
-						reasoning.WriteString(part.Text)
-					case corechat.PartToolCallDelta:
-						toolIDs = append(toolIDs, part.ToolCallDelta.ID)
-					}
-				}
-			}
-			if text.String() != "hello world" || reasoning.String() != "think " {
-				t.Errorf("stream text/reasoning = %q/%q", text.String(), reasoning.String())
-			}
-			if len(toolIDs) != 2 {
-				t.Fatalf("tool deltas = %v", toolIDs)
-			}
-			for _, id := range toolIDs {
-				if id != "call-stream" {
-					t.Errorf("unstable tool ID %q", id)
-				}
-			}
-			if finalUsage.InputTokens != 8 || finalUsage.OutputTokens != 4 {
-				t.Errorf("final usage = %#v", finalUsage)
-			}
-		},
-		AssertAggregated: func(t *testing.T, response *corechat.Response) {
-			t.Helper()
-			if response.Metadata.ID != "chatcmpl-stream" || response.Metadata.Model != "gpt-5.2" || response.Output == nil {
-				t.Fatalf("aggregated response = %#v", response)
-			}
-			result := response.Output
-			if result.Message == nil || len(result.Message.Parts) != 3 || result.FinishReason != corechat.FinishReasonToolCalls {
-				t.Fatalf("aggregated result = %#v", result)
-			}
-			call := result.Message.Parts[2].ToolCall
-			if result.Message.Parts[0].Text != "think " || result.Message.Parts[1].Text != "hello world" || call == nil || call.Arguments != `{"q":"scope"}` {
-				t.Errorf("aggregated parts = %#v; call = %#v", result.Message.Parts, call)
-			}
-			if response.Metadata.Usage.InputTokens != 8 || response.Metadata.Usage.OutputTokens != 4 {
-				t.Errorf("aggregated usage = %#v", response.Metadata.Usage)
-			}
-		},
+		New:              newCoreChatModel,
+		Request:          newCoreChatRequest,
+		AssertCall:       assertCoreChatCall,
+		AssertStream:     assertCoreChatStream,
+		AssertAggregated: assertCoreChatAggregated,
 	}.Run(t)
+}
+
+func newCoreChatModel(t *testing.T) (corechat.Model, corechat.Streamer) {
+	t.Helper()
+	server := newCoreChatServer(t)
+	t.Cleanup(server.Close)
+	adapter, err := scopeopenai.NewCompatibleChat(
+		scopeopenai.ChatConfig{
+			APIKey:         "test-key",
+			DefaultOptions: corechat.Options{Model: "gpt-default-must-be-overridden"},
+			BaseURL:        server.URL,
+		},
+		scopeopenai.ReasoningContentDialect("test"),
+	)
+	if err != nil {
+		t.Fatalf("NewChat: %v", err)
+	}
+	return adapter, adapter
+}
+
+func assertCoreChatCall(t *testing.T, response *corechat.Response) {
+	t.Helper()
+	if _, found := response.Metadata.Extra["test/openai_response"]; !found {
+		t.Fatal("compatible response did not preserve the provider-scoped official response")
+	}
+	if _, found := response.Metadata.Extra[scopeopenai.ResponseExtensionKey]; found {
+		t.Fatal("compatible response leaked into OpenAI's native extension namespace")
+	}
+	if response.Metadata.ID != "chatcmpl-core" || response.Metadata.Model != "gpt-5.2" {
+		t.Fatalf("identity = %q/%q", response.Metadata.ID, response.Metadata.Model)
+	}
+	result := response.Output
+	if result.FinishReason != corechat.FinishReasonToolCalls {
+		t.Errorf("finish reason = %q", result.FinishReason)
+	}
+	if result.Message == nil || len(result.Message.Parts) != 4 {
+		t.Fatalf("result message = %#v; want reasoning/text/tool/media", result.Message)
+	}
+	if result.Message.Parts[0].Kind != corechat.PartReasoning || result.Message.Parts[0].Text != "checking sources" {
+		t.Errorf("reasoning part = %#v", result.Message.Parts[0])
+	}
+	call := result.Message.Parts[2].ToolCall
+	if call == nil || call.ID != "call-2" || call.Name != "search" {
+		t.Errorf("tool call = %#v", call)
+	}
+	audio := result.Message.Parts[3].Media
+	if audio == nil || audio.MIME != "audio/wav" || audio.Source.Kind != media.SourceReference || audio.Source.Ref != "audio-1" {
+		t.Errorf("audio = %#v", audio)
+	}
+	usage := response.Metadata.Usage
+	if usage.InputTokens != 12 || usage.OutputTokens != 7 ||
+		usage.ReasoningTokens == nil || *usage.ReasoningTokens != 3 ||
+		usage.CacheReadInputTokens == nil || *usage.CacheReadInputTokens != 5 {
+		t.Errorf("usage = %#v", usage)
+	}
+}
+
+func assertCoreChatStream(t *testing.T, responses []*corechat.Response) {
+	t.Helper()
+	var text, reasoning strings.Builder
+	var toolIDs []string
+	var finalUsage corechat.Usage
+	for _, response := range responses {
+		if _, found := response.Metadata.Extra["test/openai_stream_chunk"]; !found {
+			t.Error("compatible stream did not preserve a provider-scoped official chunk")
+		}
+		if _, found := response.Metadata.Extra[scopeopenai.StreamChunkExtensionKey]; found {
+			t.Error("compatible stream leaked into OpenAI's native extension namespace")
+		}
+		finalUsage = response.Metadata.Usage
+		if response.Output == nil || response.Output.Message == nil {
+			continue
+		}
+		for _, part := range response.Output.Message.Parts {
+			switch part.Kind {
+			case corechat.PartText:
+				text.WriteString(part.Text)
+			case corechat.PartReasoning:
+				reasoning.WriteString(part.Text)
+			case corechat.PartToolCallDelta:
+				toolIDs = append(toolIDs, part.ToolCallDelta.ID)
+			}
+		}
+	}
+	if text.String() != "hello world" || reasoning.String() != "think " {
+		t.Errorf("stream text/reasoning = %q/%q", text.String(), reasoning.String())
+	}
+	if len(toolIDs) != 2 {
+		t.Fatalf("tool deltas = %v", toolIDs)
+	}
+	for _, id := range toolIDs {
+		if id != "call-stream" {
+			t.Errorf("unstable tool ID %q", id)
+		}
+	}
+	if finalUsage.InputTokens != 8 || finalUsage.OutputTokens != 4 {
+		t.Errorf("final usage = %#v", finalUsage)
+	}
+}
+
+func assertCoreChatAggregated(t *testing.T, response *corechat.Response) {
+	t.Helper()
+	if response.Metadata.ID != "chatcmpl-stream" || response.Metadata.Model != "gpt-5.2" || response.Output == nil {
+		t.Fatalf("aggregated response = %#v", response)
+	}
+	result := response.Output
+	if result.Message == nil || len(result.Message.Parts) != 3 || result.FinishReason != corechat.FinishReasonToolCalls {
+		t.Fatalf("aggregated result = %#v", result)
+	}
+	call := result.Message.Parts[2].ToolCall
+	if result.Message.Parts[0].Text != "think " || result.Message.Parts[1].Text != "hello world" || call == nil || call.Arguments != `{"q":"scope"}` {
+		t.Errorf("aggregated parts = %#v; call = %#v", result.Message.Parts, call)
+	}
+	if response.Metadata.Usage.InputTokens != 8 || response.Metadata.Usage.OutputTokens != 4 {
+		t.Errorf("aggregated usage = %#v", response.Metadata.Usage)
+	}
 }
 
 func TestCompatibleChatRejectsMultipleProviderChoices(t *testing.T) {

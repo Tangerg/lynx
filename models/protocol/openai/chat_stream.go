@@ -85,22 +85,31 @@ func (o *openAIStreamState) mapChunkOutput(choice openaisdk.ChatCompletionChunkC
 			return nil, false, fmt.Errorf("response dialect: %w", err)
 		}
 	}
-	if len(message.Parts) > 0 {
-		if choice.Delta.Refusal != "" {
-			if err := message.Metadata.Set(o.refusalPart, choice.Delta.Refusal); err != nil {
-				return nil, false, err
-			}
-		}
-		mapped.Message = message
-	} else if choice.Delta.Refusal != "" {
-		mapped.Metadata = &corechat.OutputMetadata{}
-		if err := mapped.Metadata.Set(o.refusalKey, choice.Delta.Refusal); err != nil {
-			return nil, false, err
-		}
+	if err := o.attachChunkMessage(mapped, message, choice.Delta.Refusal); err != nil {
+		return nil, false, err
 	}
 
 	include := mapped.Message != nil || mapped.FinishReason != "" || mapped.Metadata != nil
 	return mapped, include, nil
+}
+
+func (o *openAIStreamState) attachChunkMessage(mapped *corechat.Output, message *corechat.Message, refusal string) error {
+	if len(message.Parts) > 0 {
+		if refusal != "" {
+			if err := message.Metadata.Set(o.refusalPart, refusal); err != nil {
+				return err
+			}
+		}
+		mapped.Message = message
+		return nil
+	}
+	if refusal != "" {
+		mapped.Metadata = &corechat.OutputMetadata{}
+		if err := mapped.Metadata.Set(o.refusalKey, refusal); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (o *openAIStreamState) mapChunkTool(delta openaisdk.ChatCompletionChunkChoiceDeltaToolCall) (corechat.ToolCallDelta, bool, error) {

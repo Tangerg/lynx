@@ -1,20 +1,16 @@
 package openai
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
-	"mime"
 	"slices"
-	"strings"
 
 	openaisdk "github.com/openai/openai-go/v3"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/openai/openai-go/v3/shared"
 
 	corechat "github.com/Tangerg/scope/core/chat"
-	"github.com/Tangerg/scope/core/media"
 	"github.com/Tangerg/scope/core/metadata"
 )
 
@@ -230,55 +226,6 @@ func mapResponsesUserContent(parts []corechat.Part) (responses.ResponseInputMess
 	return content, nil
 }
 
-func mapResponsesMedia(value *media.Media) (responses.ResponseInputContentUnionParam, error) {
-	mediaType, _, err := mime.ParseMediaType(value.MIME)
-	if err != nil {
-		return responses.ResponseInputContentUnionParam{}, err
-	}
-	if strings.HasPrefix(mediaType, "image/") {
-		image := &responses.ResponseInputImageParam{Detail: responses.ResponseInputImageDetailAuto}
-		if value.Source.Kind == media.SourceReference {
-			reference, referenceErr := value.Reference()
-			if referenceErr != nil {
-				return responses.ResponseInputContentUnionParam{}, referenceErr
-			}
-			image.FileID = openaisdk.String(reference)
-		} else {
-			location, locationErr := mediaLocation(value)
-			if locationErr != nil {
-				return responses.ResponseInputContentUnionParam{}, locationErr
-			}
-			image.ImageURL = openaisdk.String(location)
-		}
-		return responses.ResponseInputContentUnionParam{OfInputImage: image}, nil
-	}
-
-	file := &responses.ResponseInputFileParam{Filename: openaisdk.String(value.Name)}
-	switch value.Source.Kind {
-	case media.SourceReference:
-		reference, referenceErr := value.Reference()
-		if referenceErr != nil {
-			return responses.ResponseInputContentUnionParam{}, referenceErr
-		}
-		file.FileID = openaisdk.String(reference)
-	case media.SourceURI:
-		uri, uriErr := value.URI()
-		if uriErr != nil {
-			return responses.ResponseInputContentUnionParam{}, uriErr
-		}
-		file.FileURL = openaisdk.String(uri)
-	case media.SourceBytes:
-		data, dataErr := value.Bytes()
-		if dataErr != nil {
-			return responses.ResponseInputContentUnionParam{}, dataErr
-		}
-		file.FileData = openaisdk.String(base64.StdEncoding.EncodeToString(data))
-	default:
-		return responses.ResponseInputContentUnionParam{}, media.ErrInvalidSource
-	}
-	return responses.ResponseInputContentUnionParam{OfInputFile: file}, nil
-}
-
 func mapResponsesAssistantItems(parts []corechat.Part) ([]responses.ResponseInputItemUnionParam, error) {
 	items := make([]responses.ResponseInputItemUnionParam, 0, len(parts))
 	for partIndex := range parts {
@@ -350,53 +297,4 @@ func mapResponsesToolOutput(output corechat.ToolOutput) (responses.ResponseInput
 		}
 	}
 	return responses.ResponseInputItemFunctionCallOutputOutputUnionParam{OfResponseFunctionCallOutputItemArray: content}, nil
-}
-
-func mapResponsesToolMedia(value *media.Media) (responses.ResponseFunctionCallOutputItemUnionParam, error) {
-	mediaType, _, err := mime.ParseMediaType(value.MIME)
-	if err != nil {
-		return responses.ResponseFunctionCallOutputItemUnionParam{}, err
-	}
-	if strings.HasPrefix(mediaType, "image/") {
-		image := &responses.ResponseInputImageContentParam{Detail: responses.ResponseInputImageContentDetailAuto}
-		if value.Source.Kind == media.SourceReference {
-			reference, referenceErr := value.Reference()
-			if referenceErr != nil {
-				return responses.ResponseFunctionCallOutputItemUnionParam{}, referenceErr
-			}
-			image.FileID = openaisdk.String(reference)
-		} else {
-			location, locationErr := mediaLocation(value)
-			if locationErr != nil {
-				return responses.ResponseFunctionCallOutputItemUnionParam{}, locationErr
-			}
-			image.ImageURL = openaisdk.String(location)
-		}
-		return responses.ResponseFunctionCallOutputItemUnionParam{OfInputImage: image}, nil
-	}
-
-	file := &responses.ResponseInputFileContentParam{Filename: openaisdk.String(value.Name)}
-	switch value.Source.Kind {
-	case media.SourceReference:
-		reference, referenceErr := value.Reference()
-		if referenceErr != nil {
-			return responses.ResponseFunctionCallOutputItemUnionParam{}, referenceErr
-		}
-		file.FileID = openaisdk.String(reference)
-	case media.SourceURI:
-		uri, uriErr := value.URI()
-		if uriErr != nil {
-			return responses.ResponseFunctionCallOutputItemUnionParam{}, uriErr
-		}
-		file.FileURL = openaisdk.String(uri)
-	case media.SourceBytes:
-		data, dataErr := value.Bytes()
-		if dataErr != nil {
-			return responses.ResponseFunctionCallOutputItemUnionParam{}, dataErr
-		}
-		file.FileData = openaisdk.String(base64.StdEncoding.EncodeToString(data))
-	default:
-		return responses.ResponseFunctionCallOutputItemUnionParam{}, media.ErrInvalidSource
-	}
-	return responses.ResponseFunctionCallOutputItemUnionParam{OfInputFile: file}, nil
 }

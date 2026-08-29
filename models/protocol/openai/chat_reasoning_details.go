@@ -70,29 +70,37 @@ func (r reasoningDetailsCodec) PrepareRequest(source *corechat.Request, target *
 	wireIndex := 0
 	for messageIndex := range source.Messages {
 		message := source.Messages[messageIndex]
-		if message.Role == corechat.RoleAssistant {
-			if wireIndex >= len(target.Messages) || target.Messages[wireIndex].OfAssistant == nil {
-				return fmt.Errorf("messages[%d]: assistant wire mapping is missing", messageIndex)
-			}
-			details, plainReasoning, err := r.mapHistory(message.Parts)
-			if err != nil {
-				return fmt.Errorf("messages[%d]: %w", messageIndex, err)
-			}
-			extraFields := make(map[string]any)
-			if len(details) > 0 {
-				extraFields[r.config.DetailsField] = details
-			}
-			if plainReasoning != "" && r.config.ReplayPlainText {
-				extraFields[r.config.TextField] = plainReasoning
-			}
-			if len(extraFields) > 0 {
-				target.Messages[wireIndex].OfAssistant.SetExtraFields(extraFields)
-			}
+		if err := r.prepareMessage(messageIndex, wireIndex, message, target); err != nil {
+			return err
 		}
 		wireIndex += wireMessageCount(message)
 	}
 	if wireIndex != len(target.Messages) {
 		return fmt.Errorf("wire message count = %d; mapped source count = %d", len(target.Messages), wireIndex)
+	}
+	return nil
+}
+
+func (r reasoningDetailsCodec) prepareMessage(messageIndex, wireIndex int, message corechat.Message, target *openaisdk.ChatCompletionNewParams) error {
+	if message.Role != corechat.RoleAssistant {
+		return nil
+	}
+	if wireIndex >= len(target.Messages) || target.Messages[wireIndex].OfAssistant == nil {
+		return fmt.Errorf("messages[%d]: assistant wire mapping is missing", messageIndex)
+	}
+	details, plainReasoning, err := r.mapHistory(message.Parts)
+	if err != nil {
+		return fmt.Errorf("messages[%d]: %w", messageIndex, err)
+	}
+	extraFields := make(map[string]any)
+	if len(details) > 0 {
+		extraFields[r.config.DetailsField] = details
+	}
+	if plainReasoning != "" && r.config.ReplayPlainText {
+		extraFields[r.config.TextField] = plainReasoning
+	}
+	if len(extraFields) > 0 {
+		target.Messages[wireIndex].OfAssistant.SetExtraFields(extraFields)
 	}
 	return nil
 }
