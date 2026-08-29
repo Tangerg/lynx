@@ -1,6 +1,6 @@
 # Agent durable kernel 设计
 
-> 状态：Scope kernel 已实施并进入 Baseline 38；Flame durable Host adapter 仍按 §17 独立实施（见 ADR-A2-089）
+> 状态：Scope kernel 已实施并进入 Baseline 38，§19.2 crash-prefix matrix 已闭合；Flame durable Host adapter 仍按 §17 独立实施（见 ADR-A2-089）
 > 范围：`scope/agent` 内核；Flame 是 harness 与首个 durable Host
 > 日期：2026-08-30
 > 读者：Scope/Flame 的实现者、评审者与 durable Host adapter 作者
@@ -1128,6 +1128,8 @@ if in-memory apply fails: tear down and restore committed head
 
 ### Slice 0：接受语义
 
+> 状态：Scope 已完成。设计、ADR、API revision 与 crash matrix 已接受；本切片没有生产行为变更。
+
 - 把本设计拆成 ADR；
 - 明确 accepted API baseline 变化；
 - 冻结 boundary kind、error 和 crash matrix；
@@ -1135,12 +1137,16 @@ if in-memory apply fails: tear down and restore committed head
 
 ### Slice 1：treeRuntime 内部 owner
 
+> 状态：Scope 已完成。root-tree owner line、job/attempt fencing、fairness 与 race 验证均已落地。
+
 - 先保持现有 public API 与 snapshot wire；
 - Process loop command 收敛到 root-tree owner；
 - 引入 Step/Dispatch job + attempt token；
 - sibling fairness、stale completion、race tests 先通过。
 
 ### Slice 2：唯一恢复单元
+
+> 状态：Scope 已完成。`TreeSnapshot` 是唯一恢复输入，旧 Process-level recovery surface 与旧 wire 已删除。
 
 - `Snapshot` → `ProcessSnapshot`；
 - `Process.Capture` → `Process.Snapshot`；
@@ -1151,12 +1157,16 @@ if in-memory apply fails: tear down and restore committed head
 
 ### Slice 3：稳定输入与生命周期
 
+> 状态：Scope 已完成。Signal 输入确定性、`StartedAt` 归属与 child atomic outcome 已进入现行合同。
+
 - 删除 Signal ReceivedAt；
 - `StartedAt` 从 admission 移到 started outcome；
 - child outcome 形成 atomic prospective tree；
 - 更新 interaction/planning/workflow inspector。
 
 ### Slice 4：TreeDurability
+
+> 状态：Scope 已完成。闭合 port、三类 Effect boundary、两类 checkpoint、public conformance 与内部 crash-prefix suite 均已通过。
 
 - 删除 `PreparedStepAcknowledger`，让完整接口嵌入 start-outcome lifecycle 能力；
 - 实现 root base、Effect pending/settled/resolved；
@@ -1166,6 +1176,8 @@ if in-memory apply fails: tear down and restore committed head
 
 ### Slice 5：fencing 与 Unknown
 
+> 状态：Scope 已完成。random incarnation activation、stale writer、Unknown retention/resolution 与严格 `Close` 已落地。
+
 - activation CAS；
 - stale writer behavior；
 - Unknown termination preservation；
@@ -1174,12 +1186,16 @@ if in-memory apply fails: tear down and restore committed head
 
 ### Slice 6：prepared administrative transform
 
+> 状态：Scope 已完成。source/result CAS 合同、线性 Apply/Discard 及 product commit 后、Apply 前恢复已由精确 Host-CAS gate 验证。
+
 - SourceTreeDigest；
 - durable source-head requirement；
 - ambiguous commit reconciliation tests；
 - 保持具体 waiting cancellation API。
 
 ### Slice 7：Flame adapter
+
+> 状态：Scope 不适用；Flame 待实施。当前边界停在 harness 自有 schema/transaction/head CAS，完成前不得开启或宣称 Effect settlement、Parked checkpoint 与 boot active recovery。
 
 - 先实现 schema/transaction/head CAS；
 - 再接 Effect settlement；
@@ -1188,6 +1204,8 @@ if in-memory apply fails: tear down and restore committed head
 - feature flag 下与 RunLost fallback 并行验证。
 
 ### Slice 8：删除与文档
+
+> 状态：Scope 已完成。旧 API/恢复旁路/兼容 shim 已删除，Architecture、Engineering Standards、API Baseline、ADR、examples 与守卫同步。
 
 - 删除旧 acknowledger、standalone restore 和兼容 shim；
 - 删除旧 quiescent durable capture path；
@@ -1235,6 +1253,8 @@ if in-memory apply fails: tear down and restore committed head
 
 测试不能只 crash goroutine；必须在 Host commit 的 before/after gate 精确切断。
 
+Scope 的实现证据是 `agenttest` 内部表驱动 suite：九个 Runtime boundary 在 delegate commit 前，或 delegate 已成功推进 authoritative head、callback 尚未返回 Engine 时切断；administrative transform 在 Host 对 `(incarnation, source digest)` 完成 CAS 后、`Apply` 前切断。十行都从 gate 当下的真实 head 启动新 Engine，不靠 sleep、goroutine panic 或私有 snapshot mutation 冒充进程崩溃。gate 只编译进测试，不扩张 `agenttest` 或 Kernel 的公共 API。
+
 ### 19.3 并发与 race
 
 - sibling Step job 并发但 commit 顺序单一；
@@ -1257,7 +1277,7 @@ if in-memory apply fails: tear down and restore committed head
 - 两个并发 restore 只有一个 incarnation activation 成功；
 - 一个被延迟的旧-writer pending transaction 与新 activation 竞争时，旧 writer 被 fenced。
 
-Kernel owner tests另外验证 child outcome 的 topology/budget/parent-settlement prospective tree、checkpoint coalescing、错误分类、Unknown retention 和 crash prefix。adapter 自己的存储测试必须能直接制造 conflicting content、commit 前后 timeout 与事务回滚；这些不是 opaque Framework value 的公共合法流，不能为了测试它们而泄露 constructor 或通用 mutation API。
+Kernel owner tests另外验证 child outcome 的 topology/budget/parent-settlement prospective tree、checkpoint coalescing、错误分类和 Unknown retention；`agenttest` 的内部 crash-prefix suite 通过真实 Engine 与 typed memory head 验证十个恢复前缀。adapter 自己的存储测试必须能直接制造 conflicting content、commit 前后 timeout 与事务回滚；这些不是 opaque Framework value 的公共合法流，不能为了测试它们而泄露 constructor 或通用 mutation API。
 
 Scope 不能证明第三方数据库真的支持 CAS，但可以让“不实现合同的 adapter”无法通过官方 suite。
 
