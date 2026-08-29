@@ -50,31 +50,22 @@ func (t *treeRuntime) applyCommand(command treeCommand) {
 		command.process.reply(processResponse{err: ErrProcessNotRunning})
 		return
 	}
-	requested := command.process
-	if requested.kind == commandHostTerminated {
+	t.applyProcessCommand(process, command.process)
+}
+
+func (t *treeRuntime) applyProcessCommand(process *processState, command processCommand) {
+	if command.kind == commandHostTerminated {
 		if !process.status.Terminal() {
-			process.recordHostTermination(requested.hostErr)
+			process.recordHostTermination(command.hostErr)
 			t.invalidateStep(process)
 			t.markRunnable(process.controller.processID)
 		}
 		return
 	}
-	if requested.kind == commandResolveUnknownEffect {
-		if process.pendingControl.hasTerminalIntent() {
-			requested.reply(processResponse{err: ErrProcessFinished})
-			return
-		}
-		if t.engine.durability != nil {
-			if err := t.startUnknownResolutionCommit(process, requested); err != nil {
-				requested.reply(processResponse{err: err})
-				if !errors.Is(err, ErrEffectNotPending) {
-					t.failDurability(err, process.controller.processID, requested.settlement.EffectID())
-				}
-			}
-			return
-		}
+	if command.kind == commandResolveUnknownEffect && t.resolveUnknownEffect(process, command) {
+		return
 	}
-	process.applyCommand(t.context, requested)
+	process.applyCommand(t.context, command)
 	if process.pendingControl.hasTerminalIntent() || process.pendingControl.pauseReason != "" {
 		t.invalidateStep(process)
 	}
@@ -82,6 +73,23 @@ func (t *treeRuntime) applyCommand(command treeCommand) {
 	if !process.status.Terminal() {
 		t.markRunnable(process.controller.processID)
 	}
+}
+
+func (t *treeRuntime) resolveUnknownEffect(process *processState, command processCommand) bool {
+	if process.pendingControl.hasTerminalIntent() {
+		command.reply(processResponse{err: ErrProcessFinished})
+		return true
+	}
+	if t.engine.durability == nil {
+		return false
+	}
+	if err := t.startUnknownResolutionCommit(process, command); err != nil {
+		command.reply(processResponse{err: err})
+		if !errors.Is(err, ErrEffectNotPending) {
+			t.failDurability(err, process.controller.processID, command.settlement.EffectID())
+		}
+	}
+	return true
 }
 
 func (t *treeRuntime) acquireFreeze(acquisition *treeFreezeAcquisition) {

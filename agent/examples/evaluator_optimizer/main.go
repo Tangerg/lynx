@@ -157,20 +157,55 @@ func newEvaluatorOptimizer(
 	threshold float64,
 	maxIterations uint32,
 ) (agent.Deployment, deploymentResolver, error) {
+	frozenScores, err := validateScoreSchedule(scores, threshold, maxIterations)
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	optimizer, err := newOptimizerDeployment(threshold)
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	evaluator, err := newEvaluatorDeployment(frozenScores, threshold)
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	iteration, err := newIterationDeployment(optimizer, evaluator)
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	root, err := newOptimizationRoot(iteration, threshold, maxIterations)
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	return root, deploymentResolver{
+		optimizer.DeploymentRef(): optimizer,
+		evaluator.DeploymentRef(): evaluator,
+		iteration.DeploymentRef(): iteration,
+	}, nil
+}
+
+func validateScoreSchedule(
+	scores []float64,
+	threshold float64,
+	maxIterations uint32,
+) ([]float64, error) {
 	if maxIterations == 0 || len(scores) != int(maxIterations) {
-		return agent.Deployment{}, nil, errors.New("score schedule must contain exactly one score per configured iteration")
+		return nil, errors.New("score schedule must contain exactly one score per configured iteration")
 	}
 	if !validScore(threshold) || threshold == 0 {
-		return agent.Deployment{}, nil, errors.New("acceptance threshold must be within (0, 1]")
+		return nil, errors.New("acceptance threshold must be within (0, 1]")
 	}
 	frozenScores := slices.Clone(scores[:maxIterations])
 	for index, score := range frozenScores {
 		if !validScore(score) {
-			return agent.Deployment{}, nil, fmt.Errorf("score schedule entry %d must be within [0, 1]", index)
+			return nil, fmt.Errorf("score schedule entry %d must be within [0, 1]", index)
 		}
 	}
+	return frozenScores, nil
+}
 
-	optimizer, err := transformDeployment(
+func newOptimizerDeployment(threshold float64) (agent.Deployment, error) {
+	return transformDeployment(
 		"example.evaluator_optimizer.optimizer",
 		"Produce one revised candidate from the objective and latest evaluator feedback.",
 		struct {
@@ -189,22 +224,22 @@ func newEvaluatorOptimizer(
 			return state, nil
 		},
 	)
-	if err != nil {
-		return agent.Deployment{}, nil, err
-	}
-	evaluator, err := transformDeployment(
+}
+
+func newEvaluatorDeployment(scores []float64, threshold float64) (agent.Deployment, error) {
+	return transformDeployment(
 		"example.evaluator_optimizer.evaluator",
 		"Score one candidate, provide revision feedback, and retain the stable best attempt.",
 		struct {
 			Scores    []float64 `json:"scores"`
 			Threshold float64   `json:"threshold"`
-		}{Scores: frozenScores, Threshold: threshold},
+		}{Scores: scores, Threshold: threshold},
 		func(state optimizationState) (optimizationState, error) {
 			if validatePendingStateErr := validatePendingState(state, threshold); validatePendingStateErr != nil {
 				return optimizationState{}, validatePendingStateErr
 			}
 			index := len(state.History)
-			score := frozenScores[index]
+			score := scores[index]
 			feedback := fmt.Sprintf("raise quality after revision %d", state.Current.Revision)
 			if score >= threshold {
 				feedback = "accept this revision"
@@ -225,24 +260,27 @@ func newEvaluatorOptimizer(
 			return state, nil
 		},
 	)
-	if err != nil {
-		return agent.Deployment{}, nil, err
-	}
+}
+
+func newIterationDeployment(
+	optimizer agent.Deployment,
+	evaluator agent.Deployment,
+) (agent.Deployment, error) {
 	workerBudget, err := agent.NewBudget(workerBudgetSteps, workerBudgetEffects, workerBudgetSignals)
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return agent.Deployment{}, err
 	}
 	optimize, err := workflow.Call(workflow.CallConfig{
 		ID: "optimize", Deployment: optimizer, Budget: workerBudget,
 	})
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return agent.Deployment{}, err
 	}
 	evaluate, err := workflow.Call(workflow.CallConfig{
 		ID: "evaluate", Deployment: evaluator, Budget: workerBudget,
 	})
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return agent.Deployment{}, err
 	}
 	iterationDefinition, err := workflow.NewDefinition(workflow.DefinitionConfig{
 		Name:        "example.evaluator_optimizer.iteration",
@@ -250,9 +288,9 @@ func newEvaluatorOptimizer(
 		Stages:      []workflow.Stage{optimize, evaluate},
 	})
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return agent.Deployment{}, err
 	}
-	iteration, err := newWorkflowDeployment(
+	return newWorkflowDeployment(
 		iterationDefinition,
 		"evaluator-optimizer-iteration",
 		struct {
@@ -265,10 +303,13 @@ func newEvaluatorOptimizer(
 			WorkerBudget: workerBudget,
 		},
 	)
-	if err != nil {
-		return agent.Deployment{}, nil, err
-	}
+}
 
+func newOptimizationRoot(
+	iteration agent.Deployment,
+	threshold float64,
+	maxIterations uint32,
+) (agent.Deployment, error) {
 	initialize, err := workflow.Transform("initialize", func(request optimizationRequest) (optimizationState, error) {
 		objective := strings.TrimSpace(request.Objective)
 		if objective == "" || objective != request.Objective {
@@ -277,11 +318,11 @@ func newEvaluatorOptimizer(
 		return optimizationState{Objective: objective, History: []attempt{}}, nil
 	})
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return agent.Deployment{}, err
 	}
 	iterationBudget, err := agent.NewBudget(iterationBudgetSteps, iterationBudgetEffects, iterationBudgetSignals)
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return agent.Deployment{}, err
 	}
 	refine, err := workflow.Loop(workflow.LoopConfig[optimizationState]{
 		ID: "refine", Body: iteration, Budget: iterationBudget,
@@ -294,7 +335,7 @@ func newEvaluatorOptimizer(
 		},
 	})
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return agent.Deployment{}, err
 	}
 	finalize, err := workflow.Transform("finalize", func(
 		result workflow.LoopResult[optimizationState],
@@ -315,7 +356,7 @@ func newEvaluatorOptimizer(
 		}, nil
 	})
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return agent.Deployment{}, err
 	}
 	rootDefinition, err := workflow.NewDefinition(workflow.DefinitionConfig{
 		Name:        "example.evaluator_optimizer",
@@ -323,9 +364,9 @@ func newEvaluatorOptimizer(
 		Stages:      []workflow.Stage{initialize, refine, finalize},
 	})
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return agent.Deployment{}, err
 	}
-	root, err := newWorkflowDeployment(
+	return newWorkflowDeployment(
 		rootDefinition,
 		"evaluator-optimizer-root",
 		struct {
@@ -340,14 +381,6 @@ func newEvaluatorOptimizer(
 			MaxIterations:   maxIterations,
 		},
 	)
-	if err != nil {
-		return agent.Deployment{}, nil, err
-	}
-	return root, deploymentResolver{
-		optimizer.DeploymentRef(): optimizer,
-		evaluator.DeploymentRef(): evaluator,
-		iteration.DeploymentRef(): iteration,
-	}, nil
 }
 
 func validatePendingState(state optimizationState, threshold float64) error {

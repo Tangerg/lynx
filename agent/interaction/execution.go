@@ -157,30 +157,7 @@ func (e *execution) acceptModel(signals []agent.Signal) (agent.Transition, error
 		return agent.Transition{}, err
 	}
 	if len(calls) == 0 {
-		if e.state.PendingSteer != nil {
-			modelOutput := response.Output
-			if modelOutput == nil || modelOutput.Message == nil || modelOutput.FinishReason == "" {
-				return agent.Transition{}, fmt.Errorf("%w: steered response has no finished assistant message", ErrInvalidExecutionState)
-			}
-			request := e.state.WorkingContext.Clone()
-			request.Messages = append(request.Messages, modelOutput.Message.Clone())
-			e.state.WorkingContext = request
-			appliedSteerSignalIDs, err := e.applyPendingSteer()
-			if err != nil {
-				return agent.Transition{}, err
-			}
-			e.state.Phase = phaseReadyModel
-			return e.requestModel(consumedSignals, appliedSteerSignalIDs)
-		}
-		modelOutput := response.Output
-		if modelOutput == nil || modelOutput.Message == nil || modelOutput.FinishReason == "" {
-			return agent.Transition{}, fmt.Errorf("%w: final response has no finished assistant message", ErrInvalidExecutionState)
-		}
-		return e.finishOrRetry(consumedSignals, Output{
-			Source:        CompletionSourceModelResponse,
-			ModelResponse: response,
-			ModelCalls:    e.state.ModelCallCount,
-		}, []chat.Message{modelOutput.Message.Clone()})
+		return e.acceptFinalModelResponse(consumedSignals, response)
 	}
 	if response.Output.FinishReason == chat.FinishReasonLength {
 		return e.rejectTruncatedToolCalls(consumedSignals, response, calls)
@@ -192,6 +169,35 @@ func (e *execution) acceptModel(signals []agent.Signal) (agent.Transition, error
 	e.state.SettledToolResults = nil
 	e.state.DirectToolResultEligible = true
 	return e.advanceToolCallBatch(consumedSignals)
+}
+
+func (e *execution) acceptFinalModelResponse(
+	consumedSignals uint32,
+	response *chat.Response,
+) (agent.Transition, error) {
+	modelOutput := response.Output
+	if modelOutput == nil || modelOutput.Message == nil || modelOutput.FinishReason == "" {
+		return agent.Transition{}, fmt.Errorf(
+			"%w: final response has no finished assistant message",
+			ErrInvalidExecutionState,
+		)
+	}
+	if e.state.PendingSteer == nil {
+		return e.finishOrRetry(consumedSignals, Output{
+			Source:        CompletionSourceModelResponse,
+			ModelResponse: response,
+			ModelCalls:    e.state.ModelCallCount,
+		}, []chat.Message{modelOutput.Message.Clone()})
+	}
+	request := e.state.WorkingContext.Clone()
+	request.Messages = append(request.Messages, modelOutput.Message.Clone())
+	e.state.WorkingContext = request
+	appliedSteerSignalIDs, err := e.applyPendingSteer()
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	e.state.Phase = phaseReadyModel
+	return e.requestModel(consumedSignals, appliedSteerSignalIDs)
 }
 
 func (e *execution) rejectTruncatedToolCalls(

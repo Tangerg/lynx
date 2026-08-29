@@ -1,36 +1,29 @@
 # Agent Framework 工程实施标准
 
-> 状态：强制实施基线
-> 建立日期：2026-08-06
-> 最后更新：2026-08-30
-> 适用范围：唯一 `agent` module 的设计、编码、测试、评审和提交
-
-本文定义新 Agent Framework 应当以什么技术标准实施。它不描述目标架构、不记录 ADR、不记录进度：
+本文定义 Agent Framework 应当以什么技术标准实施。它不描述目标架构、不记录 ADR、不记录进度：
 
 - 目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)。
-- 架构决策见 [`DECISIONS.md`](DECISIONS.md)。
 - 仓库通用规则见 [`../../CLAUDE.md`](../../CLAUDE.md)、[`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md) 和 [`../../REFACTORING.md`](../../REFACTORING.md)。
 
 本文比通用规则更具体，但不能放宽上位约束。发生冲突时，先按更严格且更接近根因的规则处理；仍无法裁决时，停止实现并更新 ADR。
 
 ---
 
-## 1. 总标准：增量实施，阶段内一步到位
+## 1. 总标准：范围增量，语义一步到位
 
-绿色重构没有旧 API、旧 wire 或旧目录结构的兼容包袱，因此每项已经决定实施的能力都必须从根因和正确层次上完成：
+每项已经决定实施的能力都必须从根因和正确层次上完成：
 
 - 不为了少改代码保留错误抽象。
 - 不用 adapter、alias、fallback 或特殊分支掩盖模型不正确。
 - 不先提交“能跑”的简化版，再把正确语义留成 TODO。
-- 不因原框架实现已经这样实现，就默认复制其命名、类型或包结构。
-- 不为迁移方便让 `agent` 依赖原框架实现。
-- 设计错误时允许删除和重写当前阶段代码，不在错误基础上继续叠加。
+- 不把仓库历史当作当前命名、类型或包结构的合同。
+- 设计错误时允许删除和重写当前代码，不在错误基础上继续叠加。
 
 “一步到位”不等于一次实现全部未来能力，也不等于预先建立所有可能的接口和配置：
 
-> 每一阶段都只实现已经被真实需求证明的范围，但这个范围内的语义、边界、错误、恢复、测试和文档必须完整，不留下已知债务。
+> 每个批次只实现已经被真实需求证明的范围，但这个范围内的语义、边界、错误、恢复、测试和文档必须完整，不留下已知债务。
 
-允许本地 spike 用来验证接口；spike 中的临时抽象、硬编码和未完成路径不能作为阶段完成结果进入主线。阶段结束时只保留经多个真实实现证明的最小正确设计。
+允许本地 spike 用来验证接口；spike 中的临时抽象、硬编码和未完成路径不能进入主线。提交时只保留经真实实现证明的最小正确设计。
 
 ---
 
@@ -106,7 +99,7 @@ Integration adapter → Agent contracts
 
 包依赖规则必须由 architecture tests 守卫，不能只写在文档里。
 
-门禁必须覆盖完整生产图，而不是让每个 package 各自维护一份容易漏项的 denylist：生产 package 集合和所有允许的 Agent 内部直连边集中声明；任何新增 package、内部依赖边或反向依赖都默认失败。Host/旧模块、`flow`、logging backend、OpenTelemetry 与 Interaction 专属协议等具有架构含义的外部依赖也必须按 owner 集中约束；各 package 的本地 architecture test 只守自己独有的类型所有权和实现限制，避免同一规则多处漂移。
+门禁必须覆盖完整生产图，而不是让每个 package 各自维护一份容易漏项的 denylist：生产 package 集合和所有允许的 Agent 内部直连边集中声明；任何新增 package、内部依赖边或反向依赖都默认失败。Host、`flow`、logging backend、OpenTelemetry 与 Interaction 专属协议等具有架构含义的外部依赖也必须按 owner 集中约束；各 package 的本地 architecture test 只守自己独有的类型所有权和实现限制，避免同一规则多处漂移。
 
 ### 3.4 抽象必须恰好足够
 
@@ -209,7 +202,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 
 共同 Process 可以保存这些协议的不透明信封、顺序、游标和 settlement，但不能 import Strategy 类型或解析 payload。Signal 共同信封不含 Strategy kind/schema；所有 wire bytes 必须 defensive copy 并受大小限制，严格解码与 payload 语义校验由 schema owner 完成。
 
-每个 schema owner 还必须独立守卫自己的完整当前 wire shape：Kernel 只覆盖共同 snapshot/protocol/Event，Strategy 只覆盖自己的 ExecutionState 与 Effect/Signal/Delta payload。共同合同不递归解释 opaque Strategy bytes；Strategy 也不能把自己的 phase/cursor 提升进共同 Process。覆盖测试必须同时检测已登记 shape 漂移和新增 production wire 未登记；breaking revision 在同一批次迁移全部 workspace 消费方，不保留 dual-read/dual-write 或旧格式拒绝分支。
+每个 schema owner 还必须独立守卫自己的完整当前 wire shape：Kernel 只覆盖共同 snapshot/protocol/Event，Strategy 只覆盖自己的 ExecutionState 与 Effect/Signal/Delta payload。共同合同不递归解释 opaque Strategy bytes；Strategy 也不能把自己的 phase/cursor 提升进共同 Process。覆盖测试必须同时检测已登记 shape 漂移和新增 production wire 未登记；wire 变更在同一批次迁移全部 workspace 消费方，不保留 dual-read/dual-write 或旧格式拒绝分支。
 
 ### 3.9 Step 提交纪律
 
@@ -223,9 +216,9 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 无外部 Effect 的纯 Continue 可以从最近 acknowledged head 重算；Parked/Terminal safe cut 必须形成 canonical checkpoint。不能为“更 durable”而未经测量地逐 Step提交。
 - 提交前的模型/Tool/Effect started/finished 是 attempt facts；Event/Delta 不是恢复源。每个 Host commit 的 before/after crash prefix 都必须有 contract test，未知外部结算按 dispatcher replay contract处理。
 
-### 3.10 阶段化交付不允许半成品
+### 3.10 独立交付不允许半成品
 
-每个阶段可以只覆盖一个垂直切片，但必须同时包含：
+每个批次可以只覆盖一个垂直切片，但必须同时包含：
 
 - 正常路径。
 - 输入与构造校验。
@@ -426,7 +419,6 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 并行路径验证稳定结果顺序，并运行 race tests。
 - wire/snapshot codec 使用 golden 和 fuzz 验证严格性。
 - 错误测试使用 `errors.Is/As`，不比较脆弱完整字符串。
-- 原框架实现测试作为历史反例和行为证据参考，但新测试围绕新合同重写，不机械复制。
 - example 必须使用正式公共 API，并能作为最小集成测试运行。
 
 无法为一个抽象写出独立行为合同，通常说明抽象尚未成立。
@@ -444,7 +436,6 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - [ ] 所有公共类型都能脱离当前产品独立解释，没有应用身份、历史水位、存储协议或 UI 语义。
 - [ ] 新接口有真实消费者和替换理由。
 - [ ] 新类型、方法、字段和参数名称语义唯一准确。
-- [ ] 旧实现已完成“保留思想 / 重新实现 / 移除”裁决。
 
 ### 6.2 实现
 
@@ -475,7 +466,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 
 ## 7. 评审时直接拒绝的信号
 
-出现以下任一情况，默认不进入下一阶段：
+出现以下任一情况，默认不能完成当前批次：
 
 - “先这样，以后再改正确”。
 - “为了兼容旧模块暂时保留”。
@@ -487,7 +478,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - “事务/Session/Store 放进 Agent 会更方便”。
 - “加锁后结果就是确定的”。
 - “复制完整父上下文给 child 最省事”。
-- “测试只覆盖 happy path 就够开始下一阶段”。
+- “测试只覆盖 happy path 就够了”。
 - “这个名字虽然不准确，但改起来麻烦”。
 - “注释先不改，代码能跑”。
 - “模式越多、抽象越复杂，框架上限越高”。

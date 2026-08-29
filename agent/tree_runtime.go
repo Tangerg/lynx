@@ -256,6 +256,22 @@ func (t *treeRuntime) addProcess(process *processState) {
 
 func (t *treeRuntime) run(rootContext context.Context) {
 	defer close(t.done)
+	t.publishInitialProcessEvents()
+	stopHostWatch := t.watchHostTermination(rootContext)
+	defer stopHostWatch()
+
+	for {
+		if t.advanceReadyWork() {
+			continue
+		}
+		if t.finished() {
+			return
+		}
+		t.waitForWork()
+	}
+}
+
+func (t *treeRuntime) publishInitialProcessEvents() {
 	for _, process := range t.processesInCanonicalOrder() {
 		if process.status.Terminal() {
 			continue
@@ -266,7 +282,10 @@ func (t *treeRuntime) run(rootContext context.Context) {
 			process.publishEvent(t.context, EventProcessStarted, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
 		}
 	}
-	stopHostWatch := context.AfterFunc(rootContext, func() {
+}
+
+func (t *treeRuntime) watchHostTermination(rootContext context.Context) func() bool {
+	return context.AfterFunc(rootContext, func() {
 		select {
 		case t.commands <- newTreeProcessCommand(
 			t.rootID,
@@ -275,53 +294,48 @@ func (t *treeRuntime) run(rootContext context.Context) {
 		case <-t.done:
 		}
 	})
-	defer stopHostWatch()
+}
 
-	for {
-		if t.tryFreezeCancellation() || t.tryCommand() || t.tryCompletion() || t.advanceOne() {
-			continue
+func (t *treeRuntime) advanceReadyWork() bool {
+	return t.tryFreezeCancellation() || t.tryCommand() || t.tryCompletion() ||
+		t.advanceOne() || t.tryStartCheckpoint()
+}
+
+func (t *treeRuntime) waitForWork() {
+	if t.commit != nil {
+		select {
+		case command := <-t.commands:
+			t.applyCommand(command)
+		case completion := <-t.commitDone:
+			t.applyTreeCommitCompletion(completion)
 		}
-		if t.tryStartCheckpoint() {
-			continue
+		return
+	}
+	if t.freeze != nil && t.freeze.ready {
+		select {
+		case command := <-t.commands:
+			t.applyCommand(command)
+		case <-t.freeze.acquisition.canceled:
+			t.releaseCurrentFreeze()
 		}
-		if t.finished() {
-			return
-		}
-		if t.commit != nil {
-			select {
-			case command := <-t.commands:
-				t.applyCommand(command)
-			case completion := <-t.commitDone:
-				t.applyTreeCommitCompletion(completion)
-			}
-			continue
-		}
-		if t.freeze != nil && t.freeze.ready {
-			select {
-			case command := <-t.commands:
-				t.applyCommand(command)
-			case <-t.freeze.acquisition.canceled:
-				t.releaseCurrentFreeze()
-			}
-			continue
-		}
-		if freezeCanceled := t.freezeCanceled(); freezeCanceled != nil {
-			select {
-			case command := <-t.commands:
-				t.applyCommand(command)
-			case completion := <-t.completions:
-				t.applyCompletion(completion)
-			case <-freezeCanceled:
-				t.releaseCurrentFreeze()
-			}
-			continue
-		}
+		return
+	}
+	if freezeCanceled := t.freezeCanceled(); freezeCanceled != nil {
 		select {
 		case command := <-t.commands:
 			t.applyCommand(command)
 		case completion := <-t.completions:
 			t.applyCompletion(completion)
+		case <-freezeCanceled:
+			t.releaseCurrentFreeze()
 		}
+		return
+	}
+	select {
+	case command := <-t.commands:
+		t.applyCommand(command)
+	case completion := <-t.completions:
+		t.applyCompletion(completion)
 	}
 }
 

@@ -48,6 +48,50 @@ type executionState struct {
 	FinalOutput               *Output          `json:"final_output,omitempty"`
 }
 
+type phaseField uint8
+
+const (
+	phaseFieldAbsent phaseField = iota
+	phaseFieldOptional
+	phaseFieldRequired
+)
+
+type phaseShape struct {
+	action                   phaseField
+	confirmationTracksAction bool
+	childKey                 phaseField
+	childProcessID           phaseField
+	waitID                   phaseField
+	initial                  bool
+}
+
+func (p phase) shape() (phaseShape, bool) {
+	switch p {
+	case phaseReadyObservation:
+		return phaseShape{initial: true}, true
+	case phaseAwaitingObservation:
+		return phaseShape{action: phaseFieldOptional, confirmationTracksAction: true}, true
+	case phaseAwaitingAction:
+		return phaseShape{action: phaseFieldRequired}, true
+	case phaseAwaitingChildStart:
+		return phaseShape{action: phaseFieldRequired, childKey: phaseFieldRequired}, true
+	case phaseAwaitingChildWaitOpen:
+		return phaseShape{
+			action: phaseFieldRequired, childKey: phaseFieldRequired,
+			childProcessID: phaseFieldRequired,
+		}, true
+	case phaseWaitingChild:
+		return phaseShape{
+			action: phaseFieldRequired, childKey: phaseFieldRequired,
+			childProcessID: phaseFieldRequired, waitID: phaseFieldRequired,
+		}, true
+	case phaseCompleted:
+		return phaseShape{}, true
+	default:
+		return phaseShape{}, false
+	}
+}
+
 func (e executionState) validate(definition *Definition) error {
 	if !e.Phase.valid() || !definition.valid() || !e.WorldState.Valid() {
 		return ErrInvalidExecutionState
@@ -186,43 +230,33 @@ func (e executionState) validateProgress() error {
 }
 
 func (e executionState) validatePhase() error {
-	hasChildKey := e.ChildKey != nil && e.ChildKey.Valid()
-	hasChildID := e.ChildProcessID != nil && e.ChildProcessID.Valid()
-	hasWaitID := e.WaitID != nil && e.WaitID.Valid()
-	noChild := e.ChildKey == nil && e.ChildProcessID == nil && e.WaitID == nil
-	switch e.Phase {
-	case phaseReadyObservation:
-		if e.CurrentActionName != "" || e.ActionConfirmationPending || !noChild || e.PlanningPasses != 0 || len(e.Attempts) != 0 {
-			return ErrInvalidExecutionState
-		}
-	case phaseAwaitingObservation:
-		if !noChild || e.ActionConfirmationPending != (e.CurrentActionName != "") {
-			return ErrInvalidExecutionState
-		}
-	case phaseAwaitingAction:
-		if e.CurrentActionName == "" || e.ActionConfirmationPending || !noChild {
-			return ErrInvalidExecutionState
-		}
-	case phaseAwaitingChildStart:
-		if e.CurrentActionName == "" || e.ActionConfirmationPending || !hasChildKey || e.ChildProcessID != nil || e.WaitID != nil {
-			return ErrInvalidExecutionState
-		}
-	case phaseAwaitingChildWaitOpen:
-		if e.CurrentActionName == "" || e.ActionConfirmationPending || !hasChildKey || !hasChildID || e.WaitID != nil {
-			return ErrInvalidExecutionState
-		}
-	case phaseWaitingChild:
-		if e.CurrentActionName == "" || e.ActionConfirmationPending || !hasChildKey || !hasChildID || !hasWaitID {
-			return ErrInvalidExecutionState
-		}
-	case phaseCompleted:
-		if e.CurrentActionName != "" || e.ActionConfirmationPending || !noChild {
-			return ErrInvalidExecutionState
-		}
-	default:
+	shape, found := e.Phase.shape()
+	hasAction := e.CurrentActionName != ""
+	if !found || !shape.action.matches(hasAction, true) ||
+		e.ActionConfirmationPending != (shape.confirmationTracksAction && hasAction) ||
+		!shape.childKey.matches(e.ChildKey != nil, e.ChildKey != nil && e.ChildKey.Valid()) ||
+		!shape.childProcessID.matches(
+			e.ChildProcessID != nil,
+			e.ChildProcessID != nil && e.ChildProcessID.Valid(),
+		) ||
+		!shape.waitID.matches(e.WaitID != nil, e.WaitID != nil && e.WaitID.Valid()) ||
+		shape.initial && (e.PlanningPasses != 0 || len(e.Attempts) != 0) {
 		return ErrInvalidExecutionState
 	}
 	return nil
+}
+
+func (p phaseField) matches(present bool, valid bool) bool {
+	switch p {
+	case phaseFieldAbsent:
+		return !present
+	case phaseFieldOptional:
+		return !present || valid
+	case phaseFieldRequired:
+		return present && valid
+	default:
+		return false
+	}
 }
 
 func validExcludedActionNames(actionNames []string, definition *Definition) bool {

@@ -84,34 +84,40 @@ func restoreProcessLoop(
 		return nil, fmt.Errorf("%w: pending control: %w", ErrInvalidSnapshot, err)
 	}
 	loop.pendingControl = control
-	if wire.Prepared != nil {
-		preparedWire := clonePreparedStep(*wire.Prepared)
-		for index := range preparedWire.Effects {
-			record := &preparedWire.Effects[index]
-			if record.Phase != effectPhasePending || record.Effect.Target() != EffectTargetDispatcher {
-				continue
-			}
-			policy, policyErr := dispatcherReplayPolicy(
-				deployment.effectDispatcher(), record.Effect,
-			)
-			if policyErr != nil {
-				return nil, fmt.Errorf("%w: restore pending Effect: %w", ErrInvalidSnapshot, policyErr)
-			}
-			if engine.durability == nil && policy == ReplayPolicyNever {
-				if err := record.settleUnknown(); err != nil {
-					return nil, fmt.Errorf("%w: restore pending Effect: %w", ErrInvalidSnapshot, err)
-				}
-				continue
-			}
-			if loop.restoredPending.id.Valid() {
-				return nil, fmt.Errorf("%w: multiple pending Effects", ErrInvalidSnapshot)
-			}
-			loop.restoredPending = restoredPendingEffect{id: record.ID, replayPolicy: policy}
-		}
-		loop.prepared = &preparedStep{wire: preparedWire}
+	if err := loop.restorePreparedStep(wire.Prepared); err != nil {
+		return nil, err
 	}
 	controller.updateView(loop.status, loop.currentWaitID, loop.usage)
 	return loop, nil
+}
+
+func (p *processState) restorePreparedStep(wire *preparedStepWire) error {
+	if wire == nil {
+		return nil
+	}
+	prepared := clonePreparedStep(*wire)
+	for index := range prepared.Effects {
+		record := &prepared.Effects[index]
+		if record.Phase != effectPhasePending || record.Effect.Target() != EffectTargetDispatcher {
+			continue
+		}
+		policy, err := dispatcherReplayPolicy(p.deployment.effectDispatcher(), record.Effect)
+		if err != nil {
+			return fmt.Errorf("%w: restore pending Effect: %w", ErrInvalidSnapshot, err)
+		}
+		if p.engine.durability == nil && policy == ReplayPolicyNever {
+			if err := record.settleUnknown(); err != nil {
+				return fmt.Errorf("%w: restore pending Effect: %w", ErrInvalidSnapshot, err)
+			}
+			continue
+		}
+		if p.restoredPending.id.Valid() {
+			return fmt.Errorf("%w: multiple pending Effects", ErrInvalidSnapshot)
+		}
+		p.restoredPending = restoredPendingEffect{id: record.ID, replayPolicy: policy}
+	}
+	p.prepared = &preparedStep{wire: prepared}
+	return nil
 }
 
 func (p *processState) capture() (ProcessSnapshot, error) {

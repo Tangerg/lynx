@@ -429,30 +429,32 @@ func (t *treeRuntime) applyChildStartSettlement(
 		if record.ID != effectID || record.Phase != effectPhasePending {
 			continue
 		}
-		payload, err := encodeChildStartResult(result)
-		if err != nil {
-			if settlementErr := record.settleUnknown(); settlementErr != nil {
-				return SettlementStatusInvalid, settlementErr
-			}
-		} else {
-			status := SettlementStatusSucceeded
-			if _, failed := result.Failure(); failed {
-				status = SettlementStatusFailed
-			}
-			settlement, settlementErr := NewSettlement(effectID, status, payload)
-			if settlementErr != nil {
-				if unknownErr := record.settleUnknown(); unknownErr != nil {
-					return SettlementStatusInvalid, unknownErr
-				}
-			} else {
-				if err := record.settle(settlement); err != nil {
-					return SettlementStatusInvalid, err
-				}
-			}
+		if err := settleChildStartRecord(record, effectID, result); err != nil {
+			return SettlementStatusInvalid, err
 		}
 		return record.Settlement.Status(), nil
 	}
 	return SettlementStatusInvalid, errors.New("pending child-start Effect is missing")
+}
+
+func settleChildStartRecord(
+	record *preparedEffectWire,
+	effectID EffectID,
+	result ChildStartResult,
+) error {
+	payload, err := encodeChildStartResult(result)
+	if err != nil {
+		return record.settleUnknown()
+	}
+	status := SettlementStatusSucceeded
+	if _, failed := result.Failure(); failed {
+		status = SettlementStatusFailed
+	}
+	settlement, err := NewSettlement(effectID, status, payload)
+	if err != nil {
+		return record.settleUnknown()
+	}
+	return record.settle(settlement)
 }
 
 func (t *treeRuntime) failPreparedEffect(process *processState, code string, err error) {

@@ -191,44 +191,45 @@ func (t *treeRuntime) applyTreeCommitCompletion(completion treeCommitCompletion)
 	}
 	t.commit = nil
 	t.inflight.Add(-1)
+	defer t.applyDeferredCommands(commit.deferred)
 	if completion.err != nil {
-		if commit.kind == treeCommitChildOutcome && t.engine.durability == nil {
-			pending := commit.child
-			pending.result = childStartJobResult{result: failedChildStart(
-				pending.plan.spec,
-				FailureKindExternal,
-				"engine.child.start_outcome.unacknowledged",
-				completion.err,
-			)}
-			if err := t.publishChildOutcome(pending); err != nil {
-				t.failPreparedEffect(
-					t.processes[pending.parentID], "engine.child.settlement.invalid", err,
-				)
-			}
-			t.markRunnable(pending.parentID)
-			for _, command := range commit.deferred {
-				t.applyCommand(command)
-			}
-			return
-		}
-		if commit.response != nil {
-			commit.response <- processResponse{err: completion.err}
-		}
-		unresolvedEffectID := commit.effectID
-		if commit.kind == treeCommitEffectPending {
-			unresolvedEffectID = EffectID{}
-		}
-		if commit.kind == treeCommitChildOutcome {
-			t.discardProspectiveChild(commit.child)
-		}
-		t.failDurability(
-			completion.err, commit.processID, unresolvedEffectID,
-		)
-		for _, command := range commit.deferred {
-			t.applyCommand(command)
-		}
+		t.applyFailedTreeCommit(commit, completion.err)
 		return
 	}
+	t.applySuccessfulTreeCommit(commit)
+}
+
+func (t *treeRuntime) applyFailedTreeCommit(commit *treeCommit, commitErr error) {
+	if commit.kind == treeCommitChildOutcome && t.engine.durability == nil {
+		pending := commit.child
+		pending.result = childStartJobResult{result: failedChildStart(
+			pending.plan.spec,
+			FailureKindExternal,
+			"engine.child.start_outcome.unacknowledged",
+			commitErr,
+		)}
+		if err := t.publishChildOutcome(pending); err != nil {
+			t.failPreparedEffect(
+				t.processes[pending.parentID], "engine.child.settlement.invalid", err,
+			)
+		}
+		t.markRunnable(pending.parentID)
+		return
+	}
+	if commit.response != nil {
+		commit.response <- processResponse{err: commitErr}
+	}
+	unresolvedEffectID := commit.effectID
+	if commit.kind == treeCommitEffectPending {
+		unresolvedEffectID = EffectID{}
+	}
+	if commit.kind == treeCommitChildOutcome {
+		t.discardProspectiveChild(commit.child)
+	}
+	t.failDurability(commitErr, commit.processID, unresolvedEffectID)
+}
+
+func (t *treeRuntime) applySuccessfulTreeCommit(commit *treeCommit) {
 	if commit.snapshot.Valid() {
 		t.headDigest = commit.snapshot.Digest()
 		t.notifyHeadWaiters(nil)
@@ -259,8 +260,10 @@ func (t *treeRuntime) applyTreeCommitCompletion(completion treeCommitCompletion)
 	case treeCommitCheckpoint:
 		t.publishCheckpoint()
 	}
-	deferred := commit.deferred
-	for _, command := range deferred {
+}
+
+func (t *treeRuntime) applyDeferredCommands(commands []treeCommand) {
+	for _, command := range commands {
 		t.applyCommand(command)
 	}
 }

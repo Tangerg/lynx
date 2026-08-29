@@ -1,49 +1,19 @@
-# Agent Framework 绿色重构架构
+# Agent Framework 架构
 
-> 状态：已接受的目标设计基线
-> 建立日期：2026-08-06
-> 最后更新：2026-08-30
-> 实施范围：唯一的 `agent` Framework module
+本文定义 Agent Framework 的定位、领域语言、边界、结构和不可变量，不记录阶段进度、提交或临时实施细节。
 
-本文只定义新 Agent Framework 的定位、领域语言、边界、目标结构和不可变量，不记录阶段进度、提交或临时实施细节。
-
-- 架构决策及取舍原因见 [`DECISIONS.md`](DECISIONS.md)。
 - 工程实施和代码质量标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
 - 上位约束见 [`../../CLAUDE.md`](../../CLAUDE.md)、[`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md) 和 [`../../REFACTORING.md`](../../REFACTORING.md)。
 
-代码与本文冲突时不得静默迁就：如果实现有误，修改实现；如果设计被事实推翻，先更新决策文档，再修改本文和代码。归档中的历史阶段和迁移证据不授权当前实现范围。
+代码与本文冲突时不得静默迁就：如果实现有误，修改实现；如果设计被事实推翻，同步修改本文和代码。仓库历史不是当前合同。
 
 ---
 
-## 1. 背景与重构边界
-
-Scope 最早从 Embabel Agent 移植并发展出以 GOAP、Goal、Action、Condition、Blackboard、Planner 和 Process 为中心的框架。当前 `agent` 已完成绿色重写和消费者切换：共同 Process 不以 Planning 为中心，Interaction、Planning 与 Workflow 以可替换 Definition/Execution 策略共享同一个执行窄腰。
-
-绿色重写期间保留的原框架实现已经整体删除。当前仓库只有一个 `agent` module、一套公共 API 和一个 Framework 生命周期 owner；迁移目录、双轨依赖和兼容入口都不属于目标架构。
-
-### 1.1 原实现只保留为历史证据，不是兼容规范
-
-原实现曾提供下列经过实践的证据，当前只能通过仓库历史查阅：
-
-- GOAP、HTN、Utility 等算法及其正确性测试。
-- Tool loop 的事件顺序、checkpoint/resume 和并发控制。
-- Process tree、HITL、budget、usage、snapshot 和恢复中的已验证不变量。
-- 原实现历次边界清洗留下的反例与 architecture tests。
-
-历史证据不等于兼容：
-
-- 原实现不决定当前 API、包结构或共同领域模型。
-- 历史迁移裁决不构成当前合同，当前行为只由现行架构、ADR、公共基线与测试证明。
-- 不从历史中恢复混合抽象、别名、旧 wire 或第二生命周期入口。
-- architecture gate 永久禁止临时 module path 与 Host application 依赖回流。
-
----
-
-## 2. 总体定位
+## 1. 总体定位
 
 > Agent 是一个可嵌入、可组合、拥有统一执行生命周期的 Go Framework；它允许 Interaction、Planning 以及未来被真实推进和恢复语义证明的新执行策略成为平等且可嵌套的 Agent Definition。
 
-### 2.1 从直接能力到完整应用
+### 1.1 从直接能力到完整应用
 
 框架必须允许使用者只支付当前需求所需的复杂度：
 
@@ -65,7 +35,7 @@ Scope 最早从 Embabel Agent 移植并发展出以 GOAP、Goal、Action、Condi
 
 直接模型调用永远是一等路径。只需要一次或少量明确模型调用的程序应直接使用 `chatclient`；普通同步控制流可以直接使用独立的 `flow` 库，不应被迫创建 Agent 或 Process。
 
-### 2.2 能力上限
+### 1.2 能力上限
 
 新架构提高的是系统的表达、组合、恢复和治理上限，而不是模型本身的智力。其关键性质是组合闭包：
 
@@ -73,7 +43,7 @@ Scope 最早从 Embabel Agent 移植并发展出以 GOAP、Goal、Action、Condi
 
 ---
 
-## 3. 核心设计原则
+## 2. 核心设计原则
 
 1. **最小正确抽象优先。** 不为完整感预建 package、接口、配置或扩展点。
 2. **一个概念只有一个术语。** 不同时保留 plan/todo、run/execution、sub-agent/child-agent 等近义公共概念。
@@ -94,7 +64,7 @@ Scope 最早从 Embabel Agent 移植并发展出以 GOAP、Goal、Action、Condi
 
 ---
 
-## 4. 统一领域语言
+## 3. 统一领域语言
 
 代码命名利用 package qualifier 避免口吃，例如优先 `agent.Definition`，不写 `agent.AgentDefinition`。
 
@@ -140,9 +110,9 @@ Scope 最早从 Embabel Agent 移植并发展出以 GOAP、Goal、Action、Condi
 
 ---
 
-## 5. 所有权边界
+## 4. 所有权边界
 
-### 5.1 Agent Framework 拥有
+### 4.1 Agent Framework 拥有
 
 - Definition 校验与 Deployment 冻结。
 - Process 状态机和有界执行循环。
@@ -156,7 +126,7 @@ Scope 最早从 Embabel Agent 移植并发展出以 GOAP、Goal、Action、Condi
 - snapshot envelope、校验和恢复协议。
 - 执行策略的显式装配。
 
-### 5.2 基础模块拥有
+### 4.2 基础模块拥有
 
 - `core/chat`：provider-neutral 请求、单 `Output` 响应和流协议。
 - `chatclient`：直接模型调用、middleware 和结构化输出。
@@ -167,7 +137,7 @@ Scope 最早从 Embabel Agent 移植并发展出以 GOAP、Goal、Action、Condi
 
 Agent 复用这些能力，不复制 Client、Model、Tool、Message、Embedding 或 OTel 抽象。
 
-### 5.3 Host Application 拥有
+### 4.3 Host Application 拥有
 
 - 用户、Workspace、Conversation、Session、Turn 等产品身份。
 - HTTP/WebSocket/SSE/desktop/CLI 传输协议。
@@ -182,7 +152,7 @@ Host 最终只依赖 Agent 的中性生命周期合同，不解析 Planning、In
 
 ---
 
-## 6. 目标架构与执行窄腰
+## 5. 目标架构与执行窄腰
 
 ```mermaid
 flowchart TD
@@ -202,7 +172,7 @@ flowchart TD
     Workflow --> Child
 ```
 
-### 6.1 窄腰
+### 5.1 窄腰
 
 所有 Execution Strategy 只在以下语义上相交：
 
@@ -249,7 +219,7 @@ Strategy Effect payload 和所有 Signal payload 对 Engine 不透明。每个 S
 
 如果子 Process 能力需要注入 Execution，应由真实消费包定义最小接口，不能把完整 `*Engine` 或不断膨胀的 `ExecutionContext` 传给所有策略。子创建、等待、模型调用、Tool 和 Action 都通过 Transition 声明 Effect，使 Engine 继续拥有生命周期顺序，而 Strategy 继续拥有具体执行语义。
 
-### 6.2 Step
+### 5.2 Step
 
 `Step` 是一次可取消、可丢弃的纯候选归约，不等同于整个任务：
 
@@ -275,7 +245,7 @@ Dispatcher Effect 使用 `planned → pending → settled` 状态机：
 
 同一 Process 的 Effect 按声明顺序逐项跨越 pending/settled，尚未派发的 planned Effect不能成为 Unknown。ephemeral mode执行同一个状态机但不调用 Host durability port。Event/Delta 只记录 attempt/observation，不能替代 acknowledged `TreeSnapshot`。
 
-### 6.3 确定性编排边界
+### 5.3 确定性编排边界
 
 确定性编排按生命周期强度分边界：普通 Go/AI 同进程控制流可以直接写 Go，也可以选择独立 `flow`；每项工作需要独立 ProcessID、DeploymentRef、snapshot、预算、能力、取消和 tree recovery 时使用 managed Workflow。`flow` 是可参考的既有实现而不是 Agent Framework 的必选依赖：Workflow 可以吸收其显式拓扑、typed composition、确定顺序和有界 fan-out 思想，但不强求复用、不建立强制 adapter，也不共享 runtime、Store、Journal 或恢复事实。
 
@@ -285,7 +255,7 @@ Transform、selector、reducer 和 predicate 是一个 Step 内的有界确定�
 
 `flow.Node.Run`、Graph scheduler 和 Journal 仍不能进入 `Execution.Step`。Workflow 不产生 dispatcher Effect；它只通过 Framework child Effect 组合，包内 Dispatcher 仅拒绝意外 dispatcher Effect。这样 Engine 继续是唯一 Process loop、Effect 提交与 tree recovery owner。
 
-### 6.4 Process 状态机
+### 5.4 Process 状态机
 
 共同 Process 只使用以下状态：
 
@@ -339,7 +309,7 @@ Effect 自己的取消或 deadline 先作为 settlement Signal 交给 Strategy�
 - 产品 Session、Conversation、Turn
 - provider、model、USD 账本
 
-### 6.5 Execution state envelope
+### 5.5 Execution state envelope
 
 共同 snapshot 只保存可判别的策略状态信封：
 
@@ -359,7 +329,7 @@ type ExecutionState struct {
 
 共同 snapshot 只约束 envelope，不递归解释 payload。每个 Strategy schema owner 在自己的 package 独立守卫 ExecutionState 与 Effect/Signal/Delta 的当前 wire shape，并以覆盖测试阻止新增私有 JSON shape 漏登记；Kernel 对这些私有 shape 没有导入或解释权。
 
-### 6.6 Signal、等待与安全消费
+### 5.6 Signal、等待与安全消费
 
 Signal 是唯一进入 Execution 的运行时输入。共同信封只包含稳定 SignalID、可选 WaitID 路由和不透明 JSON payload；Engine 另行记录自身分配的单调序号、投递状态和消费游标。Engine wall clock 不进入 Strategy input：业务时间必须由 Host 作为稳定 payload 明确提交，接收观察时间只属于 Event。Signal 的 kind/schema 若有需要也必须封装在 owner 自有 payload 内，不能成为共同 Process 可解释的类型。Engine 不依据 payload 决定策略控制流，也不把具体 Signal 类型放进共同 Process。
 
@@ -375,7 +345,7 @@ WaitID 由 Engine 铸造，Execution 不能自行生成外部等待身份。Exec
 
 不同 Strategy 必须声明自己的安全消费边界并用 contract tests 证明。Interaction 默认在已开始的模型调用和 Tool batch 结算后、下一模型 Effect 前消费 steer；其可观察生效延迟上界是当前不可中断 Effect 的剩余时长加下一 Step 的调度延迟，必须写入公开 GoDoc。通用 Engine 选择“等待结算”，不提供会遗弃不确定副作用的 interrupt-and-restart，也不假装拥有外部补偿语义。
 
-### 6.7 Effect 与结算
+### 5.7 Effect 与结算
 
 Effect 是 Execution 请求 Step 之外操作的唯一方式。候选信封只区分 Framework 自有目标与 Deployment dispatcher 目标，并携带 owner-owned raw payload；Engine 依据 ProcessID、Step sequence 与 effect index 生成 EffectID 并冻结 payload。Engine 只解释 child/wait/timer 等封闭的 Framework Effect，Strategy Effect 整体交给绑定的 dispatcher 解释。dispatcher 不修改 Execution，只产生 Delta 和最终 settlement Signal；不得把模型、Tool、Action kind 提升为 Kernel union。
 
@@ -383,7 +353,7 @@ Engine-owned Effect 必须用 EffectID 保证重复调度不重复创建 child�
 
 同一 Transition 的 Effect batch 首版按 declaration order 逐项推进；一个 Effect settled 后，下一个 planned Effect 才能进入 pending。EffectID 和 settlement 按 batch index 确定性归位；pending/Unknown 保留每项结算事实，只按各自 replay contract 恢复，不能重跑整个 batch 或按完成先后生成协议结果。并行 batch 只有在真实 benchmark/trace 证明必要且不改变 durable prefix 后才能另行设计。
 
-### 6.8 输入、输出与 typed adapter
+### 5.8 输入、输出与 typed adapter
 
 Engine 必须同构保存并运行异构 Definition，因此根窄腰不泛型化。Input、Output、Signal、Effect 和 ExecutionState 的 wire value 均使用被 owner 防御性复制且受大小限制的 JSON 表示，不用 `any` 或共享可变 `json.RawMessage` 绕过合同；严格解码和 payload 语义校验由拥有其 schema 的 Definition、Execution 或 dispatcher 完成。
 
@@ -391,17 +361,17 @@ Descriptor 携带权威 input/output schema；schema 及影响编码语义的配
 
 ---
 
-## 7. Execution Strategy
+## 6. Execution Strategy
 
-### 7.1 Interaction
+### 6.1 Interaction
 
 Interaction 是模型根据环境反馈自主选择工具的 ReAct 类执行策略，适用于编码、研究、聊天和开放式任务。
 
 能力包括普通与流式模型调用、稳定 Tool 边界、多轮循环、checkpoint、精确恢复、有界工具并行、HITL、steer、usage 和完整生命周期事件。Interaction 的私有 WorkingContext 是当前 Execution 精确恢复所需的模型工作集，不等同于 Host 拥有的跨 Process 产品历史或 UI 记录。
 
-不长期保留 `toolloop` 与 `interaction` 两套公共概念。工具循环是 Interaction 的实现机制；是否暴露更小的直接 Runner，必须由独立消费者证明，不能仅为了迁移旧代码保留。
+工具循环是 Interaction 的实现机制，不另设同义公共概念。是否暴露更小的直接 Runner，必须由独立消费者证明。
 
-### 7.2 Planning
+### 6.2 Planning
 
 Planning 表达已知 Action 模型上的目标导向选择。`Planner` 是 Planning 内部的真实可替换点：
 
@@ -417,13 +387,13 @@ Planning 独占 Goal、Condition、Truth、WorldState、PlannedAction metadata �
 
 GOAP 适合目标可机器验证、存在多条路径、Action 前置条件/效果/成本可声明且环境会变化的场景。GOAP 不作为默认 Agent 语义，也不用于包装固定控制流或开放式 ReAct 循环。
 
-### 7.3 确定性编排
+### 6.3 确定性编排
 
 `flow` 是可选的普通 in-process 组合库；Workflow 是只编排真实 child Process 的 managed Strategy。Workflow 使用有序 Stage 而不是任意 DAG/Registry，不依赖或复制 `flow` runtime，也不编译成 GOAP；后续设计可以选择性吸收已被 `flow` 证明的组合规律，而不以代码复用为目标。它的独立状态是当前 value、Stage 游标、branch/item/iteration 窗口和 child wait；这些状态已经由独立 public-API consumer 的完整 tree restore 证明。
 
-### 7.4 Orchestrator-worker 组合
+### 6.4 Orchestrator-worker 组合
 
-旧语境中所谓 Supervisor 当前统一称为 orchestrator-worker 组合：它由 Interaction、Workflow、managed Delegate、typed artifacts、completion validator 和 child Process 构成，不是独立 Strategy、独立 ExecutionState kind 或预建 package。只有未来实现证明它具有这些既有能力无法表达的独立推进与恢复语义，才通过新 ADR 重新申请 Strategy 准入。
+Orchestrator-worker 由 Interaction、Workflow、managed Delegate、typed artifacts、completion validator 和 child Process 组合，不是独立 Strategy、独立 ExecutionState kind 或预建 package。只有实现证明它具有这些既有能力无法表达的独立推进与恢复语义，才申请新 Strategy 准入。
 
 orchestrator-worker 有两种正交且可组合的形态。模型需要直接选择少量已知 worker 时，Interaction 把 exact Deployment 暴露为 Delegate，模型的 ToolCall 直接创建对应 child Process。任务集合由模型按输入动态拆分、但调度顺序、窗口、数量上限和聚合必须确定时，decomposer Interaction 先输出 consumer-owned typed task list，Workflow Map 再为每项创建 exact worker child，最后由另一个 Interaction 综合有序 typed results。两种形态都只使用既有 Process 窄腰；Framework 不增加通用 Worker、Task、Result、Team、Supervisor 或共享 Blackboard 类型。
 
@@ -433,7 +403,7 @@ Interaction 的 typed artifact 只代表已成功完成、再次通过 exact Del
 
 completion validator 是 Interaction Definition 冻结的有界、确定、无副作用纯函数，只在模型最终响应或 direct-Tool 结果形成候选完成时读取独立复制的当前 WorkingContext、candidate Output 与 artifacts。WorkingContext 是该 Execution 的模型上下文，不是 Host conversation/transcript，并且尚未包含当前候选。validator 返回显式二选一：接受；或拒绝并给出非空、有界 feedback。拒绝时，候选上下文与 feedback 作为下一轮 user message 进入 WorkingContext，仍由正数 `MaxModelCalls` 限制；耗尽以稳定 execution failure 终止，不能把未接受候选伪装成完成。需要模型、Tool、网络或其他外部判断的 evaluator 必须是 managed child Process，不能藏进 validator callback。
 
-### 7.5 Evaluator-optimizer 组合
+### 6.5 Evaluator-optimizer 组合
 
 Evaluator-optimizer 是 Workflow Loop 的派生组合，不是新 Strategy。Loop 的 typed value 由消费者定义，至少显式保存原目标、有序 attempt/feedback history、当前候选、best-so-far 与 accepted；每轮 body 是 exact child Workflow，先 Call 一个 exact optimizer child，再 Call 一个 exact evaluator child。optimizer 读取上一轮 evaluator feedback 产生新候选；evaluator 评分并给出下一轮 feedback；Loop 的 pure predicate 只读取已提交的 accepted 状态。
 
@@ -441,7 +411,7 @@ Evaluator-optimizer 是 Workflow Loop 的派生组合，不是新 Strategy。Loo
 
 optimizer/evaluator 的 exact child Deployment 必须满足该消费者声明的 typed state 合同；若底层能力来自 Interaction、Planning、普通 Tool 或其他 Definition，转换与状态合并必须由 consumer-owned adapter Deployment 显式完成，Workflow 不猜测也不改写其 Descriptor。需要模型、网络或其他外部判断的 evaluator 必须是 managed child Process，不能藏进 pure Loop predicate、Transform 或 Interaction completion validator。只有评价标准足够清晰、feedback 能被 optimizer 实际消费且评测证明循环优于单次生成时，才应使用该组合。
 
-### 7.6 新策略准入
+### 6.6 新策略准入
 
 一个 Process 只有一个顶层 Execution 和一个顶层 ExecutionState envelope。Strategy 不得在同一 Process 内驱动另一个框架 Execution；组合跨越 Strategy 或需要独立暂停、恢复、预算、取消时必须创建 child Process。
 
@@ -449,7 +419,7 @@ optimizer/evaluator 的 exact child Deployment 必须满足该消费者声明的
 
 ---
 
-## 8. Planning Action、Tool 与 Delegate
+## 7. Planning Action、Tool 与 Delegate
 
 `planning.Action` 只表达 Planning 搜索使用的稳定名称、准确描述、Preconditions、预测 Effects 和 Cost。它没有 JSON 输入输出、执行函数或外部副作用语义；`ActionBinding` 才把预测操作绑定到 dispatcher executor 或 exact child Deployment，`PlannedAction` 只是 Planner 输出的稳定引用。因此 Framework 不再虚构一个与 `planning.Action` 同名的通用可执行 Action，也不提供无法从预测元数据推出的通用 Action-to-Tool adapter。
 
@@ -463,7 +433,7 @@ Platform 只在 Process 启动前选择 active root Deployment，不把 Interact
 
 ---
 
-## 9. 子 Process 与递归组合
+## 8. 子 Process 与递归组合
 
 Agent 自递归不是当前 Go 调用栈再次进入同一个函数，而是同一个 Definition 创建一个新的子 Process：
 
@@ -503,7 +473,7 @@ Process tree 是执行、取消、预算和恢复的共同单位。如果未来�
 
 ---
 
-## 10. Anthropic 编排模式覆盖
+## 9. Anthropic 编排模式覆盖
 
 依据 [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents) 的分类，覆盖与证据如下。模式名称是组合词汇，不是必须各建一个 Strategy/package/type 的清单。
 
@@ -536,9 +506,9 @@ managed 复杂度按真实树线性显现：最小 Workflow 示例是四个 Proc
 
 ---
 
-## 11. Engine 与 Platform
+## 10. Engine 与 Platform
 
-### 11.1 Engine
+### 10.1 Engine
 
 Engine 是最小托管执行边界：为每棵 root tree 建立唯一 `treeRuntime`，启动、推进、暂停、恢复和终止 Process；接受并投递 Signal；调度有界 Step/Dispatch job并只在 owner line 提交结果；管理 Process tree、等待和取消；捕获/恢复完整 tree；执行通用 limit/policy；发布中性 framework events 和临时 delta。
 
@@ -552,7 +522,7 @@ EngineConfig 为每棵 root tree 冻结 Limits、TreeLimits 与最大 Capability
 
 已经捕获的 Process 恢复其原 admission，不按当前 admitter 再判一次，也不重放 start outcome；撤销授权由调用方在恢复前决定或通过明确的 Process control 表达，不能让 snapshot 恢复结果依赖隐藏的实时政策。
 
-### 11.2 Platform
+### 10.2 Platform
 
 Platform 是建立在 Engine 上的可选完整形态，拥有 Deployment catalog、digest、Definition 路由、多 Agent 组合发现和面向 Host 的治理入口。
 
@@ -572,7 +542,7 @@ Platform 的零值是可用的空部署聚合；`New(deployments...)` 只为一�
 
 `embedded_vs_platform` 用完全相同的 Workflow root 与 exact worker 分别经过 caller-owned resolver 和 Platform selector/resolver 运行，并比较 Output、Status、Usage、两 Process tree、两次 admission 以及稳定 Process/Step/Effect Event 投影。不同运行中 child 可能在父 wait 注册前或后完成，所以 `signal.accepted` 与中间 running/waiting 事实可以合法不同；Platform 等价合同不谎称跨运行的 wall-clock、ProcessID 或完整 Event sequence 逐项相等。
 
-### 11.3 Deployment 恢复
+### 10.3 Deployment 恢复
 
 - Deployment 冻结 Definition 及影响恢复语义的配置。
 - Process snapshot 始终记录精确 DeploymentRef。
@@ -587,7 +557,7 @@ Platform 的零值是可用的空部署聚合；`New(deployments...)` 只为一�
 
 ---
 
-## 12. Snapshot、恢复与持久化
+## 11. Snapshot、恢复与持久化
 
 Agent Framework 负责捕获一致的 Process/tree 执行状态、校验 schema/DeploymentRef/父子关系/状态机不变量，并从完整 `TreeSnapshot` 和精确 Deployment 恢复。不可序列化状态必须显式失败。
 
@@ -620,7 +590,7 @@ Host 对自身事实执行销毁、回滚、替换或恢复时，必须在自己
 
 ---
 
-## 13. Extension、事件与可观测性
+## 12. Extension、事件与可观测性
 
 横切替换点按真实消费位置定义一个准确的小接口，不建立通用 Extension marker、capability registry 或按运行时类型分派的 god scope。`ProcessAdmitter` 只负责启动准入；`ProcessStartOutcomeAcknowledger` 只负责 ephemeral admission lifecycle 闭合；完整 durable Host 实现闭合 `TreeDurability`；`EventListener`/`DeltaListener` 只负责观察。它们语义不同，不合并成 Policy/Guard/Middleware 或万能 Commit 近义层。只有一个实现且没有外部替换需求的内部依赖直接使用 concrete type。
 
@@ -646,7 +616,7 @@ Delta 是与 Event 不同的临时流输出。Delta 缓冲显式有界、按调�
 
 ---
 
-## 14. 依赖与目标包结构
+## 13. 依赖与目标包结构
 
 当前已验收的生产依赖方向如下；箭头表示 Go import：
 
@@ -694,9 +664,9 @@ OpenTelemetry adapter 位于独立 sibling module `otel/agent`，从集成层依
 
 ---
 
-## 15. API、实现与验收纪律
+## 14. API、实现与验收纪律
 
-### 15.1 Go API
+### 14.1 Go API
 
 - 接口定义在消费方并保持最小；accept interfaces，return concrete structs。
 - config 使用 options struct，不使用 builder 链和大量 variadic `WithXxx`。
@@ -708,7 +678,7 @@ OpenTelemetry adapter 位于独立 sibling module `otel/agent`，从集成层依
 - 并发有清晰 owner、停止条件和确定提交语义。
 - 不为未来可能存在的实现预造接口或注册表。
 
-### 15.2 Definition 与 Execution
+### 14.2 Definition 与 Execution
 
 - Definition 创建后不可变，并发共享安全。
 - 每次 Start 创建独立 Execution。
@@ -720,7 +690,7 @@ OpenTelemetry adapter 位于独立 sibling module `otel/agent`，从集成层依
 - Strategy 不能修改共同 Process 私有状态，只能通过 Transition 表达意图。
 - 每个正式 Definition 至少以代表性的合法 Input/ExecutionState 样本运行 `agenttest.RunDefinitionConformance`，共同验证 Descriptor 稳定、并发 Start 隔离、Snapshot/Restore 精确和 Step 规范化等价；取消、失败、边界输入与领域不变量仍由该 Strategy 自己测试。
 
-### 15.3 Retry 与副作用
+### 14.3 Retry 与副作用
 
 - 任意 Action 和 Tool 默认执行一次。
 - provider SDK 自有 retry 不在 Agent 重复实现。
@@ -729,7 +699,7 @@ OpenTelemetry adapter 位于独立 sibling module `otel/agent`，从集成层依
 - Engine 为 Effect 提供稳定身份，但不能据此宣称外部业务副作用已具备事务或幂等语义。
 - 不以“出错就再跑一次”掩盖状态所有权问题。
 
-### 15.4 验收层次
+### 14.4 验收层次
 
 - 单元测试：值对象、状态机、定义校验、策略算法。
 - contract tests：Definition/Execution、Signal/Transition/Event、Effect settlement、Planner、snapshot codec、child composition。
@@ -740,4 +710,4 @@ OpenTelemetry adapter 位于独立 sibling module `otel/agent`，从集成层依
 - architecture tests：依赖 DAG、禁止原框架实现/Host application import、策略状态和产品外部事实不进入共同 Process、Process 只能由 Engine 构造。
 - examples：每一种正式公开编排方式至少一个最小可运行示例。
 
-最终完成必须满足：Interaction、Planning 与 Workflow 都是经过真实消费者验证的 Execution；`flow` 与 Workflow 按 in-process/managed-Process 生命周期各自只有一个准确边界，不共享或复制 runtime；GOAP 真实可重规划；Anthropic 编排模式有行为测试；递归 child Process 可恢复、取消和预算限制；Framework snapshot 与 Host persistence 无交叉；Host 只消费中性合同；原实现、临时 module path 和兼容路径全部删除；仓库只保留唯一 `agent` module。
+最终合同要求：Interaction、Planning 与 Workflow 都是经过真实消费者验证的 Execution；`flow` 与 Workflow 按 in-process/managed-Process 生命周期各自只有一个准确边界，不共享或复制 runtime；GOAP 真实可重规划；Anthropic 编排模式有行为测试；递归 child Process 可恢复、取消和预算限制；Framework snapshot 与 Host persistence 无交叉；Host 只消费中性合同；仓库只保留唯一 `agent` module。

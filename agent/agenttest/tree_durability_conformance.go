@@ -33,181 +33,218 @@ func RunTreeDurabilityConformance(
 		t.Fatal("TreeDurability conformance factory is nil")
 	}
 	t.Run("effect boundaries and terminal head", func(t *testing.T) {
-		driver := factory()
-		probe := newConformanceDurabilityProbe(t, driver.TreeDurability())
-		deployment := conformanceDeployment(t, conformanceModeUnknownEffect)
-		engine, err := agent.NewEngine(agent.EngineConfig{TreeDurability: probe})
-		if err != nil {
-			t.Fatal(err)
-		}
-		input, err := deployment.Descriptor().EncodeInput(conformanceInput{Value: "committed"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		process, err := engine.Start(context.Background(), deployment, input)
-		if err != nil {
-			t.Fatal(err)
-		}
-		effectID := waitForConformanceUnknownEffect(t, process)
-		payload, err := json.Marshal(conformanceOutput{Value: "committed"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		settlement, err := agent.NewSettlement(
-			effectID, agent.SettlementStatusSucceeded, payload,
-		)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if resolveErr := process.ResolveUnknownEffect(context.Background(), settlement); resolveErr != nil {
-			t.Fatal(resolveErr)
-		}
-		result, err := process.Await(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-		head, exists, err := driver.LoadTree(context.Background(), result.ProcessID())
-		if err != nil || !exists || !head.Valid() {
-			t.Fatalf("authoritative terminal head exists=%t error=%v", exists, err)
-		}
-		root := conformanceSnapshotByID(head.ProcessSnapshots(), result.ProcessID())
-		if !root.Valid() || root.Status() != agent.StatusCompleted {
-			t.Fatalf("authoritative root status=%s", root.Status())
-		}
-		probe.assertEffectLifecycle(t)
-		if err := engine.Close(); err != nil {
-			t.Fatal(err)
-		}
+		runEffectBoundaryConformance(t, factory)
 	})
 
 	t.Run("concurrent restore fencing", func(t *testing.T) {
-		driver := factory()
-		probe := newConformanceDurabilityProbe(t, driver.TreeDurability())
-		deployment := conformanceDeployment(t, conformanceModePause)
-		originalEngine, err := agent.NewEngine(agent.EngineConfig{TreeDurability: probe})
-		if err != nil {
-			t.Fatal(err)
-		}
-		input, err := deployment.Descriptor().EncodeInput(conformanceInput{Value: "paused"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		original, err := originalEngine.Start(context.Background(), deployment, input)
-		if err != nil {
-			t.Fatal(err)
-		}
-		waitForConformanceStatus(t, original, agent.StatusPaused)
-		head := waitForConformanceHeadStatus(
-			t, driver, original.ID(), agent.StatusPaused,
-		)
-		probe.assertSingleCheckpoint(t, agent.TreeCheckpointParked)
-
-		type restoreResult struct {
-			engine  *agent.Engine
-			process *agent.Process
-			err     error
-		}
-		results := make(chan restoreResult, 2)
-		for range 2 {
-			go func() {
-				engine, engineErr := agent.NewEngine(agent.EngineConfig{TreeDurability: probe})
-				if engineErr != nil {
-					results <- restoreResult{err: engineErr}
-					return
-				}
-				process, restoreErr := engine.RestoreTree(
-					context.Background(), deployment, head,
-				)
-				results <- restoreResult{engine: engine, process: process, err: restoreErr}
-			}()
-		}
-		var winner restoreResult
-		conflicts := 0
-		for range 2 {
-			result := <-results
-			if result.err == nil {
-				winner = result
-				continue
-			}
-			if !errors.Is(result.err, agent.ErrTreeIncarnationConflict) {
-				t.Fatalf("losing restore error=%v", result.err)
-			}
-			conflicts++
-			if result.engine != nil {
-				_ = result.engine.Close()
-			}
-		}
-		if winner.process == nil || conflicts != 1 {
-			t.Fatalf("restore winner=%v conflicts=%d", winner.process != nil, conflicts)
-		}
-		if err := winner.process.Kill(context.Background(), "conformance cleanup"); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := winner.process.Await(context.Background()); err != nil {
-			t.Fatal(err)
-		}
-		if err := winner.engine.Close(); err != nil {
-			t.Fatal(err)
-		}
-		_ = original.Kill(context.Background(), "stale writer cleanup")
-		_, _ = original.Await(context.Background())
-		if err := originalEngine.Close(); err != nil {
-			t.Fatal(err)
-		}
+		runConcurrentRestoreConformance(t, factory)
 	})
 
 	t.Run("delayed commit loses to activation", func(t *testing.T) {
-		driver := factory()
-		blocking := newConformanceBlockingPendingDurability(t, driver.TreeDurability())
-		t.Cleanup(blocking.releasePending)
-		deployment := conformanceDeployment(t, conformanceModeEffect)
-		originalEngine, err := agent.NewEngine(agent.EngineConfig{TreeDurability: blocking})
-		if err != nil {
-			t.Fatal(err)
-		}
-		input, err := deployment.Descriptor().EncodeInput(conformanceInput{Value: "fenced"})
-		if err != nil {
-			t.Fatal(err)
-		}
-		original, err := originalEngine.Start(context.Background(), deployment, input)
-		if err != nil {
-			t.Fatal(err)
-		}
-		blocking.waitUntilPending(t)
-		base, exists, err := driver.LoadTree(context.Background(), original.ID())
-		if err != nil || !exists || !base.Valid() {
-			t.Fatalf("authoritative base head exists=%t error=%v", exists, err)
-		}
-
-		restoredEngine, err := agent.NewEngine(agent.EngineConfig{TreeDurability: blocking})
-		if err != nil {
-			t.Fatal(err)
-		}
-		restored, err := restoredEngine.RestoreTree(context.Background(), deployment, base)
-		if err != nil {
-			t.Fatal(err)
-		}
-		blocking.releasePending()
-		if result, awaitErr := restored.Await(context.Background()); awaitErr != nil ||
-			result.Status() != agent.StatusCompleted {
-			t.Fatalf("restored result status=%s error=%v", result.Status(), awaitErr)
-		}
-		stale, err := original.Await(context.Background())
-		if err != nil {
-			t.Fatal(err)
-		}
-		failure, failed := stale.Termination().Failure()
-		if stale.Status() != agent.StatusFailed || !failed ||
-			failure.Kind() != agent.FailureKindExternal {
-			t.Fatalf("stale writer result=%+v failure=%+v present=%t", stale, failure, failed)
-		}
-		if err := restoredEngine.Close(); err != nil {
-			t.Fatal(err)
-		}
-		if err := originalEngine.Close(); err != nil {
-			t.Fatal(err)
-		}
+		runDelayedCommitConformance(t, factory)
 	})
+}
+
+func runEffectBoundaryConformance(
+	t *testing.T,
+	factory func() TreeDurabilityConformanceDriver,
+) {
+	t.Helper()
+	driver := factory()
+	probe := newConformanceDurabilityProbe(t, driver.TreeDurability())
+	deployment := conformanceDeployment(t, conformanceModeUnknownEffect)
+	engine, err := agent.NewEngine(agent.EngineConfig{TreeDurability: probe})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := deployment.Descriptor().EncodeInput(conformanceInput{Value: "committed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	process, err := engine.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	effectID := waitForConformanceUnknownEffect(t, process)
+	payload, err := json.Marshal(conformanceOutput{Value: "committed"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	settlement, err := agent.NewSettlement(
+		effectID, agent.SettlementStatusSucceeded, payload,
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if resolveErr := process.ResolveUnknownEffect(context.Background(), settlement); resolveErr != nil {
+		t.Fatal(resolveErr)
+	}
+	result, err := process.Await(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	head, exists, err := driver.LoadTree(context.Background(), result.ProcessID())
+	if err != nil || !exists || !head.Valid() {
+		t.Fatalf("authoritative terminal head exists=%t error=%v", exists, err)
+	}
+	root := conformanceSnapshotByID(head.ProcessSnapshots(), result.ProcessID())
+	if !root.Valid() || root.Status() != agent.StatusCompleted {
+		t.Fatalf("authoritative root status=%s", root.Status())
+	}
+	probe.assertEffectLifecycle(t)
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+type conformanceRestoreResult struct {
+	engine  *agent.Engine
+	process *agent.Process
+	err     error
+}
+
+func runConcurrentRestoreConformance(
+	t *testing.T,
+	factory func() TreeDurabilityConformanceDriver,
+) {
+	t.Helper()
+	driver := factory()
+	probe := newConformanceDurabilityProbe(t, driver.TreeDurability())
+	deployment := conformanceDeployment(t, conformanceModePause)
+	originalEngine, err := agent.NewEngine(agent.EngineConfig{TreeDurability: probe})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := deployment.Descriptor().EncodeInput(conformanceInput{Value: "paused"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := originalEngine.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitForConformanceStatus(t, original, agent.StatusPaused)
+	head := waitForConformanceHeadStatus(t, driver, original.ID(), agent.StatusPaused)
+	probe.assertSingleCheckpoint(t, agent.TreeCheckpointParked)
+
+	results := make(chan conformanceRestoreResult, 2)
+	for range 2 {
+		go restoreConformanceTree(probe, deployment, head, results)
+	}
+	winner, conflicts := collectConformanceRestoreResults(t, results)
+	if winner.process == nil || conflicts != 1 {
+		t.Fatalf("restore winner=%v conflicts=%d", winner.process != nil, conflicts)
+	}
+	if err := winner.process.Kill(context.Background(), "conformance cleanup"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := winner.process.Await(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := winner.engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+	_ = original.Kill(context.Background(), "stale writer cleanup")
+	_, _ = original.Await(context.Background())
+	if err := originalEngine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func restoreConformanceTree(
+	durability agent.TreeDurability,
+	deployment agent.Deployment,
+	head agent.TreeSnapshot,
+	results chan<- conformanceRestoreResult,
+) {
+	engine, err := agent.NewEngine(agent.EngineConfig{TreeDurability: durability})
+	if err != nil {
+		results <- conformanceRestoreResult{err: err}
+		return
+	}
+	process, err := engine.RestoreTree(context.Background(), deployment, head)
+	results <- conformanceRestoreResult{engine: engine, process: process, err: err}
+}
+
+func collectConformanceRestoreResults(
+	t *testing.T,
+	results <-chan conformanceRestoreResult,
+) (conformanceRestoreResult, int) {
+	t.Helper()
+	var winner conformanceRestoreResult
+	conflicts := 0
+	for range 2 {
+		result := <-results
+		if result.err == nil {
+			winner = result
+			continue
+		}
+		if !errors.Is(result.err, agent.ErrTreeIncarnationConflict) {
+			t.Fatalf("losing restore error=%v", result.err)
+		}
+		conflicts++
+		if result.engine != nil {
+			_ = result.engine.Close()
+		}
+	}
+	return winner, conflicts
+}
+
+func runDelayedCommitConformance(
+	t *testing.T,
+	factory func() TreeDurabilityConformanceDriver,
+) {
+	t.Helper()
+	driver := factory()
+	blocking := newConformanceBlockingPendingDurability(t, driver.TreeDurability())
+	t.Cleanup(blocking.releasePending)
+	deployment := conformanceDeployment(t, conformanceModeEffect)
+	originalEngine, err := agent.NewEngine(agent.EngineConfig{TreeDurability: blocking})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, err := deployment.Descriptor().EncodeInput(conformanceInput{Value: "fenced"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	original, err := originalEngine.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocking.waitUntilPending(t)
+	base, exists, err := driver.LoadTree(context.Background(), original.ID())
+	if err != nil || !exists || !base.Valid() {
+		t.Fatalf("authoritative base head exists=%t error=%v", exists, err)
+	}
+
+	restoredEngine, err := agent.NewEngine(agent.EngineConfig{TreeDurability: blocking})
+	if err != nil {
+		t.Fatal(err)
+	}
+	restored, err := restoredEngine.RestoreTree(context.Background(), deployment, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocking.releasePending()
+	if result, awaitErr := restored.Await(context.Background()); awaitErr != nil ||
+		result.Status() != agent.StatusCompleted {
+		t.Fatalf("restored result status=%s error=%v", result.Status(), awaitErr)
+	}
+	stale, err := original.Await(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	failure, failed := stale.Termination().Failure()
+	if stale.Status() != agent.StatusFailed || !failed ||
+		failure.Kind() != agent.FailureKindExternal {
+		t.Fatalf("stale writer result=%+v failure=%+v present=%t", stale, failure, failed)
+	}
+	if err := restoredEngine.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := originalEngine.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
 
 type conformanceDurabilityProbe struct {

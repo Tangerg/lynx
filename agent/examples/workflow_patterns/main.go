@@ -156,7 +156,46 @@ func execute(
 }
 
 func newWorkflowPatterns() (agent.Deployment, deploymentResolver, error) {
-	normalizer, err := transformDeployment(
+	children, err := newPatternChildren()
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	budget, err := agent.NewBudget(
+		patternChildBudgetSteps,
+		patternChildBudgetEffects,
+		patternChildBudgetSignals,
+	)
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	stages, err := newPatternStages(children, budget)
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	root, err := newPatternRoot(stages, children.deployments(), budget)
+	if err != nil {
+		return agent.Deployment{}, nil, err
+	}
+	return root, children.resolver(), nil
+}
+
+type patternChildren struct {
+	normalizer    agent.Deployment
+	summarizer    agent.Deployment
+	urgent        agent.Deployment
+	standard      agent.Deployment
+	facts         agent.Deployment
+	risks         agent.Deployment
+	approveFirst  agent.Deployment
+	rejectFirst   agent.Deployment
+	rejectSecond  agent.Deployment
+	approveSecond agent.Deployment
+}
+
+func newPatternChildren() (patternChildren, error) {
+	var children patternChildren
+	var err error
+	children.normalizer, err = transformDeployment(
 		"example.workflow_patterns.normalize",
 		"Normalize one request for the following prompt-chain stage.",
 		struct{}{},
@@ -169,9 +208,9 @@ func newWorkflowPatterns() (agent.Deployment, deploymentResolver, error) {
 		},
 	)
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return patternChildren{}, err
 	}
-	summarizer, err := transformDeployment(
+	children.summarizer, err = transformDeployment(
 		"example.workflow_patterns.summarize",
 		"Summarize the normalized result from the previous prompt-chain stage.",
 		struct{}{},
@@ -184,60 +223,55 @@ func newWorkflowPatterns() (agent.Deployment, deploymentResolver, error) {
 		},
 	)
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return patternChildren{}, err
 	}
-	urgent, err := routeDeployment("urgent")
+	children.urgent, err = routeDeployment("urgent")
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return patternChildren{}, err
 	}
-	standard, err := routeDeployment("standard")
+	children.standard, err = routeDeployment("standard")
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return patternChildren{}, err
 	}
-	facts, err := findingDeployment("facts")
+	children.facts, err = findingDeployment("facts")
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return patternChildren{}, err
 	}
-	risks, err := findingDeployment("risks")
+	children.risks, err = findingDeployment("risks")
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return patternChildren{}, err
 	}
-	approveFirst, err := ballotDeployment("approve_first", "approve")
+	children.approveFirst, err = ballotDeployment("approve_first", "approve")
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return patternChildren{}, err
 	}
-	rejectFirst, err := ballotDeployment("reject_first", "reject")
+	children.rejectFirst, err = ballotDeployment("reject_first", "reject")
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return patternChildren{}, err
 	}
-	rejectSecond, err := ballotDeployment("reject_second", "reject")
+	children.rejectSecond, err = ballotDeployment("reject_second", "reject")
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return patternChildren{}, err
 	}
-	approveSecond, err := ballotDeployment("approve_second", "approve")
+	children.approveSecond, err = ballotDeployment("approve_second", "approve")
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return patternChildren{}, err
 	}
-	budget, err := agent.NewBudget(
-		patternChildBudgetSteps,
-		patternChildBudgetEffects,
-		patternChildBudgetSignals,
-	)
-	if err != nil {
-		return agent.Deployment{}, nil, err
-	}
+	return children, nil
+}
 
+func newPatternStages(children patternChildren, budget agent.Budget) ([]workflow.Stage, error) {
 	normalize, err := workflow.Call(workflow.CallConfig{
-		ID: "normalize", Deployment: normalizer, Budget: budget,
+		ID: "normalize", Deployment: children.normalizer, Budget: budget,
 	})
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return nil, err
 	}
 	summarize, err := workflow.Call(workflow.CallConfig{
-		ID: "summarize", Deployment: summarizer, Budget: budget,
+		ID: "summarize", Deployment: children.summarizer, Budget: budget,
 	})
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return nil, err
 	}
 	route, err := workflow.Switch(workflow.SwitchConfig[chainState]{
 		ID: "route",
@@ -251,18 +285,18 @@ func newWorkflowPatterns() (agent.Deployment, deploymentResolver, error) {
 			return standardRouteID, nil
 		},
 		Cases: []workflow.SwitchCase{
-			{ID: urgentRouteID, Deployment: urgent, Budget: budget},
-			{ID: standardRouteID, Deployment: standard, Budget: budget},
+			{ID: urgentRouteID, Deployment: children.urgent, Budget: budget},
+			{ID: standardRouteID, Deployment: children.standard, Budget: budget},
 		},
 	})
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return nil, err
 	}
 	section, err := workflow.Fork(workflow.ForkConfig[routedState, finding, findingBundle]{
 		ID: "section",
 		Branches: []workflow.ForkBranch{
-			{ID: "facts", Deployment: facts, Budget: budget},
-			{ID: "risks", Deployment: risks, Budget: budget},
+			{ID: "facts", Deployment: children.facts, Budget: budget},
+			{ID: "risks", Deployment: children.risks, Budget: budget},
 		},
 		WindowSize: sectionWindowSize,
 		Reduce: func(findings []finding) (findingBundle, error) {
@@ -277,33 +311,37 @@ func newWorkflowPatterns() (agent.Deployment, deploymentResolver, error) {
 		},
 	})
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return nil, err
 	}
 	vote, err := workflow.Fork(workflow.ForkConfig[findingBundle, ballot, patternReport]{
 		ID: "vote",
 		Branches: []workflow.ForkBranch{
-			{ID: "approve_first", Deployment: approveFirst, Budget: budget},
-			{ID: "reject_first", Deployment: rejectFirst, Budget: budget},
-			{ID: "reject_second", Deployment: rejectSecond, Budget: budget},
-			{ID: "approve_second", Deployment: approveSecond, Budget: budget},
+			{ID: "approve_first", Deployment: children.approveFirst, Budget: budget},
+			{ID: "reject_first", Deployment: children.rejectFirst, Budget: budget},
+			{ID: "reject_second", Deployment: children.rejectSecond, Budget: budget},
+			{ID: "approve_second", Deployment: children.approveSecond, Budget: budget},
 		},
 		WindowSize: voteWindowSize,
 		Reduce:     reduceBallots,
 	})
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return nil, err
 	}
+	return []workflow.Stage{normalize, summarize, route, section, vote}, nil
+}
+
+func newPatternRoot(
+	stages []workflow.Stage,
+	children []agent.Deployment,
+	budget agent.Budget,
+) (agent.Deployment, error) {
 	definition, err := workflow.NewDefinition(workflow.DefinitionConfig{
 		Name:        "example.workflow_patterns",
 		Description: "Chain, route, section, and vote through exact managed child Processes.",
-		Stages:      []workflow.Stage{normalize, summarize, route, section, vote},
+		Stages:      stages,
 	})
 	if err != nil {
-		return agent.Deployment{}, nil, err
-	}
-	children := []agent.Deployment{
-		normalizer, summarizer, urgent, standard, facts, risks,
-		approveFirst, rejectFirst, rejectSecond, approveSecond,
+		return agent.Deployment{}, err
 	}
 	configuration := struct {
 		Children      []string     `json:"children"`
@@ -311,14 +349,12 @@ func newWorkflowPatterns() (agent.Deployment, deploymentResolver, error) {
 		SectionWindow uint32       `json:"section_window"`
 		VoteWindow    uint32       `json:"vote_window"`
 	}{Budget: budget, SectionWindow: sectionWindowSize, VoteWindow: voteWindowSize}
-	resolver := make(deploymentResolver, len(children))
 	for _, child := range children {
 		configuration.Children = append(configuration.Children, child.DeploymentRef().Digest().String())
-		resolver[child.DeploymentRef()] = child
 	}
 	configurationJSON, err := json.Marshal(configuration)
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return agent.Deployment{}, err
 	}
 	root, err := agent.NewDeployment(agent.DeploymentConfig{
 		Definition: definition, Dispatcher: workflow.Dispatcher{},
@@ -326,9 +362,25 @@ func newWorkflowPatterns() (agent.Deployment, deploymentResolver, error) {
 		ConfigurationDigest:  agent.ComputeDigest(configurationJSON),
 	})
 	if err != nil {
-		return agent.Deployment{}, nil, err
+		return agent.Deployment{}, err
 	}
-	return root, resolver, nil
+	return root, nil
+}
+
+func (p patternChildren) deployments() []agent.Deployment {
+	return []agent.Deployment{
+		p.normalizer, p.summarizer, p.urgent, p.standard, p.facts, p.risks,
+		p.approveFirst, p.rejectFirst, p.rejectSecond, p.approveSecond,
+	}
+}
+
+func (p patternChildren) resolver() deploymentResolver {
+	children := p.deployments()
+	resolver := make(deploymentResolver, len(children))
+	for _, child := range children {
+		resolver[child.DeploymentRef()] = child
+	}
+	return resolver
 }
 
 func routeDeployment(route string) (agent.Deployment, error) {
