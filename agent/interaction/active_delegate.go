@@ -49,7 +49,7 @@ func (a ActiveDelegateChild) Valid() bool {
 // A valid snapshot without an active Interaction Delegate segment returns
 // found=false. Returned children preserve model ToolCall order.
 func ActiveDelegateChildrenFromSnapshot(
-	snapshot agent.Snapshot,
+	snapshot agent.ProcessSnapshot,
 ) (children []ActiveDelegateChild, found bool, err error) {
 	if !snapshot.Valid() {
 		return nil, false, fmt.Errorf("%w: invalid Process snapshot", ErrInvalidExecutionState)

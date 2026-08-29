@@ -19,7 +19,7 @@ const (
 )
 
 // Limits bounds Framework-owned execution growth. Zero-valued fields in
-// EngineConfig inherit DefaultLimits; Snapshot stores effective non-zero values
+// EngineConfig inherit DefaultLimits; ProcessSnapshot stores effective non-zero values
 // so restoration preserves the same execution contract.
 type Limits struct {
 	// MaxSteps bounds committed Steps.

@@ -12,23 +12,25 @@ import (
 )
 
 const (
-	treeSnapshotSchemaVersion = 4
+	treeSnapshotSchemaVersion = 5
 	maxTreeSnapshotBytes      = 512 << 20
 )
 
 var (
-	ErrInvalidTreeSnapshot  = errors.New("agent: invalid process tree snapshot")
-	ErrTreeSnapshotRequired = errors.New("agent: process belongs to a tree; use a tree snapshot")
+	ErrInvalidTreeSnapshot = errors.New("agent: invalid process tree snapshot")
 )
 
 // TreeSnapshot is an immutable, portable capture of one complete Process tree.
-// It owns only Framework execution facts: per-Process snapshots and active
-// direct-child waits. Persistence, transactions, revisions, and cleanup policy
-// remain Host responsibilities.
+// It owns Framework execution facts, a canonical content digest, and the
+// optional active-writer identity of durable state. Persistence, transactions,
+// revisions, and cleanup policy remain Host responsibilities.
 type TreeSnapshot struct {
-	data      json.RawMessage
-	rootID    ProcessID
-	processes []Snapshot
+	data           json.RawMessage
+	digest         Digest
+	rootID         ProcessID
+	incarnationID  TreeIncarnationID
+	hasIncarnation bool
+	processes      []ProcessSnapshot
 }
 
 // ParseTreeSnapshot strictly validates one complete Process tree snapshot.
@@ -55,8 +57,11 @@ func ParseTreeSnapshot(data json.RawMessage) (TreeSnapshot, error) {
 			"%w: exceeds %d bytes", ErrInvalidTreeSnapshot, maxTreeSnapshotBytes,
 		)
 	}
+	incarnationID, hasIncarnation := treeSnapshotIncarnation(wire.IncarnationID)
 	return TreeSnapshot{
-		data: normalized, rootID: wire.RootID, processes: slices.Clone(wire.ProcessSnapshots),
+		data: normalized, digest: ComputeDigest(normalized), rootID: wire.RootID,
+		incarnationID: incarnationID, hasIncarnation: hasIncarnation,
+		processes: slices.Clone(wire.ProcessSnapshots),
 	}, nil
 }
 
@@ -74,13 +79,23 @@ func (t TreeSnapshot) JSON() json.RawMessage { return bytes.Clone(t.data) }
 // RootID returns the identity of the tree's root Process.
 func (t TreeSnapshot) RootID() ProcessID { return t.rootID }
 
+// Digest returns the canonical content identity of this complete tree state.
+func (t TreeSnapshot) Digest() Digest { return t.digest }
+
+// IncarnationID returns the active writer identity carried by a durable tree.
+// Ephemeral snapshots return false.
+func (t TreeSnapshot) IncarnationID() (TreeIncarnationID, bool) {
+	return t.incarnationID, t.hasIncarnation
+}
+
 // ProcessSnapshots returns immutable captures ordered by depth and ProcessID.
-func (t TreeSnapshot) ProcessSnapshots() []Snapshot {
+func (t TreeSnapshot) ProcessSnapshots() []ProcessSnapshot {
 	return slices.Clone(t.processes)
 }
 
 func (t TreeSnapshot) Valid() bool {
-	return len(t.data) > 0 && t.rootID.Valid() && len(t.processes) > 0
+	return len(t.data) > 0 && t.digest.Valid() && t.rootID.Valid() &&
+		(!t.hasIncarnation || t.incarnationID.Valid()) && len(t.processes) > 0
 }
 
 func (t TreeSnapshot) MarshalJSON() ([]byte, error) {
@@ -122,8 +137,16 @@ type childWaitSnapshotWire struct {
 type treeSnapshotWire struct {
 	SchemaVersion    uint16                  `json:"schema_version"`
 	RootID           ProcessID               `json:"root_id"`
-	ProcessSnapshots []Snapshot              `json:"process_snapshots"`
+	IncarnationID    *TreeIncarnationID      `json:"incarnation_id,omitempty"`
+	ProcessSnapshots []ProcessSnapshot       `json:"process_snapshots"`
 	ChildWaits       []childWaitSnapshotWire `json:"child_waits,omitempty"`
+}
+
+func treeSnapshotIncarnation(value *TreeIncarnationID) (TreeIncarnationID, bool) {
+	if value == nil {
+		return TreeIncarnationID{}, false
+	}
+	return *value, true
 }
 
 func normalizeTreeSnapshot(wire *treeSnapshotWire) {
@@ -133,7 +156,7 @@ func normalizeTreeSnapshot(wire *treeSnapshotWire) {
 	})
 }
 
-func compareSnapshots(left, right Snapshot) int {
+func compareSnapshots(left, right ProcessSnapshot) int {
 	if order := cmp.Compare(left.Relation().Depth(), right.Relation().Depth()); order != 0 {
 		return order
 	}
@@ -165,7 +188,8 @@ type treeSnapshotValidation struct {
 }
 
 func newTreeSnapshotValidation(wire treeSnapshotWire) (*treeSnapshotValidation, error) {
-	if wire.SchemaVersion != treeSnapshotSchemaVersion || !wire.RootID.Valid() || len(wire.ProcessSnapshots) == 0 {
+	if wire.SchemaVersion != treeSnapshotSchemaVersion || !wire.RootID.Valid() ||
+		wire.IncarnationID != nil && !wire.IncarnationID.Valid() || len(wire.ProcessSnapshots) == 0 {
 		return nil, fmt.Errorf("%w: incomplete tree identity", ErrInvalidTreeSnapshot)
 	}
 	processes := make(map[ProcessID]processSnapshotWire, len(wire.ProcessSnapshots))
@@ -289,15 +313,6 @@ func findWaitRecord(mailbox mailboxWire, id WaitID) (waitRecordWire, bool) {
 		}
 	}
 	return waitRecordWire{}, false
-}
-
-func hasOpenChildWait(mailbox mailboxWire) bool {
-	for _, record := range mailbox.Waits {
-		if !record.ExternallyAddressable && !record.Closed {
-			return true
-		}
-	}
-	return false
 }
 
 // CaptureTree quiesces one complete Engine-owned tree at Strategy-safe
@@ -472,7 +487,7 @@ func (t *treeRuntime) finishedTreeFreeze() (*treeFreeze, TreeSnapshot, error, bo
 }
 
 type restoredTreeProcess struct {
-	snapshot   Snapshot
+	snapshot   ProcessSnapshot
 	controller *processController
 	loop       *processState
 	wire       processSnapshotWire
@@ -675,13 +690,13 @@ func (e *Engine) registerRestoredTree(
 	return nil
 }
 
-func snapshotByID(snapshots []Snapshot, id ProcessID) Snapshot {
+func snapshotByID(snapshots []ProcessSnapshot, id ProcessID) ProcessSnapshot {
 	for _, snapshot := range snapshots {
 		if snapshot.ProcessID() == id {
 			return snapshot
 		}
 	}
-	return Snapshot{}
+	return ProcessSnapshot{}
 }
 
 func restoredProcessByID(processes []restoredTreeProcess, id ProcessID) restoredTreeProcess {

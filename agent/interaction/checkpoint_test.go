@@ -50,7 +50,11 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	if err != nil || !found || livePending.WaitID() != waitID {
 		t.Fatalf("PendingToolInputFromProcess found = %t, WaitID = %s, error = %v", found, livePending.WaitID().String(), err)
 	}
-	snapshot, err := process.Capture(context.Background())
+	snapshot, err := process.Snapshot(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	tree, err := firstEngine.CaptureTree(context.Background(), process.ID())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +79,7 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restored, err := restoredEngine.Restore(context.Background(), deployment, snapshot)
+	restored, err := restoredEngine.RestoreTree(context.Background(), deployment, tree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -152,68 +156,6 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	}
 	if accepted, err := restored.DeliverSignal(context.Background(), stale); accepted || !errors.Is(err, agent.ErrProcessFinished) {
 		t.Fatalf("stale delivery accepted = %t, error = %v", accepted, err)
-	}
-}
-
-func TestPreparedToolEffectIsNotRetriedAfterRestore(t *testing.T) {
-	blocking := newBlockingTool()
-	t.Cleanup(blocking.Release)
-	model := &singleToolCallModel{call: chat.ToolCall{ID: "call_block", Name: "block", Arguments: `{}`}}
-	deployment := newDeployment(t, model, []tool.Tool{blocking}, 3)
-	firstEngine, err := agent.NewEngine(agent.EngineConfig{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	process, err := firstEngine.Start(context.Background(), deployment, interactionInput(t, "block"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	<-blocking.started
-	snapshot, err := process.Capture(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	restoredEngine, err := agent.NewEngine(agent.EngineConfig{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	restored, err := restoredEngine.Restore(context.Background(), deployment, snapshot)
-	if err != nil {
-		t.Fatal(err)
-	}
-	unknown, err := restored.UnknownEffectIDs(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(unknown) != 1 {
-		t.Fatalf("unknown EffectIDs = %v, want one", unknown)
-	}
-	if blocking.calls.Load() != 1 {
-		t.Fatalf("tool calls after restore = %d, want 1", blocking.calls.Load())
-	}
-	if err := restored.Kill(context.Background(), "unknown side effect requires caller decision"); err != nil {
-		t.Fatal(err)
-	}
-	if _, err := restored.Await(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if err := restoredEngine.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	if err := process.Kill(context.Background(), "finish original blocked Process"); err != nil {
-		t.Fatal(err)
-	}
-	blocking.Release()
-	if _, err := process.Await(context.Background()); err != nil {
-		t.Fatal(err)
-	}
-	if err := firstEngine.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if blocking.calls.Load() != 1 {
-		t.Fatalf("final tool calls = %d, want 1", blocking.calls.Load())
 	}
 }
 
@@ -303,43 +245,12 @@ func (c *checkpointModel) Calls() int {
 	return c.calls
 }
 
-type blockingTool struct {
-	started     chan struct{}
-	release     chan struct{}
-	startedOnce sync.Once
-	releaseOnce sync.Once
-	calls       atomic.Int32
-}
-
-func newBlockingTool() *blockingTool {
-	return &blockingTool{started: make(chan struct{}), release: make(chan struct{})}
-}
-
-func (*blockingTool) Definition() chat.ToolDefinition {
-	return chat.ToolDefinition{
-		Name:        "block",
-		Description: "Block until the test releases the external operation.",
-		InputSchema: json.RawMessage(`{"type":"object","additionalProperties":false}`),
-	}
-}
-
-func (b *blockingTool) Call(context.Context, string) (string, error) {
-	b.calls.Add(1)
-	b.startedOnce.Do(func() { close(b.started) })
-	<-b.release
-	return "released", nil
-}
-
-func (b *blockingTool) Release() {
-	b.releaseOnce.Do(func() { close(b.release) })
-}
-
 func waitForStatus(t *testing.T, process *agent.Process, want agent.Status) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 	defer cancel()
 	for {
-		snapshot, err := process.Capture(ctx)
+		snapshot, err := process.Snapshot(ctx)
 		if err != nil {
 			t.Fatalf("capture Process while waiting for %s: %v", want, err)
 		}

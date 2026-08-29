@@ -123,7 +123,8 @@ Scope 最早从 Embabel Agent 移植并发展出以 GOAP、Goal、Action、Condi
 | `Tool` | 暴露给模型选择和调用的 JSON/Schema 能力 | 所有 Action |
 | `Delegate` | 以模型可理解的 Tool 合同暴露一个 exact child Deployment 的 Interaction 组合值 | 通用 Action、Platform 路由、Dispatcher 私自启动 Process |
 | `Child Process` | 由另一个 Process 启动的普通 Process | 独立的 `SubAgent` 类型 |
-| `Snapshot` | 可移植的执行状态捕获 | Store、事务或审计日志 |
+| `ProcessSnapshot` | 单 Process 的不可变诊断与 Strategy inspector value | 恢复单位、Store 或事务 |
+| `TreeSnapshot` | 完整 root tree 的 canonical 恢复状态与可选 durable writer identity | Host Store、事务或产品记录 |
 | `Waiting` | 正在等待已声明的外部条件 | 人工暂停 |
 | `Paused` | 由操作者或策略明确停止调度、等待继续 | 子任务尚未完成 |
 
@@ -600,7 +601,7 @@ Host 负责 Store、transaction、CAS、lease、幂等、retention、产品身�
 - `ProcessSnapshot` 只用于诊断、Strategy inspector、Event/debug tooling 和测试，不是恢复输入；完整 `TreeSnapshot` 是唯一恢复单位，禁止把 child 当新 root 或只恢复父级。
 - `TreeSnapshot` 严格保存每个 Process snapshot、Engine-owned 活动 direct-child wait、planned/pending/settled Effect phase 与完整 tree program counter，不保存 dispatcher、resolver 或 Host persistence 对象。每棵树的 owner line直接形成 canonical snapshot；in-flight Step/Dispatch job 不进入 snapshot，只保留 last-stable state与已提交 Effect phase。
 - tree restore 先校验 root/parent/depth/ChildKey、预算总和、能力衰减、tree limits、活动 child wait 和每个精确 DeploymentRef，再原子注册完整树；任一校验或解析失败不得留下部分 Process。
-- 等待子树取消是 Kernel 自有的一次性 prepared capability：`PrepareWaitingSubtreeCancellation` 在完整 tree quiescent cut 上冻结 source root tree，计算确定的 resulting TreeSnapshot、parent-before-child 的 canceled Process IDs 和需要显式继续的 paused parent IDs，并返回 `PreparedWaitingSubtreeCancellation`。该 capability 必须且只能以 `Apply` 或 `Discard` 结束；在结束前同一 root tree 不能越过冻结边界，因而不存在 source digest、stale plan 或第二次重算。
+- 等待子树取消是 Kernel 自有的一次性 prepared capability：`PrepareWaitingSubtreeCancellation` 在完整 tree quiescent cut 上冻结 source root tree，记录 acknowledged `SourceTreeDigest`，计算确定的 resulting TreeSnapshot、parent-before-child 的 canceled Process IDs 和需要显式继续的 paused parent IDs，并返回 `PreparedWaitingSubtreeCancellation`。该 capability 必须且只能以 `Apply` 或 `Discard` 结束；在结束前同一 root tree 不能越过冻结边界，也不能从第二份状态重算结果。
 - prepared 结果保留被取消 Process 及永久 child budget allocation，以 host-canceled target、parent-canceled active descendants、已关闭等待和 Kernel-owned child-completion Signal 表达事实；直接父级在消费完成 Signal 前进入 Paused。所有可失败、可取消的 Process projection staging 都在 Prepare 返回 capability 前完成；失败会释放 source tree且 live state 不变。返回后的 contextless `Apply()` 只跨越单一 apply gate并完成既有 finalization，caller 不能用请求取消撤销已经形成的 durable decision；`Discard` 只释放 source tree。两者都保留既有 Process handle，不替换 controller，不解析或修改 opaque ExecutionState，也不引入 persistence、transaction、checkpoint、lease 或产品删除模型。
 - Process admission 与其 conclusive start outcome 只属于首次 root/child start；restore 不重复调用 admitter/acknowledger，也不把 live policy 或 outcome 写入共同 snapshot。Host 若不允许恢复，必须在调用恢复前拒绝或显式终止已恢复 Process。
 - durable mode 由闭合 `TreeDurability` port 驱动：root/child start outcome、Effect pending/settled/resolved、Parked/Terminal checkpoint 和 restore activation 都提交完整 prospective TreeSnapshot。Host callback 必须以 previous digest/current incarnation 做原子 CAS，但该合同不得演变为 Framework Store/transaction SPI。

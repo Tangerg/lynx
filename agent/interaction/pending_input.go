@@ -66,7 +66,7 @@ func PendingToolInputFromProcess(
 	if process == nil {
 		return PendingToolInput{}, false, ErrInvalidPendingToolInput
 	}
-	snapshot, err := process.Capture(ctx)
+	snapshot, err := process.Snapshot(ctx)
 	if err != nil {
 		return PendingToolInput{}, false, err
 	}
@@ -75,7 +75,7 @@ func PendingToolInputFromProcess(
 
 // PendingToolInputFromSnapshot interprets only Interaction-owned state. A
 // valid non-Waiting or non-Interaction snapshot returns found=false.
-func PendingToolInputFromSnapshot(snapshot agent.Snapshot) (PendingToolInput, bool, error) {
+func PendingToolInputFromSnapshot(snapshot agent.ProcessSnapshot) (PendingToolInput, bool, error) {
 	if !snapshot.Valid() {
 		return PendingToolInput{}, false, ErrInvalidPendingToolInput
 	}

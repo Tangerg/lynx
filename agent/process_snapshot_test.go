@@ -20,7 +20,7 @@ func TestSnapshotStrictlyRejectsUnknownFields(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ParseSnapshot(data); err == nil {
+	if _, err := ParseProcessSnapshot(data); err == nil {
 		t.Fatal("ParseSnapshot accepted an unknown application field")
 	}
 }
@@ -36,7 +36,7 @@ func TestSnapshotRejectsPriorSchemaVersion(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ParseSnapshot(data); !errors.Is(err, ErrInvalidSnapshot) {
+	if _, err := ParseProcessSnapshot(data); !errors.Is(err, ErrInvalidSnapshot) {
 		t.Fatalf("prior schema error = %v, want ErrInvalidSnapshot", err)
 	}
 }
@@ -55,7 +55,7 @@ func TestSnapshotRejectsAcceptedSignalCountThatDisagreesWithMailbox(t *testing.T
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ParseSnapshot(data); !errors.Is(err, ErrInvalidSnapshot) {
+	if _, err := ParseProcessSnapshot(data); !errors.Is(err, ErrInvalidSnapshot) {
 		t.Fatalf("accepted Signal mismatch error = %v, want ErrInvalidSnapshot", err)
 	}
 }
@@ -79,8 +79,67 @@ func TestSnapshotRejectsPreparedStepSequenceOverflow(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := ParseSnapshot(data); !errors.Is(err, ErrInvalidSnapshot) {
+	if _, err := ParseProcessSnapshot(data); !errors.Is(err, ErrInvalidSnapshot) {
 		t.Fatalf("prepared Step overflow error = %v, want ErrInvalidSnapshot", err)
+	}
+}
+
+func TestPreparedEffectPhaseOwnsMonotonicTransitions(t *testing.T) {
+	snapshot := preparedEngineTestSnapshot(t)
+	wire, err := snapshot.wire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := &wire.Prepared.Effects[0]
+	if record.Phase != effectPhasePlanned {
+		t.Fatalf("initial phase = %s, want %s", record.Phase, effectPhasePlanned)
+	}
+	if err := record.begin(); err != nil || record.Phase != effectPhasePending {
+		t.Fatalf("begin phase = %s, error = %v", record.Phase, err)
+	}
+	settlement, err := NewSettlement(record.ID, SettlementStatusUnknown, json.RawMessage(`null`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := record.settle(settlement); err != nil || !record.unknown() {
+		t.Fatalf("settle phase = %s, unknown = %t, error = %v", record.Phase, record.unknown(), err)
+	}
+	definite, err := NewSettlement(record.ID, SettlementStatusSucceeded, json.RawMessage(`{"ok":true}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := record.resolveUnknown(definite); err != nil || !record.definitelySettled() {
+		t.Fatalf("resolve phase = %s, definite = %t, error = %v", record.Phase, record.definitelySettled(), err)
+	}
+	if err := record.begin(); err == nil {
+		t.Fatal("settled Effect moved backward to pending")
+	}
+}
+
+func TestPreparedEffectPhaseAndSettlementMustAgree(t *testing.T) {
+	snapshot := preparedEngineTestSnapshot(t)
+	wire, err := snapshot.wire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	record := &wire.Prepared.Effects[0]
+	record.Phase = effectPhaseSettled
+	data, err := json.Marshal(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ParseProcessSnapshot(data); !errors.Is(err, ErrInvalidSnapshot) {
+		t.Fatalf("phase/settlement mismatch error = %v, want ErrInvalidSnapshot", err)
+	}
+}
+
+func TestPreparedEffectOrderRejectsMultiplePendingEffects(t *testing.T) {
+	effects := []preparedEffectWire{
+		{Phase: effectPhasePending},
+		{Phase: effectPhasePending},
+	}
+	if err := validatePreparedEffectOrder(effects); err == nil {
+		t.Fatal("prepared batch accepted multiple pending Effects")
 	}
 }
 
@@ -88,7 +147,7 @@ func FuzzSnapshotJSONRoundTrip(f *testing.F) {
 	snapshot := completedEngineTestSnapshot(f)
 	f.Add([]byte(snapshot.JSON()))
 	f.Fuzz(func(t *testing.T, data []byte) {
-		parsed, err := ParseSnapshot(data)
+		parsed, err := ParseProcessSnapshot(data)
 		if err != nil {
 			return
 		}
@@ -96,7 +155,7 @@ func FuzzSnapshotJSONRoundTrip(f *testing.F) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		reparsed, err := ParseSnapshot(encoded)
+		reparsed, err := ParseProcessSnapshot(encoded)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -106,7 +165,7 @@ func FuzzSnapshotJSONRoundTrip(f *testing.F) {
 	})
 }
 
-func completedEngineTestSnapshot(t testing.TB) Snapshot {
+func completedEngineTestSnapshot(t testing.TB) ProcessSnapshot {
 	t.Helper()
 	definition := newEngineTestDefinition(t, "engine.effect", "effect")
 	deployment := engineTestDeployment(t, definition, &engineTestDispatcher{policy: ReplayPolicyNever})
@@ -126,7 +185,7 @@ func completedEngineTestSnapshot(t testing.TB) Snapshot {
 	if err != nil || result.Status() != StatusCompleted {
 		t.Fatalf("result=%+v err=%v", result, err)
 	}
-	snapshot, err := process.Capture(context.Background())
+	snapshot, err := process.Snapshot(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,7 +195,7 @@ func completedEngineTestSnapshot(t testing.TB) Snapshot {
 	return snapshot
 }
 
-func preparedEngineTestSnapshot(t testing.TB) Snapshot {
+func preparedEngineTestSnapshot(t testing.TB) ProcessSnapshot {
 	t.Helper()
 	acknowledger := &engineTestAcknowledger{}
 	definition := newEngineTestDefinition(t, "engine.effect", "effect")

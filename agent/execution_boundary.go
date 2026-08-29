@@ -132,7 +132,7 @@ func processInitializationFailure(kind FailureKind, code string, cause error) Fa
 func acknowledgePreparedStep(
 	ctx context.Context,
 	acknowledger PreparedStepAcknowledger,
-	snapshot Snapshot,
+	snapshot ProcessSnapshot,
 ) (err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {

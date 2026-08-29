@@ -165,25 +165,25 @@ func (p *Process) Kill(ctx context.Context, reason string) error {
 	return err
 }
 
-// ResolveEffect supplies a definite result after an Effect attempt became
+// ResolveUnknownEffect supplies a definite result after an Effect attempt became
 // unknown. The Engine never converts unknown into retry or success implicitly.
-func (p *Process) ResolveEffect(ctx context.Context, settlement Settlement) error {
-	_, err := p.request(ctx, processCommand{kind: commandResolveEffect, settlement: settlement})
+func (p *Process) ResolveUnknownEffect(ctx context.Context, settlement Settlement) error {
+	_, err := p.request(ctx, processCommand{kind: commandResolveUnknownEffect, settlement: settlement})
 	return err
 }
 
 // UnknownEffectIDs returns stable identities whose external outcome requires an
-// explicit ResolveEffect decision. Payloads remain owned by the Dispatcher.
+// explicit ResolveUnknownEffect decision. Payloads remain owned by the Dispatcher.
 func (p *Process) UnknownEffectIDs(ctx context.Context) ([]EffectID, error) {
 	response, err := p.request(ctx, processCommand{kind: commandQueryUnknownEffectIDs})
 	return response.unknownEffectIDs, err
 }
 
-// Capture returns a consistent last-stable or prepared-step snapshot. Capture
+// Snapshot returns a consistent last-stable or prepared-step snapshot. Snapshot
 // does not imply that the caller persisted it durably.
-func (p *Process) Capture(ctx context.Context) (Snapshot, error) {
+func (p *Process) Snapshot(ctx context.Context) (ProcessSnapshot, error) {
 	if p == nil || p.controller == nil {
-		return Snapshot{}, ErrProcessNotRunning
+		return ProcessSnapshot{}, ErrProcessNotRunning
 	}
 	if snapshot, ok, err := p.controller.finishedSnapshot(); ok {
 		return snapshot, err
@@ -298,7 +298,7 @@ type processController struct {
 	viewWaitID          WaitID
 	viewUsage           Usage
 	result              Result
-	terminalSnapshot    Snapshot
+	terminalSnapshot    ProcessSnapshot
 	terminalSnapshotErr error
 }
 
@@ -361,7 +361,7 @@ func (p *processController) updateView(status Status, waitID WaitID, usage Usage
 	p.viewMu.Unlock()
 }
 
-func (p *processController) complete(result Result, snapshot Snapshot, captureErr error) {
+func (p *processController) complete(result Result, snapshot ProcessSnapshot, captureErr error) {
 	p.viewMu.Lock()
 	p.viewStatus = result.Status()
 	p.viewWaitID = WaitID{}
@@ -381,14 +381,14 @@ func (p *processController) terminalResult() Result {
 	return p.result
 }
 
-func (p *processController) finishedSnapshot() (Snapshot, bool, error) {
+func (p *processController) finishedSnapshot() (ProcessSnapshot, bool, error) {
 	select {
 	case <-p.done:
 		p.viewMu.RLock()
 		defer p.viewMu.RUnlock()
 		return p.terminalSnapshot, true, p.terminalSnapshotErr
 	default:
-		return Snapshot{}, false, nil
+		return ProcessSnapshot{}, false, nil
 	}
 }
 
@@ -402,7 +402,7 @@ const (
 	commandResume
 	commandCancel
 	commandKill
-	commandResolveEffect
+	commandResolveUnknownEffect
 	commandQueryUnknownEffectIDs
 	commandCapture
 	commandHostTerminated
@@ -421,7 +421,7 @@ type processCommand struct {
 
 type processResponse struct {
 	accepted         bool
-	snapshot         Snapshot
+	snapshot         ProcessSnapshot
 	unknownEffectIDs []EffectID
 	err              error
 }

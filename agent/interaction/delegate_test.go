@@ -221,7 +221,7 @@ func TestWaitingManagedDelegateTreeRestoresWithoutRestartingChild(t *testing.T) 
 		t.Fatal(err)
 	}
 	tree, childID := awaitWaitingDelegateTree(t, engine, root.ID())
-	var rootSnapshot agent.Snapshot
+	var rootSnapshot agent.ProcessSnapshot
 	for _, snapshot := range tree.ProcessSnapshots() {
 		if snapshot.Relation().IsRoot() {
 			rootSnapshot = snapshot

@@ -9,13 +9,13 @@ import (
 )
 
 // PreparedStepRecorder is a concurrency-safe durability-boundary fixture. Each
-// acknowledgment records its Snapshot and consumes one configured result;
+// acknowledgment records its ProcessSnapshot and consumes one configured result;
 // calls after the script is exhausted succeed. Its zero value is ready for use.
 type PreparedStepRecorder struct {
 	mu        sync.Mutex
 	results   []error
 	next      int
-	snapshots []agent.Snapshot
+	snapshots []agent.ProcessSnapshot
 }
 
 func NewPreparedStepRecorder(results ...error) *PreparedStepRecorder {
@@ -24,7 +24,7 @@ func NewPreparedStepRecorder(results ...error) *PreparedStepRecorder {
 
 func (p *PreparedStepRecorder) AcknowledgePreparedStep(
 	_ context.Context,
-	snapshot agent.Snapshot,
+	snapshot agent.ProcessSnapshot,
 ) error {
 	if p == nil {
 		return nil
@@ -41,7 +41,7 @@ func (p *PreparedStepRecorder) AcknowledgePreparedStep(
 }
 
 // Snapshots returns prepared boundaries in acknowledgment order.
-func (p *PreparedStepRecorder) Snapshots() []agent.Snapshot {
+func (p *PreparedStepRecorder) Snapshots() []agent.ProcessSnapshot {
 	if p == nil {
 		return nil
 	}

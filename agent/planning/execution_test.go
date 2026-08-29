@@ -349,7 +349,7 @@ func TestManagedPlanningUnknownActionRequiresExplicitResolution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resolveEffectErr := process.ResolveEffect(context.Background(), settlement); resolveEffectErr != nil {
+	if resolveEffectErr := process.ResolveUnknownEffect(context.Background(), settlement); resolveEffectErr != nil {
 		t.Fatal(resolveEffectErr)
 	}
 	result, err := process.Await(context.Background())

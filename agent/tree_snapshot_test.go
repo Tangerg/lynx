@@ -42,6 +42,50 @@ func TestTreeSnapshotRejectsPriorSchemaVersion(t *testing.T) {
 	}
 }
 
+func TestTreeSnapshotDigestIsCanonicalAndStable(t *testing.T) {
+	tree := completedTreeSnapshot(t)
+	parsed, err := ParseTreeSnapshot(tree.JSON())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tree.Digest() != parsed.Digest() || tree.Digest() != ComputeDigest(tree.JSON()) {
+		t.Fatalf("digest changed across canonical round trip: %s != %s", tree.Digest(), parsed.Digest())
+	}
+	if _, durable := tree.IncarnationID(); durable {
+		t.Fatal("ephemeral capture unexpectedly contains a TreeIncarnationID")
+	}
+}
+
+func TestTreeSnapshotCarriesOneTypedIncarnationIdentity(t *testing.T) {
+	tree := completedTreeSnapshot(t)
+	wire, err := tree.wire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	incarnationID, err := ParseTreeIncarnationID(
+		treeIncarnationIDPrefix + "0123456789abcdef0123456789abcdef",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	wire.IncarnationID = &incarnationID
+	durable, err := newTreeSnapshot(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got, ok := durable.IncarnationID()
+	if !ok || got != incarnationID {
+		t.Fatalf("IncarnationID = %s, %t, want %s, true", got, ok, incarnationID)
+	}
+	parsed, err := ParseTreeSnapshot(durable.JSON())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsedID, parsedOK := parsed.IncarnationID(); !parsedOK || parsedID != incarnationID {
+		t.Fatalf("parsed IncarnationID = %s, %t", parsedID, parsedOK)
+	}
+}
+
 func FuzzTreeSnapshotJSONRoundTrip(f *testing.F) {
 	tree := completedTreeSnapshot(f)
 	f.Add([]byte(tree.JSON()))
@@ -308,7 +352,7 @@ func TestTreeRestoreReplaysPreparedChildStartWithStableIdentity(t *testing.T) {
 	wantChildID := deriveChildProcessID(preparedWire.Prepared.Effects[0].ID)
 	tree, err := newTreeSnapshot(treeSnapshotWire{
 		SchemaVersion: treeSnapshotSchemaVersion,
-		RootID:        prepared.ProcessID(), ProcessSnapshots: []Snapshot{prepared},
+		RootID:        prepared.ProcessID(), ProcessSnapshots: []ProcessSnapshot{prepared},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -348,34 +392,6 @@ func TestTreeRestoreReplaysPreparedChildStartWithStableIdentity(t *testing.T) {
 	}
 }
 
-func TestSingleProcessRestoreRejectsTreeMembers(t *testing.T) {
-	deployment := newChildTestDeployment(t)
-	engine, _ := NewEngine(EngineConfig{})
-	input, _ := EncodeInput(childTestInput{Mode: "recurse:1"})
-	root, err := engine.Start(context.Background(), deployment, input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_ = mustAwait(t, root)
-	tree, err := engine.CaptureTree(context.Background(), root.ID())
-	if err != nil {
-		t.Fatal(err)
-	}
-	snapshots := tree.ProcessSnapshots()
-	restoredEngine, _ := NewEngine(EngineConfig{})
-	for _, snapshot := range snapshots {
-		if _, err := restoredEngine.Restore(context.Background(), deployment, snapshot); !errors.Is(err, ErrTreeSnapshotRequired) {
-			t.Fatalf("single restore for %s error = %v", snapshot.ProcessID(), err)
-		}
-	}
-	if err := restoredEngine.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if err := engine.Close(); err != nil {
-		t.Fatal(err)
-	}
-}
-
 func TestTreeRestoreValidatesTerminalOutputAgainstExactDeployment(t *testing.T) {
 	deployment := newChildTestDeployment(t)
 	engine, _ := NewEngine(EngineConfig{})
@@ -385,7 +401,7 @@ func TestTreeRestoreValidatesTerminalOutputAgainstExactDeployment(t *testing.T) 
 		t.Fatal(err)
 	}
 	_ = mustAwait(t, root)
-	snapshot, err := root.Capture(context.Background())
+	snapshot, err := root.Snapshot(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -394,13 +410,13 @@ func TestTreeRestoreValidatesTerminalOutputAgainstExactDeployment(t *testing.T) 
 		Unexpected bool `json:"unexpected"`
 	}{Unexpected: true})
 	wire.Output = &invalidOutput
-	forged, err := newSnapshot(wire)
+	forged, err := newProcessSnapshot(wire)
 	if err != nil {
 		t.Fatal(err)
 	}
 	tree, err := newTreeSnapshot(treeSnapshotWire{
 		SchemaVersion: treeSnapshotSchemaVersion,
-		RootID:        forged.ProcessID(), ProcessSnapshots: []Snapshot{forged},
+		RootID:        forged.ProcessID(), ProcessSnapshots: []ProcessSnapshot{forged},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -418,20 +434,20 @@ func TestTreeRestoreValidatesTerminalOutputAgainstExactDeployment(t *testing.T) 
 }
 
 type blockingChildStartAcknowledger struct {
-	captured chan Snapshot
+	captured chan ProcessSnapshot
 	once     sync.Once
 	gate     chan struct{}
 }
 
 func newBlockingChildStartAcknowledger() *blockingChildStartAcknowledger {
 	return &blockingChildStartAcknowledger{
-		captured: make(chan Snapshot, 1), gate: make(chan struct{}),
+		captured: make(chan ProcessSnapshot, 1), gate: make(chan struct{}),
 	}
 }
 
 func (b *blockingChildStartAcknowledger) AcknowledgePreparedStep(
 	_ context.Context,
-	snapshot Snapshot,
+	snapshot ProcessSnapshot,
 ) error {
 	wire, err := snapshot.wire()
 	if err != nil || wire.Prepared == nil || len(wire.Prepared.Effects) != 1 {

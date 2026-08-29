@@ -204,7 +204,7 @@ func validWaitingSubtreeCancellationProjection(
 	if !result.Valid() || len(canceledProcessIDs) == 0 {
 		return false
 	}
-	processes := make(map[ProcessID]Snapshot)
+	processes := make(map[ProcessID]ProcessSnapshot)
 	for _, snapshot := range result.ProcessSnapshots() {
 		processes[snapshot.ProcessID()] = snapshot
 	}

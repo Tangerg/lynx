@@ -130,7 +130,7 @@ func TestRestoringCompletedInteractionDoesNotReplayDeltas(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	snapshot, err := process.Capture(context.Background())
+	snapshot, err := firstEngine.CaptureTree(context.Background(), process.ID())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -143,7 +143,7 @@ func TestRestoringCompletedInteractionDoesNotReplayDeltas(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restored, err := restoredEngine.Restore(context.Background(), deployment, snapshot)
+	restored, err := restoredEngine.RestoreTree(context.Background(), deployment, snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}

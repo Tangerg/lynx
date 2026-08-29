@@ -160,7 +160,7 @@ func (s *signalMailbox) closeWait(id WaitID) error {
 
 // closeAllWaits makes every remaining wait terminal with its Process. It
 // returns child-wait identities whose Engine registrations must be removed
-// before the terminal Snapshot is captured.
+// before the terminal ProcessSnapshot is captured.
 func (s *signalMailbox) closeAllWaits() []WaitID {
 	var childWaits []WaitID
 	for id, record := range s.waits {

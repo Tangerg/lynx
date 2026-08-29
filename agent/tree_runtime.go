@@ -87,8 +87,6 @@ type treeStateProjection struct {
 
 type processAttempt uint64
 
-func (p processAttempt) valid() bool { return p != 0 }
-
 type processJobKind uint8
 
 const (
@@ -453,8 +451,15 @@ func (t *treeRuntime) startPreparedAcknowledgement(process *processState) {
 func (t *treeRuntime) startNextEffect(process *processState) {
 	for index := range process.prepared.wire.Effects {
 		record := &process.prepared.wire.Effects[index]
-		if record.Settlement != nil {
+		if record.Phase == effectPhaseSettled {
 			continue
+		}
+		if record.Phase == effectPhasePlanned {
+			if err := record.begin(); err != nil {
+				process.discardPrepared()
+				process.fail(FailureKindContract, "engine.effect.phase.invalid", err)
+				return
+			}
 		}
 		if record.Effect.Target() == EffectTargetFramework {
 			startedAt := process.publishEffectStarted(
@@ -465,7 +470,10 @@ func (t *treeRuntime) startNextEffect(process *processState) {
 				t.startChild(process, record, startedAt)
 				return
 			}
-			process.dispatchFrameworkEffect(t.context, record)
+			if err := process.dispatchFrameworkEffect(t.context, record); err != nil {
+				t.failPreparedEffect(process, "engine.framework_effect.settlement.invalid", err)
+				return
+			}
 			process.publishSettlementEvent(
 				t.context, record.ID, EffectTargetFramework, record.Settlement.Status(), startedAt,
 			)
@@ -484,7 +492,10 @@ func (t *treeRuntime) startChild(
 ) {
 	spec, err := decodeChildStartEffect(record.Effect.Payload())
 	if err != nil {
-		process.markFrameworkEffectUnknown(record)
+		if settlementErr := record.settleUnknown(); settlementErr != nil {
+			t.failPreparedEffect(process, "engine.framework_effect.settlement.invalid", settlementErr)
+			return
+		}
 		process.publishSettlementEvent(
 			t.context, record.ID, EffectTargetFramework, record.Settlement.Status(), startedAt,
 		)
@@ -497,7 +508,10 @@ func (t *treeRuntime) startChild(
 	}
 	preparation := process.prepareChildStart(record.ID, spec)
 	if preparation.plan == nil {
-		t.settleChildStart(process, record.ID, preparation.result, startedAt)
+		if err := t.settleChildStart(process, record.ID, preparation.result, startedAt); err != nil {
+			t.failPreparedEffect(process, "engine.child.settlement.invalid", err)
+			return
+		}
 		t.markRunnable(process.controller.processID)
 		return
 	}
@@ -568,7 +582,12 @@ func (t *treeRuntime) startDispatch(
 		)
 		acceptingDeltas.Store(false)
 		if err != nil || !settlement.Valid() || settlement.EffectID() != record.ID {
-			settlement, _ = NewSettlement(record.ID, SettlementStatusUnknown, json.RawMessage(nullJSON))
+			pending := record
+			if settleErr := pending.settleUnknown(); settleErr == nil {
+				settlement = *pending.Settlement
+			} else {
+				settlement = Settlement{}
+			}
 		}
 		t.completions <- treeJobCompletion{
 			processID: process.controller.processID,
@@ -636,7 +655,9 @@ func (t *treeRuntime) applyChildStartCompletion(
 ) {
 	plan := job.childStart
 	if plan == nil {
-		parent.markFrameworkEffectUnknownByID(job.effectID)
+		if err := parent.prepared.settleUnknown(job.effectID); err != nil {
+			t.failPreparedEffect(parent, "engine.child.settlement.invalid", err)
+		}
 		return
 	}
 	if result.started() {
@@ -659,7 +680,9 @@ func (t *treeRuntime) applyChildStartCompletion(
 		plan.engine.discardProcessStartReservation(plan.childID)
 		parent.releaseChildBudget(plan.spec.Budget)
 	}
-	t.settleChildStart(parent, job.effectID, result.result, job.startedAt)
+	if err := t.settleChildStart(parent, job.effectID, result.result, job.startedAt); err != nil {
+		t.failPreparedEffect(parent, "engine.child.settlement.invalid", err)
+	}
 }
 
 func (t *treeRuntime) settleChildStart(
@@ -667,18 +690,20 @@ func (t *treeRuntime) settleChildStart(
 	effectID EffectID,
 	result ChildStartResult,
 	startedAt time.Time,
-) {
+) error {
 	if parent.prepared == nil {
-		return
+		return errors.New("prepared child-start Step is missing")
 	}
 	for index := range parent.prepared.wire.Effects {
 		record := &parent.prepared.wire.Effects[index]
-		if record.ID != effectID || record.Settlement != nil {
+		if record.ID != effectID || record.Phase != effectPhasePending {
 			continue
 		}
 		payload, err := encodeChildStartResult(result)
 		if err != nil {
-			parent.markFrameworkEffectUnknown(record)
+			if settlementErr := record.settleUnknown(); settlementErr != nil {
+				return settlementErr
+			}
 		} else {
 			status := SettlementStatusSucceeded
 			if _, failed := result.Failure(); failed {
@@ -686,16 +711,27 @@ func (t *treeRuntime) settleChildStart(
 			}
 			settlement, settlementErr := NewSettlement(effectID, status, payload)
 			if settlementErr != nil {
-				parent.markFrameworkEffectUnknown(record)
+				if unknownErr := record.settleUnknown(); unknownErr != nil {
+					return unknownErr
+				}
 			} else {
-				record.Settlement = &settlement
+				if err := record.settle(settlement); err != nil {
+					return err
+				}
 			}
 		}
 		parent.publishSettlementEvent(
 			t.context, effectID, EffectTargetFramework, record.Settlement.Status(), startedAt,
 		)
-		return
+		return nil
 	}
+	return errors.New("pending child-start Effect is missing")
+}
+
+func (t *treeRuntime) failPreparedEffect(process *processState, code string, err error) {
+	process.discardPrepared()
+	process.fail(FailureKindContract, code, err)
+	t.finishIfTerminal(process)
 }
 
 func (t *treeRuntime) applyStepCompletion(
@@ -741,11 +777,15 @@ func (t *treeRuntime) applyDispatchCompletion(
 	}
 	for index := range process.prepared.wire.Effects {
 		record := &process.prepared.wire.Effects[index]
-		if record.ID != result.effectID || record.Settlement != nil {
+		if record.ID != result.effectID || record.Phase != effectPhasePending {
 			continue
 		}
 		settlement := result.settlement
-		record.Settlement = &settlement
+		if err := record.settle(settlement); err != nil {
+			process.discardPrepared()
+			process.fail(FailureKindContract, "engine.effect.settlement.invalid", err)
+			return
+		}
 		if result.dropped > 0 {
 			process.usage.DroppedDeltas = saturatingCountAdd(
 				process.usage.DroppedDeltas,

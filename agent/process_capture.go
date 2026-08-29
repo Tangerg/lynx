@@ -1,14 +1,11 @@
 package agent
 
-import (
-	"encoding/json"
-	"fmt"
-)
+import "fmt"
 
 func prepareRestoredProcess(
 	engine *Engine,
 	deployment Deployment,
-	snapshot Snapshot,
+	snapshot ProcessSnapshot,
 ) (*processController, *processState, processSnapshotWire, error) {
 	wire, err := snapshot.wire()
 	if err != nil {
@@ -91,16 +88,15 @@ func restoreProcessLoop(
 		preparedWire := clonePreparedStep(*wire.Prepared)
 		for index := range preparedWire.Effects {
 			record := &preparedWire.Effects[index]
-			if record.Settlement != nil || record.Effect.Target() != EffectTargetDispatcher {
+			if record.Phase != effectPhasePending || record.Effect.Target() != EffectTargetDispatcher {
 				continue
 			}
 			if dispatcherReplayPolicy(deployment.effectDispatcher(), record.Effect) == ReplayPolicySameIdentity {
 				continue
 			}
-			settlement, _ := NewSettlement(
-				record.ID, SettlementStatusUnknown, json.RawMessage(nullJSON),
-			)
-			record.Settlement = &settlement
+			if err := record.settleUnknown(); err != nil {
+				return nil, fmt.Errorf("%w: restore pending Effect: %w", ErrInvalidSnapshot, err)
+			}
 		}
 		loop.prepared = &preparedStep{wire: preparedWire, acknowledged: true}
 	}
@@ -108,7 +104,7 @@ func restoreProcessLoop(
 	return loop, nil
 }
 
-func (p *processState) capture() (Snapshot, error) {
+func (p *processState) capture() (ProcessSnapshot, error) {
 	wire := processSnapshotWire{
 		SchemaVersion: processSnapshotSchemaVersion, ProcessID: p.controller.processID,
 		Relation:      p.controller.relation.wire(),
@@ -144,7 +140,7 @@ func (p *processState) capture() (Snapshot, error) {
 		prepared := clonePreparedStep(p.prepared.wire)
 		wire.Prepared = &prepared
 	}
-	return newSnapshot(wire)
+	return newProcessSnapshot(wire)
 }
 
 func (p *processState) result() Result {
@@ -192,7 +188,9 @@ func clonePreparedStep(value preparedStepWire) preparedStepWire {
 	clone := value
 	clone.Effects = make([]preparedEffectWire, len(value.Effects))
 	for index, effect := range value.Effects {
-		clone.Effects[index] = preparedEffectWire{ID: effect.ID, Effect: effect.Effect.clone()}
+		clone.Effects[index] = preparedEffectWire{
+			ID: effect.ID, Effect: effect.Effect.clone(), Phase: effect.Phase,
+		}
 		if effect.WaitID != nil {
 			waitID := *effect.WaitID
 			clone.Effects[index].WaitID = &waitID

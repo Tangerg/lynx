@@ -13,7 +13,7 @@ const maxEventBytes = 1 << 20
 const (
 	// EventProcessStarted reports initial Process execution.
 	EventProcessStarted = "agent.process.started"
-	// EventProcessRestored reports execution resumed from a Snapshot.
+	// EventProcessRestored reports execution resumed from a TreeSnapshot.
 	EventProcessRestored = "agent.process.restored"
 	// EventProcessPaused reports a committed scheduling pause.
 	EventProcessPaused = "agent.process.paused"

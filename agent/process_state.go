@@ -116,7 +116,7 @@ func (p *processState) applyCommand(ctx context.Context, command processCommand)
 		p.requestCancellation(command.cancellationIntent)
 	case commandKill:
 		p.requestKill(command)
-	case commandResolveEffect:
+	case commandResolveUnknownEffect:
 		p.resolveEffect(command)
 	case commandQueryUnknownEffectIDs:
 		command.reply(processResponse{unknownEffectIDs: p.unknownEffectIDs()})
@@ -339,12 +339,14 @@ func (p *processState) resolveEffect(command processCommand) {
 		if effect.ID != command.settlement.EffectID() {
 			continue
 		}
-		if effect.Settlement == nil || effect.Settlement.Status() != SettlementStatusUnknown {
+		if !effect.unknown() {
 			command.reply(processResponse{err: ErrEffectNotPending})
 			return
 		}
-		settlement := command.settlement
-		effect.Settlement = &settlement
+		if err := effect.resolveUnknown(command.settlement); err != nil {
+			command.reply(processResponse{err: ErrEffectNotPending})
+			return
+		}
 		command.reply(processResponse{})
 		return
 	}
@@ -361,7 +363,7 @@ func (p *processState) unknownEffectIDs() []EffectID {
 	}
 	var ids []EffectID
 	for _, effect := range p.prepared.wire.Effects {
-		if effect.Settlement != nil && effect.Settlement.Status() == SettlementStatusUnknown {
+		if effect.unknown() {
 			ids = append(ids, effect.ID)
 		}
 	}
@@ -381,7 +383,7 @@ func (p pendingControl) hasTerminalIntent() bool {
 
 func (p *preparedStep) hasUnknownSettlement() bool {
 	for _, effect := range p.wire.Effects {
-		if effect.Settlement != nil && effect.Settlement.Status() == SettlementStatusUnknown {
+		if effect.unknown() {
 			return true
 		}
 	}
@@ -390,7 +392,7 @@ func (p *preparedStep) hasUnknownSettlement() bool {
 
 func (p *preparedStep) allEffectsSettled() bool {
 	for _, effect := range p.wire.Effects {
-		if effect.Settlement == nil || effect.Settlement.Status() == SettlementStatusUnknown {
+		if !effect.definitelySettled() {
 			return false
 		}
 	}

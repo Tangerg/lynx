@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	currentAPIBaseline         = 35
+	currentAPIBaseline         = 36
 	currentAPIBaselineFrozenOn = "2026-08-29"
 )
 
@@ -27,9 +27,9 @@ var exportedAPIBaselines = []struct {
 	directory string
 	want      string
 }{
-	{name: "kernel", label: "root kernel", directory: ".", want: "4b7e02f98828bc4f2762eb32c92a0975567b0441c736726fb0b54901be0756d8"},
-	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "66c49a9dec9e33d416fbc66c925a5893d54b96335d4e09294ad87b40badc6ad9"},
-	{name: "interaction", label: "interaction", directory: "interaction", want: "8d5b982f92cdbd457970f8e9678c058198a937ff9ca42740af26e5e4db383b75"},
+	{name: "kernel", label: "root kernel", directory: ".", want: "893b952311197f784a3f6c2ff7c0ee12eb50970ce450ce5169b28d1bc0e9e7b1"},
+	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "ee493eb270bb15affeb19da31105cef1a09fa54ffe54b66cc45b5ce6feb5bf55"},
+	{name: "interaction", label: "interaction", directory: "interaction", want: "8b39cc9e28e0bdd00579c4563dbc3d9b8237f3b932b30740f85941f2911fdf54"},
 	{name: "planning", label: "planning", directory: "planning", want: "4ca18318b81c7fc646ee7121c9f2e303df2cc2d28fcd8357e2c3b07cebd1a014"},
 	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "0f7376bbf8b1815315005984540bdc5d5aabb7bccea5147f957c2911a55e04e7"},
 	{name: "workflow", label: "workflow", directory: "workflow", want: "f0f995aa9a543e0985d650ca9815d6baac1aa6367f6d75483b958489113fda16"},
@@ -289,7 +289,7 @@ func isErrorCauseName(name string) bool {
 func TestSnapshotWireBaseline(t *testing.T) {
 	shape := snapshotWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "41b91a73b202a4654f3e5248a5b01a56e313a5c5ff70d39af65655df667aebc6"
+	const want = "b9b482bc7f9402dd2fad31f2a83d9fe5b7d8eca80c2b9a77b5471dfc70c11e49"
 	if got != want {
 		t.Fatalf("snapshot wire changed: got %s, want %s\n%s", got, want, shape)
 	}

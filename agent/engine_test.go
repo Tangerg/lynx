@@ -330,11 +330,11 @@ func (*failingEngineTestDispatcher) ReplayPolicy(Effect) ReplayPolicy { return R
 
 type engineTestAcknowledger struct {
 	mu       sync.Mutex
-	snapshot Snapshot
+	snapshot ProcessSnapshot
 	called   atomic.Bool
 }
 
-func (e *engineTestAcknowledger) AcknowledgePreparedStep(_ context.Context, snapshot Snapshot) error {
+func (e *engineTestAcknowledger) AcknowledgePreparedStep(_ context.Context, snapshot ProcessSnapshot) error {
 	e.mu.Lock()
 	e.snapshot = snapshot
 	e.mu.Unlock()
@@ -342,7 +342,7 @@ func (e *engineTestAcknowledger) AcknowledgePreparedStep(_ context.Context, snap
 	return nil
 }
 
-func (e *engineTestAcknowledger) captured() Snapshot {
+func (e *engineTestAcknowledger) captured() ProcessSnapshot {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	return e.snapshot
@@ -450,9 +450,13 @@ func TestUnknownSettlementRequiresExplicitResolutionAndSurvivesRestore(t *testin
 	snapshot := waitForUnknownSettlement(t, process)
 	wire, _ := snapshot.wire()
 	effectID := wire.Prepared.Effects[0].ID
+	tree, err := engine.CaptureTree(context.Background(), process.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	restoredEngine, _ := NewEngine(EngineConfig{})
-	restored, err := restoredEngine.Restore(context.Background(), deployment, snapshot)
+	restored, err := restoredEngine.RestoreTree(context.Background(), deployment, tree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -465,7 +469,7 @@ func TestUnknownSettlementRequiresExplicitResolutionAndSurvivesRestore(t *testin
 	}
 	payload, _ := json.Marshal(engineTestMessage{Kind: "result", Value: "resolved"})
 	settlement, _ := NewSettlement(effectID, SettlementStatusSucceeded, payload)
-	if err := restored.ResolveEffect(context.Background(), settlement); err != nil {
+	if err := restored.ResolveUnknownEffect(context.Background(), settlement); err != nil {
 		t.Fatal(err)
 	}
 	result := awaitResult(t, restored)
@@ -496,8 +500,12 @@ func TestPartialEffectBatchPreservesSettlementsAndDeclarationOrder(t *testing.T)
 		wire.Prepared.Effects[1].Settlement.Status() != SettlementStatusUnknown {
 		t.Fatalf("prepared batch=%+v", wire.Prepared.Effects)
 	}
+	tree, err := engine.CaptureTree(context.Background(), process.ID())
+	if err != nil {
+		t.Fatal(err)
+	}
 	restoredEngine, _ := NewEngine(EngineConfig{})
-	restored, err := restoredEngine.Restore(context.Background(), deployment, snapshot)
+	restored, err := restoredEngine.RestoreTree(context.Background(), deployment, tree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -510,7 +518,7 @@ func TestPartialEffectBatchPreservesSettlementsAndDeclarationOrder(t *testing.T)
 	}
 	payload, _ := json.Marshal(engineTestMessage{Kind: "result", Value: "second"})
 	settlement, _ := NewSettlement(wire.Prepared.Effects[1].ID, SettlementStatusSucceeded, payload)
-	if err := restored.ResolveEffect(context.Background(), settlement); err != nil {
+	if err := restored.ResolveUnknownEffect(context.Background(), settlement); err != nil {
 		t.Fatal(err)
 	}
 	result := awaitResult(t, restored)
@@ -547,12 +555,12 @@ func TestPausedProcessCapturesRestoresAndResumesAtSafeBoundary(t *testing.T) {
 	}
 	close(release)
 	waitForStatus(t, process, StatusPaused)
-	snapshot, err := process.Capture(context.Background())
+	tree, err := engine.CaptureTree(context.Background(), process.ID())
 	if err != nil {
 		t.Fatal(err)
 	}
 	restoredEngine, _ := NewEngine(EngineConfig{})
-	restored, err := restoredEngine.Restore(context.Background(), deployment, snapshot)
+	restored, err := restoredEngine.RestoreTree(context.Background(), deployment, tree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -581,12 +589,12 @@ func TestWaitingProcessRestoresWithSameWaitIdentity(t *testing.T) {
 	}
 	waitForStatus(t, process, StatusWaiting)
 	waitID, _ := process.WaitID()
-	snapshot, err := process.Capture(context.Background())
+	tree, err := engine.CaptureTree(context.Background(), process.ID())
 	if err != nil {
 		t.Fatal(err)
 	}
 	restoredEngine, _ := NewEngine(EngineConfig{})
-	restored, err := restoredEngine.Restore(context.Background(), deployment, snapshot)
+	restored, err := restoredEngine.RestoreTree(context.Background(), deployment, tree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -617,8 +625,9 @@ func TestRestoredPreparedEffectReplaysOnlyWithSameIdentityPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	snapshot := acknowledger.captured()
+	tree := singleProcessTreeSnapshot(t, snapshot)
 	restoredEngine, _ := NewEngine(EngineConfig{})
-	restored, err := restoredEngine.Restore(context.Background(), deployment, snapshot)
+	restored, err := restoredEngine.RestoreTree(context.Background(), deployment, tree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -628,6 +637,75 @@ func TestRestoredPreparedEffectReplaysOnlyWithSameIdentityPolicy(t *testing.T) {
 	if dispatcher.calls.Load() != 2 {
 		t.Fatalf("same-identity dispatcher calls=%d, want 2", dispatcher.calls.Load())
 	}
+}
+
+func TestRestoreDistinguishesPlannedFromPendingEffect(t *testing.T) {
+	prepared := preparedEngineTestSnapshot(t)
+	definition := newEngineTestDefinition(t, "engine.effect", "effect")
+
+	t.Run("planned dispatches even under never-replay policy", func(t *testing.T) {
+		dispatcher := &engineTestDispatcher{policy: ReplayPolicyNever}
+		deployment := engineTestDeployment(t, definition, dispatcher)
+		engine, err := NewEngine(EngineConfig{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		restored, err := engine.RestoreTree(
+			context.Background(), deployment, singleProcessTreeSnapshot(t, prepared),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result := awaitResult(t, restored); result.Status() != StatusCompleted {
+			t.Fatalf("result status = %s", result.Status())
+		}
+		if calls := dispatcher.calls.Load(); calls != 1 {
+			t.Fatalf("planned Effect dispatch calls = %d, want 1", calls)
+		}
+		if err := engine.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("pending becomes unknown under never-replay policy", func(t *testing.T) {
+		wire, err := prepared.wire()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := wire.Prepared.Effects[0].begin(); err != nil {
+			t.Fatal(err)
+		}
+		pending, err := newProcessSnapshot(wire)
+		if err != nil {
+			t.Fatal(err)
+		}
+		dispatcher := &engineTestDispatcher{policy: ReplayPolicyNever}
+		deployment := engineTestDeployment(t, definition, dispatcher)
+		engine, err := NewEngine(EngineConfig{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		restored, err := engine.RestoreTree(
+			context.Background(), deployment, singleProcessTreeSnapshot(t, pending),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		unknown, err := restored.UnknownEffectIDs(context.Background())
+		if err != nil || len(unknown) != 1 {
+			t.Fatalf("unknown Effects = %v, error = %v", unknown, err)
+		}
+		if calls := dispatcher.calls.Load(); calls != 0 {
+			t.Fatalf("pending never-replay dispatch calls = %d, want 0", calls)
+		}
+		if err := restored.Kill(context.Background(), "test cleanup"); err != nil {
+			t.Fatal(err)
+		}
+		_ = awaitResult(t, restored)
+		if err := engine.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
 }
 
 func TestStartContextCancellationMapsToHostCancellation(t *testing.T) {
@@ -750,7 +828,7 @@ func TestStepFailureDiscardsMutatedExecutionAndPreservesCursor(t *testing.T) {
 	if result.Status() != StatusFailed || result.Termination().Cause() != TerminationCauseExecutionFailure {
 		t.Fatalf("termination=%+v", result.Termination())
 	}
-	snapshot, err := process.Capture(context.Background())
+	snapshot, err := process.Snapshot(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1055,7 +1133,7 @@ func waitForStatus(t *testing.T, process *Process, want Status) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	for {
-		snapshot, err := process.Capture(ctx)
+		snapshot, err := process.Snapshot(ctx)
 		if err != nil {
 			t.Fatalf("capture Process while waiting for %s: %v", want, err)
 		}
@@ -1066,12 +1144,12 @@ func waitForStatus(t *testing.T, process *Process, want Status) {
 	}
 }
 
-func waitForUnknownSettlement(t *testing.T, process *Process) Snapshot {
+func waitForUnknownSettlement(t *testing.T, process *Process) ProcessSnapshot {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	for {
-		snapshot, err := process.Capture(ctx)
+		snapshot, err := process.Snapshot(ctx)
 		if err == nil {
 			wire, _ := snapshot.wire()
 			if wire.Prepared != nil {
@@ -1087,4 +1165,17 @@ func waitForUnknownSettlement(t *testing.T, process *Process) Snapshot {
 		}
 		runtime.Gosched()
 	}
+}
+
+func singleProcessTreeSnapshot(t *testing.T, snapshot ProcessSnapshot) TreeSnapshot {
+	t.Helper()
+	tree, err := newTreeSnapshot(treeSnapshotWire{
+		SchemaVersion:    treeSnapshotSchemaVersion,
+		RootID:           snapshot.ProcessID(),
+		ProcessSnapshots: []ProcessSnapshot{snapshot},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return tree
 }

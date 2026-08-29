@@ -52,7 +52,7 @@ func TestEngineStartsSameDeploymentChildWithStableRelation(t *testing.T) {
 	if !completed && !parentCanceled {
 		t.Fatalf("child termination = %#v", childResult.Termination())
 	}
-	childSnapshot, err := child.Capture(context.Background())
+	childSnapshot, err := child.Snapshot(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1167,7 +1167,7 @@ func waitForProcessStatus(t *testing.T, process *Process, want Status) {
 	ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 	defer cancel()
 	for {
-		snapshot, err := process.Capture(ctx)
+		snapshot, err := process.Snapshot(ctx)
 		if err != nil {
 			t.Fatalf("capture Process while waiting for %s: %v", want, err)
 		}

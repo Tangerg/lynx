@@ -22,15 +22,15 @@ var (
 
 // PreparedStepAcknowledger is the optional durability boundary immediately
 // before external Effect dispatch. Returning nil confirms only that this exact
-// Snapshot reached the caller's chosen durable boundary; it does not grant the
+// ProcessSnapshot reached the caller's chosen durable boundary; it does not grant the
 // Framework ownership of the caller's persistence or atomicity semantics.
 type PreparedStepAcknowledger interface {
-	// AcknowledgePreparedStep synchronously accepts the exact prepared Snapshot
+	// AcknowledgePreparedStep synchronously accepts the exact prepared ProcessSnapshot
 	// before any declared external Effect is dispatched. Returning nil opens the
 	// dispatch boundary; returning an error leaves the Effect undispatched. The
 	// implementation must honor ctx, be bounded and concurrency-safe, and must
 	// not re-enter the represented Process.
-	AcknowledgePreparedStep(ctx context.Context, snapshot Snapshot) error
+	AcknowledgePreparedStep(ctx context.Context, snapshot ProcessSnapshot) error
 }
 
 // EngineConfig contains only cross-Strategy execution mechanics. Definition,
@@ -39,7 +39,7 @@ type EngineConfig struct {
 	// PreparedStepAcknowledger enables the optional pre-dispatch durability
 	// handshake. Implementations may be called concurrently for different
 	// Processes, must return in bounded time, and must not re-enter the Process
-	// represented by the supplied Snapshot.
+	// represented by the supplied ProcessSnapshot.
 	PreparedStepAcknowledger PreparedStepAcknowledger
 
 	// ProcessStartOutcomeAcknowledger enables the optional conclusive handshake
@@ -259,37 +259,6 @@ func (e *Engine) Run(ctx context.Context, deployment Deployment, input Input) (R
 	return process.Await(context.WithoutCancel(requireContext(ctx)))
 }
 
-// Restore recreates one Process from a strict Snapshot and the exact bound
-// Deployment. A different implementation or configuration digest is rejected.
-func (e *Engine) Restore(ctx context.Context, deployment Deployment, snapshot Snapshot) (*Process, error) {
-	if e == nil {
-		return nil, ErrInvalidEngineConfig
-	}
-	ctx = requireContext(ctx)
-	if !deployment.Valid() {
-		return nil, ErrInvalidDeployment
-	}
-	controller, loop, wire, err := prepareRestoredProcess(e, deployment, snapshot)
-	if err != nil {
-		return nil, err
-	}
-	if !controller.relation.IsRoot() || wire.ReservedBudget != (Budget{}) || hasOpenChildWait(wire.Mailbox) {
-		return nil, ErrTreeSnapshotRequired
-	}
-	runtime := newTreeRuntime(e, controller.relation.RootID(), ctx, loop)
-	if err := e.registerRestoredRoot(controller, runtime); err != nil {
-		return nil, err
-	}
-	if wire.Status.Terminal() {
-		controller.complete(loop.result(), snapshot, nil)
-		controller.markTreeSettled()
-		go runtime.run(ctx)
-		return &Process{controller: controller}, nil
-	}
-	go runtime.run(ctx)
-	return &Process{controller: controller}, nil
-}
-
 // Process returns an Engine-issued handle for an identity known to this Engine.
 func (e *Engine) Process(id ProcessID) (*Process, bool) {
 	if e == nil || !id.Valid() {
@@ -328,33 +297,6 @@ func (e *Engine) Close() error {
 	e.closed = true
 	e.mu.Unlock()
 	e.observation.close()
-	return nil
-}
-
-func (e *Engine) registerRestoredRoot(
-	controller *processController,
-	runtime *treeRuntime,
-) error {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	if e.closed {
-		return ErrEngineClosed
-	}
-	if controller == nil || runtime == nil || !controller.relation.IsRoot() ||
-		controller.runtime != runtime || runtime.rootID != controller.processID {
-		return ErrInvalidProcessRelation
-	}
-	if _, exists := e.processes[controller.processID]; exists {
-		return ErrProcessAlreadyExists
-	}
-	if _, exists := e.startReservations[controller.processID]; exists {
-		return ErrProcessAlreadyExists
-	}
-	if e.trees[controller.processID] != nil {
-		return ErrProcessAlreadyExists
-	}
-	e.processes[controller.processID] = controller
-	e.trees[controller.processID] = runtime
 	return nil
 }
 

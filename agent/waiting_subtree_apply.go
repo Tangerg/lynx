@@ -14,7 +14,7 @@ type preparedProcessEvent struct {
 
 type preparedProcessStateChange struct {
 	processID ProcessID
-	source    Snapshot
+	source    ProcessSnapshot
 	result    processSnapshotWire
 	mailbox   signalMailbox
 	control   pendingControl
@@ -56,8 +56,8 @@ type preparedProcessChange struct {
 	canceled bool
 }
 
-func snapshotsByProcessID(snapshot TreeSnapshot) map[ProcessID]Snapshot {
-	byID := make(map[ProcessID]Snapshot)
+func snapshotsByProcessID(snapshot TreeSnapshot) map[ProcessID]ProcessSnapshot {
+	byID := make(map[ProcessID]ProcessSnapshot)
 	for _, processSnapshot := range snapshot.ProcessSnapshots() {
 		byID[processSnapshot.ProcessID()] = processSnapshot
 	}
@@ -76,8 +76,8 @@ func orderedPreparedProcessChanges(canceled, paused []ProcessID) []preparedProce
 }
 
 func newPreparedProcessStateChange(
-	source Snapshot,
-	result Snapshot,
+	source ProcessSnapshot,
+	result ProcessSnapshot,
 	canceled bool,
 ) (*preparedProcessStateChange, error) {
 	sourceWire, err := source.wire()

@@ -10,16 +10,16 @@ import (
 )
 
 const (
-	processSnapshotSchemaVersion = 6
+	processSnapshotSchemaVersion = 7
 	maxSnapshotBytes             = 128 << 20
 )
 
 var ErrInvalidSnapshot = errors.New("agent: invalid process snapshot")
 
-// Snapshot is an immutable, portable capture of one Engine-owned Process.
-// Callers may persist and later return its JSON, but Strategy state and Effect
-// payloads remain opaque. Snapshot deliberately defines no persistence API.
-type Snapshot struct {
+// ProcessSnapshot is an immutable diagnostic capture of one Engine-owned
+// Process. Strategy state and Effect payloads remain opaque. A ProcessSnapshot
+// is not a recovery unit; only a complete TreeSnapshot can be restored.
+type ProcessSnapshot struct {
 	data           json.RawMessage
 	processID      ProcessID
 	deploymentRef  DeploymentRef
@@ -31,20 +31,20 @@ type Snapshot struct {
 	capabilities   CapabilitySet
 }
 
-// ParseSnapshot strictly validates one Process snapshot wire value.
-func ParseSnapshot(data json.RawMessage) (Snapshot, error) {
+// ParseProcessSnapshot strictly validates one Process snapshot wire value.
+func ParseProcessSnapshot(data json.RawMessage) (ProcessSnapshot, error) {
 	wire, err := decodeProcessSnapshot(data)
 	if err != nil {
-		return Snapshot{}, err
+		return ProcessSnapshot{}, err
 	}
 	normalized, err := json.Marshal(wire)
 	if err != nil {
-		return Snapshot{}, fmt.Errorf("%w: encode: %w", ErrInvalidSnapshot, err)
+		return ProcessSnapshot{}, fmt.Errorf("%w: encode: %w", ErrInvalidSnapshot, err)
 	}
 	if len(normalized) > maxSnapshotBytes {
-		return Snapshot{}, fmt.Errorf("%w: exceeds %d bytes", ErrInvalidSnapshot, maxSnapshotBytes)
+		return ProcessSnapshot{}, fmt.Errorf("%w: exceeds %d bytes", ErrInvalidSnapshot, maxSnapshotBytes)
 	}
-	return Snapshot{
+	return ProcessSnapshot{
 		data:           normalized,
 		processID:      wire.ProcessID,
 		deploymentRef:  wire.DeploymentRef,
@@ -57,51 +57,51 @@ func ParseSnapshot(data json.RawMessage) (Snapshot, error) {
 	}, nil
 }
 
-func newSnapshot(wire processSnapshotWire) (Snapshot, error) {
+func newProcessSnapshot(wire processSnapshotWire) (ProcessSnapshot, error) {
 	data, err := json.Marshal(wire)
 	if err != nil {
-		return Snapshot{}, fmt.Errorf("%w: encode: %w", ErrInvalidSnapshot, err)
+		return ProcessSnapshot{}, fmt.Errorf("%w: encode: %w", ErrInvalidSnapshot, err)
 	}
-	return ParseSnapshot(data)
+	return ParseProcessSnapshot(data)
 }
 
 // JSON returns an independently owned snapshot representation.
-func (s Snapshot) JSON() json.RawMessage { return bytes.Clone(s.data) }
+func (s ProcessSnapshot) JSON() json.RawMessage { return bytes.Clone(s.data) }
 
 // ProcessID returns the captured Process identity.
-func (s Snapshot) ProcessID() ProcessID { return s.processID }
+func (s ProcessSnapshot) ProcessID() ProcessID { return s.processID }
 
 // DeploymentRef returns the exact execution binding required for restoration.
-func (s Snapshot) DeploymentRef() DeploymentRef { return s.deploymentRef }
+func (s ProcessSnapshot) DeploymentRef() DeploymentRef { return s.deploymentRef }
 
 // Relation returns the immutable parent/root/depth location captured with the
 // Process.
-func (s Snapshot) Relation() ProcessRelation { return s.relation }
+func (s ProcessSnapshot) Relation() ProcessRelation { return s.relation }
 
 // Budget returns the Process work allocation captured by this snapshot.
-func (s Snapshot) Budget() Budget { return s.budget }
+func (s ProcessSnapshot) Budget() Budget { return s.budget }
 
 // Capabilities returns the Process authority set captured by this snapshot.
-func (s Snapshot) Capabilities() CapabilitySet { return s.capabilities }
+func (s ProcessSnapshot) Capabilities() CapabilitySet { return s.capabilities }
 
 // Status returns the captured common lifecycle state.
-func (s Snapshot) Status() Status { return s.status }
+func (s ProcessSnapshot) Status() Status { return s.status }
 
 // CommittedExecutionState returns the latest committed opaque Strategy state.
 // A prepared candidate, when present, remains an uncommitted Engine detail.
 // Only the owning Definition or its typed inspection helpers may interpret the
 // returned state's payload.
-func (s Snapshot) CommittedExecutionState() ExecutionState {
+func (s ProcessSnapshot) CommittedExecutionState() ExecutionState {
 	return s.executionState.clone()
 }
 
 // WaitID returns the current Engine-minted wait identity and true when the
 // captured Process is Waiting.
-func (s Snapshot) WaitID() (WaitID, bool) {
+func (s ProcessSnapshot) WaitID() (WaitID, bool) {
 	return s.waitID, s.status == StatusWaiting && s.waitID.Valid()
 }
 
-func (s Snapshot) Valid() bool {
+func (s ProcessSnapshot) Valid() bool {
 	return len(s.data) > 0 && s.processID.Valid() && s.deploymentRef.Valid() &&
 		s.status.Valid() && s.executionState.Valid() && s.relation.Valid() &&
 		s.budget.Valid() && s.capabilities.Valid()
@@ -119,18 +119,18 @@ func snapshotWaitID(waitID *WaitID) WaitID {
 	return *waitID
 }
 
-func (s Snapshot) MarshalJSON() ([]byte, error) {
+func (s ProcessSnapshot) MarshalJSON() ([]byte, error) {
 	if !s.Valid() {
 		return nil, ErrInvalidSnapshot
 	}
 	return bytes.Clone(s.data), nil
 }
 
-func (s *Snapshot) UnmarshalJSON(data []byte) error {
+func (s *ProcessSnapshot) UnmarshalJSON(data []byte) error {
 	if s == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidSnapshot)
 	}
-	value, err := ParseSnapshot(data)
+	value, err := ParseProcessSnapshot(data)
 	if err != nil {
 		return err
 	}
@@ -138,7 +138,7 @@ func (s *Snapshot) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-func (s Snapshot) wire() (processSnapshotWire, error) {
+func (s ProcessSnapshot) wire() (processSnapshotWire, error) {
 	if !s.Valid() {
 		return processSnapshotWire{}, ErrInvalidSnapshot
 	}
@@ -148,6 +148,7 @@ func (s Snapshot) wire() (processSnapshotWire, error) {
 type preparedEffectWire struct {
 	ID         EffectID    `json:"id"`
 	Effect     Effect      `json:"effect"`
+	Phase      effectPhase `json:"phase"`
 	WaitID     *WaitID     `json:"wait_id,omitempty"`
 	Settlement *Settlement `json:"settlement,omitempty"`
 }
@@ -344,6 +345,33 @@ func validatePreparedStep(processID ProcessID, sequence uint64, lastStable Execu
 			return err
 		}
 	}
+	if err := validatePreparedEffectOrder(prepared.Effects); err != nil {
+		return err
+	}
+	return nil
+}
+
+func validatePreparedEffectOrder(effects []preparedEffectWire) error {
+	seenPendingOrPlanned := false
+	seenPending := false
+	for _, effect := range effects {
+		switch effect.Phase {
+		case effectPhaseSettled:
+			if seenPendingOrPlanned {
+				return errors.New("settled Effect follows an unsettled Effect")
+			}
+		case effectPhasePending:
+			if seenPending {
+				return errors.New("prepared batch contains multiple pending Effects")
+			}
+			seenPending = true
+			seenPendingOrPlanned = true
+		case effectPhasePlanned:
+			seenPendingOrPlanned = true
+		default:
+			return errors.New("prepared Effect has invalid phase")
+		}
+	}
 	return nil
 }
 
@@ -358,8 +386,10 @@ func validatePreparedEffect(
 	if record.ID != wantID || !equalEffect(record.Effect, effect) {
 		return errors.New("prepared Effect identity or payload changed")
 	}
-	if record.Settlement != nil && record.Settlement.EffectID() != record.ID {
-		return errors.New("prepared settlement addresses another Effect")
+	if !record.Phase.valid() ||
+		(record.Phase == effectPhaseSettled) != (record.Settlement != nil) ||
+		record.Settlement != nil && record.Settlement.EffectID() != record.ID {
+		return errors.New("prepared Effect phase and settlement disagree")
 	}
 	if record.Effect.Target() != EffectTargetFramework {
 		if record.WaitID != nil {
@@ -395,7 +425,7 @@ func validatePreparedWaitEffect(record preparedEffectWire, name string) error {
 	if record.WaitID != nil && *record.WaitID != deriveWaitID(record.ID) {
 		return fmt.Errorf("%s contains a non-derived WaitID", name)
 	}
-	if (record.WaitID == nil) != (record.Settlement == nil) ||
+	if (record.WaitID == nil) != (record.Phase != effectPhaseSettled) ||
 		record.Settlement != nil && record.Settlement.Status() == SettlementStatusUnknown {
 		return fmt.Errorf("%s has an incomplete or unknown settlement", name)
 	}

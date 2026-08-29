@@ -221,7 +221,7 @@ func (w *waitingSubtreeProjection) result() (
 }
 
 func processSnapshotWires(
-	snapshots []Snapshot,
+	snapshots []ProcessSnapshot,
 ) (map[ProcessID]processSnapshotWire, map[ProcessID]int, error) {
 	wires := make(map[ProcessID]processSnapshotWire, len(snapshots))
 	indexes := make(map[ProcessID]int, len(snapshots))
@@ -237,7 +237,7 @@ func processSnapshotWires(
 }
 
 func (w *waitingSubtreeProjection) replaceProcess(process processSnapshotWire) error {
-	snapshot, err := newSnapshot(process)
+	snapshot, err := newProcessSnapshot(process)
 	if err != nil {
 		return err
 	}

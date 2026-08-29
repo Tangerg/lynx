@@ -82,6 +82,7 @@ func (p *processState) prepareStepResult(
 	for index, effect := range transition.Effects() {
 		wire.Effects = append(wire.Effects, preparedEffectWire{
 			ID: deriveEffectID(p.controller.processID, sequence, index), Effect: effect,
+			Phase: effectPhasePlanned,
 		})
 	}
 	p.prepared = &preparedStep{
@@ -157,7 +158,7 @@ func (p *preparedStepFinalization) prepare() error {
 }
 
 func (p *preparedStepFinalization) applySettlement(record preparedEffectWire) error {
-	if record.Settlement == nil || record.Settlement.Status() == SettlementStatusUnknown {
+	if !record.definitelySettled() {
 		return errors.New("effect batch is not definitely settled")
 	}
 	waitID, err := p.registerFrameworkEffect(record)
