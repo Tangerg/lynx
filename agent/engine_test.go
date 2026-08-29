@@ -579,7 +579,10 @@ func TestWaitingProcessRestoresWithSameWaitIdentity(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	restoredEngine, _ := NewEngine(EngineConfig{})
+	listener := &recordingEventListener{}
+	restoredEngine, _ := NewEngine(EngineConfig{
+		EventListeners: []EventListener{listener},
+	})
 	restored, err := restoredEngine.RestoreTree(context.Background(), deployment, tree)
 	if err != nil {
 		t.Fatal(err)
@@ -595,6 +598,20 @@ func TestWaitingProcessRestoresWithSameWaitIdentity(t *testing.T) {
 	}
 	if result := awaitResult(t, restored); result.Status() != StatusCompleted {
 		t.Fatalf("result status=%s", result.Status())
+	}
+	var accepted SignalAcceptedFact
+	for _, event := range listener.snapshot() {
+		if fact, ok := event.SignalAccepted(); ok {
+			accepted = fact
+		}
+	}
+	acceptedWaitID, addressed := accepted.WaitID()
+	if !accepted.Valid() || accepted.SignalID() != answerID ||
+		!addressed || acceptedWaitID != restoredWaitID {
+		t.Fatalf(
+			"accepted Signal fact: id=%s wait=%s addressed=%t",
+			accepted.SignalID(), acceptedWaitID, addressed,
+		)
 	}
 	_ = process.Kill(context.Background(), "test cleanup")
 	_ = awaitResult(t, process)
@@ -905,17 +922,6 @@ func (r *recordingEventListener) OnEvent(_ context.Context, event Event) {
 	}
 }
 
-func (r *recordingEventListener) has(name string) bool {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	for _, event := range r.events {
-		if event.Name() == name {
-			return true
-		}
-	}
-	return false
-}
-
 type blockingDeltaListener struct {
 	entered chan struct{}
 	release chan struct{}
@@ -944,8 +950,15 @@ func TestDeltaBufferDropsAreObservableAndListenerPanicIsIsolated(t *testing.T) {
 	if err != nil || result.Status() != StatusCompleted {
 		t.Fatalf("result=%+v err=%v", result, err)
 	}
-	if result.Usage().DroppedDeltas == 0 || !events.has("agent.delta.dropped") {
-		t.Fatalf("usage=%+v dropped event=%t", result.Usage(), events.has("agent.delta.dropped"))
+	var dropped DeltaDroppedFact
+	for _, event := range events.snapshot() {
+		if fact, ok := event.DeltaDropped(); ok {
+			dropped = fact
+		}
+	}
+	if result.Usage().DroppedDeltas == 0 || !dropped.Valid() ||
+		dropped.Count() != result.Usage().DroppedDeltas {
+		t.Fatalf("usage=%+v dropped fact=%d", result.Usage(), dropped.Count())
 	}
 	close(deltas.release)
 	if err := engine.Close(); err != nil {
@@ -1029,6 +1042,11 @@ func TestEventLifecycleCarriesExactBindingAndAttemptDurations(t *testing.T) {
 	}
 	for _, event := range events {
 		switch event.Name() {
+		case EventEffectStarted:
+			fact, ok := event.EffectStarted()
+			if !ok || fact.Target() != EffectTargetDispatcher {
+				t.Fatalf("event %q payload = %s", event.Name(), event.Payload())
+			}
 		case EventStepFinished:
 			fact, ok := event.StepFinished()
 			if !ok || fact.Duration() < 0 || fact.Status() != StepStatusSucceeded {
@@ -1038,6 +1056,17 @@ func TestEventLifecycleCarriesExactBindingAndAttemptDurations(t *testing.T) {
 			fact, ok := event.EffectFinished()
 			if !ok || fact.Duration() < 0 || fact.SettlementStatus() != SettlementStatusSucceeded ||
 				fact.Target() != EffectTargetDispatcher {
+				t.Fatalf("event %q payload = %s", event.Name(), event.Payload())
+			}
+		case EventStepCommitted:
+			fact, ok := event.StepCommitted()
+			if !ok || !fact.Valid() {
+				t.Fatalf("event %q payload = %s", event.Name(), event.Payload())
+			}
+		case EventProcessFinished:
+			fact, ok := event.ProcessFinished()
+			if !ok || fact.Status() != StatusCompleted ||
+				fact.Cause() != TerminationCauseCompletion || fact.Usage() != result.Usage() {
 				t.Fatalf("event %q payload = %s", event.Name(), event.Payload())
 			}
 		}
@@ -1072,14 +1101,14 @@ func TestFrameworkEffectPublishesTheSameLifecycleContract(t *testing.T) {
 			(event.Name() != EventEffectStarted && event.Name() != EventEffectFinished) {
 			continue
 		}
-		var payload struct {
-			EffectTarget string `json:"effect_target"`
+		switch event.Name() {
+		case EventEffectStarted:
+			fact, ok := event.EffectStarted()
+			started = ok && fact.Target() == EffectTargetFramework
+		case EventEffectFinished:
+			fact, ok := event.EffectFinished()
+			finished = ok && fact.Target() == EffectTargetFramework
 		}
-		if err := json.Unmarshal(event.Payload(), &payload); err != nil || payload.EffectTarget != "framework" {
-			continue
-		}
-		started = started || event.Name() == EventEffectStarted
-		finished = finished || event.Name() == EventEffectFinished
 	}
 	if !started || !finished {
 		t.Fatalf("Framework Effect lifecycle started=%t finished=%t", started, finished)
