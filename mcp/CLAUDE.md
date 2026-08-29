@@ -1,7 +1,7 @@
 # CLAUDE.md — mcp module
 
 > scope 对 Model Context Protocol 的**薄适配**:client / server / session / transport 直接用官方 MCP go-sdk,本模块不做第二套 SDK。
-> 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。具体符号 / SDK 版本以代码为准 —— 本则只讲宏观。
+> 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。具体符号与 SDK 依赖以代码为准 —— 本则只讲宏观。
 
 ---
 

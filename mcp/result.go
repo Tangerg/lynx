@@ -74,20 +74,8 @@ func mapRemoteContent(content sdkmcp.Content) (chat.Part, bool, error) {
 			}
 		}
 	case *sdkmcp.EmbeddedResource:
-		if value.Resource != nil {
-			if value.Resource.Text != "" {
-				return chat.NewTextPart(value.Resource.Text), true, nil
-			}
-			if len(value.Resource.Blob) != 0 && value.Resource.MIMEType != "" {
-				part, err := remoteBytesMedia(value.Resource.MIMEType, value.Resource.Blob)
-				return part, err == nil, err
-			}
-			if value.Resource.URI != "" && value.Resource.MIMEType != "" {
-				linked, err := media.NewURI(value.Resource.MIMEType, value.Resource.URI)
-				if err == nil {
-					return chat.NewMediaPart(linked), true, nil
-				}
-			}
+		if part, include, err := mapEmbeddedResource(value.Resource); include || err != nil {
+			return part, include, err
 		}
 	}
 	encoded, err := json.Marshal(content)
@@ -95,6 +83,27 @@ func mapRemoteContent(content sdkmcp.Content) (chat.Part, bool, error) {
 		return chat.Part{}, false, fmt.Errorf("encode unsupported content %T: %w", content, err)
 	}
 	return chat.NewTextPart(string(encoded)), true, nil
+}
+
+func mapEmbeddedResource(resource *sdkmcp.ResourceContents) (chat.Part, bool, error) {
+	if resource == nil {
+		return chat.Part{}, false, nil
+	}
+	if resource.Text != "" {
+		return chat.NewTextPart(resource.Text), true, nil
+	}
+	if len(resource.Blob) != 0 && resource.MIMEType != "" {
+		part, err := remoteBytesMedia(resource.MIMEType, resource.Blob)
+		return part, err == nil, err
+	}
+	if resource.URI == "" || resource.MIMEType == "" {
+		return chat.Part{}, false, nil
+	}
+	linked, err := media.NewURI(resource.MIMEType, resource.URI)
+	if err != nil {
+		return chat.Part{}, false, nil
+	}
+	return chat.NewMediaPart(linked), true, nil
 }
 
 func remoteBytesMedia(mimeType string, data []byte) (chat.Part, error) {
