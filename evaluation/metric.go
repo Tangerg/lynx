@@ -32,10 +32,10 @@ func (direction Direction) Validate() error {
 	}
 }
 
-// Metric identifies a quality calculation without encoding configuration into
-// a string. Parameters holds owned, structured identity such as a retrieval
-// cutoff or judge rubric. Unit and Direction describe optional raw
-// measurements; normalized scores are always unitless and higher-is-better.
+// Metric identifies an evaluation without encoding configuration into a
+// string. Parameters holds owned, structured identity for calculation and
+// decision rules. Unit and Direction describe optional raw measurements;
+// normalized scores are always unitless and higher-is-better.
 type Metric struct {
 	Namespace  string       `json:"namespace,omitzero"`
 	Name       MetricName   `json:"name"`

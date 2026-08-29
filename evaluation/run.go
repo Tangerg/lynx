@@ -107,7 +107,8 @@ type Distribution struct {
 
 // MetricSummary keeps score and measurement distributions attached to their
 // full Metric identity so unrelated units, directions, and configurations are
-// never aggregated together.
+// never aggregated together. Runner summarizes both top-level reports and
+// their Details.
 type MetricSummary struct {
 	Metric       Metric
 	Evaluated    int
@@ -149,66 +150,86 @@ func (runner *Runner[T]) Run(ctx context.Context, cases []Case[T]) (RunReport, e
 	if err := validateCases(cases); err != nil {
 		return RunReport{}, err
 	}
-	results := make([]CaseReport, len(cases))
-	for index, caseValue := range cases {
-		results[index] = CaseReport{ID: caseValue.ID, Metadata: caseValue.Metadata.Clone()}
-	}
+	results := newCaseReports(cases)
 	if len(cases) == 0 {
 		return RunReport{Cases: results}, nil
 	}
 
+	attempted, runErr := runner.execute(ctx, cases, results)
+	markUnevaluated(results, attempted, ctx.Err())
+	summary, summaryErr := summarize(results)
+	report := RunReport{Cases: results, Summary: summary}
+	if runErr != nil {
+		return report, runErr
+	}
+	if err := ctx.Err(); err != nil {
+		return report, err
+	}
+	if summaryErr != nil {
+		return report, summaryErr
+	}
+	return report, nil
+}
+
+func newCaseReports[T any](cases []Case[T]) []CaseReport {
+	results := make([]CaseReport, len(cases))
+	for index, caseValue := range cases {
+		results[index] = CaseReport{ID: caseValue.ID, Metadata: caseValue.Metadata.Clone()}
+	}
+	return results
+}
+
+func (runner *Runner[T]) execute(ctx context.Context, cases []Case[T], results []CaseReport) ([]bool, error) {
 	group, groupContext := errgroup.WithContext(ctx)
 	workerCount := min(runner.maxConcurrency, len(cases))
 	var next atomic.Uint64
 	attempted := make([]bool, len(cases))
 	for range workerCount {
-		group.Go(func() error {
-			for {
-				if groupContext.Err() != nil {
-					return nil
-				}
-				index := int(next.Add(1) - 1)
-				if index >= len(cases) {
-					return nil
-				}
-				if groupContext.Err() != nil {
-					return nil
-				}
-				attempted[index] = true
-				caseValue := cases[index]
-				report, err := runner.evaluator.Evaluate(groupContext, caseValue.Subject)
-				if err == nil {
-					err = report.Validate()
-				}
-				if err != nil {
-					results[index].Err = err
-					if runner.errorPolicy == ErrorFailFast {
-						return fmt.Errorf("evaluation: case %q: %w", caseValue.ID, err)
-					}
-					continue
-				}
-				results[index].Report = report.Clone()
-			}
-		})
+		group.Go(func() error { return runner.work(groupContext, cases, results, attempted, &next) })
 	}
-	err := group.Wait()
-	pendingErr := context.Canceled
-	if ctx.Err() != nil {
-		pendingErr = ctx.Err()
+	return attempted, group.Wait()
+}
+
+func (runner *Runner[T]) work(
+	ctx context.Context,
+	cases []Case[T],
+	results []CaseReport,
+	attempted []bool,
+	next *atomic.Uint64,
+) error {
+	for ctx.Err() == nil {
+		index := int(next.Add(1) - 1)
+		if index >= len(cases) || ctx.Err() != nil {
+			return nil
+		}
+		attempted[index] = true
+		caseValue := cases[index]
+		report, err := runner.evaluator.Evaluate(ctx, caseValue.Subject)
+		if err == nil {
+			err = report.Validate()
+		}
+		if err == nil {
+			results[index].Report = report.Clone()
+			continue
+		}
+		results[index].Err = err
+		if runner.errorPolicy == ErrorFailFast {
+			return fmt.Errorf("evaluation: case %q: %w", caseValue.ID, err)
+		}
+	}
+	return nil
+}
+
+func markUnevaluated(results []CaseReport, attempted []bool, contextErr error) {
+	pendingErr := ErrCaseNotEvaluated
+	if contextErr != nil {
+		pendingErr = contextErr
 	}
 	for index := range results {
 		if !attempted[index] {
 			results[index].Err = pendingErr
 		}
 	}
-	report := RunReport{Cases: results, Summary: summarize(results)}
-	if err != nil {
-		return report, err
-	}
-	if err := ctx.Err(); err != nil {
-		return report, err
-	}
-	return report, nil
 }
 
 func validateCases[T any](cases []Case[T]) error {
@@ -225,7 +246,7 @@ func validateCases[T any](cases []Case[T]) error {
 	return nil
 }
 
-func summarize(results []CaseReport) Summary {
+func summarize(results []CaseReport) (Summary, error) {
 	summary := Summary{Total: len(results)}
 	type accumulator struct {
 		index        int
@@ -273,10 +294,6 @@ func summarize(results []CaseReport) Summary {
 			summary.Errors++
 			continue
 		}
-		if err := result.Report.Validate(); err != nil {
-			summary.Errors++
-			continue
-		}
 		summary.Evaluated++
 		switch result.Report.Verdict {
 		case VerdictPass:
@@ -288,9 +305,7 @@ func summarize(results []CaseReport) Summary {
 		}
 
 		if err := summarizeMetric(result.Report); err != nil {
-			summary.Errors++
-			summary.Evaluated--
-			continue
+			return Summary{}, fmt.Errorf("evaluation: summarize case %q: %w", result.ID, err)
 		}
 	}
 	for _, current := range metrics {
@@ -298,7 +313,7 @@ func summarize(results []CaseReport) Summary {
 		metricSummary.Scores = distribution(current.scores)
 		metricSummary.Measurements = distribution(current.measurements)
 	}
-	return summary
+	return summary, nil
 }
 
 func distribution(values []float64) Distribution {

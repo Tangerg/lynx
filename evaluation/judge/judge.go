@@ -22,9 +22,11 @@ const outputName = "evaluation_report"
 type Prompt[T any] func(T) (chat.Message, error)
 
 type Config[T any] struct {
-	Model     chat.Model
-	Metric    evaluation.Metric
-	Prompt    Prompt[T]
+	Model  chat.Model
+	Metric evaluation.Metric
+	Prompt Prompt[T]
+	// Threshold is optional. Without one, evaluation produces a score without
+	// inventing a pass/fail decision.
 	Threshold *evaluation.Score
 	Samples   int
 }
@@ -34,11 +36,17 @@ type modelReport struct {
 	Feedback string           `json:"feedback,omitzero"`
 }
 
+type metricConfiguration struct {
+	Aggregation string            `json:"aggregation"`
+	Samples     int               `json:"samples"`
+	Threshold   *evaluation.Score `json:"threshold,omitzero"`
+}
+
 type Evaluator[T any] struct {
 	generation chatclient.Generation[modelReport]
 	metric     evaluation.Metric
 	prompt     Prompt[T]
-	threshold  evaluation.Score
+	threshold  *evaluation.Score
 	samples    int
 }
 
@@ -52,12 +60,13 @@ func NewEvaluator[T any](config Config[T]) (*Evaluator[T], error) {
 	if config.Prompt == nil {
 		return nil, fmt.Errorf("%w: prompt is nil", evaluation.ErrInvalidEvaluatorConfig)
 	}
-	threshold := evaluation.DefaultThreshold
+	var threshold *evaluation.Score
 	if config.Threshold != nil {
-		threshold = *config.Threshold
-	}
-	if err := threshold.Validate(); err != nil {
-		return nil, fmt.Errorf("%w: threshold: %w", evaluation.ErrInvalidEvaluatorConfig, err)
+		value := *config.Threshold
+		if err := value.Validate(); err != nil {
+			return nil, fmt.Errorf("%w: threshold: %w", evaluation.ErrInvalidEvaluatorConfig, err)
+		}
+		threshold = &value
 	}
 	if config.Samples < 0 {
 		return nil, fmt.Errorf("%w: samples must not be negative", evaluation.ErrInvalidEvaluatorConfig)
@@ -65,6 +74,10 @@ func NewEvaluator[T any](config Config[T]) (*Evaluator[T], error) {
 	samples := config.Samples
 	if samples == 0 {
 		samples = 1
+	}
+	metric, err := configuredMetric(config.Metric, threshold, samples)
+	if err != nil {
+		return nil, fmt.Errorf("%w: metric configuration: %w", evaluation.ErrInvalidEvaluatorConfig, err)
 	}
 	client, err := chatclient.New(config.Model, chatclient.Config{})
 	if err != nil {
@@ -75,9 +88,25 @@ func NewEvaluator[T any](config Config[T]) (*Evaluator[T], error) {
 		return nil, fmt.Errorf("%w: output format: %w", evaluation.ErrInvalidEvaluatorConfig, err)
 	}
 	return &Evaluator[T]{
-		generation: client.Output(format), metric: config.Metric.Clone(), prompt: config.Prompt,
+		generation: client.Output(format), metric: metric, prompt: config.Prompt,
 		threshold: threshold, samples: samples,
 	}, nil
+}
+
+func configuredMetric(metric evaluation.Metric, threshold *evaluation.Score, samples int) (evaluation.Metric, error) {
+	parameters := metric.Parameters.Clone()
+	if err := parameters.Set("judge", metricConfiguration{
+		Aggregation: "median", Samples: samples, Threshold: threshold,
+	}); err != nil {
+		return evaluation.Metric{}, err
+	}
+	return evaluation.NewMetric(evaluation.MetricConfig{
+		Namespace:  metric.Namespace,
+		Name:       metric.Name,
+		Unit:       metric.Unit,
+		Direction:  metric.Direction,
+		Parameters: parameters,
+	})
 }
 
 func (evaluator *Evaluator[T]) Evaluate(ctx context.Context, subject T) (evaluation.Report, error) {
@@ -136,9 +165,13 @@ func (evaluator *Evaluator[T]) aggregate(outputs []modelReport) (evaluation.Repo
 			return evaluation.Report{}, fmt.Errorf("evaluation/judge: sample metadata: %w", err)
 		}
 	}
-	verdict, err := score.Verdict(evaluator.threshold)
-	if err != nil {
-		return evaluation.Report{}, fmt.Errorf("evaluation/judge: verdict: %w", err)
+	verdict := evaluation.VerdictUnspecified
+	if evaluator.threshold != nil {
+		decided, err := score.Verdict(*evaluator.threshold)
+		if err != nil {
+			return evaluation.Report{}, fmt.Errorf("evaluation/judge: verdict: %w", err)
+		}
+		verdict = decided
 	}
 	report := evaluation.Report{
 		Metric: evaluator.metric.Clone(), Verdict: verdict, Score: &score,

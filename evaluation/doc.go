@@ -9,7 +9,7 @@
 // evaluator subjects without forcing a shared sample shape.
 //
 // Domain vocabularies live outside the kernel: judge supplies generic
-// model-backed evaluation, text owns generated-text metrics, and retrieval owns
-// ranking metrics. New domains implement Evaluator directly and do not depend
-// on text-generation or retrieval concepts.
+// model-backed evaluation, text owns generated-text metrics, and ranking owns
+// provider-neutral ranking metrics. New domains implement Evaluator directly
+// and do not depend on text-generation or ranking concepts.
 package evaluation

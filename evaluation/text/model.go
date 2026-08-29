@@ -22,8 +22,10 @@ const (
 type ModelEvaluatorConfig struct {
 	Model          chat.Model
 	PromptTemplate *chatclient.Template
-	Threshold      *evaluation.Score
-	Samples        int
+	// Threshold is optional. Without one, evaluation produces a score without
+	// inventing a pass/fail decision.
+	Threshold *evaluation.Score
+	Samples   int
 }
 
 func buildPrompt[Variables any](config ModelEvaluatorConfig, fallback string, required ...string) (*chatclient.Template, error) {

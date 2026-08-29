@@ -54,6 +54,15 @@ func TestCompositeUsesExplicitWeightsAndPassPolicy(t *testing.T) {
 	if result.Metric.Name != evaluation.MetricNameComposite || len(result.Details) != 2 {
 		t.Fatalf("composite identity/details = %#v", result)
 	}
+	type componentIdentity struct {
+		Metric   evaluation.Metric `json:"metric"`
+		Weight   float64           `json:"weight"`
+		Required bool              `json:"required"`
+	}
+	identity, found, err := result.Metric.Parameters.Decode[[]componentIdentity]("components")
+	if err != nil || !found || len(identity) != 2 || identity[0].Metric.Name != "quality" || identity[0].Weight != 3 || !identity[0].Required {
+		t.Fatalf("component identity = (%#v, %v, %v)", identity, found, err)
+	}
 	result.Details[0].Metadata["source"][1] = 'X'
 	if string(firstMetadata["source"]) != "\"first\"" {
 		t.Fatalf("child metadata was aliased: %s", firstMetadata["source"])
@@ -71,6 +80,8 @@ func TestCompositeValidatesConfigurationAndPreservesErrors(t *testing.T) {
 		{Components: []evaluation.Component[string]{{Evaluator: validStringEvaluator(), Weight: math.Inf(1)}}},
 		{Components: []evaluation.Component[string]{{Evaluator: validStringEvaluator()}}, PassPolicy: "unsupported"},
 		{Components: []evaluation.Component[string]{{Evaluator: validStringEvaluator()}}, PassPolicy: evaluation.PassAtLeast},
+		{Components: []evaluation.Component[string]{{Evaluator: validStringEvaluator()}}, PassPolicy: evaluation.PassAll, MinimumPassed: 1},
+		{Components: []evaluation.Component[string]{{Evaluator: validStringEvaluator()}}, PassPolicy: evaluation.PassAny, MinimumPassed: 1},
 		{Components: []evaluation.Component[string]{{Evaluator: validStringEvaluator()}}, MaxConcurrency: -1},
 	} {
 		if _, err := evaluation.NewCompositeEvaluator(config); !errors.Is(err, evaluation.ErrInvalidEvaluatorConfig) {
@@ -224,6 +235,9 @@ func TestRunnerFailFastPreservesCaseIdentityAndStopsScheduling(t *testing.T) {
 			t.Fatalf("cases[%d] = %#v", index, report.Cases[index])
 		}
 	}
+	if !errors.Is(report.Cases[1].Err, evaluation.ErrCaseNotEvaluated) || !errors.Is(report.Cases[2].Err, evaluation.ErrCaseNotEvaluated) {
+		t.Fatalf("pending case errors = (%v, %v)", report.Cases[1].Err, report.Cases[2].Err)
+	}
 	if report.Summary.Total != 3 || report.Summary.Errors != 3 || report.Summary.Evaluated != 0 {
 		t.Fatalf("summary = %#v", report.Summary)
 	}
@@ -293,6 +307,10 @@ func TestSuitePreservesHeterogeneousResultsAndRunnerSummarizesEachMetric(t *test
 	if report.Verdict != evaluation.VerdictPass || report.Score != nil || len(report.Details) != 2 {
 		t.Fatalf("suite report = %#v", report)
 	}
+	metrics, found, err := report.Metric.Parameters.Decode[[]evaluation.Metric]("metrics")
+	if err != nil || !found || len(metrics) != 2 || metrics[0].Name != "quality" || metrics[1].Name != "latency" {
+		t.Fatalf("suite metric identity = (%#v, %v, %v)", metrics, found, err)
+	}
 
 	runner, err := evaluation.NewRunner(suite, evaluation.RunnerConfig{})
 	if err != nil {
@@ -336,17 +354,17 @@ func TestCompositeRejectsReportsThatCannotBeMeaningfullyAggregated(t *testing.T)
 
 func TestScoreMetricAndReportValidation(t *testing.T) {
 	parameters := metadata.Map{}
-	if err := parameters.Set("cutoff", 5); err != nil {
+	if err := parameters.Set("rubric", "strict"); err != nil {
 		t.Fatal(err)
 	}
 	metric, err := evaluation.NewMetric(evaluation.MetricConfig{
-		Namespace: "retrieval", Name: "precision", Parameters: parameters,
+		Namespace: "custom", Name: "quality", Parameters: parameters,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	parameters["cutoff"][0] = '9'
-	if metric.String() != "retrieval/precision" || string(metric.Parameters["cutoff"]) != "5" {
+	parameters["rubric"][1] = 'X'
+	if metric.String() != "custom/quality" || string(metric.Parameters["rubric"]) != `"strict"` {
 		t.Fatalf("metric = %#v", metric)
 	}
 	for _, score := range []float64{-0.1, 1.1, math.NaN(), math.Inf(1)} {
@@ -368,6 +386,9 @@ func TestScoreMetricAndReportValidation(t *testing.T) {
 	}
 	if err := (evaluation.Report{Metric: testMetric("quality"), Verdict: "maybe"}).Validate(); !errors.Is(err, evaluation.ErrInvalidReport) {
 		t.Fatalf("invalid verdict error = %v", err)
+	}
+	if err := (evaluation.Report{Metric: testMetric("empty")}).Validate(); !errors.Is(err, evaluation.ErrInvalidReport) {
+		t.Fatalf("empty report error = %v", err)
 	}
 }
 

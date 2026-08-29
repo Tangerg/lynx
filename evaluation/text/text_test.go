@@ -39,12 +39,12 @@ func TestModelEvaluatorConstructionValidatesConfiguration(t *testing.T) {
 	}); !errors.Is(constructErr, evaluation.ErrInvalidEvaluatorConfig) {
 		t.Fatalf("unknown field error = %v", constructErr)
 	}
-	ragOnly, err := chatclient.ParseTemplate("{{.Input}} {{.Output}} {{.Context}}")
+	unsupportedContext, err := chatclient.ParseTemplate("{{.Input}} {{.Output}} {{.Context}}")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if _, constructErr := texteval.NewAnswerRelevanceEvaluator(texteval.ModelEvaluatorConfig{
-		Model: model, PromptTemplate: ragOnly,
+		Model: model, PromptTemplate: unsupportedContext,
 	}); !errors.Is(constructErr, evaluation.ErrInvalidEvaluatorConfig) {
 		t.Fatalf("unsupported relevance prompt field error = %v", constructErr)
 	}
@@ -58,7 +58,10 @@ func TestModelEvaluatorConstructionValidatesConfiguration(t *testing.T) {
 
 func TestGroundednessBuildsStructuredRequestAndDecodesResult(t *testing.T) {
 	model := &fakeModel{reply: `{"score":0.95,"feedback":"Fully supported."}`}
-	evaluator, err := texteval.NewGroundednessEvaluator(texteval.ModelEvaluatorConfig{Model: model})
+	threshold := evaluation.Score(0.5)
+	evaluator, err := texteval.NewGroundednessEvaluator(texteval.ModelEvaluatorConfig{
+		Model: model, Threshold: &threshold,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,8 +145,9 @@ func TestModelEvaluatorsRejectMissingSemanticInputs(t *testing.T) {
 
 func TestCorrectnessUsesReferenceAndSupportsSelfConsistency(t *testing.T) {
 	model := &fakeModel{reply: "{\"score\":0.9,\"feedback\":\"Correct.\"}"}
+	threshold := evaluation.Score(0.5)
 	evaluator, err := texteval.NewCorrectnessEvaluator(texteval.ModelEvaluatorConfig{
-		Model: model, Samples: 3,
+		Model: model, Threshold: &threshold, Samples: 3,
 	})
 	if err != nil {
 		t.Fatal(err)

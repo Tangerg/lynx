@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"math"
 	"slices"
+	"strings"
 
 	"github.com/Tangerg/scope/core/metadata"
 )
@@ -61,10 +62,18 @@ func (report Report) Validate() error {
 	if err := report.Metadata.Validate(); err != nil {
 		return fmt.Errorf("%w: metadata: %w", ErrInvalidReport, err)
 	}
+	if !report.hasOutcome() {
+		return fmt.Errorf("%w: at least one verdict, score, measurement, feedback, metadata value, or detail is required", ErrInvalidReport)
+	}
 	for index, detail := range report.Details {
 		if err := detail.Validate(); err != nil {
 			return fmt.Errorf("%w: details[%d]: %w", ErrInvalidReport, index, err)
 		}
 	}
 	return nil
+}
+
+func (report Report) hasOutcome() bool {
+	return report.Verdict.Decided() || report.Score != nil || report.Measurement != nil ||
+		strings.TrimSpace(report.Feedback) != "" || len(report.Metadata) > 0 || len(report.Details) > 0
 }

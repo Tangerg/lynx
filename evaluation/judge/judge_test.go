@@ -27,8 +27,9 @@ func TestEvaluatorSupportsNonTextSubjectsAndMedianSampling(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	threshold := evaluation.Score(0.5)
 	evaluator, err := judge.NewEvaluator(judge.Config[toolDecision]{
-		Model: model, Metric: metric, Samples: 3,
+		Model: model, Metric: metric, Threshold: &threshold, Samples: 3,
 		Prompt: func(subject toolDecision) (chat.Message, error) {
 			return chat.NewUserMessage(chat.NewTextPart(fmt.Sprintf(
 				"expected=%s actual=%s", subject.Expected, subject.Actual,
@@ -45,9 +46,34 @@ func TestEvaluatorSupportsNonTextSubjectsAndMedianSampling(t *testing.T) {
 	if report.Verdict != evaluation.VerdictPass || report.Score == nil || *report.Score != 0.7 || report.Feedback != "middle" {
 		t.Fatalf("report = %#v", report)
 	}
+	configuration, found, err := report.Metric.Parameters.Decode[struct {
+		Aggregation string           `json:"aggregation"`
+		Samples     int              `json:"samples"`
+		Threshold   evaluation.Score `json:"threshold"`
+	}]("judge")
+	if err != nil || !found || configuration.Aggregation != "median" || configuration.Samples != 3 || configuration.Threshold != threshold {
+		t.Fatalf("judge metric configuration = (%#v, %v, %v)", configuration, found, err)
+	}
 	scores, found, err := report.Metadata.Decode[[]evaluation.Score]("sample_scores")
 	if err != nil || !found || len(scores) != 3 || scores[0] != 0.2 || scores[2] != 0.9 {
 		t.Fatalf("sample scores = (%v, %v, %v)", scores, found, err)
+	}
+}
+
+func TestEvaluatorDoesNotInventVerdictWithoutThreshold(t *testing.T) {
+	model := &fakeModel{replies: []string{"{\"score\":0.9}"}}
+	evaluator, err := judge.NewEvaluator(judge.Config[string]{
+		Model: model, Metric: evaluation.Metric{Name: "quality"}, Prompt: validPrompt,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := evaluator.Evaluate(t.Context(), "subject")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.Verdict != evaluation.VerdictUnspecified || report.Score == nil || *report.Score != 0.9 {
+		t.Fatalf("report = %#v", report)
 	}
 }
 

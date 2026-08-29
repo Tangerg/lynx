@@ -9,8 +9,6 @@ import (
 // higher value is always better.
 type Score float64
 
-const DefaultThreshold Score = 0.5
-
 func NewScore(value float64) (Score, error) {
 	score := Score(value)
 	if err := score.Validate(); err != nil {

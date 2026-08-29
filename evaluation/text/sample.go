@@ -1,5 +1,5 @@
-// Package text evaluates generated text without imposing a shared, RAG-shaped
-// sample on unrelated metrics.
+// Package text evaluates generated text without imposing one shared sample on
+// metrics with different semantic inputs.
 package text
 
 import (

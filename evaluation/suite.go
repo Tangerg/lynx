@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/samber/lo"
+
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 const MetricNameSuite MetricName = "suite"
@@ -17,13 +19,13 @@ type SuiteConfig[T any] struct {
 	MaxConcurrency int
 }
 
-// SuiteEvaluator preserves every child report. Its verdict fails when any
-// decided child fails, passes when at least one child passes and none fail, and
-// remains unspecified when every child is measurement-only or qualitative.
+// SuiteEvaluator preserves every child report and records the ordered child
+// metrics in its own identity. Its verdict fails when any decided child fails,
+// passes when at least one child passes and none fail, and remains unspecified
+// when every child is measurement-only or qualitative.
 type SuiteEvaluator[T any] struct {
 	evaluators     []Evaluator[T]
 	maxConcurrency int
-	metric         Metric
 }
 
 func NewSuiteEvaluator[T any](config SuiteConfig[T]) (*SuiteEvaluator[T], error) {
@@ -45,11 +47,7 @@ func NewSuiteEvaluator[T any](config SuiteConfig[T]) (*SuiteEvaluator[T], error)
 		maxConcurrency = DefaultMaxConcurrency
 	}
 	maxConcurrency = min(maxConcurrency, len(evaluators))
-	metric, err := NewMetric(MetricConfig{Name: MetricNameSuite})
-	if err != nil {
-		return nil, fmt.Errorf("%w: suite metric: %w", ErrInvalidEvaluatorConfig, err)
-	}
-	return &SuiteEvaluator[T]{evaluators: evaluators, maxConcurrency: maxConcurrency, metric: metric}, nil
+	return &SuiteEvaluator[T]{evaluators: evaluators, maxConcurrency: maxConcurrency}, nil
 }
 
 func (suite *SuiteEvaluator[T]) Evaluate(ctx context.Context, subject T) (Report, error) {
@@ -68,11 +66,31 @@ func (suite *SuiteEvaluator[T]) Evaluate(ctx context.Context, subject T) (Report
 			}
 		}
 	}
-	result := Report{Metric: suite.metric.Clone(), Verdict: verdict, Details: reports}
+	metric, err := suiteMetric(reports)
+	if err != nil {
+		return Report{}, err
+	}
+	result := Report{Metric: metric, Verdict: verdict, Details: reports}
 	if err := result.Validate(); err != nil {
 		return Report{}, err
 	}
 	return result, nil
+}
+
+func suiteMetric(reports []Report) (Metric, error) {
+	metrics := make([]Metric, len(reports))
+	for index, report := range reports {
+		metrics[index] = report.Metric.Clone()
+	}
+	parameters := metadata.Map{}
+	if err := parameters.Set("metrics", metrics); err != nil {
+		return Metric{}, fmt.Errorf("evaluation: suite metric identity: %w", err)
+	}
+	metric, err := NewMetric(MetricConfig{Name: MetricNameSuite, Parameters: parameters})
+	if err != nil {
+		return Metric{}, fmt.Errorf("evaluation: suite metric identity: %w", err)
+	}
+	return metric, nil
 }
 
 var _ Evaluator[struct{}] = (*SuiteEvaluator[struct{}])(nil)

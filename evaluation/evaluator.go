@@ -2,11 +2,11 @@ package evaluation
 
 import "context"
 
-// Evaluator evaluates one subject and returns a normalized report.
+// Evaluator evaluates one subject and returns a valid report.
 type Evaluator[T any] interface {
 	// Evaluate inspects one subject without mutating it and returns a valid,
-	// normalized report for the evaluator's declared metric. Implementations
-	// must honor ctx; a non-nil error means the report must not be consumed.
+	// owned report for the evaluator's metric. Implementations must honor ctx;
+	// a non-nil error means the report must not be consumed.
 	Evaluate(ctx context.Context, subject T) (Report, error)
 }
 
