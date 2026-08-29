@@ -70,13 +70,15 @@ func TestProcessStartOutcomesConcludeAcceptedRootAndChildAdmissions(t *testing.T
 	}
 	rootOutcome, rootFound := byProcess[parent.ID()]
 	childOutcome, childFound := byProcess[child.ID()]
+	rootStartedAt, rootStarted := rootOutcome.StartedAt()
 	if !rootFound || !rootOutcome.Admission().Relation().IsRoot() ||
-		rootOutcome.Admission().StartedAt() != parent.StartedAt() {
+		!rootStarted || rootStartedAt != parent.StartedAt() {
 		t.Fatalf("root outcome = %#v", rootOutcome)
 	}
 	parentID, hasParent := childOutcome.Admission().Relation().ParentID()
+	childStartedAt, childStarted := childOutcome.StartedAt()
 	if !childFound || !hasParent || parentID != parent.ID() ||
-		childOutcome.Admission().StartedAt() != child.StartedAt() {
+		!childStarted || childStartedAt != child.StartedAt() {
 		t.Fatalf("child outcome = %#v", childOutcome)
 	}
 	if err := engine.Close(); err != nil {
@@ -122,6 +124,9 @@ func TestProcessStartOutcomeReportsPostAdmissionInitializationFailure(t *testing
 			failure, failed := outcomes[0].Failure()
 			if !failed || failure.Code() != test.code {
 				t.Fatalf("aborted failure = %#v, present = %t", failure, failed)
+			}
+			if startedAt, started := outcomes[0].StartedAt(); started || !startedAt.IsZero() {
+				t.Fatalf("aborted StartedAt = %s, present = %t", startedAt, started)
 			}
 			processID := outcomes[0].Admission().Relation().ProcessID()
 			if _, published := engine.Process(processID); published {

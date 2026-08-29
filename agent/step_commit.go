@@ -165,9 +165,7 @@ func (p *preparedStepFinalization) applySettlement(record preparedEffectWire) er
 	if err != nil {
 		return err
 	}
-	signal, err := newSignal(
-		deriveSettlementSignalID(record.ID), waitID, time.Now(), record.Settlement.Payload(),
-	)
+	signal, err := newSignal(deriveSettlementSignalID(record.ID), waitID, record.Settlement.Payload())
 	if err != nil {
 		return err
 	}

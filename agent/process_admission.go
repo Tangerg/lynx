@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 )
 
 var ErrProcessAdmissionRejected = errors.New("agent: process admission rejected")
@@ -18,7 +17,6 @@ type ProcessAdmission struct {
 	descriptor    Descriptor
 	budget        Budget
 	capabilities  CapabilitySet
-	startedAt     time.Time
 }
 
 // Relation returns the prospective Process identity and tree location.
@@ -36,16 +34,10 @@ func (p ProcessAdmission) Budget() Budget { return p.budget }
 // Capabilities returns the prospective Process's immutable authority set.
 func (p ProcessAdmission) Capabilities() CapabilitySet { return p.capabilities }
 
-// StartedAt returns the prospective Process start time. If the accepted
-// admission concludes with a started outcome, this exact UTC value becomes the
-// Process lifecycle start.
-func (p ProcessAdmission) StartedAt() time.Time { return p.startedAt }
-
 func (p ProcessAdmission) Valid() bool {
 	return p.relation.Valid() && p.deploymentRef.Valid() &&
 		p.descriptor.Valid() && p.budget.Valid() &&
-		p.capabilities.Valid() && !p.startedAt.IsZero() &&
-		p.startedAt.Location() == time.UTC &&
+		p.capabilities.Valid() &&
 		p.deploymentRef.Name() == p.descriptor.Name() &&
 		p.deploymentRef.Version() == p.descriptor.Version() &&
 		p.deploymentRef.ContractDigest() == p.descriptor.Digest()
@@ -86,12 +78,11 @@ func newProcessAdmission(
 	deployment Deployment,
 	budget Budget,
 	capabilities CapabilitySet,
-	startedAt time.Time,
 ) ProcessAdmission {
 	return ProcessAdmission{
 		relation: relation, deploymentRef: deployment.DeploymentRef(),
 		descriptor: deployment.Descriptor(), budget: budget,
-		capabilities: capabilities, startedAt: startedAt,
+		capabilities: capabilities,
 	}
 }
 

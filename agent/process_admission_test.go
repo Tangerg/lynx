@@ -64,8 +64,7 @@ func TestProcessAdmitterReceivesRootAndChildResourceContracts(t *testing.T) {
 		rootAdmission.DeploymentRef() != parentDeployment.DeploymentRef() ||
 		rootAdmission.Descriptor().Digest() != parentDeployment.Descriptor().Digest() ||
 		rootAdmission.Budget() != budgetFromLimits(DefaultLimits()) ||
-		!rootAdmission.Capabilities().Contains(read) ||
-		rootAdmission.StartedAt() != parent.StartedAt() {
+		!rootAdmission.Capabilities().Contains(read) {
 		t.Fatalf("root admission = %#v", rootAdmission)
 	}
 	parentID, hasParent := childAdmission.Relation().ParentID()
@@ -73,8 +72,7 @@ func TestProcessAdmitterReceivesRootAndChildResourceContracts(t *testing.T) {
 		childAdmission.Relation().Depth() != 1 ||
 		childAdmission.DeploymentRef() != childDeployment.DeploymentRef() ||
 		childAdmission.Budget() != (Budget{Steps: 20, Effects: 20, Signals: 40}) ||
-		len(childAdmission.Capabilities().Values()) != 0 ||
-		childAdmission.StartedAt() != child.StartedAt() {
+		len(childAdmission.Capabilities().Values()) != 0 {
 		t.Fatalf("child admission = %#v", childAdmission)
 	}
 	if err := engine.Close(); err != nil {

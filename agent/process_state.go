@@ -201,7 +201,7 @@ func (p *processState) deliver(ctx context.Context, command processCommand) {
 		command.reply(processResponse{err: ErrResourceLimitExceeded})
 		return
 	}
-	signal, err := command.signalRequest.signal(time.Now())
+	signal, err := command.signalRequest.signal()
 	if err != nil {
 		command.reply(processResponse{err: err})
 		return
@@ -252,7 +252,7 @@ func (p *processState) deliverBatch(ctx context.Context, command processCommand)
 			command.reply(processResponse{accepted: false})
 			return
 		}
-		signal, err := request.signal(time.Now())
+		signal, err := request.signal()
 		if err != nil {
 			command.reply(processResponse{err: err})
 			return

@@ -119,15 +119,13 @@ func (p *childStartPlan) execute(ctx context.Context) childStartJobResult {
 			p.spec, FailureKindContract, "engine.child.input.invalid", err,
 		)}
 	}
-	startedAt := time.Now().Round(0).UTC()
-	admission := newProcessAdmission(
-		p.relation, deployment, p.spec.Budget, p.spec.Capabilities, startedAt,
-	)
+	admission := newProcessAdmission(p.relation, deployment, p.spec.Budget, p.spec.Capabilities)
 	if err := requestProcessAdmission(ctx, p.engine.admitter, admission); err != nil {
 		return childStartJobResult{result: failedChildStart(
 			p.spec, FailureKindExternal, "engine.child.admission.rejected", err,
 		)}
 	}
+	startedAt := time.Now().Round(0).UTC()
 	execution, state, failure, err := initializeExecution(deployment.Definition(), p.spec.Input)
 	if err != nil {
 		acknowledgeErr := p.engine.acknowledgeAbortedProcessOutcome(ctx, admission, failure)
@@ -135,7 +133,7 @@ func (p *childStartPlan) execute(ctx context.Context) childStartJobResult {
 			p.spec, failure.Kind(), failure.Code(), errors.Join(err, acknowledgeErr),
 		)}
 	}
-	if err := p.engine.acknowledgeStartedProcessOutcome(ctx, admission); err != nil {
+	if err := p.engine.acknowledgeStartedProcessOutcome(ctx, admission, startedAt); err != nil {
 		return childStartJobResult{result: failedChildStart(
 			p.spec, FailureKindExternal, "engine.child.start_outcome.unacknowledged", err,
 		)}

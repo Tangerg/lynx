@@ -27,7 +27,6 @@ func TestProcessAdmissionContainsOnlyFrameworkStartContracts(t *testing.T) {
 		{name: "descriptor", typeOf: reflect.TypeFor[Descriptor]()},
 		{name: "budget", typeOf: reflect.TypeFor[Budget]()},
 		{name: "capabilities", typeOf: reflect.TypeFor[CapabilitySet]()},
-		{name: "startedAt", typeOf: reflect.TypeFor[time.Time]()},
 	}
 	if typeOf.NumField() != len(want) {
 		t.Fatalf("ProcessAdmission fields = %d, want %d", typeOf.NumField(), len(want))
@@ -48,6 +47,7 @@ func TestProcessStartOutcomeContainsOnlyFrameworkLifecycleContracts(t *testing.T
 	}{
 		{name: "admission", typeOf: reflect.TypeFor[ProcessAdmission]()},
 		{name: "status", typeOf: reflect.TypeFor[ProcessStartOutcomeStatus]()},
+		{name: "startedAt", typeOf: reflect.TypeFor[time.Time]()},
 		{name: "failure", typeOf: reflect.TypeFor[Failure]()},
 	}
 	if typeOf.NumField() != len(want) {

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 )
 
 var ErrInvalidSignalRequest = errors.New("agent: invalid signal request")
@@ -41,9 +40,9 @@ func (s SignalRequest) Payload() json.RawMessage { return bytes.Clone(s.payload)
 
 func (s SignalRequest) Valid() bool { return s.id.Valid() && len(s.payload) > 0 }
 
-func (s SignalRequest) signal(receivedAt time.Time) (Signal, error) {
+func (s SignalRequest) signal() (Signal, error) {
 	if !s.Valid() {
 		return Signal{}, ErrInvalidSignalRequest
 	}
-	return newSignal(s.id, s.waitID, receivedAt, s.payload)
+	return newSignal(s.id, s.waitID, s.payload)
 }

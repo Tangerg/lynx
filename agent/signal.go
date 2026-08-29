@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"time"
 )
 
 var ErrInvalidSignal = errors.New("agent: invalid signal")
@@ -16,29 +15,20 @@ var ErrInvalidSignal = errors.New("agent: invalid signal")
 // public typed helpers. SignalID identifies delivery, while an optional WaitID
 // identifies the Engine-created wait target.
 type Signal struct {
-	id         SignalID
-	waitID     WaitID
-	receivedAt time.Time
-	payload    json.RawMessage
+	id      SignalID
+	waitID  WaitID
+	payload json.RawMessage
 }
 
-func newSignal(id SignalID, waitID WaitID, receivedAt time.Time, payload json.RawMessage) (Signal, error) {
+func newSignal(id SignalID, waitID WaitID, payload json.RawMessage) (Signal, error) {
 	if !id.Valid() {
 		return Signal{}, fmt.Errorf("%w: %w", ErrInvalidSignal, ErrInvalidIdentity)
-	}
-	if receivedAt.IsZero() {
-		return Signal{}, fmt.Errorf("%w: received time is required", ErrInvalidSignal)
 	}
 	normalized, err := wireJSON.normalize(payload, maxWireBytes)
 	if err != nil {
 		return Signal{}, fmt.Errorf("%w: payload: %w", ErrInvalidSignal, err)
 	}
-	return Signal{
-		id:         id,
-		waitID:     waitID,
-		receivedAt: receivedAt.Round(0).UTC(),
-		payload:    normalized,
-	}, nil
+	return Signal{id: id, waitID: waitID, payload: normalized}, nil
 }
 
 // ID returns the stable delivery and deduplication identity.
@@ -48,26 +38,20 @@ func (s Signal) ID() SignalID { return s.id }
 // Signal queued at the next Strategy-safe boundary.
 func (s Signal) WaitID() (WaitID, bool) { return s.waitID, s.waitID.Valid() }
 
-// ReceivedAt returns when the Engine accepted the Signal.
-func (s Signal) ReceivedAt() time.Time { return s.receivedAt }
-
 // Payload returns an independently owned copy. Strategy-owned payloads are
 // interpreted only by their Strategy; Framework-owned payloads should be read
 // through the corresponding typed parser rather than decoded ad hoc.
 func (s Signal) Payload() json.RawMessage { return bytes.Clone(s.payload) }
 
-func (s Signal) Valid() bool {
-	return s.id.Valid() && !s.receivedAt.IsZero() && len(s.payload) > 0
-}
+func (s Signal) Valid() bool { return s.id.Valid() && len(s.payload) > 0 }
 
 func (s Signal) MarshalJSON() ([]byte, error) {
 	if !s.Valid() {
 		return nil, ErrInvalidSignal
 	}
 	wire := signalWire{
-		ID:         s.id,
-		ReceivedAt: s.receivedAt,
-		Payload:    s.payload,
+		ID:      s.id,
+		Payload: s.payload,
 	}
 	if s.waitID.Valid() {
 		wire.WaitID = &s.waitID
@@ -87,7 +71,7 @@ func (s *Signal) UnmarshalJSON(data []byte) error {
 	if wire.WaitID != nil {
 		waitID = *wire.WaitID
 	}
-	value, err := newSignal(wire.ID, waitID, wire.ReceivedAt, wire.Payload)
+	value, err := newSignal(wire.ID, waitID, wire.Payload)
 	if err != nil {
 		return err
 	}
@@ -96,8 +80,7 @@ func (s *Signal) UnmarshalJSON(data []byte) error {
 }
 
 type signalWire struct {
-	ID         SignalID        `json:"id"`
-	WaitID     *WaitID         `json:"wait_id,omitempty"`
-	ReceivedAt time.Time       `json:"received_at"`
-	Payload    json.RawMessage `json:"payload"`
+	ID      SignalID        `json:"id"`
+	WaitID  *WaitID         `json:"wait_id,omitempty"`
+	Payload json.RawMessage `json:"payload"`
 }

@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	currentAPIBaseline         = 36
+	currentAPIBaseline         = 37
 	currentAPIBaselineFrozenOn = "2026-08-29"
 )
 
@@ -27,7 +27,7 @@ var exportedAPIBaselines = []struct {
 	directory string
 	want      string
 }{
-	{name: "kernel", label: "root kernel", directory: ".", want: "893b952311197f784a3f6c2ff7c0ee12eb50970ce450ce5169b28d1bc0e9e7b1"},
+	{name: "kernel", label: "root kernel", directory: ".", want: "899e33b582ae710c09b54de70b7e9e40b4f4947f996d6a96e8aefa1331c15f96"},
 	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "ee493eb270bb15affeb19da31105cef1a09fa54ffe54b66cc45b5ce6feb5bf55"},
 	{name: "interaction", label: "interaction", directory: "interaction", want: "8b39cc9e28e0bdd00579c4563dbc3d9b8237f3b932b30740f85941f2911fdf54"},
 	{name: "planning", label: "planning", directory: "planning", want: "4ca18318b81c7fc646ee7121c9f2e303df2cc2d28fcd8357e2c3b07cebd1a014"},
@@ -289,7 +289,7 @@ func isErrorCauseName(name string) bool {
 func TestSnapshotWireBaseline(t *testing.T) {
 	shape := snapshotWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "b9b482bc7f9402dd2fad31f2a83d9fe5b7d8eca80c2b9a77b5471dfc70c11e49"
+	const want = "bc057dd6141de1deca52ed31400fd50410a8a74e660ff6e0bf4c7443908ccbdc"
 	if got != want {
 		t.Fatalf("snapshot wire changed: got %s, want %s\n%s", got, want, shape)
 	}

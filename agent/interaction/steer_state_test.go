@@ -5,7 +5,6 @@ import (
 	"errors"
 	"slices"
 	"testing"
-	"time"
 
 	agent "github.com/Tangerg/scope/agent"
 	"github.com/Tangerg/scope/core/chat"
@@ -160,12 +159,10 @@ func pendingSteerTestState(t testing.TB) executionState {
 func signalFromRequest(t testing.TB, request agent.SignalRequest) agent.Signal {
 	t.Helper()
 	wire := struct {
-		ID         agent.SignalID  `json:"id"`
-		ReceivedAt time.Time       `json:"received_at"`
-		Payload    json.RawMessage `json:"payload"`
+		ID      agent.SignalID  `json:"id"`
+		Payload json.RawMessage `json:"payload"`
 	}{
-		ID: request.ID(), ReceivedAt: time.Date(2026, 8, 10, 0, 0, 0, 0, time.UTC),
-		Payload: request.Payload(),
+		ID: request.ID(), Payload: request.Payload(),
 	}
 	encoded, err := json.Marshal(wire)
 	if err != nil {
@@ -198,13 +195,12 @@ func childWaitOpenedTestSignal(t testing.TB) agent.Signal {
 		t.Fatal(err)
 	}
 	wire := struct {
-		ID         agent.SignalID  `json:"id"`
-		WaitID     agent.WaitID    `json:"wait_id"`
-		ReceivedAt time.Time       `json:"received_at"`
-		Payload    json.RawMessage `json:"payload"`
+		ID      agent.SignalID  `json:"id"`
+		WaitID  agent.WaitID    `json:"wait_id"`
+		Payload json.RawMessage `json:"payload"`
 	}{
 		ID: id, WaitID: waitID,
-		ReceivedAt: time.Date(2026, 8, 10, 0, 0, 1, 0, time.UTC), Payload: payload,
+		Payload: payload,
 	}
 	encoded, err := json.Marshal(wire)
 	if err != nil {

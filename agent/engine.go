@@ -213,10 +213,7 @@ func (e *Engine) Start(ctx context.Context, deployment Deployment, input Input) 
 	}
 	relation := rootProcessRelation(id)
 	budget := budgetFromLimits(e.limits)
-	startedAt := time.Now().Round(0).UTC()
-	admission := newProcessAdmission(
-		relation, deployment, budget, e.capabilities, startedAt,
-	)
+	admission := newProcessAdmission(relation, deployment, budget, e.capabilities)
 	if reserveProcessStartErr := e.reserveProcessStart(
 		relation, deployment.DeploymentRef(), e.treeLimits, Digest{},
 	); reserveProcessStartErr != nil {
@@ -226,6 +223,7 @@ func (e *Engine) Start(ctx context.Context, deployment Deployment, input Input) 
 		e.discardProcessStartReservation(id)
 		return nil, requestProcessAdmissionErr
 	}
+	startedAt := time.Now().Round(0).UTC()
 	execution, state, failure, err := initializeExecution(deployment.Definition(), input)
 	if err != nil {
 		acknowledgeErr := e.acknowledgeAbortedProcessOutcome(ctx, admission, failure)
@@ -239,7 +237,7 @@ func (e *Engine) Start(ctx context.Context, deployment Deployment, input Input) 
 	)
 	loop := newProcessState(e, controller, deployment, execution, state, startedAt, e.limits)
 	runtime := newTreeRuntime(e, relation.RootID(), ctx, loop)
-	if err := e.acknowledgeStartedProcessOutcome(ctx, admission); err != nil {
+	if err := e.acknowledgeStartedProcessOutcome(ctx, admission, startedAt); err != nil {
 		e.discardProcessStartReservation(id)
 		return nil, err
 	}

@@ -153,7 +153,7 @@ func (w *waitingSubtreeProjection) deliverBoundaryCompletion(
 	if !ready {
 		return nil
 	}
-	signal, err := encodeChildrenCompletedAt(wait.WaitID, spec.Key, outcomes, w.finishedAt)
+	signal, err := encodeChildrenCompleted(wait.WaitID, spec.Key, outcomes)
 	if err != nil {
 		return err
 	}

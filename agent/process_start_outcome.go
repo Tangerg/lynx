@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 )
 
 // ProcessStartOutcomeStatus identifies the conclusive result of one accepted
@@ -38,6 +39,7 @@ func (p ProcessStartOutcomeStatus) String() string {
 type ProcessStartOutcome struct {
 	admission ProcessAdmission
 	status    ProcessStartOutcomeStatus
+	startedAt time.Time
 	failure   Failure
 }
 
@@ -46,6 +48,15 @@ func (p ProcessStartOutcome) Admission() ProcessAdmission { return p.admission }
 
 // Status returns the conclusive started or aborted initialization result.
 func (p ProcessStartOutcome) Status() ProcessStartOutcomeStatus { return p.status }
+
+// StartedAt returns the authoritative UTC lifecycle time for a started
+// Process. Aborted outcomes return false because no Process lifecycle began.
+func (p ProcessStartOutcome) StartedAt() (time.Time, bool) {
+	if p.status != ProcessStartOutcomeStatusStarted || p.startedAt.IsZero() {
+		return time.Time{}, false
+	}
+	return p.startedAt, true
+}
 
 // Failure returns the stable initialization failure for an aborted outcome.
 func (p ProcessStartOutcome) Failure() (Failure, bool) {
@@ -58,9 +69,9 @@ func (p ProcessStartOutcome) Valid() bool {
 	}
 	switch p.status {
 	case ProcessStartOutcomeStatusStarted:
-		return !p.failure.Valid()
+		return !p.startedAt.IsZero() && p.startedAt.Location() == time.UTC && !p.failure.Valid()
 	case ProcessStartOutcomeStatusAborted:
-		return p.failure.Valid()
+		return p.startedAt.IsZero() && p.failure.Valid()
 	default:
 		return false
 	}
@@ -97,8 +108,11 @@ func (p ProcessStartOutcomeAcknowledgerFunc) AcknowledgeProcessStartOutcome(
 	return p(ctx, outcome)
 }
 
-func startedProcessOutcome(admission ProcessAdmission) ProcessStartOutcome {
-	return ProcessStartOutcome{admission: admission, status: ProcessStartOutcomeStatusStarted}
+func startedProcessOutcome(admission ProcessAdmission, startedAt time.Time) ProcessStartOutcome {
+	return ProcessStartOutcome{
+		admission: admission, status: ProcessStartOutcomeStatusStarted,
+		startedAt: startedAt.Round(0).UTC(),
+	}
 }
 
 func abortedProcessOutcome(admission ProcessAdmission, failure Failure) ProcessStartOutcome {

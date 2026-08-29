@@ -10,7 +10,7 @@ import (
 )
 
 const (
-	processSnapshotSchemaVersion = 7
+	processSnapshotSchemaVersion = 8
 	maxSnapshotBytes             = 128 << 20
 )
 

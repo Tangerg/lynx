@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
-	"time"
 )
 
 func TestSignalKeepsDeliveryAndWaitIdentitySeparate(t *testing.T) {
@@ -17,7 +16,7 @@ func TestSignalKeepsDeliveryAndWaitIdentitySeparate(t *testing.T) {
 		t.Fatal(err)
 	}
 	payload := json.RawMessage(` { "answer": true } `)
-	signal, err := newSignal(signalID, waitID, time.Date(2026, time.August, 6, 8, 9, 10, 11, time.FixedZone("test", 8*60*60)), payload)
+	signal, err := newSignal(signalID, waitID, payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -31,14 +30,11 @@ func TestSignalKeepsDeliveryAndWaitIdentitySeparate(t *testing.T) {
 	if got := string(signal.Payload()); got != `{"answer":true}` {
 		t.Fatalf("Signal.Payload() = %s", got)
 	}
-	if signal.ReceivedAt().Location() != time.UTC {
-		t.Fatalf("Signal.ReceivedAt location = %v, want UTC", signal.ReceivedAt().Location())
-	}
 }
 
 func TestSignalStrictJSONRoundTrip(t *testing.T) {
 	signalID, _ := ParseSignalID("signal:1")
-	signal, err := newSignal(signalID, WaitID{}, time.Unix(42, 0), json.RawMessage(`{"kind":"steer"}`))
+	signal, err := newSignal(signalID, WaitID{}, json.RawMessage(`{"kind":"steer"}`))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,8 +52,39 @@ func TestSignalStrictJSONRoundTrip(t *testing.T) {
 	if decoded.ID() != signal.ID() || string(decoded.Payload()) != string(signal.Payload()) {
 		t.Fatalf("decoded Signal = %+v, want %+v", decoded, signal)
 	}
-	if err := json.Unmarshal([]byte(`{"id":"signal:1","received_at":"2026-08-06T00:00:00Z","payload":{},"unknown":true}`), &decoded); !errors.Is(err, ErrInvalidSignal) {
+	if err := json.Unmarshal([]byte(`{"id":"signal:1","payload":{},"unknown":true}`), &decoded); !errors.Is(err, ErrInvalidSignal) {
 		t.Fatalf("unknown field error = %v, want ErrInvalidSignal", err)
+	}
+	if err := json.Unmarshal([]byte(`{"id":"signal:1","received_at":"2026-08-06T00:00:00Z","payload":{}}`), &decoded); !errors.Is(err, ErrInvalidSignal) {
+		t.Fatalf("retired received_at error = %v, want ErrInvalidSignal", err)
+	}
+}
+
+func TestSignalRequestProducesByteEquivalentStrategyInput(t *testing.T) {
+	id, _ := ParseSignalID("signal:stable-redelivery")
+	waitID, _ := ParseWaitID("wait:stable-redelivery")
+	request, err := NewSignalRequest(id, waitID, json.RawMessage(` { "answer": true } `))
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, err := request.signal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := request.signal()
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstJSON, err := json.Marshal(first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondJSON, err := json.Marshal(second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(firstJSON) != string(secondJSON) {
+		t.Fatalf("repeated SignalRequest changed Strategy input: %s != %s", firstJSON, secondJSON)
 	}
 }
 

@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"fmt"
+	"time"
 )
 
 type processStartReservation struct {
@@ -180,9 +181,10 @@ func (e *Engine) publishReservedProcess(controller *processController) {
 func (e *Engine) acknowledgeStartedProcessOutcome(
 	ctx context.Context,
 	admission ProcessAdmission,
+	startedAt time.Time,
 ) error {
 	if err := acknowledgeProcessStartOutcome(
-		ctx, e.startOutcomeAcknowledger, startedProcessOutcome(admission),
+		ctx, e.startOutcomeAcknowledger, startedProcessOutcome(admission, startedAt),
 	); err != nil {
 		return fmt.Errorf("agent: acknowledge started Process: %w", err)
 	}

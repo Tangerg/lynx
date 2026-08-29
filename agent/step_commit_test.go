@@ -68,8 +68,8 @@ func TestPreparedStepFinalizationCountsEveryImmediateChildSignal(t *testing.T) {
 	}
 	firstSignalID, _ := ParseSignalID("signal:first")
 	secondSignalID, _ := ParseSignalID("signal:second")
-	firstSignal, _ := newSignal(firstSignalID, firstWait, time.Now(), json.RawMessage(`{}`))
-	secondSignal, _ := newSignal(secondSignalID, secondWait, time.Now(), json.RawMessage(`{}`))
+	firstSignal, _ := newSignal(firstSignalID, firstWait, json.RawMessage(`{}`))
+	secondSignal, _ := newSignal(secondSignalID, secondWait, json.RawMessage(`{}`))
 	finalization := &preparedStepFinalization{
 		loop: loop,
 		prepared: &preparedStep{wire: preparedStepWire{
