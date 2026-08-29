@@ -66,10 +66,15 @@ func NewTextFileWriter(config TextFileWriterConfig) (*TextFileWriter, error) {
 	}, nil
 }
 
-// Write persists docs to the configured file. Close errors after a
-// successful write are surfaced (joined with any earlier error) so
-// callers can detect partial flushes that fail at close time.
+// Write validates and renders every document before opening the destination,
+// so document or formatting failures leave an existing file untouched. Once
+// the destination is opened, the prepared payload is committed even if ctx is
+// subsequently canceled. Close errors are joined with earlier I/O failures.
 func (t *TextFileWriter) Write(ctx context.Context, docs []*document.Document) (err error) {
+	payload, err := t.render(ctx, docs)
+	if err != nil {
+		return err
+	}
 	if ctxErr := ctx.Err(); ctxErr != nil {
 		return ctxErr
 	}
@@ -83,7 +88,7 @@ func (t *TextFileWriter) Write(ctx context.Context, docs []*document.Document) (
 		}
 	}()
 
-	if writeErr := t.write(ctx, docs, file); writeErr != nil {
+	if writeErr := t.write(payload, file); writeErr != nil {
 		return fmt.Errorf("etl: write output %q: %w", t.path, writeErr)
 	}
 	return nil
@@ -96,31 +101,34 @@ func (t *TextFileWriter) openFlags() int {
 	return os.O_CREATE | os.O_WRONLY | os.O_TRUNC
 }
 
-func (t *TextFileWriter) write(ctx context.Context, docs []*document.Document, file *os.File) error {
-	buffered := bufio.NewWriter(file)
+func (t *TextFileWriter) render(ctx context.Context, docs []*document.Document) (string, error) {
+	var payload strings.Builder
 	for i, doc := range docs {
 		if err := ctx.Err(); err != nil {
-			return err
+			return "", err
 		}
 		if doc == nil {
-			return fmt.Errorf("document %d: %w", i, ErrNilDocument)
+			return "", fmt.Errorf("etl: render output %q: document %d: %w", t.path, i, ErrNilDocument)
 		}
 		if err := doc.Validate(); err != nil {
-			return fmt.Errorf("validate document %d: %w", i, err)
+			return "", fmt.Errorf("etl: render output %q: validate document %d: %w", t.path, i, err)
 		}
 		rendered, err := t.renderDocument(i, doc)
 		if err != nil {
-			return fmt.Errorf("render document %d: %w", i, err)
+			return "", fmt.Errorf("etl: render output %q: document %d: %w", t.path, i, err)
 		}
-		if _, err := io.WriteString(buffered, rendered); err != nil {
-			return fmt.Errorf("write document %d: %w", i, err)
-		}
+		payload.WriteString(rendered)
+	}
+	return payload.String(), nil
+}
+
+func (*TextFileWriter) write(payload string, file *os.File) error {
+	buffered := bufio.NewWriter(file)
+	if _, err := io.WriteString(buffered, payload); err != nil {
+		return err
 	}
 	if err := buffered.Flush(); err != nil {
 		return fmt.Errorf("flush buffered output: %w", err)
-	}
-	if err := ctx.Err(); err != nil {
-		return err
 	}
 	return file.Sync()
 }

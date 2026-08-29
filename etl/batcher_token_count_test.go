@@ -3,6 +3,7 @@ package etl_test
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/Tangerg/scope/core/document"
@@ -70,6 +71,15 @@ func TestTokenCountBatcherValidatesConstructorInput(t *testing.T) {
 		}},
 		{name: "invalid reserve", config: etl.TokenCountBatcherConfig{
 			Estimator: textLengthEstimator{}, MaxTokens: 10, Reserve: 1,
+		}},
+		{name: "not a number reserve", config: etl.TokenCountBatcherConfig{
+			Estimator: textLengthEstimator{}, MaxTokens: 10, Reserve: math.NaN(),
+		}},
+		{name: "infinite reserve", config: etl.TokenCountBatcherConfig{
+			Estimator: textLengthEstimator{}, MaxTokens: 10, Reserve: math.Inf(1),
+		}},
+		{name: "reserve removes capacity", config: etl.TokenCountBatcherConfig{
+			Estimator: textLengthEstimator{}, MaxTokens: 1, Reserve: 0.5,
 		}},
 	}
 	for _, test := range tests {

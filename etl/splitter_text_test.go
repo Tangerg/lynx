@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/scope/core/document"
+	"github.com/Tangerg/scope/core/media"
 	"github.com/Tangerg/scope/etl"
 )
 
@@ -90,5 +91,49 @@ func TestSplitterRejectsNilDocument(t *testing.T) {
 	}
 	if _, err := splitter.Split(t.Context(), []*document.Document{nil}); !errors.Is(err, etl.ErrNilDocument) {
 		t.Fatalf("Split error = %v, want ErrNilDocument", err)
+	}
+}
+
+func TestSplitterRejectsDocumentWithoutText(t *testing.T) {
+	splitter, err := etl.NewTextSplitter(etl.TextSplitterConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	content, err := media.NewBytes("image/png", []byte("image"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, err := document.NewDocument("", content)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := splitter.Split(t.Context(), []*document.Document{doc}); !errors.Is(err, etl.ErrDocumentHasNoText) {
+		t.Fatalf("Split error = %v, want ErrDocumentHasNoText", err)
+	}
+}
+
+func TestTextSplitterRejectsInvalidUTF8Directly(t *testing.T) {
+	splitter, err := etl.NewTextSplitter(etl.TextSplitterConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := splitter.SplitText(t.Context(), string([]byte{0xff})); !errors.Is(err, etl.ErrInvalidTextEncoding) {
+		t.Fatalf("SplitText error = %v, want ErrInvalidTextEncoding", err)
+	}
+}
+
+func TestSplitterChecksCancellationAfterSplitFunc(t *testing.T) {
+	ctx, cancel := context.WithCancel(t.Context())
+	splitter, err := etl.NewSplitter(etl.SplitterConfig{
+		SplitFunc: func(context.Context, string) ([]string, error) {
+			cancel()
+			return []string{"uncommitted"}, nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if chunks, err := splitter.SplitText(ctx, "source"); chunks != nil || !errors.Is(err, context.Canceled) {
+		t.Fatalf("SplitText = (%v, %v), want nil context.Canceled", chunks, err)
 	}
 }

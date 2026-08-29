@@ -44,6 +44,9 @@ func (s SHA256IDGenerator) Generate(ctx context.Context, doc *document.Document)
 	if doc == nil {
 		return "", ErrNilDocument
 	}
+	if err := doc.Validate(); err != nil {
+		return "", fmt.Errorf("etl: generate SHA-256 ID: %w", err)
+	}
 
 	hasher := sha256.New()
 	if len(s.salt) > 0 {
@@ -76,6 +79,9 @@ func (UUIDGenerator) Generate(ctx context.Context, doc *document.Document) (stri
 	}
 	if doc == nil {
 		return "", ErrNilDocument
+	}
+	if err := doc.Validate(); err != nil {
+		return "", fmt.Errorf("etl: generate UUID: %w", err)
 	}
 	return uuid.NewString(), nil
 }

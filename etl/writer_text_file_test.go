@@ -75,3 +75,31 @@ func TestTextFileWriterHonorsCanceledContextBeforeOpening(t *testing.T) {
 		t.Fatalf("file stat error = %v, want os.ErrNotExist", err)
 	}
 }
+
+func TestTextFileWriterPreservesExistingFileOnRenderFailure(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "documents.txt")
+	if err := os.WriteFile(path, []byte("existing"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	want := errors.New("format failed")
+	writer, err := etl.NewTextFileWriter(etl.TextFileWriterConfig{
+		Path: path,
+		Formatter: etl.FormatterFunc(func(*document.Document) (string, error) {
+			return "", want
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	doc, _ := document.NewDocument("replacement", nil)
+	if writeErr := writer.Write(t.Context(), []*document.Document{doc}); !errors.Is(writeErr, want) {
+		t.Fatalf("Write error = %v", writeErr)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "existing" {
+		t.Fatalf("existing file changed to %q", data)
+	}
+}

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 
 	"github.com/samber/lo"
 
@@ -32,9 +33,22 @@ func (c TokenCountBatcherConfig) normalized() (TokenCountBatcherConfig, error) {
 	if c.MaxTokens <= 0 {
 		return TokenCountBatcherConfig{}, errors.New("etl: maximum batch tokens must be positive")
 	}
-	if c.Reserve < 0 || c.Reserve >= 1 {
+	if math.IsNaN(c.Reserve) || math.IsInf(c.Reserve, 0) || c.Reserve < 0 || c.Reserve >= 1 {
 		return TokenCountBatcherConfig{}, errors.New("etl: token reserve must be in [0, 1)")
 	}
+	effective := c.MaxTokens
+	if c.Reserve > 0 {
+		usable := float64(c.MaxTokens) * (1 - c.Reserve)
+		if usable >= float64(c.MaxTokens) {
+			effective = c.MaxTokens - 1
+		} else {
+			effective = int(math.Floor(usable))
+		}
+	}
+	if effective < 1 {
+		return TokenCountBatcherConfig{}, errors.New("etl: token reserve leaves no usable batch budget")
+	}
+	c.MaxTokens = effective
 	if c.Formatter == nil {
 		c.Formatter = TextFormatter{}
 	} else if lo.IsNil(c.Formatter) {
@@ -68,10 +82,9 @@ func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, e
 		return nil, err
 	}
 
-	effective := max(1, int(float64(config.MaxTokens)*(1-config.Reserve)))
 	return &TokenCountBatcher{
 		estimator: config.Estimator,
-		maxTokens: effective,
+		maxTokens: config.MaxTokens,
 		formatter: config.Formatter,
 	}, nil
 }
@@ -108,6 +121,9 @@ func (t *TokenCountBatcher) measure(ctx context.Context, docs []*document.Docume
 		if count < 0 {
 			return nil, fmt.Errorf("etl: token estimator returned %d for document %d", count, index)
 		}
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		if count > t.maxTokens {
 			return nil, fmt.Errorf("etl: document %q has %d tokens, exceeding the batch budget of %d",
 				doc.ID, count, t.maxTokens)
@@ -125,7 +141,7 @@ func (t *TokenCountBatcher) partition(sized []sizedDocument) [][]*document.Docum
 	)
 
 	for _, item := range sized {
-		if currentSum+item.tokens > t.maxTokens {
+		if item.tokens > t.maxTokens-currentSum {
 			if len(currentBatch) > 0 {
 				batches = append(batches, currentBatch)
 			}

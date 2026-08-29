@@ -35,10 +35,9 @@ func (runeTokenizer) Decode(ctx context.Context, tokens []int) (string, error) {
 
 func TestTokenSplitterHonorsTokenAndSentenceBounds(t *testing.T) {
 	splitter, err := etl.NewTokenSplitter(etl.TokenSplitterConfig{
-		Tokenizer:             runeTokenizer{},
-		MaxTokensPerChunk:     10,
-		MinTokensPerChunk:     4,
-		MinCharactersPerChunk: 1,
+		Tokenizer:         runeTokenizer{},
+		MaxTokensPerChunk: 10,
+		MinTokensPerChunk: 4,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -63,11 +62,10 @@ func TestTokenSplitterHonorsTokenAndSentenceBounds(t *testing.T) {
 
 func TestTokenSplitterFailsInsteadOfEmittingOversizedTail(t *testing.T) {
 	splitter, err := etl.NewTokenSplitter(etl.TokenSplitterConfig{
-		Tokenizer:             runeTokenizer{},
-		MaxTokensPerChunk:     3,
-		MinTokensPerChunk:     1,
-		MinCharactersPerChunk: 1,
-		MaxChunks:             1,
+		Tokenizer:         runeTokenizer{},
+		MaxTokensPerChunk: 3,
+		MinTokensPerChunk: 1,
+		MaxChunks:         1,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -75,6 +73,22 @@ func TestTokenSplitterFailsInsteadOfEmittingOversizedTail(t *testing.T) {
 	doc, _ := document.NewDocument("abcdefgh", nil)
 	if _, err := splitter.Split(t.Context(), []*document.Document{doc}); !errors.Is(err, etl.ErrChunkLimitExceeded) {
 		t.Fatalf("Split() error = %v, want ErrChunkLimitExceeded", err)
+	}
+}
+
+func TestTokenSplitterPreservesShortTail(t *testing.T) {
+	splitter, err := etl.NewTokenSplitter(etl.TokenSplitterConfig{
+		Tokenizer: runeTokenizer{}, MaxTokensPerChunk: 3, MinTokensPerChunk: 1,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	chunks, err := splitter.SplitText(t.Context(), "abcd")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(chunks) != 2 || chunks[0] != "abc" || chunks[1] != "d" {
+		t.Fatalf("chunks = %#v, want all source content", chunks)
 	}
 }
 

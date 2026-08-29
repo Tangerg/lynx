@@ -99,6 +99,14 @@ func TestSHA256GeneratorRejectsInvalidDocument(t *testing.T) {
 	}
 }
 
+func TestUUIDGeneratorRejectsInvalidDocument(t *testing.T) {
+	doc := newDocument(t, "doc")
+	doc.Metadata["invalid"] = json.RawMessage(`{`)
+	if _, err := (etl.UUIDGenerator{}).Generate(t.Context(), doc); err == nil {
+		t.Fatal("invalid document produced a UUID")
+	}
+}
+
 func TestSHA256GeneratorCopiesSalt(t *testing.T) {
 	salt := []byte("tenant-A")
 	generator := etl.NewSHA256IDGenerator(salt)

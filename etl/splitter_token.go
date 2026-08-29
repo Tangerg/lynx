@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"unicode/utf8"
 
 	"github.com/samber/lo"
 
@@ -14,10 +13,9 @@ import (
 )
 
 const (
-	defaultMaxTokensPerChunk     = 800
-	defaultMinTokensPerChunk     = 350
-	defaultMinCharactersPerChunk = 5
-	defaultMaxChunks             = 10_000
+	defaultMaxTokensPerChunk = 800
+	defaultMinTokensPerChunk = 350
+	defaultMaxChunks         = 10_000
 )
 
 var ErrChunkLimitExceeded = errors.New("etl: chunk limit exceeded")
@@ -27,32 +25,29 @@ var ErrChunkLimitExceeded = errors.New("etl: chunk limit exceeded")
 type TokenSplitterConfig struct {
 	Tokenizer tokenizer.Tokenizer
 
-	MaxTokensPerChunk     int
-	MinTokensPerChunk     int
-	MinCharactersPerChunk int
-	MaxChunks             int
-	PreserveNewlines      bool
-	IDGenerator           IDGenerator
+	MaxTokensPerChunk int
+	MinTokensPerChunk int
+	MaxChunks         int
+	PreserveNewlines  bool
+	IDGenerator       IDGenerator
 }
 
 // TokenSplitter splits document text into token-bounded chunks and prefers a
 // sentence boundary once the configured minimum token count has been reached.
 type TokenSplitter struct {
-	tokenizer             tokenizer.Tokenizer
-	maxTokensPerChunk     int
-	minTokensPerChunk     int
-	minCharactersPerChunk int
-	maxChunks             int
-	preserveNewlines      bool
-	splitter              *Splitter
+	tokenizer         tokenizer.Tokenizer
+	maxTokensPerChunk int
+	minTokensPerChunk int
+	maxChunks         int
+	preserveNewlines  bool
+	splitter          *Splitter
 }
 
 func NewTokenSplitter(config TokenSplitterConfig) (*TokenSplitter, error) {
 	if lo.IsNil(config.Tokenizer) {
 		return nil, errors.New("etl: tokenizer is required")
 	}
-	if config.MaxTokensPerChunk < 0 || config.MinTokensPerChunk < 0 ||
-		config.MinCharactersPerChunk < 0 || config.MaxChunks < 0 {
+	if config.MaxTokensPerChunk < 0 || config.MinTokensPerChunk < 0 || config.MaxChunks < 0 {
 		return nil, errors.New("etl: token splitter limits must not be negative")
 	}
 	if config.MaxTokensPerChunk == 0 {
@@ -60,9 +55,6 @@ func NewTokenSplitter(config TokenSplitterConfig) (*TokenSplitter, error) {
 	}
 	if config.MinTokensPerChunk == 0 {
 		config.MinTokensPerChunk = min(defaultMinTokensPerChunk, config.MaxTokensPerChunk)
-	}
-	if config.MinCharactersPerChunk == 0 {
-		config.MinCharactersPerChunk = defaultMinCharactersPerChunk
 	}
 	if config.MaxChunks == 0 {
 		config.MaxChunks = defaultMaxChunks
@@ -76,12 +68,11 @@ func NewTokenSplitter(config TokenSplitterConfig) (*TokenSplitter, error) {
 	}
 
 	splitter := &TokenSplitter{
-		tokenizer:             config.Tokenizer,
-		maxTokensPerChunk:     config.MaxTokensPerChunk,
-		minTokensPerChunk:     config.MinTokensPerChunk,
-		minCharactersPerChunk: config.MinCharactersPerChunk,
-		maxChunks:             config.MaxChunks,
-		preserveNewlines:      config.PreserveNewlines,
+		tokenizer:         config.Tokenizer,
+		maxTokensPerChunk: config.MaxTokensPerChunk,
+		minTokensPerChunk: config.MinTokensPerChunk,
+		maxChunks:         config.MaxChunks,
+		preserveNewlines:  config.PreserveNewlines,
 	}
 	base, err := NewSplitter(SplitterConfig{
 		SplitFunc:   splitter.SplitText,
@@ -102,7 +93,8 @@ func (t *TokenSplitter) SplitText(ctx context.Context, text string) ([]string, e
 	if err := validateTextEncoding(text); err != nil {
 		return nil, err
 	}
-	if strings.TrimSpace(text) == "" {
+	text = t.clean(text)
+	if text == "" {
 		return nil, nil
 	}
 
@@ -116,39 +108,13 @@ func (t *TokenSplitter) SplitText(ctx context.Context, text string) ([]string, e
 		if err := ctx.Err(); err != nil {
 			return nil, err
 		}
-		windowTokens := tokens[:min(t.maxTokensPerChunk, len(tokens))]
-		windowText, err := t.tokenizer.Decode(ctx, windowTokens)
+		selected, consumedCount, err := t.nextChunk(ctx, tokens)
 		if err != nil {
-			return nil, fmt.Errorf("etl: decode token window: %w", err)
-		}
-		if strings.TrimSpace(windowText) == "" {
-			tokens = tokens[len(windowTokens):]
-			continue
-		}
-
-		selected := windowText
-		consumedCount := len(windowTokens)
-		if boundary := t.lastSentenceBoundary(windowText); boundary > 0 && boundary < len(windowText) {
-			prefix := windowText[:boundary]
-			prefixTokens, err := t.tokenizer.Encode(ctx, prefix)
-			if err != nil {
-				return nil, fmt.Errorf("etl: measure sentence boundary: %w", err)
-			}
-			if len(prefixTokens) >= t.minTokensPerChunk && len(prefixTokens) < len(windowTokens) {
-				originalPrefix, err := t.tokenizer.Decode(ctx, windowTokens[:len(prefixTokens)])
-				if err != nil {
-					return nil, fmt.Errorf("etl: verify sentence boundary: %w", err)
-				}
-				if originalPrefix == prefix {
-					selected = prefix
-					consumedCount = len(prefixTokens)
-				}
-			}
+			return nil, err
 		}
 		tokens = tokens[consumedCount:]
-
-		chunk := t.clean(selected)
-		if utf8.RuneCountInString(chunk) < t.minCharactersPerChunk {
+		chunk := strings.TrimSpace(selected)
+		if chunk == "" {
 			continue
 		}
 		if len(chunks) == t.maxChunks {
@@ -157,6 +123,34 @@ func (t *TokenSplitter) SplitText(ctx context.Context, text string) ([]string, e
 		chunks = append(chunks, chunk)
 	}
 	return chunks, nil
+}
+
+func (t *TokenSplitter) nextChunk(ctx context.Context, tokens []int) (string, int, error) {
+	windowTokens := tokens[:min(t.maxTokensPerChunk, len(tokens))]
+	windowText, err := t.tokenizer.Decode(ctx, windowTokens)
+	if err != nil {
+		return "", 0, fmt.Errorf("etl: decode token window: %w", err)
+	}
+	boundary := t.lastSentenceBoundary(windowText)
+	if boundary <= 0 || boundary >= len(windowText) {
+		return windowText, len(windowTokens), nil
+	}
+	prefix := windowText[:boundary]
+	prefixTokens, err := t.tokenizer.Encode(ctx, prefix)
+	if err != nil {
+		return "", 0, fmt.Errorf("etl: measure sentence boundary: %w", err)
+	}
+	if len(prefixTokens) < t.minTokensPerChunk || len(prefixTokens) >= len(windowTokens) {
+		return windowText, len(windowTokens), nil
+	}
+	originalPrefix, err := t.tokenizer.Decode(ctx, windowTokens[:len(prefixTokens)])
+	if err != nil {
+		return "", 0, fmt.Errorf("etl: verify sentence boundary: %w", err)
+	}
+	if originalPrefix != prefix {
+		return windowText, len(windowTokens), nil
+	}
+	return prefix, len(prefixTokens), nil
 }
 
 func (t *TokenSplitter) clean(text string) string {

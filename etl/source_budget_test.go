@@ -3,11 +3,16 @@ package etl_test
 import (
 	"context"
 	"errors"
+	"io"
 	"strings"
 	"testing"
 
 	"github.com/Tangerg/scope/etl"
 )
+
+type nilSource struct{}
+
+func (*nilSource) Read([]byte) (int, error) { return 0, nil }
 
 func TestSourceBudgetRejectsOversizedInputWithoutReturningPartialData(t *testing.T) {
 	budget, err := etl.NewSourceBudget(4)
@@ -52,5 +57,15 @@ func TestSourceBudgetHonorsCanceledContextBeforeReading(t *testing.T) {
 	data, err := (etl.SourceBudget{}).ReadAll(ctx, strings.NewReader("unread"))
 	if data != nil || !errors.Is(err, context.Canceled) {
 		t.Fatalf("ReadAll = (%q, %v), want nil context.Canceled", data, err)
+	}
+}
+
+func TestSourceBudgetRejectsNilSource(t *testing.T) {
+	var typedNil *nilSource
+	for _, source := range []io.Reader{nil, typedNil} {
+		data, err := (etl.SourceBudget{}).ReadAll(t.Context(), source)
+		if data != nil || !errors.Is(err, etl.ErrNilSource) {
+			t.Fatalf("ReadAll = (%q, %v), want nil ErrNilSource", data, err)
+		}
 	}
 }

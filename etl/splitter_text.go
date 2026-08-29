@@ -45,6 +45,9 @@ func (t *TextSplitter) SplitText(ctx context.Context, text string) ([]string, er
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
+	if err := validateTextEncoding(text); err != nil {
+		return nil, err
+	}
 	return strings.Split(text, t.separator), nil
 }
 

@@ -1,7 +1,6 @@
 package markdown
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -183,14 +182,22 @@ func (r *Reader) sectionsToDocuments(ctx context.Context, sections []*section) (
 	return docs, nil
 }
 
-// headingText avoids Goldmark's deprecated Heading.Text API.
+// headingText collects all inline text descendants so formatting, links, and
+// code spans do not disappear from heading metadata.
 func (*Reader) headingText(h *ast.Heading, raw []byte) string {
 	var b strings.Builder
-	for c := h.FirstChild(); c != nil; c = c.NextSibling() {
-		if t, ok := c.(*ast.Text); ok {
-			b.Write(t.Segment.Value(raw))
+	_ = ast.Walk(h, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
 		}
-	}
+		switch typed := node.(type) {
+		case *ast.Text:
+			b.Write(typed.Value(raw))
+		case *ast.String:
+			b.Write(typed.Value)
+		}
+		return ast.WalkContinue, nil
+	})
 	return b.String()
 }
 
@@ -258,37 +265,13 @@ func (s *section) document(metadata coremetadata.Map) (*document.Document, error
 	return doc, nil
 }
 
-// appendNodeSource copies the raw markdown bytes backing n into this
-// section's body. goldmark preserves byte offsets via Segments, which we
-// can stitch together.
+// appendNodeSource copies the contiguous raw source range backing n. Using
+// top-level node boundaries preserves Markdown syntax and all whitespace
+// between adjacent nodes instead of reconstructing source from AST leaves.
 func (s *section) appendNodeSource(raw []byte, n ast.Node) {
-	var buf bytes.Buffer
-	s.collectSegments(&buf, raw, n)
-	if buf.Len() == 0 {
+	start, end := nodeBounds(n, len(raw))
+	if start < 0 || end <= start {
 		return
 	}
-	if s.builder.Len() > 0 {
-		s.builder.WriteString("\n\n")
-	}
-	s.builder.Write(buf.Bytes())
-}
-
-// collectSegments walks the node and concatenates the raw bytes from
-// every leaf text segment. This recovers the original markdown source
-// for the subtree (close enough for embeddings — exact whitespace may
-// drift).
-func (s *section) collectSegments(buf *bytes.Buffer, raw []byte, n ast.Node) {
-	if n == nil {
-		return
-	}
-	if n.Type() == ast.TypeBlock {
-		lines := n.Lines()
-		for i := range lines.Len() {
-			seg := lines.At(i)
-			buf.Write(seg.Value(raw))
-		}
-	}
-	for c := n.FirstChild(); c != nil; c = c.NextSibling() {
-		s.collectSegments(buf, raw, c)
-	}
+	s.builder.Write(raw[start:end])
 }

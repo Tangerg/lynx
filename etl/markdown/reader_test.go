@@ -117,6 +117,27 @@ func TestHeadingSplitH2(t *testing.T) {
 	}
 }
 
+func TestHeadingSplitPreservesMarkdownAndFormattedHeadingText(t *testing.T) {
+	source := "# **Bold** and [`code`](https://example.com)\n\nBody with  double spaces and **markup**.\n"
+	r, err := markdown.NewReader(strings.NewReader(source), markdown.ReaderConfig{HeadingSplitLevel: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	docs, err := r.Read(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(docs) != 1 {
+		t.Fatalf("Read returned %d documents, want 1", len(docs))
+	}
+	if docs[0].Text != strings.TrimSpace(source) {
+		t.Fatalf("document text = %q, want original Markdown %q", docs[0].Text, strings.TrimSpace(source))
+	}
+	if got, _ := metadataValue[string](t, docs[0].Metadata, markdown.MetadataHeading); got != "Bold and code" {
+		t.Fatalf("heading metadata = %q, want %q", got, "Bold and code")
+	}
+}
+
 func TestNewReaderRejectsInvalidConfiguration(t *testing.T) {
 	for _, config := range []markdown.ReaderConfig{
 		{HeadingSplitLevel: -1},

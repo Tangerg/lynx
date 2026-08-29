@@ -1,7 +1,7 @@
 # CLAUDE.md — etl module
 
 > 把外部内容提取为 `core/document.Document`，再以显式策略完成格式化、切分、ID 分配、批处理与落地。
-> 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。具体解析库与依赖版本以各 module 的 go.mod 为准。
+> 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。具体解析库与依赖以各 module 的 go.mod 为准。
 
 ---
 

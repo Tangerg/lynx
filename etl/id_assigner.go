@@ -80,8 +80,8 @@ func assignID(ctx context.Context, doc *document.Document, generator IDGenerator
 	if err != nil {
 		return err
 	}
-	if strings.TrimSpace(generated) == "" {
-		return errors.New("etl: ID generator returned an empty ID")
+	if generated == "" || generated != strings.TrimSpace(generated) {
+		return errors.New("etl: ID generator returned a blank or padded ID")
 	}
 	doc.ID = generated
 	return nil

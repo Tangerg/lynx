@@ -13,7 +13,10 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
-var ErrInvalidTextEncoding = errors.New("etl: invalid text encoding")
+var (
+	ErrInvalidTextEncoding = errors.New("etl: invalid text encoding")
+	ErrDocumentHasNoText   = errors.New("etl: document has no text to split")
+)
 
 // Chunk-lineage metadata keys stamped by [Splitter] on every emitted chunk.
 const (
@@ -64,7 +67,14 @@ func (s *Splitter) SplitText(ctx context.Context, text string) ([]string, error)
 	if err := validateTextEncoding(text); err != nil {
 		return nil, err
 	}
-	return s.splitFunc(ctx, text)
+	chunks, err := s.splitFunc(ctx, text)
+	if err != nil {
+		return nil, err
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return chunks, nil
 }
 
 func validateTextEncoding(text string) error {
@@ -98,6 +108,9 @@ func (s *Splitter) Split(ctx context.Context, docs []*document.Document) ([]*doc
 }
 
 func (s *Splitter) splitDocument(ctx context.Context, doc *document.Document) ([]*document.Document, error) {
+	if doc.Text == "" {
+		return nil, ErrDocumentHasNoText
+	}
 	chunks, err := s.SplitText(ctx, doc.Text)
 	if err != nil {
 		return nil, err

@@ -154,6 +154,9 @@ func (r *Reader) readPages(ctx context.Context, pdfReader *ledongthuc.Reader, to
 			return nil, err
 		}
 		text, err := r.pageText(pdfReader, page, fonts)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
 		if err != nil {
 			failures = append(failures, err)
 			continue
@@ -207,6 +210,9 @@ func (r *Reader) readAllText(ctx context.Context, pdfReader *ledongthuc.Reader, 
 			return "", err
 		}
 		text, err := r.pageText(pdfReader, page, fonts)
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return "", ctxErr
+		}
 		if err != nil {
 			failures = append(failures, err)
 			continue

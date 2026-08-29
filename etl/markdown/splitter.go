@@ -94,7 +94,10 @@ func (s *Splitter) SplitText(ctx context.Context, source string) ([]string, erro
 		return nil, nil
 	}
 
-	sections := s.parseSections([]byte(source))
+	sections, err := s.parseSections(ctx, []byte(source))
+	if err != nil {
+		return nil, err
+	}
 	chunks := make([]string, 0, min(len(sections), s.maxChunks))
 	for _, section := range sections {
 		sectionChunks, err := s.splitSection(ctx, section)
@@ -157,8 +160,11 @@ type headingRef struct {
 	text  string
 }
 
-func (s *Splitter) parseSections(source []byte) []markdownSection {
+func (s *Splitter) parseSections(ctx context.Context, source []byte) ([]markdownSection, error) {
 	root := s.parser.Parser().Parse(text.NewReader(source))
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
 	sections := make([]markdownSection, 0, root.ChildCount())
 	var (
 		active markdownSection
@@ -166,6 +172,9 @@ func (s *Splitter) parseSections(source []byte) []markdownSection {
 	)
 
 	for node := root.FirstChild(); node != nil; node = node.NextSibling() {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
 		start, end := nodeBounds(node, len(source))
 		if start < 0 || end <= start {
 			continue
@@ -196,7 +205,7 @@ func (s *Splitter) parseSections(source []byte) []markdownSection {
 	} else if len(active.headings) > 0 {
 		sections = append(sections, active)
 	}
-	return sections
+	return sections, nil
 }
 
 func headingTexts(stack []headingRef) []string {

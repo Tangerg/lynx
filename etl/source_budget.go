@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"math"
+
+	"github.com/samber/lo"
 )
 
 const DefaultMaxSourceBytes int64 = 32 * 1024 * 1024
@@ -14,6 +16,7 @@ const maxSupportedSourceBytes = math.MaxInt64 - 1
 
 var (
 	ErrInvalidSourceBudget = errors.New("etl: invalid source budget")
+	ErrNilSource           = errors.New("etl: source must not be nil")
 	ErrSourceTooLarge      = errors.New("etl: source exceeds byte budget")
 )
 
@@ -48,6 +51,9 @@ func (s SourceBudget) MaxBytes() int64 {
 func (s SourceBudget) ReadAll(ctx context.Context, source io.Reader) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
+	}
+	if lo.IsNil(source) {
+		return nil, ErrNilSource
 	}
 	maxBytes := s.MaxBytes()
 	data, err := io.ReadAll(io.LimitReader(source, maxBytes+1))

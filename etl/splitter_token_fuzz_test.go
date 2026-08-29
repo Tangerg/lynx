@@ -28,12 +28,11 @@ func FuzzTokenSplitterText(f *testing.F) {
 	f.Fuzz(func(t *testing.T, source string, encodedLimit uint8, preserveNewlines bool) {
 		maxTokens := int(encodedLimit%fuzzTokenLimitRange) + 1
 		splitter, err := etl.NewTokenSplitter(etl.TokenSplitterConfig{
-			Tokenizer:             runeTokenizer{},
-			MaxTokensPerChunk:     maxTokens,
-			MinTokensPerChunk:     1,
-			MinCharactersPerChunk: 1,
-			MaxChunks:             fuzzChunkLimit,
-			PreserveNewlines:      preserveNewlines,
+			Tokenizer:         runeTokenizer{},
+			MaxTokensPerChunk: maxTokens,
+			MinTokensPerChunk: 1,
+			MaxChunks:         fuzzChunkLimit,
+			PreserveNewlines:  preserveNewlines,
 		})
 		if err != nil {
 			t.Fatal(err)
