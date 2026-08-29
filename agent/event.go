@@ -125,6 +125,11 @@ func newEvent(spec eventSpec) (Event, error) {
 	if err != nil {
 		return Event{}, fmt.Errorf("%w: payload: %w", ErrInvalidEvent, err)
 	}
+	if err := validateEventContract(
+		spec.name, spec.phase, spec.stepSequence, spec.effectID, normalized,
+	); err != nil {
+		return Event{}, fmt.Errorf("%w: %w", ErrInvalidEvent, err)
+	}
 	return Event{
 		processSequence: spec.processSequence,
 		processID:       spec.processID,
@@ -180,12 +185,76 @@ func (e Event) OccurredAt() time.Time { return e.occurredAt }
 // Payload returns an independently owned descriptive payload.
 func (e Event) Payload() json.RawMessage { return bytes.Clone(e.payload) }
 
+// ProcessFinished returns the typed terminal fact for EventProcessFinished.
+func (e Event) ProcessFinished() (ProcessFinishedFact, bool) {
+	if e.name != EventProcessFinished {
+		return ProcessFinishedFact{}, false
+	}
+	fact, err := decodeProcessFinishedFact(e.payload)
+	return fact, err == nil
+}
+
+// SignalAccepted returns the typed delivery fact for EventSignalAccepted.
+func (e Event) SignalAccepted() (SignalAcceptedFact, bool) {
+	if e.name != EventSignalAccepted {
+		return SignalAcceptedFact{}, false
+	}
+	fact, err := decodeSignalAcceptedFact(e.payload)
+	return fact, err == nil
+}
+
+// StepFinished returns the typed attempt fact for EventStepFinished.
+func (e Event) StepFinished() (StepFinishedFact, bool) {
+	if e.name != EventStepFinished {
+		return StepFinishedFact{}, false
+	}
+	fact, err := decodeStepFinishedFact(e.payload)
+	return fact, err == nil
+}
+
+// StepCommitted returns the typed state fact for EventStepCommitted.
+func (e Event) StepCommitted() (StepCommittedFact, bool) {
+	if e.name != EventStepCommitted {
+		return StepCommittedFact{}, false
+	}
+	fact, err := decodeStepCommittedFact(e.payload)
+	return fact, err == nil
+}
+
+// EffectStarted returns the typed target fact for EventEffectStarted.
+func (e Event) EffectStarted() (EffectStartedFact, bool) {
+	if e.name != EventEffectStarted {
+		return EffectStartedFact{}, false
+	}
+	fact, err := decodeEffectStartedFact(e.payload)
+	return fact, err == nil
+}
+
+// EffectFinished returns the typed settlement fact for EventEffectFinished.
+func (e Event) EffectFinished() (EffectFinishedFact, bool) {
+	if e.name != EventEffectFinished {
+		return EffectFinishedFact{}, false
+	}
+	fact, err := decodeEffectFinishedFact(e.payload)
+	return fact, err == nil
+}
+
+// DeltaDropped returns the typed loss fact for EventDeltaDropped.
+func (e Event) DeltaDropped() (DeltaDroppedFact, bool) {
+	if e.name != EventDeltaDropped {
+		return DeltaDroppedFact{}, false
+	}
+	fact, err := decodeDeltaDroppedFact(e.payload)
+	return fact, err == nil
+}
+
 func (e Event) Valid() bool {
 	return e.processSequence > 0 && e.processID.Valid() && e.deploymentRef.Valid() &&
 		e.relation.Valid() && e.relation.ProcessID() == e.processID && validQualifiedName(e.name) &&
 		(e.incarnationID == (TreeIncarnationID{}) || e.incarnationID.Valid()) &&
 		e.phase.Valid() &&
-		!e.occurredAt.IsZero() && len(e.payload) > 0
+		!e.occurredAt.IsZero() && len(e.payload) > 0 &&
+		validateEventContract(e.name, e.phase, e.stepSequence, e.effectID, e.payload) == nil
 }
 
 func (e Event) MarshalJSON() ([]byte, error) {

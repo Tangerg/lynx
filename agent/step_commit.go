@@ -342,6 +342,11 @@ func (p *preparedStepFinalization) commit(ctx context.Context) error {
 	loop.updateView()
 	payload, _ := json.Marshal(stepCommittedEventPayload{ProcessStatus: loop.status})
 	loop.publishEvent(ctx, EventStepCommitted, EventPhaseCommitted, loop.committedSteps, EffectID{}, payload)
+	if loop.status == StatusPaused {
+		loop.publishEventAfterCheckpoint(
+			ctx, EventProcessPaused, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload(),
+		)
+	}
 	for _, waitID := range p.consumedChildWaits {
 		loop.runtime.unregisterChildWait(waitID)
 	}

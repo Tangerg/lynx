@@ -3,6 +3,7 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"math"
 	"testing"
 	"time"
@@ -23,7 +24,7 @@ func TestEventSeparatesAttemptFromCommittedFacts(t *testing.T) {
 		name:            EventEffectStarted,
 		phase:           EventPhaseAttempt,
 		occurredAt:      time.Unix(20, 0),
-		payload:         json.RawMessage(`{"attempt":1}`),
+		payload:         json.RawMessage(`{"effect_target":"dispatcher"}`),
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -44,6 +45,59 @@ func TestEventSeparatesAttemptFromCommittedFacts(t *testing.T) {
 	}
 	if got, ok := decoded.EffectID(); !ok || got != effectID {
 		t.Fatalf("decoded EffectID = %v, %t", got, ok)
+	}
+}
+
+func TestEventRejectsMismatchedFrameworkFactContracts(t *testing.T) {
+	processID, _ := ParseProcessID("process:event-contract")
+	effectID, _ := ParseEffectID("process:event-contract:step:1:effect:0")
+	deployment := newChildTestDeployment(t)
+	base := eventSpec{
+		processSequence: 1,
+		processID:       processID,
+		deploymentRef:   deployment.DeploymentRef(),
+		relation:        rootProcessRelation(processID),
+		occurredAt:      time.Unix(20, 0),
+	}
+	tests := []struct {
+		name string
+		spec eventSpec
+	}{
+		{
+			name: "unknown name",
+			spec: eventSpec{name: "agent.unknown.fact", phase: EventPhaseCommitted, payload: emptyEventPayload()},
+		},
+		{
+			name: "wrong phase",
+			spec: eventSpec{name: EventProcessStarted, phase: EventPhaseAttempt, payload: emptyEventPayload()},
+		},
+		{
+			name: "missing Effect identity",
+			spec: eventSpec{
+				name: EventEffectStarted, phase: EventPhaseAttempt, stepSequence: 1,
+				payload: json.RawMessage(`{"effect_target":"dispatcher"}`),
+			},
+		},
+		{
+			name: "invalid payload",
+			spec: eventSpec{
+				name: EventEffectStarted, phase: EventPhaseAttempt, stepSequence: 1,
+				effectID: effectID, payload: json.RawMessage(`{"effect_target":"invalid"}`),
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			spec := test.spec
+			spec.processSequence = base.processSequence
+			spec.processID = base.processID
+			spec.deploymentRef = base.deploymentRef
+			spec.relation = base.relation
+			spec.occurredAt = base.occurredAt
+			if _, err := newEvent(spec); !errors.Is(err, ErrInvalidEvent) {
+				t.Fatalf("newEvent() error = %v, want ErrInvalidEvent", err)
+			}
+		})
 	}
 }
 
@@ -144,6 +198,59 @@ func TestObservationFailuresAreCountedWithoutAffectingDelivery(t *testing.T) {
 	bus.publishEvent(t.Context(), Event{})
 	if got := bus.failureCounts().EventListenerPanics(); got != math.MaxUint64 {
 		t.Fatalf("saturated event listener panic count = %d", got)
+	}
+}
+
+func TestStepPausePublishesCommittedProcessPausedFact(t *testing.T) {
+	paused := make(chan struct{}, 1)
+	var events []Event
+	engine, err := NewEngine(EngineConfig{EventListeners: []EventListener{
+		EventListenerFunc(func(_ context.Context, event Event) {
+			events = append(events, event)
+			if event.Name() == EventProcessPaused {
+				paused <- struct{}{}
+			}
+		}),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	deployment := newChildTestDeployment(t)
+	input, err := EncodeInput(childTestInput{Mode: "leaf_pause"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	process, err := engine.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-paused
+	if process.Status() != StatusPaused {
+		t.Fatalf("Process status = %s, want Paused", process.Status())
+	}
+	var committedIndex, pausedIndex = -1, -1
+	for index, event := range events {
+		switch event.Name() {
+		case EventStepCommitted:
+			fact, ok := event.StepCommitted()
+			if ok && fact.Status() == StatusPaused {
+				committedIndex = index
+			}
+		case EventProcessPaused:
+			pausedIndex = index
+		}
+	}
+	if committedIndex < 0 || pausedIndex != committedIndex+1 {
+		t.Fatalf("Step committed index = %d, Process paused index = %d", committedIndex, pausedIndex)
+	}
+	if err := process.Kill(context.Background(), "test cleanup"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := process.Await(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
 

@@ -359,7 +359,9 @@ func (t *treeRuntime) stageTerminal(process *processState) {
 	if process == nil || !process.status.Terminal() {
 		return
 	}
-	if _, staged := t.terminalUnpublished[process.controller.processID]; staged {
+	processID := process.controller.processID
+	publication := t.checkpointPending[processID]
+	if publication.terminal {
 		return
 	}
 	payload := terminalEventPayload(process)
@@ -368,37 +370,50 @@ func (t *treeRuntime) stageTerminal(process *processState) {
 	)
 	t.processFinished(process)
 	if prepared {
-		t.terminalUnpublished[process.controller.processID] = event
-	} else {
-		t.terminalUnpublished[process.controller.processID] = Event{}
+		publication.events = append(publication.events, event)
 	}
+	publication.terminal = true
+	t.checkpointPending[processID] = publication
+}
+
+func (t *treeRuntime) stageCheckpointEvent(event Event) {
+	if !event.Valid() || event.Relation().RootID() != t.rootID ||
+		t.processes[event.ProcessID()] == nil {
+		panic("agent: invalid checkpoint Event")
+	}
+	processID := event.ProcessID()
+	publication := t.checkpointPending[processID]
+	publication.events = append(publication.events, event)
+	t.checkpointPending[processID] = publication
 }
 
 func (t *treeRuntime) publishCheckpoint() {
-	processIDs := make([]ProcessID, 0, len(t.terminalUnpublished))
-	for processID := range t.terminalUnpublished {
-		processIDs = append(processIDs, processID)
-	}
-	slices.SortFunc(processIDs, func(left, right ProcessID) int {
-		return cmp.Compare(left.String(), right.String())
-	})
-	for _, processID := range processIDs {
-		process := t.processes[processID]
-		event := t.terminalUnpublished[processID]
-		if event.ProcessID().Valid() {
+	for _, process := range t.processesInCanonicalOrder() {
+		processID := process.controller.processID
+		publication, pending := t.checkpointPending[processID]
+		if !pending {
+			continue
+		}
+		for _, event := range publication.events {
 			process.publishPreparedEvent(t.context, event)
+		}
+		if !publication.terminal {
+			delete(t.checkpointPending, processID)
+			continue
 		}
 		snapshot, err := process.capture()
 		process.controller.complete(process.result(), snapshot, err)
 		process.controller.markTreeSettled()
-		delete(t.terminalUnpublished, processID)
+		delete(t.checkpointPending, processID)
 	}
 }
 
 func terminalEventPayload(process *processState) json.RawMessage {
+	usage := process.usage
 	eventPayload := processFinishedEventPayload{
 		ProcessStatus:    process.status,
 		TerminationCause: process.termination.Cause(),
+		Usage:            &usage,
 	}
 	if failure, failed := process.termination.Failure(); failed {
 		eventPayload.FailureKind = failure.Kind()
@@ -447,11 +462,12 @@ func (t *treeRuntime) failDurability(
 	processes := t.processesInCanonicalOrder()
 	for _, process := range processes {
 		if process.status.Terminal() {
-			if _, staged := t.terminalUnpublished[process.controller.processID]; !staged {
+			publication, staged := t.checkpointPending[process.controller.processID]
+			if !staged || !publication.terminal {
 				continue
 			}
-			delete(t.terminalUnpublished, process.controller.processID)
 		}
+		delete(t.checkpointPending, process.controller.processID)
 		select {
 		case <-process.controller.done:
 			continue

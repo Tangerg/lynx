@@ -823,16 +823,22 @@ func TestStepFailureDiscardsMutatedExecutionAndPreservesCursor(t *testing.T) {
 	if state.Phase != "ready" || wire.Mailbox.SignalCursor != 0 || wire.Prepared != nil {
 		t.Fatalf("last stable state=%+v cursor=%d prepared=%v", state, wire.Mailbox.SignalCursor, wire.Prepared)
 	}
-	var finished processFinishedEventPayload
+	var finished ProcessFinishedFact
 	for _, event := range listener.snapshot() {
 		if event.Name() == EventProcessFinished {
-			if err := json.Unmarshal(event.Payload(), &finished); err != nil {
-				t.Fatal(err)
+			var ok bool
+			finished, ok = event.ProcessFinished()
+			if !ok {
+				t.Fatalf("finished event payload = %s", event.Payload())
 			}
 		}
 	}
-	if finished.FailureKind != FailureKindExecution || finished.FailureCode != "execution.step.failed" {
-		t.Fatalf("finished failure = %s/%q", finished.FailureKind, finished.FailureCode)
+	kind, code, failed := finished.Failure()
+	if !failed || kind != FailureKindExecution || code != "execution.step.failed" {
+		t.Fatalf("finished failure = %s/%q present=%t", kind, code, failed)
+	}
+	if finished.Usage() != result.Usage() {
+		t.Fatalf("finished usage = %+v, result usage = %+v", finished.Usage(), result.Usage())
 	}
 }
 
@@ -1024,17 +1030,15 @@ func TestEventLifecycleCarriesExactBindingAndAttemptDurations(t *testing.T) {
 	for _, event := range events {
 		switch event.Name() {
 		case EventStepFinished:
-			var payload stepFinishedEventPayload
-			if err := json.Unmarshal(event.Payload(), &payload); err != nil ||
-				payload.DurationMS < 0 || payload.StepStatus != StepStatusSucceeded {
-				t.Fatalf("event %q payload = %s, error = %v", event.Name(), event.Payload(), err)
+			fact, ok := event.StepFinished()
+			if !ok || fact.Duration() < 0 || fact.Status() != StepStatusSucceeded {
+				t.Fatalf("event %q payload = %s", event.Name(), event.Payload())
 			}
 		case EventEffectFinished:
-			var payload effectFinishedEventPayload
-			if err := json.Unmarshal(event.Payload(), &payload); err != nil ||
-				payload.DurationMS < 0 || payload.SettlementStatus != SettlementStatusSucceeded ||
-				payload.EffectTarget != "dispatcher" {
-				t.Fatalf("event %q payload = %s, error = %v", event.Name(), event.Payload(), err)
+			fact, ok := event.EffectFinished()
+			if !ok || fact.Duration() < 0 || fact.SettlementStatus() != SettlementStatusSucceeded ||
+				fact.Target() != EffectTargetDispatcher {
+				t.Fatalf("event %q payload = %s", event.Name(), event.Payload())
 			}
 		}
 	}

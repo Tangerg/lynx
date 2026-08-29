@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	currentAPIBaseline         = 38
+	currentAPIBaseline         = 39
 	currentAPIBaselineFrozenOn = "2026-08-30"
 )
 
@@ -27,7 +27,7 @@ var exportedAPIBaselines = []struct {
 	directory string
 	want      string
 }{
-	{name: "kernel", label: "root kernel", directory: ".", want: "c823bf8a818954036025888e423c741253e9675dd245ed1f4d007cc0c92b22fc"},
+	{name: "kernel", label: "root kernel", directory: ".", want: "551e88461ec0841f4befeae04c9019c37de835454f8af5182df0b803eb969839"},
 	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "2a7dc4bffb9ebb9c1d1f94efeb49999daff333d1d5cfffd9b0c5c713bf2d91aa"},
 	{name: "interaction", label: "interaction", directory: "interaction", want: "8b39cc9e28e0bdd00579c4563dbc3d9b8237f3b932b30740f85941f2911fdf54"},
 	{name: "planning", label: "planning", directory: "planning", want: "4ca18318b81c7fc646ee7121c9f2e303df2cc2d28fcd8357e2c3b07cebd1a014"},
@@ -340,7 +340,7 @@ func TestWireBaselinesCoverEveryProductionWireType(t *testing.T) {
 func TestObservationWireBaseline(t *testing.T) {
 	shape := observationWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "1ee6b9c1505ab36a3df0ac4ed0b0eb6e7df15f9427457381053d6e08690278fc"
+	const want = "252f8d49c23eb4182b1e85c66cebb35383e409677ab2e312baa3f1eefc43286d"
 	if got != want {
 		t.Fatalf("observation wire changed: got %s, want %s\n%s", got, want, shape)
 	}

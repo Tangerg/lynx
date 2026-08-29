@@ -90,7 +90,9 @@ func (p *processState) applyPendingControl(ctx context.Context) bool {
 	p.pauseReason = p.pendingControl.pauseReason
 	p.pendingControl.pauseReason = ""
 	p.updateView()
-	p.publishEvent(ctx, EventProcessPaused, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload())
+	p.publishEventAfterCheckpoint(
+		ctx, EventProcessPaused, EventPhaseCommitted, 0, EffectID{}, emptyEventPayload(),
+	)
 	return true
 }
 

@@ -470,9 +470,10 @@ func (t *treeRuntime) applyStepCompletion(
 	if result.err != nil {
 		stepStatus = StepStatusFailed
 	}
+	durationMS := time.Since(job.startedAt).Milliseconds()
 	payload, _ := json.Marshal(stepFinishedEventPayload{
 		StepStatus: stepStatus,
-		DurationMS: time.Since(job.startedAt).Milliseconds(),
+		DurationMS: &durationMS,
 	})
 	sequence := process.committedSteps + 1
 	process.publishEvent(t.context, EventStepFinished, EventPhaseAttempt, sequence, EffectID{}, payload)

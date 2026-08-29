@@ -623,11 +623,11 @@ Host 对自身事实执行销毁、回滚、替换或恢复时，必须在自己
 
 横切替换点按真实消费位置定义一个准确的小接口，不建立通用 Extension marker、capability registry 或按运行时类型分派的 god scope。`ProcessAdmitter` 只负责启动准入；`ProcessStartOutcomeAcknowledger` 只负责 ephemeral admission lifecycle 闭合；完整 durable Host 实现闭合 `TreeDurability`；`EventListener`/`DeltaListener` 只负责观察。它们语义不同，不合并成 Policy/Guard/Middleware 或万能 Commit 近义层。只有一个实现且没有外部替换需求的内部依赖直接使用 concrete type。
 
-Event 描述已经发生的框架事实，不承担 Signal、命令、Transition 或产品协议。每个 Event 都携带 Process-local sequence、ProcessID、exact DeploymentRef、ProcessRelation、可选 Step/Effect identity、稳定名称、phase、OccurredAt 与独立 payload，因此 child、版本和恢复归因不依赖 Host 查询。Event 分为 attempt facts 与 committed facts：前者证明一次 Step 或 Effect 确实尝试过，后者证明 Process/Signal/Step 状态已由 Engine 提交。
+Event 描述已经发生的框架事实，不承担 Signal、命令、Transition 或产品协议。每个 Event 都携带 Process-local sequence、ProcessID、exact DeploymentRef、ProcessRelation、可选 Step/Effect identity、稳定名称、phase、OccurredAt 与独立 payload，因此 child、版本和恢复归因不依赖 Host 查询。Event 分为 attempt facts 与 committed facts：前者证明一次 Step 或 Effect 确实尝试过，后者证明 Process/Signal/Step 状态已由 Engine 提交。Framework Event 词汇是封闭的；构造与反序列化同时校验 name、phase、Step/Effect identity 和对应 payload，未知名称、错配身份、缺失必填字段与非法枚举不能成为一个 `Valid` Event。常用 payload 通过 immutable typed fact 读取，observer 不复制私有 JSON struct 或按 tag 猜协议。
 
 当前 Framework 事实集合固定为：
 
-- Process started/restored/paused/resumed/finished
+- Process started/restored/paused/resumed/finished；Strategy Step 提交 Paused 时同样产生 process paused fact
 - Signal accepted
 - Step started/finished/prepared/committed
 - Framework 或 Dispatcher Effect started/finished
@@ -635,13 +635,13 @@ Event 描述已经发生的框架事实，不承担 Signal、命令、Transition
 
 Event 名称由根 package 常量统一，不能在发布点散落字符串。Step finished 与 Effect finished payload 都携带同一 owner 测得的非负 `duration_ms`；Effect lifecycle 同时携带准确 target 与 settlement status。模型、Tool、Planning Action 等 Strategy-specific lifecycle 不能由不理解 opaque Effect 的 Kernel 猜测；需要时由相应 dispatcher/adapter 使用官方 OTel API 或它自己的中性观察合同，不污染 Framework Event 名称。
 
-EventListener 与 DeltaListener 都是无错误返回的观察接口：返回值既不会改变事实，也不应制造“可否决执行”的误解。实现必须有界、并发安全且不得重入被观察 Process；panic 被隔离，并由持有投递生命周期的 Engine 以单调饱和计数暴露。Interaction Dispatcher 同理拥有模型/Tool observer 的分类计数。两者都返回不可变 typed snapshot，不递归发布故障 Event、不污染业务 Usage/settlement，也不把领域模块绑定到日志或遥测实现。Event 在每个 Process 内同步保持顺序，不承诺不同 Process 的全局顺序；Delta 继续通过独立有界队列异步投递。
+EventListener 与 DeltaListener 都是无错误返回的观察接口：返回值既不会改变事实，也不应制造“可否决执行”的误解。实现必须有界、并发安全且不得重入被观察 Process；panic 被隔离，并由持有投递生命周期的 Engine 以单调饱和计数暴露。Interaction Dispatcher 同理拥有模型/Tool observer 的分类计数。两者都返回不可变 typed snapshot，不递归发布故障 Event、不污染业务 Usage/settlement，也不把领域模块绑定到日志或遥测实现。Event 在每个 Process 内同步保持顺序，不承诺不同 Process 的全局顺序；同一 tree 的初始 started/restored facts 仍按 parent-before-child 的 canonical 顺序发布，使父子 trace 归因不依赖 map 遍历。durable tree 的 process-paused 与 terminal fact 共用 tree owner 的 checkpoint publication aggregate，只有对应 checkpoint callback 成功返回后才发布；crash prefix 不会越过 Host commit boundary 泄露尚未确认的 lifecycle。Delta 继续通过独立有界队列异步投递。
 
 Delta 是与 Event 不同的临时流输出。Delta 缓冲显式有界、按调用内 sequence 排序、恢复后不重放；慢消费者造成的丢弃必须通过 gap/dropped count 可观察。观察型 listener 失败不改变 Step 或 Process 结果，也不得产生无 owner goroutine。完成 Output 必须由最终 Effect settlement/Transition 独立导出，不能由 delta 拼接成为唯一真相。
 
 事件时间字段具有准确语义；duration 从成对时间计算或由同一 owner 生成。Host 可以投影 UI、审计和账本，Agent 不反向依赖投影。
 
-独立 `otel/agent` adapter 只消费 Framework Event 并直接使用官方 OTel trace/metric API：Process/Step/Effect 形成 span，Process start/exit、Step/Effect duration 和 Delta drop 形成 metric。provider 由 ObserverConfig 显式注入，nil 时遵循 OTel global provider；typed nil 构造期拒绝。adapter 不把 raw payload、Input、Output 或产品身份写入 telemetry，只使用 Framework-owned identity/status/target/count。Kernel architecture gate 禁止任何 OTel import，adapter production gate 禁止 OTel SDK、Strategy、原框架实现与 Host import；SDK 只用于行为测试。
+独立 `otel/agent` adapter 只消费 Framework Event 的 typed fact 并直接使用官方 OTel trace/metric API：每次 Process runtime activation 及其 Step/Effect 形成 span；activation/exit、activation/Step/Effect 秒制 duration、terminal Framework Usage 和 Delta drop 形成 metric。span 携带 exact Process/tree/Deployment attribution，durable span 额外携带 current TreeIncarnationID；metric 只使用低基数 Deployment、activation、status、cause、target 与稳定 failure 分类。Observer 不长期保存 callback context，只保存 Span；`Close` 先拒绝新观察、等待全部 in-flight callback 完成，再结束剩余 span。provider 由 ObserverConfig 显式注入，nil 时遵循 OTel global provider；typed nil 构造期拒绝。adapter 不把 raw payload、Input、Output 或产品身份写入 telemetry。Kernel architecture gate 禁止任何 OTel import，adapter production gate 禁止 OTel SDK、Strategy、原框架实现与 Host import；SDK 只用于行为测试。
 
 ---
 
@@ -674,11 +674,12 @@ agent/
 ├── planning/                Planning domain 与 Planner contract
 │   └── goap/                GOAP 实现，只依赖 Planning contract
 ├── workflow/                managed child Process 的确定性有序编排
-├── otel/                    Framework Event 的 OpenTelemetry adapter
 ├── platform/                Deployment catalog、选择与治理
 ├── examples/                验证公共使用路径的可运行示例
 └── doc/                     架构、决策与执行记录
 ```
+
+OpenTelemetry adapter 位于独立 sibling module `otel/agent`，从集成层依赖这里的公开 Event 合同；它不是 Agent Framework 的生产 package，也不会把 OTel 依赖带回本 module。
 
 约束：
 

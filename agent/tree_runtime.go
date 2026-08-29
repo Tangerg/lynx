@@ -12,27 +12,27 @@ import (
 // Strategy reduction and external dispatch run as jobs; only their fenced
 // completions may re-enter this owner line.
 type treeRuntime struct {
-	engine              *Engine
-	rootID              ProcessID
-	incarnation         TreeIncarnationID
-	headDigest          Digest
-	inflight            atomic.Int64
-	freezeHeld          atomic.Bool
-	context             context.Context
-	commands            chan treeCommand
-	completions         chan treeJobCompletion
-	processes           map[ProcessID]*processState
-	childWaits          map[WaitID]*childWaitRegistration
-	runnable            []ProcessID
-	queued              map[ProcessID]struct{}
-	jobs                map[ProcessID]*processJob
-	headWaiters         []treeHeadWaiter
-	commit              *treeCommit
-	commitDone          chan treeCommitCompletion
-	durabilityFault     bool
-	terminalUnpublished map[ProcessID]Event
-	freeze              *activeTreeFreeze
-	done                chan struct{}
+	engine            *Engine
+	rootID            ProcessID
+	incarnation       TreeIncarnationID
+	headDigest        Digest
+	inflight          atomic.Int64
+	freezeHeld        atomic.Bool
+	context           context.Context
+	commands          chan treeCommand
+	completions       chan treeJobCompletion
+	processes         map[ProcessID]*processState
+	childWaits        map[WaitID]*childWaitRegistration
+	runnable          []ProcessID
+	queued            map[ProcessID]struct{}
+	jobs              map[ProcessID]*processJob
+	headWaiters       []treeHeadWaiter
+	commit            *treeCommit
+	commitDone        chan treeCommitCompletion
+	durabilityFault   bool
+	checkpointPending map[ProcessID]checkpointPublication
+	freeze            *activeTreeFreeze
+	done              chan struct{}
 }
 
 type treeCommandKind uint8
@@ -167,6 +167,11 @@ type treeCommitCompletion struct {
 	err    error
 }
 
+type checkpointPublication struct {
+	events   []Event
+	terminal bool
+}
+
 type stepJobResult struct {
 	transition     Transition
 	candidate      Execution
@@ -197,18 +202,18 @@ func newTreeRuntime(
 	processes ...*processState,
 ) *treeRuntime {
 	runtime := &treeRuntime{
-		engine:              engine,
-		rootID:              rootID,
-		context:             context.WithoutCancel(requireContext(ctx)),
-		commands:            make(chan treeCommand, treeCommandBufferCapacity),
-		completions:         make(chan treeJobCompletion),
-		processes:           make(map[ProcessID]*processState, len(processes)),
-		childWaits:          make(map[WaitID]*childWaitRegistration),
-		queued:              make(map[ProcessID]struct{}, len(processes)),
-		jobs:                make(map[ProcessID]*processJob, len(processes)),
-		commitDone:          make(chan treeCommitCompletion),
-		terminalUnpublished: make(map[ProcessID]Event),
-		done:                make(chan struct{}),
+		engine:            engine,
+		rootID:            rootID,
+		context:           context.WithoutCancel(requireContext(ctx)),
+		commands:          make(chan treeCommand, treeCommandBufferCapacity),
+		completions:       make(chan treeJobCompletion),
+		processes:         make(map[ProcessID]*processState, len(processes)),
+		childWaits:        make(map[WaitID]*childWaitRegistration),
+		queued:            make(map[ProcessID]struct{}, len(processes)),
+		jobs:              make(map[ProcessID]*processJob, len(processes)),
+		commitDone:        make(chan treeCommitCompletion),
+		checkpointPending: make(map[ProcessID]checkpointPublication),
+		done:              make(chan struct{}),
 	}
 	for _, process := range processes {
 		runtime.addProcess(process)
@@ -460,7 +465,7 @@ func (t *treeRuntime) setProcessJob(processID ProcessID, job *processJob) {
 
 func (t *treeRuntime) finished() bool {
 	if t.freeze != nil || t.commit != nil || len(t.jobs) != 0 ||
-		len(t.terminalUnpublished) != 0 {
+		len(t.checkpointPending) != 0 {
 		return false
 	}
 	for _, process := range t.processes {

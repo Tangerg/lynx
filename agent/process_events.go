@@ -22,6 +22,25 @@ func (p *processState) publishEvent(
 	p.publishPreparedEvent(ctx, event)
 }
 
+func (p *processState) publishEventAfterCheckpoint(
+	ctx context.Context,
+	name string,
+	phase EventPhase,
+	step uint64,
+	effectID EffectID,
+	payload json.RawMessage,
+) {
+	event, ok := p.prepareEvent(name, phase, step, effectID, payload)
+	if !ok {
+		return
+	}
+	if p.runtime == nil || p.engine.durability == nil {
+		p.publishPreparedEvent(ctx, event)
+		return
+	}
+	p.runtime.stageCheckpointEvent(event)
+}
+
 func (p *processState) prepareEvent(
 	name string,
 	phase EventPhase,
@@ -92,9 +111,10 @@ func (p *processState) prepareSettlementEvent(
 	status SettlementStatus,
 	startedAt time.Time,
 ) (Event, bool) {
+	durationMS := time.Since(startedAt).Milliseconds()
 	payload, err := json.Marshal(effectFinishedEventPayload{
 		EffectTarget: target, SettlementStatus: status,
-		DurationMS: time.Since(startedAt).Milliseconds(),
+		DurationMS: &durationMS,
 	})
 	if err != nil {
 		return Event{}, false
