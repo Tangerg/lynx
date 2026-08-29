@@ -17,98 +17,105 @@ import (
 
 func TestChat_CoreConformance(t *testing.T) {
 	modeltest.ChatSuite{
-		New: func(t *testing.T) (corechat.Model, corechat.Streamer) {
-			t.Helper()
-			server := newProtocolChatServer(t)
-			t.Cleanup(server.Close)
-			adapter, err := protocol.NewChat(protocol.ChatConfig{
-				Provider:       "google",
-				APIKey:         "test-key",
-				DefaultOptions: corechat.Options{Model: "default-must-be-overridden"},
-				BaseURL:        server.URL,
-			})
-			if err != nil {
-				t.Fatalf("NewChat: %v", err)
-			}
-			return adapter, adapter
-		},
-		Request: newProtocolChatRequest,
-		AssertCall: func(t *testing.T, response *corechat.Response) {
-			t.Helper()
-			if response.Metadata.ID != "response-1" || response.Metadata.Model != "gemini-3-pro-001" {
-				t.Fatalf("identity = %q/%q", response.Metadata.ID, response.Metadata.Model)
-			}
-			result := response.Output
-			if result.Message == nil || len(result.Message.Parts) != 3 || result.FinishReason != corechat.FinishReasonStop {
-				t.Fatalf("result = %#v", result)
-			}
-			reasoning := result.Message.Parts[0]
-			if reasoning.Kind != corechat.PartReasoning || reasoning.Text != "verify result" || string(reasoning.Signature) != "sig-google" {
-				t.Errorf("reasoning = %#v", reasoning)
-			}
-			call := result.Message.Parts[2].ToolCall
-			if call == nil || call.ID != "google/generated/2" || call.Name != "calculate" || call.Arguments != `{"x":2}` {
-				t.Errorf("tool call = %#v", call)
-			}
-			usage := response.Metadata.Usage
-			if usage.InputTokens != 23 || usage.OutputTokens != 13 ||
-				usage.ReasoningTokens == nil || *usage.ReasoningTokens != 4 ||
-				usage.CacheReadInputTokens == nil || *usage.CacheReadInputTokens != 6 {
-				t.Errorf("usage = %#v", usage)
-			}
-		},
-		AssertStream: func(t *testing.T, responses []*corechat.Response) {
-			t.Helper()
-			var text, reasoning strings.Builder
-			var signature []byte
-			var toolID string
-			var finalUsage corechat.Usage
-			for _, response := range responses {
-				finalUsage = response.Metadata.Usage
-				if response.Output == nil || response.Output.Message == nil {
-					continue
-				}
-				for _, part := range response.Output.Message.Parts {
-					switch part.Kind {
-					case corechat.PartText:
-						text.WriteString(part.Text)
-					case corechat.PartReasoning:
-						reasoning.WriteString(part.Text)
-						signature = append(signature, part.Signature...)
-					case corechat.PartToolCall:
-						toolID = part.ToolCall.ID
-					}
-				}
-			}
-			if reasoning.String() != "verify result" || string(signature) != "sig-google" || text.String() != "The value is four." {
-				t.Errorf("stream reasoning/signature/text = %q/%q/%q", reasoning.String(), signature, text.String())
-			}
-			if toolID != "google/generated/2" {
-				t.Errorf("synthetic stream tool ID = %q", toolID)
-			}
-			if finalUsage.InputTokens != 23 || finalUsage.OutputTokens != 13 {
-				t.Errorf("final usage = %#v", finalUsage)
-			}
-		},
-		AssertAggregated: func(t *testing.T, response *corechat.Response) {
-			t.Helper()
-			if response.Metadata.ID != "response-stream" || response.Metadata.Model != "gemini-3-pro-001" || response.Output == nil {
-				t.Fatalf("aggregated response = %#v", response)
-			}
-			result := response.Output
-			if result.Message == nil || len(result.Message.Parts) != 3 || result.FinishReason != corechat.FinishReasonStop {
-				t.Fatalf("aggregated result = %#v", result)
-			}
-			call := result.Message.Parts[2].ToolCall
-			if result.Message.Parts[0].Text != "verify result" || string(result.Message.Parts[0].Signature) != "sig-google" ||
-				result.Message.Parts[1].Text != "The value is four." || call == nil || call.ID != "google/generated/2" {
-				t.Errorf("aggregated parts = %#v", result.Message.Parts)
-			}
-			if response.Metadata.Usage.InputTokens != 23 || response.Metadata.Usage.OutputTokens != 13 {
-				t.Errorf("aggregated usage = %#v", response.Metadata.Usage)
-			}
-		},
+		New:              newProtocolChatModel,
+		Request:          newProtocolChatRequest,
+		AssertCall:       assertProtocolChatCall,
+		AssertStream:     assertProtocolChatStream,
+		AssertAggregated: assertProtocolChatAggregated,
 	}.Run(t)
+}
+
+func newProtocolChatModel(t *testing.T) (corechat.Model, corechat.Streamer) {
+	t.Helper()
+	server := newProtocolChatServer(t)
+	t.Cleanup(server.Close)
+	adapter, err := protocol.NewChat(protocol.ChatConfig{
+		Provider:       "google",
+		Client:         protocol.ClientConfig{APIKey: "test-key", BaseURL: server.URL},
+		DefaultOptions: corechat.Options{Model: "default-must-be-overridden"},
+	})
+	if err != nil {
+		t.Fatalf("NewChat: %v", err)
+	}
+	return adapter, adapter
+}
+
+func assertProtocolChatCall(t *testing.T, response *corechat.Response) {
+	t.Helper()
+	if response.Metadata.ID != "response-1" || response.Metadata.Model != "gemini-3-pro-001" {
+		t.Fatalf("identity = %q/%q", response.Metadata.ID, response.Metadata.Model)
+	}
+	result := response.Output
+	if result.Message == nil || len(result.Message.Parts) != 3 || result.FinishReason != corechat.FinishReasonStop {
+		t.Fatalf("result = %#v", result)
+	}
+	reasoning := result.Message.Parts[0]
+	if reasoning.Kind != corechat.PartReasoning || reasoning.Text != "verify result" || string(reasoning.Signature) != "sig-google" {
+		t.Errorf("reasoning = %#v", reasoning)
+	}
+	call := result.Message.Parts[2].ToolCall
+	if call == nil || call.ID != "google/generated/2" || call.Name != "calculate" || call.Arguments != `{"x":2}` {
+		t.Errorf("tool call = %#v", call)
+	}
+	usage := response.Metadata.Usage
+	if usage.InputTokens != 23 || usage.OutputTokens != 13 ||
+		usage.ReasoningTokens == nil || *usage.ReasoningTokens != 4 ||
+		usage.CacheReadInputTokens == nil || *usage.CacheReadInputTokens != 6 {
+		t.Errorf("usage = %#v", usage)
+	}
+}
+
+func assertProtocolChatStream(t *testing.T, responses []*corechat.Response) {
+	t.Helper()
+	var text, reasoning strings.Builder
+	var signature []byte
+	var toolID string
+	var finalUsage corechat.Usage
+	for _, response := range responses {
+		finalUsage = response.Metadata.Usage
+		if response.Output == nil || response.Output.Message == nil {
+			continue
+		}
+		for _, part := range response.Output.Message.Parts {
+			switch part.Kind {
+			case corechat.PartText:
+				text.WriteString(part.Text)
+			case corechat.PartReasoning:
+				reasoning.WriteString(part.Text)
+				signature = append(signature, part.Signature...)
+			case corechat.PartToolCall:
+				toolID = part.ToolCall.ID
+			}
+		}
+	}
+	if reasoning.String() != "verify result" || string(signature) != "sig-google" || text.String() != "The value is four." {
+		t.Errorf("stream reasoning/signature/text = %q/%q/%q", reasoning.String(), signature, text.String())
+	}
+	if toolID != "google/generated/2" {
+		t.Errorf("synthetic stream tool ID = %q", toolID)
+	}
+	if finalUsage.InputTokens != 23 || finalUsage.OutputTokens != 13 {
+		t.Errorf("final usage = %#v", finalUsage)
+	}
+}
+
+func assertProtocolChatAggregated(t *testing.T, response *corechat.Response) {
+	t.Helper()
+	if response.Metadata.ID != "response-stream" || response.Metadata.Model != "gemini-3-pro-001" || response.Output == nil {
+		t.Fatalf("aggregated response = %#v", response)
+	}
+	result := response.Output
+	if result.Message == nil || len(result.Message.Parts) != 3 || result.FinishReason != corechat.FinishReasonStop {
+		t.Fatalf("aggregated result = %#v", result)
+	}
+	call := result.Message.Parts[2].ToolCall
+	if result.Message.Parts[0].Text != "verify result" || string(result.Message.Parts[0].Signature) != "sig-google" ||
+		result.Message.Parts[1].Text != "The value is four." || call == nil || call.ID != "google/generated/2" {
+		t.Errorf("aggregated parts = %#v", result.Message.Parts)
+	}
+	if response.Metadata.Usage.InputTokens != 23 || response.Metadata.Usage.OutputTokens != 13 {
+		t.Errorf("aggregated usage = %#v", response.Metadata.Usage)
+	}
 }
 
 func TestChatRejectsMultipleProviderCandidates(t *testing.T) {
@@ -120,7 +127,7 @@ func TestChatRejectsMultipleProviderCandidates(t *testing.T) {
 	}`)
 	t.Cleanup(server.Close)
 	model, err := protocol.NewChat(protocol.ChatConfig{
-		Provider: "google", APIKey: "test-key", BaseURL: server.URL,
+		Provider: "google", Client: protocol.ClientConfig{APIKey: "test-key", BaseURL: server.URL},
 		DefaultOptions: corechat.Options{Model: "gemini-3-pro"},
 	})
 	if err != nil {

@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"net/http"
 
 	"google.golang.org/genai"
 
@@ -14,33 +13,21 @@ import (
 
 type ChatConfig struct {
 	Provider       string
-	APIKey         string
+	Client         ClientConfig
 	DefaultOptions corechat.Options
-	Backend        genai.Backend
-	Project        string
-	Location       string
-	BaseURL        string
-	HTTPClient     *http.Client
 }
 
 func (c ChatConfig) Validate() error {
 	if err := validateProvider(c.Provider); err != nil {
 		return fmt.Errorf("google: Provider: %w", err)
 	}
-	if err := c.api().validate(); err != nil {
+	if err := c.Client.Validate(); err != nil {
 		return err
 	}
 	if err := c.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("google: DefaultOptions: %w", err)
 	}
 	return nil
-}
-
-func (c ChatConfig) api() apiConfig {
-	return apiConfig{
-		APIKey: c.APIKey, Backend: c.Backend, Project: c.Project,
-		Location: c.Location, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
-	}
 }
 
 var (
@@ -59,7 +46,7 @@ func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	api, err := newAPI(config.api())
+	api, err := newAPI(config.Client)
 	if err != nil {
 		return nil, err
 	}

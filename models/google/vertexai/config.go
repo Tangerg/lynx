@@ -4,6 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+
+	"google.golang.org/genai"
+
+	"github.com/Tangerg/scope/models/google/internal/protocol"
 )
 
 const protocolProvider = "vertexai"
@@ -16,6 +20,13 @@ type ClientConfig struct {
 	Location   string
 	BaseURL    string
 	HTTPClient *http.Client
+}
+
+func (c ClientConfig) protocol() protocol.ClientConfig {
+	return protocol.ClientConfig{
+		Backend: genai.BackendVertexAI, Project: c.Project, Location: c.Location,
+		BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
+	}
 }
 
 type configOptions interface {

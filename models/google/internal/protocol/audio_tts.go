@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"iter"
-	"net/http"
 	"slices"
 
 	"google.golang.org/genai"
@@ -16,26 +15,15 @@ import (
 
 type AudioTTSModelConfig struct {
 	Provider       string
-	APIKey         string
+	Client         ClientConfig
 	DefaultOptions tts.Options
-
-	// Backend / Project / Location enable Vertex AI access — see
-	// the matching fields on [ChatConfig] for semantics.
-	Backend  genai.Backend
-	Project  string
-	Location string
-
-	// BaseURL overrides the genai endpoint. Optional.
-	BaseURL string
-
-	HTTPClient *http.Client
 }
 
 func (a AudioTTSModelConfig) Validate() error {
 	if err := validateProvider(a.Provider); err != nil {
 		return fmt.Errorf("google: Provider: %w", err)
 	}
-	if err := a.api().validate(); err != nil {
+	if err := a.Client.Validate(); err != nil {
 		return err
 	}
 	if a.DefaultOptions.Model == "" {
@@ -45,13 +33,6 @@ func (a AudioTTSModelConfig) Validate() error {
 		return err
 	}
 	return nil
-}
-
-func (a AudioTTSModelConfig) api() apiConfig {
-	return apiConfig{
-		APIKey: a.APIKey, Backend: a.Backend, Project: a.Project,
-		Location: a.Location, BaseURL: a.BaseURL, HTTPClient: a.HTTPClient,
-	}
 }
 
 var _ tts.Model = (*AudioTTSModel)(nil)
@@ -76,7 +57,7 @@ func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 		return nil, err
 	}
 
-	api, err := newAPI(config.api())
+	api, err := newAPI(config.Client)
 	if err != nil {
 		return nil, err
 	}

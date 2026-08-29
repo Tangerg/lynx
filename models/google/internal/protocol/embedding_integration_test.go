@@ -25,7 +25,7 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 			}
 			m, err := protocol.NewEmbeddingModel(protocol.EmbeddingModelConfig{
 				Provider:       "google",
-				APIKey:         key,
+				Client:         protocol.ClientConfig{APIKey: key},
 				DefaultOptions: opts,
 			})
 			if err != nil {

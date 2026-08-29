@@ -3,7 +3,6 @@ package protocol
 import (
 	"context"
 	"errors"
-	"net/http"
 
 	"google.golang.org/genai"
 
@@ -15,30 +14,18 @@ import (
 // you intend to send chat requests under so the count matches the real
 // billing.
 type TextEstimatorConfig struct {
-	APIKey     string
-	Model      string
-	Backend    genai.Backend
-	Project    string
-	Location   string
-	BaseURL    string
-	HTTPClient *http.Client
+	Client ClientConfig
+	Model  string
 }
 
 func (t TextEstimatorConfig) Validate() error {
-	if err := t.api().validate(); err != nil {
+	if err := t.Client.Validate(); err != nil {
 		return err
 	}
 	if t.Model == "" {
 		return errors.New("google: DefaultOptions is required")
 	}
 	return nil
-}
-
-func (t TextEstimatorConfig) api() apiConfig {
-	return apiConfig{
-		APIKey: t.APIKey, Backend: t.Backend, Project: t.Project,
-		Location: t.Location, BaseURL: t.BaseURL, HTTPClient: t.HTTPClient,
-	}
 }
 
 var _ tokenizer.TextEstimator = (*TextEstimator)(nil)
@@ -56,7 +43,7 @@ func NewTextEstimator(config TextEstimatorConfig) (*TextEstimator, error) {
 		return nil, err
 	}
 
-	api, err := newAPI(config.api())
+	api, err := newAPI(config.Client)
 	if err != nil {
 		return nil, err
 	}

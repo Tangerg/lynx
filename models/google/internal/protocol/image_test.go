@@ -44,9 +44,8 @@ func TestImageModelCallUsesInteractionsAPI(t *testing.T) {
 		t.Fatal(setExtensionErr)
 	}
 	model, err := protocol.NewImageModel(protocol.ImageModelConfig{
-		APIKey:         "test-key",
+		Client:         protocol.ClientConfig{APIKey: "test-key", BaseURL: srv.URL},
 		DefaultOptions: opts,
-		BaseURL:        srv.URL,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -80,9 +79,8 @@ func TestImageModelCallUsesInteractionsAPI(t *testing.T) {
 func TestImageModelRejectsUnsupportedImagenOnlyOptions(t *testing.T) {
 	opts, _ := image.NewOptions(protocol.ModelGemini31FlashImage)
 	model, err := protocol.NewImageModel(protocol.ImageModelConfig{
-		APIKey:         "test-key",
+		Client:         protocol.ClientConfig{APIKey: "test-key", BaseURL: "https://example.com"},
 		DefaultOptions: opts,
-		BaseURL:        "https://example.com",
 	})
 	if err != nil {
 		t.Fatal(err)

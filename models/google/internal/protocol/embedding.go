@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 
 	"google.golang.org/genai"
 
@@ -14,26 +13,15 @@ import (
 
 type EmbeddingModelConfig struct {
 	Provider       string
-	APIKey         string
+	Client         ClientConfig
 	DefaultOptions embedding.Options
-
-	// Backend / Project / Location enable Vertex AI access — see
-	// the matching fields on [ChatConfig] for semantics.
-	Backend  genai.Backend
-	Project  string
-	Location string
-
-	// BaseURL overrides the genai endpoint. Optional.
-	BaseURL string
-
-	HTTPClient *http.Client
 }
 
 func (e EmbeddingModelConfig) Validate() error {
 	if err := validateProvider(e.Provider); err != nil {
 		return fmt.Errorf("google: Provider: %w", err)
 	}
-	if err := e.api().validate(); err != nil {
+	if err := e.Client.Validate(); err != nil {
 		return err
 	}
 	if e.DefaultOptions.Model == "" {
@@ -43,13 +31,6 @@ func (e EmbeddingModelConfig) Validate() error {
 		return err
 	}
 	return nil
-}
-
-func (e EmbeddingModelConfig) api() apiConfig {
-	return apiConfig{
-		APIKey: e.APIKey, Backend: e.Backend, Project: e.Project,
-		Location: e.Location, BaseURL: e.BaseURL, HTTPClient: e.HTTPClient,
-	}
 }
 
 var _ embedding.Model = (*EmbeddingModel)(nil)
@@ -70,7 +51,7 @@ func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
 		return nil, err
 	}
 
-	api, err := newAPI(config.api())
+	api, err := newAPI(config.Client)
 	if err != nil {
 		return nil, err
 	}

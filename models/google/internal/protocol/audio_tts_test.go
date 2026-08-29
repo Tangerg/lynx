@@ -30,9 +30,8 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	}
 	m, err := protocol.NewAudioTTSModel(protocol.AudioTTSModelConfig{
 		Provider:       "google",
-		APIKey:         "test-key",
+		Client:         protocol.ClientConfig{APIKey: "test-key", BaseURL: srv.URL},
 		DefaultOptions: opts,
-		BaseURL:        srv.URL,
 	})
 	if err != nil {
 		t.Fatal(err)

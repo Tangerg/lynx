@@ -44,9 +44,8 @@ func newGoogleBehaviorChat(t *testing.T, baseURL string) *protocol.Chat {
 	t.Helper()
 	adapter, err := protocol.NewChat(protocol.ChatConfig{
 		Provider:       "google",
-		APIKey:         "test-key",
+		Client:         protocol.ClientConfig{APIKey: "test-key", BaseURL: baseURL},
 		DefaultOptions: corechat.Options{Model: "gemini-3-pro"},
-		BaseURL:        baseURL,
 	})
 	if err != nil {
 		t.Fatalf("NewChat: %v", err)

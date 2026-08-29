@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"strings"
 
 	"google.golang.org/genai"
@@ -14,26 +13,15 @@ import (
 
 type AudioTranscriptionModelConfig struct {
 	Provider       string
-	APIKey         string
+	Client         ClientConfig
 	DefaultOptions transcription.Options
-
-	// Backend / Project / Location enable Vertex AI access — see
-	// the matching fields on [ChatConfig] for semantics.
-	Backend  genai.Backend
-	Project  string
-	Location string
-
-	// BaseURL overrides the genai endpoint. Optional.
-	BaseURL string
-
-	HTTPClient *http.Client
 }
 
 func (a AudioTranscriptionModelConfig) Validate() error {
 	if err := validateProvider(a.Provider); err != nil {
 		return fmt.Errorf("google: Provider: %w", err)
 	}
-	if err := a.api().validate(); err != nil {
+	if err := a.Client.Validate(); err != nil {
 		return err
 	}
 	if a.DefaultOptions.Model == "" {
@@ -43,13 +31,6 @@ func (a AudioTranscriptionModelConfig) Validate() error {
 		return err
 	}
 	return nil
-}
-
-func (a AudioTranscriptionModelConfig) api() apiConfig {
-	return apiConfig{
-		APIKey: a.APIKey, Backend: a.Backend, Project: a.Project,
-		Location: a.Location, BaseURL: a.BaseURL, HTTPClient: a.HTTPClient,
-	}
 }
 
 var _ transcription.Model = (*AudioTranscriptionModel)(nil)
@@ -69,7 +50,7 @@ func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTra
 		return nil, err
 	}
 
-	api, err := newAPI(config.api())
+	api, err := newAPI(config.Client)
 	if err != nil {
 		return nil, err
 	}

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"math"
 	"mime"
-	"net/http"
 	"slices"
 	"strings"
 	"time"
@@ -25,15 +24,13 @@ const (
 )
 
 type ImageModelConfig struct {
-	APIKey         string
+	Client         ClientConfig
 	DefaultOptions image.Options
-	BaseURL        string
-	HTTPClient     *http.Client
 }
 
 func (i ImageModelConfig) Validate() error {
-	if i.APIKey == "" {
-		return errors.New("google: APIKey is required")
+	if err := i.Client.Validate(); err != nil {
+		return err
 	}
 	if i.DefaultOptions.Model == "" {
 		return errors.New("google: DefaultOptions.Model is required")
@@ -90,11 +87,7 @@ func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 		return nil, err
 	}
 
-	api, err := newAPI(apiConfig{
-		APIKey:     config.APIKey,
-		BaseURL:    config.BaseURL,
-		HTTPClient: config.HTTPClient,
-	})
+	api, err := newAPI(config.Client)
 	if err != nil {
 		return nil, err
 	}
@@ -265,6 +258,16 @@ func validateImageGenerationOptions(modelName string, opts *ImageGenerationOptio
 	if opts == nil {
 		return errors.New("google: image: nil provider options")
 	}
+	if err := validateImageOptionValues(opts); err != nil {
+		return err
+	}
+	if err := validateImageModelOptions(modelName, opts); err != nil {
+		return err
+	}
+	return validateImageSafetySettings(opts.SafetySettings)
+}
+
+func validateImageOptionValues(opts *ImageGenerationOptions) error {
 	if opts.AspectRatio != "" && !slices.Contains([]string{
 		"1:1", "2:3", "3:2", "3:4", "4:3", "4:5", "5:4", "9:16", "16:9", "21:9", "1:8", "8:1", "1:4", "4:1",
 	}, opts.AspectRatio) {
@@ -292,6 +295,10 @@ func validateImageGenerationOptions(modelName string, opts *ImageGenerationOptio
 			}
 		}
 	}
+	return nil
+}
+
+func validateImageModelOptions(modelName string, opts *ImageGenerationOptions) error {
 	switch modelName {
 	case ModelGemini31FlashLiteImage:
 		if opts.ImageSize != "" && opts.ImageSize != "1K" {
@@ -312,7 +319,11 @@ func validateImageGenerationOptions(modelName string, opts *ImageGenerationOptio
 			return fmt.Errorf("google: image: model %q does not support image size 512", modelName)
 		}
 	}
-	for index, setting := range opts.SafetySettings {
+	return nil
+}
+
+func validateImageSafetySettings(settings []ImageSafetySetting) error {
+	for index, setting := range settings {
 		if !slices.Contains([]string{
 			"hate_speech", "dangerous_content", "harassment", "sexually_explicit",
 			"image_hate", "image_dangerous_content", "image_harassment", "image_sexually_explicit", "jailbreak",

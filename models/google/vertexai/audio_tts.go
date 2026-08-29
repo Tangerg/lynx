@@ -5,8 +5,6 @@ import (
 	"errors"
 	"iter"
 
-	"google.golang.org/genai"
-
 	tts "github.com/Tangerg/scope/core/speech"
 	"github.com/Tangerg/scope/models/google/internal/protocol"
 )
@@ -17,18 +15,14 @@ type AudioTTSModelConfig struct {
 }
 
 func (a AudioTTSModelConfig) Validate() error {
-	return a.Client.validateModelOptions(a.DefaultOptions.Model, a.DefaultOptions)
+	return a.protocol().Validate()
 }
 
 func (a AudioTTSModelConfig) protocol() protocol.AudioTTSModelConfig {
 	return protocol.AudioTTSModelConfig{
 		Provider:       protocolProvider,
-		Backend:        genai.BackendVertexAI,
-		Project:        a.Client.Project,
-		Location:       a.Client.Location,
+		Client:         a.Client.protocol(),
 		DefaultOptions: a.DefaultOptions,
-		BaseURL:        a.Client.BaseURL,
-		HTTPClient:     a.Client.HTTPClient,
 	}
 }
 
@@ -37,32 +31,29 @@ var (
 	_ tts.Streamer = (*AudioTTSModel)(nil)
 )
 
-type AudioTTSModel struct{ protocol *protocol.AudioTTSModel }
+type AudioTTSModel protocol.AudioTTSModel
 
 func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
-	if err := config.Validate(); err != nil {
-		return nil, err
-	}
 	adapter, err := protocol.NewAudioTTSModel(config.protocol())
 	if err != nil {
 		return nil, err
 	}
-	return &AudioTTSModel{protocol: adapter}, nil
+	return (*AudioTTSModel)(adapter), nil
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
-	if a == nil || a.protocol == nil {
+	if a == nil {
 		return nil, errors.New("vertexai: nil AudioTTSModel")
 	}
-	return a.protocol.Call(ctx, req)
+	return (*protocol.AudioTTSModel)(a).Call(ctx, req)
 }
 
 func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[*tts.Response, error] {
-	if a == nil || a.protocol == nil {
+	if a == nil {
 		return func(yield func(*tts.Response, error) bool) { yield(nil, errors.New("vertexai: nil AudioTTSModel")) }
 	}
 	if err := req.Validate(); err != nil {
 		return func(yield func(*tts.Response, error) bool) { yield(nil, err) }
 	}
-	return a.protocol.Stream(ctx, req)
+	return (*protocol.AudioTTSModel)(a).Stream(ctx, req)
 }

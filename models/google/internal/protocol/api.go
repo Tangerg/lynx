@@ -11,7 +11,7 @@ import (
 	"google.golang.org/genai"
 )
 
-type apiConfig struct {
+type ClientConfig struct {
 	APIKey string
 
 	// Backend selects the genai backend. Zero value falls back to
@@ -40,17 +40,17 @@ type apiConfig struct {
 	HTTPClient *http.Client
 }
 
-func (a apiConfig) validate() error {
-	if a.Backend == genai.BackendVertexAI {
-		if a.Project == "" {
+func (c ClientConfig) Validate() error {
+	if c.Backend == genai.BackendVertexAI {
+		if c.Project == "" {
 			return errors.New("google: Vertex AI project is required")
 		}
-		if a.Location == "" {
+		if c.Location == "" {
 			return errors.New("google: Vertex AI location is required")
 		}
 		return nil
 	}
-	if a.APIKey == "" {
+	if c.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
 	return nil
@@ -61,8 +61,8 @@ type api struct {
 	interactionsHTTP *resty.Client
 }
 
-func newAPI(config apiConfig) (*api, error) {
-	if err := config.validate(); err != nil {
+func newAPI(config ClientConfig) (*api, error) {
+	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 

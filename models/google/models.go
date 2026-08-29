@@ -58,6 +58,10 @@ const (
 
 const protocolProvider = "google"
 
+func protocolClient(apiKey, baseURL string, httpClient *http.Client) protocol.ClientConfig {
+	return protocol.ClientConfig{APIKey: apiKey, BaseURL: baseURL, HTTPClient: httpClient}
+}
+
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -69,8 +73,7 @@ func (c ChatConfig) Validate() error { return c.protocol().Validate() }
 
 func (c ChatConfig) protocol() protocol.ChatConfig {
 	return protocol.ChatConfig{
-		Provider: protocolProvider, APIKey: c.APIKey, DefaultOptions: c.DefaultOptions,
-		BaseURL: c.BaseURL, HTTPClient: c.HTTPClient,
+		Provider: protocolProvider, Client: protocolClient(c.APIKey, c.BaseURL, c.HTTPClient), DefaultOptions: c.DefaultOptions,
 	}
 }
 
@@ -139,8 +142,7 @@ func (e EmbeddingModelConfig) Validate() error { return e.protocol().Validate() 
 
 func (e EmbeddingModelConfig) protocol() protocol.EmbeddingModelConfig {
 	return protocol.EmbeddingModelConfig{
-		Provider: protocolProvider, APIKey: e.APIKey, DefaultOptions: e.DefaultOptions,
-		BaseURL: e.BaseURL, HTTPClient: e.HTTPClient,
+		Provider: protocolProvider, Client: protocolClient(e.APIKey, e.BaseURL, e.HTTPClient), DefaultOptions: e.DefaultOptions,
 	}
 }
 
@@ -174,8 +176,7 @@ func (a AudioTTSModelConfig) Validate() error { return a.protocol().Validate() }
 
 func (a AudioTTSModelConfig) protocol() protocol.AudioTTSModelConfig {
 	return protocol.AudioTTSModelConfig{
-		Provider: protocolProvider, APIKey: a.APIKey, DefaultOptions: a.DefaultOptions,
-		BaseURL: a.BaseURL, HTTPClient: a.HTTPClient,
+		Provider: protocolProvider, Client: protocolClient(a.APIKey, a.BaseURL, a.HTTPClient), DefaultOptions: a.DefaultOptions,
 	}
 }
 
@@ -217,8 +218,7 @@ func (a AudioTranscriptionModelConfig) Validate() error { return a.protocol().Va
 
 func (a AudioTranscriptionModelConfig) protocol() protocol.AudioTranscriptionModelConfig {
 	return protocol.AudioTranscriptionModelConfig{
-		Provider: protocolProvider, APIKey: a.APIKey, DefaultOptions: a.DefaultOptions,
-		BaseURL: a.BaseURL, HTTPClient: a.HTTPClient,
+		Provider: protocolProvider, Client: protocolClient(a.APIKey, a.BaseURL, a.HTTPClient), DefaultOptions: a.DefaultOptions,
 	}
 }
 
@@ -251,7 +251,7 @@ type ImageModelConfig struct {
 func (i ImageModelConfig) Validate() error { return i.protocol().Validate() }
 
 func (i ImageModelConfig) protocol() protocol.ImageModelConfig {
-	return protocol.ImageModelConfig{APIKey: i.APIKey, DefaultOptions: i.DefaultOptions, BaseURL: i.BaseURL, HTTPClient: i.HTTPClient}
+	return protocol.ImageModelConfig{Client: protocolClient(i.APIKey, i.BaseURL, i.HTTPClient), DefaultOptions: i.DefaultOptions}
 }
 
 type ImageGenerationOptions struct {
@@ -307,7 +307,7 @@ func (t TextEstimatorConfig) Validate() error { return t.protocol().Validate() }
 
 func (t TextEstimatorConfig) protocol() protocol.TextEstimatorConfig {
 	return protocol.TextEstimatorConfig{
-		APIKey: t.APIKey, Model: t.Model, BaseURL: t.BaseURL, HTTPClient: t.HTTPClient,
+		Client: protocolClient(t.APIKey, t.BaseURL, t.HTTPClient), Model: t.Model,
 	}
 }
 
