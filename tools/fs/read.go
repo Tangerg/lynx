@@ -34,7 +34,7 @@ type ReadTool struct {
 }
 
 func NewReadTool(executor Reader) *ReadTool {
-	if executor == nil {
+	if isNilBackend(executor) {
 		executor = NewLocalExecutor("")
 	}
 	t := &ReadTool{executor: executor}

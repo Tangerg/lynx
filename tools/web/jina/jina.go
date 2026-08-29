@@ -28,7 +28,6 @@ const (
 	mediaTypeJSON         = "application/json"
 	respondWithHeader     = "X-Respond-With"
 	respondWithoutContent = "no-content"
-	noCacheHeader         = "X-No-Cache"
 )
 
 type Config struct {
@@ -73,11 +72,10 @@ func NewClient(config Config) (*Client, error) {
 }
 
 type searchRequest struct {
-	Query   string   `json:"-"`
-	Count   int      `json:"count,omitempty"`
-	Page    int      `json:"page,omitempty"`
-	Site    []string `json:"site,omitempty"`
-	NoCache bool     `json:"noCache,omitempty"`
+	Query string   `json:"-"`
+	Count int      `json:"count,omitempty"`
+	Page  int      `json:"page,omitempty"`
+	Site  []string `json:"site,omitempty"`
 }
 
 func (s *searchRequest) validate() error {
@@ -109,10 +107,6 @@ func (c *Client) search(ctx context.Context, request *searchRequest) (*searchRes
 	endpoint := "/" + url.PathEscape(request.Query)
 	params := request.params()
 	httpRequest := c.searchHTTP.R().SetContext(ctx).SetQueryParamsFromValues(params)
-	if request.NoCache {
-		httpRequest.SetHeader(noCacheHeader, strconv.FormatBool(request.NoCache))
-	}
-
 	var raw searchResponse
 	response, err := httpRequest.SetResult(&raw).Get(endpoint)
 	if err != nil {
@@ -144,6 +138,12 @@ func (c *Client) Search(ctx context.Context, request *web.SearchRequest) (*web.S
 		return nil, fmt.Errorf("jina: prepare search request: %w", err)
 	}
 	request = prepared
+	if len(request.BlockedDomains) > 0 {
+		return nil, fmt.Errorf("jina: %w: blocked_domains", web.ErrUnsupportedFilter)
+	}
+	if request.Recency != "" {
+		return nil, fmt.Errorf("jina: %w: recency", web.ErrUnsupportedFilter)
+	}
 	raw, err := c.search(ctx, buildSearchRequest(request))
 	if err != nil {
 		return nil, err
@@ -160,15 +160,15 @@ func buildSearchRequest(request *web.SearchRequest) *searchRequest {
 	if len(request.AllowedDomains) > 0 {
 		r.Site = request.AllowedDomains
 	}
-	if request.Recency != "" {
-		r.NoCache = true
-	}
 	return r
 }
 
 func (s *searchResponse) toSearchResponse(query string) *web.SearchResponse {
 	results := make([]*web.SearchResult, 0, len(s.Data))
 	for _, searchResult := range s.Data {
+		if searchResult == nil {
+			continue
+		}
 		results = append(results, &web.SearchResult{
 			Title:         searchResult.Title,
 			URL:           searchResult.URL,

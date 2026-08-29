@@ -28,7 +28,7 @@ type GlobTool struct {
 }
 
 func NewGlobTool(executor Globber) *GlobTool {
-	if executor == nil {
+	if isNilBackend(executor) {
 		executor = NewLocalExecutor("")
 	}
 	t := &GlobTool{executor: executor}

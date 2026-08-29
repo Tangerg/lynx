@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/url"
 	"strings"
 )
@@ -80,6 +81,19 @@ func (f *FetchRequest) Validate() error {
 type FetchResponse struct {
 	Content string        `json:"content"`
 	Format  ContentFormat `json:"format"`
+}
+
+func (f *FetchResponse) Validate() error {
+	if f == nil {
+		return ErrMissingFetchResponse
+	}
+	if f.Format == "" {
+		return fmt.Errorf("%w: response format is empty", ErrInvalidFetchResponse)
+	}
+	if err := f.Format.Validate(); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidFetchResponse, err)
+	}
+	return nil
 }
 
 // Fetcher is the provider boundary behind the model-facing page fetch tool.

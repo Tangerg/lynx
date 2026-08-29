@@ -138,6 +138,9 @@ func recencyToTbs(r web.Recency) string {
 func (s *searchResponse) toSearchResponse(query string) *web.SearchResponse {
 	results := make([]*web.SearchResult, 0, len(s.Data.Web))
 	for _, searchResult := range s.Data.Web {
+		if searchResult == nil {
+			continue
+		}
 		results = append(results, &web.SearchResult{
 			Title:   searchResult.Title,
 			URL:     searchResult.URL,

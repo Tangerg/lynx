@@ -62,7 +62,7 @@ func (c *Client) Fetch(ctx context.Context, request *web.FetchRequest) (*web.Fet
 	request = prepared
 	format := request.Format
 	if format == web.FormatHTML {
-		format = web.FormatMarkdown
+		return nil, fmt.Errorf("tavily: %w: %s", web.ErrUnsupportedFormat, format)
 	}
 	raw, err := c.fetch(ctx, &fetchRequest{
 		URLs:         []string{request.URL},
@@ -72,9 +72,11 @@ func (c *Client) Fetch(ctx context.Context, request *web.FetchRequest) (*web.Fet
 	if err != nil {
 		return nil, err
 	}
-	if len(raw.Results) == 0 {
+	if len(raw.Results) == 0 || raw.Results[0] == nil {
 		if len(raw.FailedResults) > 0 {
-			return nil, fmt.Errorf("tavily: fetch response reported failure: %s", raw.FailedResults[0].Error)
+			if failure := raw.FailedResults[0]; failure != nil {
+				return nil, fmt.Errorf("tavily: fetch response reported failure: %s", failure.Error)
+			}
 		}
 		return nil, errors.New("tavily: fetch response contains no result")
 	}

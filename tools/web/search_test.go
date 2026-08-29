@@ -33,6 +33,13 @@ func TestSearchNewTool_NilSearcher(t *testing.T) {
 	}
 }
 
+func TestSearchNewTool_TypedNilSearcher(t *testing.T) {
+	var searcher *fakeSearcher
+	if _, err := NewSearchTool(searcher); !errors.Is(err, ErrMissingSearcher) {
+		t.Fatalf("NewSearchTool(typed nil) error = %v, want ErrMissingSearcher", err)
+	}
+}
+
 func TestSearchTool_Definition(t *testing.T) {
 	tool, err := NewSearchTool(&fakeSearcher{})
 	if err != nil {
@@ -146,6 +153,22 @@ func TestSearchTool_Call_SearcherError(t *testing.T) {
 	}
 }
 
+func TestSearchToolRejectsInvalidProviderResponse(t *testing.T) {
+	for _, response := range []*SearchResponse{
+		nil,
+		{Query: "query", Results: []*SearchResult{nil}},
+		{Query: "query", Results: []*SearchResult{{URL: "not-a-url"}}},
+	} {
+		tool, err := NewSearchTool(&fakeSearcher{resp: response})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := invokeTestTool(t.Context(), tool, `{"query":"query"}`); err == nil {
+			t.Fatalf("provider response %#v was accepted", response)
+		}
+	}
+}
+
 func TestSearchRequest_QueryWithSiteOperators(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -191,6 +214,25 @@ func TestSearchRequestPrepareReturnsOwnedNormalizedCopy(t *testing.T) {
 	}
 	if original.Query != "  scope  " || original.AllowedDomains[0] != "example.com" {
 		t.Fatalf("Prepare mutated its input: %#v", original)
+	}
+}
+
+func TestSearchRequestPrepareNormalizesDomains(t *testing.T) {
+	request := &SearchRequest{
+		Query:          "scope",
+		AllowedDomains: []string{" BÜCHER.example. ", "xn--bcher-kva.example"},
+	}
+	prepared, err := request.Prepare()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(prepared.AllowedDomains) != 1 || prepared.AllowedDomains[0] != "xn--bcher-kva.example" {
+		t.Fatalf("allowed domains = %v", prepared.AllowedDomains)
+	}
+	for _, domain := range []string{"", "https://example.com", "example.com:443", "*.example.com", "bad..example"} {
+		if err := (&SearchRequest{Query: "scope", AllowedDomains: []string{domain}}).Validate(); !errors.Is(err, ErrInvalidDomain) {
+			t.Fatalf("domain %q error = %v, want ErrInvalidDomain", domain, err)
+		}
 	}
 }
 

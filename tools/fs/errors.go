@@ -6,7 +6,8 @@ import (
 )
 
 var (
-	ErrEmptyPath = errors.New("fs: path must not be empty")
+	ErrEmptyPath    = errors.New("fs: path must not be empty")
+	ErrInvalidInput = errors.New("fs: operation input is invalid")
 
 	ErrPathOutsideRoot = errors.New("fs: path is outside the executor root")
 

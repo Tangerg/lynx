@@ -49,7 +49,7 @@ type GrepTool struct {
 }
 
 func NewGrepTool(executor Grepper) *GrepTool {
-	if executor == nil {
+	if isNilBackend(executor) {
 		executor = NewLocalExecutor("")
 	}
 	t := &GrepTool{executor: executor}

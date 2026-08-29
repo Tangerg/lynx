@@ -4,14 +4,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 )
 
 // Moving a file with apply_patch uses Git's rename metadata. What makes it safe
 // is that a destination is never overwritten, the origin is reported, and both
-// endpoints are visible to the guards the caller wraps this tool in.
+// endpoints are locked during the operation.
 
 func movePatch(from, to, body string) string {
 	patch := fmt.Sprintf("diff --git a/%s b/%s\nsimilarity index 100%%\nrename from %s\nrename to %s\n", from, to, from, to)
@@ -98,21 +97,10 @@ func TestApplyPatch_MoveRefusesToOverwriteItsDestination(t *testing.T) {
 	}
 }
 
-func TestApplyPatch_MoveReportsBothEndpointsAsMutated(t *testing.T) {
-	// MutationPaths is what the caller's guard stack reads to lock, to refuse
-	// protected directories, and to require a prior read. A move that reported only
-	// its destination would remove a file none of those three ever saw.
-	from := "old.txt"
-	to := "new.txt"
-
-	paths, err := patchPaths(movePatch(from, to, ""))
-	if err != nil {
-		t.Fatalf("patchPaths: %v", err)
-	}
-	for _, want := range []string{from, to} {
-		if !slices.Contains(paths, want) {
-			t.Errorf("paths = %v, missing %s", paths, want)
-		}
+func TestApplyPatch_MoveLocksBothEndpoints(t *testing.T) {
+	locks := (patchTarget{from: "old.txt", to: "new.txt"}).locks()
+	if len(locks) != 2 || locks[0] != "old.txt" || locks[1] != "new.txt" {
+		t.Fatalf("locks = %v, want both move endpoints", locks)
 	}
 }
 

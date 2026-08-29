@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 )
 
@@ -48,8 +49,17 @@ func (l *LocalExecutor) maxOutput() int {
 }
 
 func (l *LocalExecutor) Run(ctx context.Context, in Input) (Output, error) {
-	if in.Cmd == "" {
+	if l == nil {
+		return Output{}, ErrNilExecutor
+	}
+	if strings.TrimSpace(in.Cmd) == "" {
 		return Output{}, ErrEmptyCommand
+	}
+	if in.Timeout < 0 {
+		return Output{}, fmt.Errorf("%w: timeout must not be negative", ErrInvalidInput)
+	}
+	if l.MaxOutputBytes < 0 {
+		return Output{}, fmt.Errorf("%w: maximum output bytes must not be negative", ErrInvalidConfig)
 	}
 
 	runCtx := ctx

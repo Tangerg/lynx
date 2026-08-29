@@ -1,6 +1,7 @@
 package jina
 
 import (
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -37,12 +38,6 @@ func TestSearch(t *testing.T) {
 		if got := r.URL.Query()["site"]; len(got) != 2 || got[0] != "example.com" || got[1] != "example.org" {
 			t.Errorf("site = %#v", got)
 		}
-		if got := r.Header.Get("X-No-Cache"); got != "true" {
-			t.Errorf("X-No-Cache = %q", got)
-		}
-		if got := r.URL.Query().Get("noCache"); got != "" {
-			t.Errorf("noCache query parameter = %q", got)
-		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"data":[{"title":"Scope","url":"https://example.com","description":"cat","date":"2026-08-03"}]}`))
 	}))
@@ -56,12 +51,19 @@ func TestSearch(t *testing.T) {
 		Query:          "scope agent",
 		MaxResults:     20,
 		AllowedDomains: []string{"example.com", "example.org"},
-		Recency:        web.RecencyDay,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(response.Results) != 1 || response.Results[0].Snippet != "cat" {
 		t.Fatalf("response = %#v", response)
+	}
+	for _, request := range []*web.SearchRequest{
+		{Query: "scope", BlockedDomains: []string{"example.com"}},
+		{Query: "scope", Recency: web.RecencyDay},
+	} {
+		if _, err := client.Search(t.Context(), request); !errors.Is(err, web.ErrUnsupportedFilter) {
+			t.Fatalf("Search(%+v) error = %v, want ErrUnsupportedFilter", request, err)
+		}
 	}
 }

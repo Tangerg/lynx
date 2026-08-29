@@ -104,7 +104,7 @@ func (c *Client) Search(ctx context.Context, request *web.SearchRequest) (*web.S
 	if err != nil {
 		return nil, err
 	}
-	return raw.toSearchResponse(), nil
+	return raw.toSearchResponse(request.Query), nil
 }
 
 func buildSearchRequest(request *web.SearchRequest) *searchRequest {
@@ -135,9 +135,12 @@ func recencyToTbs(r web.Recency) string {
 	return ""
 }
 
-func (s *searchResponse) toSearchResponse() *web.SearchResponse {
+func (s *searchResponse) toSearchResponse(query string) *web.SearchResponse {
 	results := make([]*web.SearchResult, 0, len(s.Organic))
 	for _, searchResult := range s.Organic {
+		if searchResult == nil {
+			continue
+		}
 		results = append(results, &web.SearchResult{
 			Title:         searchResult.Title,
 			URL:           searchResult.Link,
@@ -145,7 +148,10 @@ func (s *searchResponse) toSearchResponse() *web.SearchResponse {
 			PublishedTime: parseDate(searchResult.Date),
 		})
 	}
-	return &web.SearchResponse{Query: s.SearchParameters.Q, Results: results}
+	if s.SearchParameters.Q != "" {
+		query = s.SearchParameters.Q
+	}
+	return &web.SearchResponse{Query: query, Results: results}
 }
 
 // parseDate tries Serper's common date formats. Relative strings

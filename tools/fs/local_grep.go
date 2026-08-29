@@ -186,6 +186,10 @@ func (r *ripgrepDecoder) addCount(path string) {
 }
 
 func (l *LocalExecutor) Grep(ctx context.Context, in GrepInput) (_ GrepResponse, err error) {
+	if in.MaxResults < 0 || in.Context < 0 || in.BeforeContext < 0 || in.AfterContext < 0 ||
+		in.Context > maximumContextLines || in.BeforeContext > maximumContextLines || in.AfterContext > maximumContextLines {
+		return GrepResponse{}, fmt.Errorf("%w: grep result and context limits are outside their supported range", ErrInvalidInput)
+	}
 	if in.Pattern == "" {
 		return GrepResponse{}, ErrEmptyPattern
 	}
@@ -215,7 +219,7 @@ func (l *LocalExecutor) Grep(ctx context.Context, in GrepInput) (_ GrepResponse,
 		return GrepResponse{}, fmt.Errorf("fs.LocalExecutor.Grep: %w: %w", ErrRipgrepUnavailable, err)
 	}
 	maxResults := in.MaxResults
-	if maxResults <= 0 {
+	if maxResults == 0 {
 		maxResults = defaultGrepMaxResults
 	} else if maxResults > maximumSearchResults {
 		return GrepResponse{}, fmt.Errorf("fs.LocalExecutor.Grep: max_results exceeds %d", maximumSearchResults)

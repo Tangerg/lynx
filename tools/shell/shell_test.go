@@ -103,9 +103,26 @@ func TestLocalExecutor_Run_EmptyDirInheritsCwd(t *testing.T) {
 }
 
 func TestLocalExecutor_Run_EmptyCommand(t *testing.T) {
-	_, err := NewLocalExecutor().Run(t.Context(), Input{Cmd: ""})
-	if !errors.Is(err, ErrEmptyCommand) {
-		t.Errorf("Run with empty Cmd: err = %v, want ErrEmptyCommand", err)
+	for _, command := range []string{"", " \t\n"} {
+		_, err := NewLocalExecutor().Run(t.Context(), Input{Cmd: command})
+		if !errors.Is(err, ErrEmptyCommand) {
+			t.Errorf("Run with empty Cmd: err = %v, want ErrEmptyCommand", err)
+		}
+	}
+}
+
+func TestLocalExecutorRejectsInvalidLimits(t *testing.T) {
+	if _, err := NewLocalExecutor().Run(t.Context(), Input{Cmd: "true", Timeout: -1}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("negative timeout error = %v, want ErrInvalidInput", err)
+	}
+	executor := NewLocalExecutor()
+	executor.MaxOutputBytes = -1
+	if _, err := executor.Run(t.Context(), Input{Cmd: "true"}); !errors.Is(err, ErrInvalidConfig) {
+		t.Fatalf("negative output limit error = %v, want ErrInvalidConfig", err)
+	}
+	var nilExecutor *LocalExecutor
+	if _, err := nilExecutor.Run(t.Context(), Input{Cmd: "true"}); !errors.Is(err, ErrNilExecutor) {
+		t.Fatalf("nil executor error = %v, want ErrNilExecutor", err)
 	}
 }
 
@@ -185,6 +202,14 @@ func TestTool_Call_NilExecutorDefaultsToLocal(t *testing.T) {
 	tool := NewTool(nil) // must not panic; should pick up LocalExecutor
 	if _, err := invokeTestTool(t.Context(), tool, `{"command":"true"}`); err != nil {
 		t.Fatalf("Call with nil-executor default: %v", err)
+	}
+}
+
+func TestToolTypedNilExecutorDefaultsToLocal(t *testing.T) {
+	var executor *LocalExecutor
+	tool := NewTool(executor)
+	if _, ok := tool.executor.(*LocalExecutor); !ok {
+		t.Fatalf("executor = %T, want *LocalExecutor", tool.executor)
 	}
 }
 

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/scope/core/chat"
 	toolcontract "github.com/Tangerg/scope/core/tool"
 )
@@ -35,7 +37,7 @@ type Tool struct {
 }
 
 func NewTool(executor Executor) *Tool {
-	if executor == nil {
+	if lo.IsNil(executor) {
 		executor = NewLocalExecutor()
 	}
 	t := &Tool{executor: executor}

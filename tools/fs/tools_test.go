@@ -1,19 +1,35 @@
 package fs
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
 
 	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
-type fileMutationReporter interface {
-	toolcontract.Tool
-	MutationPaths(invocation toolcontract.Invocation) ([]string, error)
+type typedNilBackend struct{}
+
+func (*typedNilBackend) Read(context.Context, ReadInput) (ReadOutput, error) {
+	panic("typed nil backend was used")
+}
+func (*typedNilBackend) Write(context.Context, WriteInput) (WriteResponse, error) {
+	panic("typed nil backend was used")
+}
+func (*typedNilBackend) Edit(context.Context, EditRequest) (EditResponse, error) {
+	panic("typed nil backend was used")
+}
+func (*typedNilBackend) ApplyPatch(context.Context, ApplyPatchRequest) (ApplyPatchResponse, error) {
+	panic("typed nil backend was used")
+}
+func (*typedNilBackend) Glob(context.Context, GlobInput) (GlobResponse, error) {
+	panic("typed nil backend was used")
+}
+func (*typedNilBackend) Grep(context.Context, GrepInput) (GrepResponse, error) {
+	panic("typed nil backend was used")
 }
 
 // Compile-time assertions that every tool constructor returns a value
@@ -34,6 +50,22 @@ func TestTools_Definitions(t *testing.T) {
 	for _, tc := range cases {
 		if tc.got != tc.name {
 			t.Errorf("tool %q has Definition().Name = %q", tc.name, tc.got)
+		}
+	}
+}
+
+func TestToolConstructorsTreatTypedNilAsDefaultBackend(t *testing.T) {
+	var backend *typedNilBackend
+	for name, definition := range map[string]string{
+		"read":        NewReadTool(backend).Definition().Name,
+		"write":       NewWriteTool(backend).Definition().Name,
+		"edit":        NewEditTool(backend).Definition().Name,
+		"apply_patch": NewApplyPatchTool(backend).Definition().Name,
+		"glob":        NewGlobTool(backend).Definition().Name,
+		"grep":        NewGrepTool(backend).Definition().Name,
+	} {
+		if definition != name {
+			t.Fatalf("%s definition = %q", name, definition)
 		}
 	}
 }
@@ -77,33 +109,6 @@ func TestGrepContractRejectsAmbiguousPagingAndContextFields(t *testing.T) {
 		if _, err := invokeTestTool(t.Context(), grep, arguments); err == nil {
 			t.Fatalf("grep accepted invalid arguments: %s", arguments)
 		}
-	}
-}
-
-func TestFileToolsReportMutationPaths(t *testing.T) {
-	tests := []struct {
-		name      string
-		tool      fileMutationReporter
-		arguments string
-		want      []string
-	}{
-		{"write", NewWriteTool(nil), `{"path":"a.go","content":"x"}`, []string{"a.go"}},
-		{"edit", NewEditTool(nil), `{"path":"b.go","old_string":"a","new_string":"b"}`, []string{"b.go"}},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			invocation, err := prepareTestTool(test.tool, test.arguments)
-			if err != nil {
-				t.Fatalf("Prepare: %v", err)
-			}
-			got, err := test.tool.MutationPaths(invocation)
-			if err != nil {
-				t.Fatalf("MutationPaths: %v", err)
-			}
-			if !slices.Equal(got, test.want) {
-				t.Fatalf("MutationPaths = %v, want %v", got, test.want)
-			}
-		})
 	}
 }
 

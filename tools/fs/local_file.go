@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/Tangerg/scope/tools/textread"
@@ -26,6 +25,9 @@ const (
 // Write means the caller sees either the old file in full or the new file in
 // full, never a torn write).
 func (l *LocalExecutor) Read(ctx context.Context, in ReadInput) (_ ReadOutput, err error) {
+	if in.Limit < 0 || in.MaxInputBytes < 0 || in.MaxLineBytes < 0 || in.MaxOutputBytes < 0 {
+		return ReadOutput{}, fmt.Errorf("%w: read limits must not be negative", ErrInvalidInput)
+	}
 	path, err := l.authorize(in.Path, false)
 	if err != nil {
 		return ReadOutput{}, err
@@ -131,31 +133,10 @@ func (l *LocalExecutor) Write(ctx context.Context, in WriteInput) (_ WriteRespon
 	hadBOM, hadCRLF := false, false
 	if info, statErr := root.Stat(path); statErr == nil {
 		mode = info.Mode().Perm()
-		if !in.Append {
-			hadBOM, hadCRLF, err = detectRootFormat(ctx, root, path)
-			if err != nil {
-				return WriteResponse{}, err
-			}
-		}
-	}
-
-	if in.Append {
-		if err := root.MkdirAll(filepath.Dir(path), defaultDirectoryMode); err != nil {
-			return WriteResponse{}, err
-		}
-		file, err := root.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, mode)
+		hadBOM, hadCRLF, err = detectRootFormat(ctx, root, path)
 		if err != nil {
 			return WriteResponse{}, err
 		}
-		n, err := file.WriteString(in.Content)
-		if err != nil {
-			_ = file.Close()
-			return WriteResponse{}, err
-		}
-		if err := file.Close(); err != nil {
-			return WriteResponse{}, err
-		}
-		return WriteResponse{BytesWritten: n}, nil
 	}
 
 	out := restoreFormat(in.Content, hadBOM, hadCRLF)

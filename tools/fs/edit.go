@@ -34,14 +34,14 @@ type EditTool struct {
 }
 
 func NewEditTool(executor Editor) *EditTool {
-	if executor == nil {
+	if isNilBackend(executor) {
 		executor = NewLocalExecutor("")
 	}
 	t := &EditTool{executor: executor}
 	t.typed = mustTypedTool(
 		toolcontract.FuncConfig{
 			Name: "edit",
-			Description: "Replace exact text in one file. Read the file before editing; an edit without a current read is refused. " +
+			Description: "Replace exact text in one file. Read the file first so old_string reflects its current contents. " +
 				"Copy old_string verbatim from read output and keep it to the few unique lines needed. " +
 				"Set replace_all=true only when every occurrence in this file should change.",
 		},
@@ -64,17 +64,6 @@ func (e *EditTool) ConcurrencyKey(invocation toolcontract.Invocation) (key strin
 	var req EditRequest
 	_ = json.Unmarshal(invocation.Arguments(), &req)
 	return req.Path, true
-}
-
-func (*EditTool) MutationPaths(invocation toolcontract.Invocation) ([]string, error) {
-	var req EditRequest
-	if err := json.Unmarshal(invocation.Arguments(), &req); err != nil {
-		return nil, err
-	}
-	if req.Path == "" {
-		return nil, nil
-	}
-	return []string{req.Path}, nil
 }
 
 func (e *EditTool) Call(ctx context.Context, invocation toolcontract.Invocation) (chat.ToolOutput, error) {

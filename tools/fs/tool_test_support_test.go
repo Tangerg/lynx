@@ -20,13 +20,3 @@ func invokeTestTool(ctx context.Context, executable toolcontract.Tool, arguments
 	}
 	return binding.Call(ctx, invocation)
 }
-
-func prepareTestTool(executable toolcontract.Tool, arguments string) (toolcontract.Invocation, error) {
-	binding, err := toolcontract.Bind(executable)
-	if err != nil {
-		return toolcontract.Invocation{}, err
-	}
-	return binding.Prepare(chat.ToolCall{
-		ID: "test-call", Name: binding.Definition().Name, Arguments: arguments,
-	})
-}

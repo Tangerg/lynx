@@ -71,6 +71,19 @@ func TestLocalExecutor_Read_LineRange(t *testing.T) {
 	}
 }
 
+func TestLocalExecutorRejectsInvalidOperationLimits(t *testing.T) {
+	executor := NewLocalExecutor(t.TempDir())
+	if _, err := executor.Read(t.Context(), ReadInput{Path: "x", Limit: -1}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("Read error = %v, want ErrInvalidInput", err)
+	}
+	if _, err := executor.Glob(t.Context(), GlobInput{Pattern: "*", MaxResults: -1}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("Glob error = %v, want ErrInvalidInput", err)
+	}
+	if _, err := executor.Grep(t.Context(), GrepInput{Pattern: "x", BeforeContext: maximumContextLines + 1}); !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("Grep error = %v, want ErrInvalidInput", err)
+	}
+}
+
 func TestLocalExecutor_Read_MaxBytes(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "ab你cd")
@@ -125,21 +138,6 @@ func TestLocalExecutor_Write_Overwrite(t *testing.T) {
 	got, _ := os.ReadFile(path)
 	if string(got) != "hi" {
 		t.Errorf("file content = %q, want %q", got, "hi")
-	}
-}
-
-func TestLocalExecutor_Write_Append(t *testing.T) {
-	dir := t.TempDir()
-	path := writeTemp(t, dir, "a.txt", "one\n")
-	_, err := NewLocalExecutor(dir).Write(t.Context(), WriteInput{
-		Path: path, Content: "two\n", Append: true,
-	})
-	if err != nil {
-		t.Fatalf("Write append: %v", err)
-	}
-	got, _ := os.ReadFile(path)
-	if string(got) != "one\ntwo\n" {
-		t.Errorf("file content = %q, want %q", got, "one\ntwo\n")
 	}
 }
 

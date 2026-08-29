@@ -5,10 +5,16 @@ package textread
 import (
 	"context"
 	"errors"
+	"io"
+	"math"
 	"slices"
 	"strings"
 	"testing"
 )
+
+type typedNilReader struct{}
+
+func (*typedNilReader) Read([]byte) (int, error) { return 0, io.EOF }
 
 func TestScanValidatesUnselectedTailAndCountsTrailingLine(t *testing.T) {
 	input := "\xef\xbb\xbffirst\r\nsecond\r\n"
@@ -96,5 +102,25 @@ func TestVisitLinesSharesNormalizedBoundedValidation(t *testing.T) {
 		return nil
 	}); !errors.Is(err, context.Canceled) {
 		t.Fatalf("pre-canceled VisitLines error = %v, want context.Canceled", err)
+	}
+}
+
+func TestScanRejectsInvalidLimits(t *testing.T) {
+	var typedNil *typedNilReader
+	for _, test := range []struct {
+		name    string
+		source  io.Reader
+		options Options
+	}{
+		{"typed nil source", typedNil, Options{InputBytes: 1, LineBytes: 1, OutputBytes: 1}},
+		{"input limit overflow", strings.NewReader("x"), Options{InputBytes: math.MaxInt64, LineBytes: 1, OutputBytes: 1}},
+		{"line limit overflow", strings.NewReader("x"), Options{InputBytes: 1, LineBytes: math.MaxInt, OutputBytes: 1}},
+		{"negative max lines", strings.NewReader("x"), Options{InputBytes: 1, LineBytes: 1, OutputBytes: 1, MaxLines: -1}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			if _, err := Scan(t.Context(), test.source, test.options); !errors.Is(err, ErrInvalidLimits) {
+				t.Fatalf("Scan error = %v, want ErrInvalidLimits", err)
+			}
+		})
 	}
 }

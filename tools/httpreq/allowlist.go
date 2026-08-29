@@ -51,6 +51,9 @@ func (policy clientPolicy) checkRedirect(request *http.Request, via []*http.Requ
 	if request == nil || request.URL == nil {
 		return fmt.Errorf("httpreq: validate redirect target: %w", ErrInvalidURL)
 	}
+	if request.URL.Scheme != "http" && request.URL.Scheme != "https" {
+		return fmt.Errorf("httpreq: validate redirect target: %w", ErrInvalidURL)
+	}
 	host := request.URL.Hostname()
 	if !policy.allowedHosts.Allows(host) {
 		return fmt.Errorf("%w: redirect target %q", ErrHostNotAllowed, host)

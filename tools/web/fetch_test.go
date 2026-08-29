@@ -29,6 +29,13 @@ func TestFetchNewTool_NilFetcher(t *testing.T) {
 	}
 }
 
+func TestFetchNewTool_TypedNilFetcher(t *testing.T) {
+	var fetcher *fakeFetcher
+	if _, err := NewFetchTool(fetcher); !errors.Is(err, ErrMissingFetcher) {
+		t.Fatalf("NewFetchTool(typed nil) error = %v, want ErrMissingFetcher", err)
+	}
+}
+
 func TestFetchTool_Definition(t *testing.T) {
 	tool, err := NewFetchTool(&fakeFetcher{})
 	if err != nil {
@@ -117,6 +124,22 @@ func TestFetchTool_Call_FetcherError(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "fetch boom") {
 		t.Errorf("err = %v, want wrapped 'fetch boom'", err)
+	}
+}
+
+func TestFetchToolRejectsInvalidProviderResponse(t *testing.T) {
+	for _, response := range []*FetchResponse{
+		nil,
+		{Content: "body"},
+		{Content: "body", Format: ContentFormat("binary")},
+	} {
+		tool, err := NewFetchTool(&fakeFetcher{resp: response})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := invokeTestTool(t.Context(), tool, `{"url":"https://example.com"}`); err == nil {
+			t.Fatalf("provider response %#v was accepted", response)
+		}
 	}
 }
 

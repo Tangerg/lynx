@@ -3,9 +3,12 @@ package web
 import (
 	"context"
 	"fmt"
-	"slices"
+	"net/netip"
+	"net/url"
 	"strings"
 	"time"
+
+	"golang.org/x/net/idna"
 )
 
 // Recency is a coarse "last N period" filter. Providers map this to
@@ -58,11 +61,11 @@ func (s *SearchRequest) Prepare() (*SearchRequest, error) {
 	}
 	prepared := *s
 	prepared.Query = strings.TrimSpace(s.Query)
-	prepared.AllowedDomains = slices.Clone(s.AllowedDomains)
-	prepared.BlockedDomains = slices.Clone(s.BlockedDomains)
 	if err := prepared.Validate(); err != nil {
 		return nil, err
 	}
+	prepared.AllowedDomains, _ = normalizeDomains(s.AllowedDomains)
+	prepared.BlockedDomains, _ = normalizeDomains(s.BlockedDomains)
 	return &prepared, nil
 }
 
@@ -82,7 +85,66 @@ func (s *SearchRequest) Validate() error {
 	if len(s.AllowedDomains) > 20 || len(s.BlockedDomains) > 20 {
 		return ErrTooManyDomains
 	}
+	if _, err := normalizeDomains(s.AllowedDomains); err != nil {
+		return err
+	}
+	if _, err := normalizeDomains(s.BlockedDomains); err != nil {
+		return err
+	}
 	return s.Recency.Validate()
+}
+
+func normalizeDomains(domains []string) ([]string, error) {
+	normalized := make([]string, 0, len(domains))
+	seen := make(map[string]struct{}, len(domains))
+	for _, raw := range domains {
+		domain, err := normalizeDomain(raw)
+		if err != nil {
+			return nil, err
+		}
+		if _, exists := seen[domain]; exists {
+			continue
+		}
+		seen[domain] = struct{}{}
+		normalized = append(normalized, domain)
+	}
+	return normalized, nil
+}
+
+func normalizeDomain(raw string) (string, error) {
+	domain := strings.TrimSuffix(strings.TrimSpace(raw), ".")
+	if domain == "" || strings.ContainsAny(domain, "/?#@*") || strings.Contains(domain, ":") {
+		return "", fmt.Errorf("%w: %q", ErrInvalidDomain, raw)
+	}
+	if address, err := netip.ParseAddr(domain); err == nil {
+		return address.String(), nil
+	}
+	ascii, err := idna.Lookup.ToASCII(domain)
+	if err != nil {
+		return "", fmt.Errorf("%w: %q: %v", ErrInvalidDomain, raw, err)
+	}
+	ascii = strings.ToLower(strings.TrimSuffix(ascii, "."))
+	if len(ascii) > 253 {
+		return "", fmt.Errorf("%w: %q", ErrInvalidDomain, raw)
+	}
+	for _, label := range strings.Split(ascii, ".") {
+		if !validDomainLabel(label) {
+			return "", fmt.Errorf("%w: %q", ErrInvalidDomain, raw)
+		}
+	}
+	return ascii, nil
+}
+
+func validDomainLabel(label string) bool {
+	if label == "" || len(label) > 63 || label[0] == '-' || label[len(label)-1] == '-' {
+		return false
+	}
+	for _, character := range label {
+		if (character < 'a' || character > 'z') && (character < '0' || character > '9') && character != '-' {
+			return false
+		}
+	}
+	return true
 }
 
 // QueryWithSiteOperators returns Query with Google-style site:/-site:
@@ -122,6 +184,25 @@ type SearchResult struct {
 type SearchResponse struct {
 	Query   string          `json:"query"`
 	Results []*SearchResult `json:"results"`
+}
+
+func (s *SearchResponse) Validate() error {
+	if s == nil {
+		return ErrMissingSearchResponse
+	}
+	if strings.TrimSpace(s.Query) == "" {
+		return fmt.Errorf("%w: query is blank", ErrInvalidSearchResponse)
+	}
+	for index, result := range s.Results {
+		if result == nil {
+			return fmt.Errorf("%w: result %d is nil", ErrInvalidSearchResponse, index)
+		}
+		parsed, err := url.Parse(strings.TrimSpace(result.URL))
+		if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
+			return fmt.Errorf("%w: result %d has invalid URL %q", ErrInvalidSearchResponse, index, result.URL)
+		}
+	}
+	return nil
 }
 
 // Searcher is the provider boundary behind the model-facing search tool. It

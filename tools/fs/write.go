@@ -26,7 +26,7 @@ type WriteTool struct {
 }
 
 func NewWriteTool(executor Writer) *WriteTool {
-	if executor == nil {
+	if isNilBackend(executor) {
 		executor = NewLocalExecutor("")
 	}
 	t := &WriteTool{executor: executor}
@@ -34,7 +34,6 @@ func NewWriteTool(executor Writer) *WriteTool {
 		toolcontract.FuncConfig{
 			Name: "write",
 			Description: "Create a file or replace the complete contents of an existing file. " +
-				"Before replacing an existing file, read the whole file; a blind overwrite is refused. " +
 				"Use edit for a targeted change to an existing file. Parent directories are created automatically.",
 		},
 		t.write,
@@ -56,23 +55,12 @@ func (w *WriteTool) ConcurrencyKey(invocation toolcontract.Invocation) (key stri
 	return req.Path, true
 }
 
-func (*WriteTool) MutationPaths(invocation toolcontract.Invocation) ([]string, error) {
-	var req WriteRequest
-	if err := json.Unmarshal(invocation.Arguments(), &req); err != nil {
-		return nil, err
-	}
-	if req.Path == "" {
-		return nil, nil
-	}
-	return []string{req.Path}, nil
-}
-
 func (w *WriteTool) Call(ctx context.Context, invocation toolcontract.Invocation) (chat.ToolOutput, error) {
 	return w.typed.Call(ctx, invocation)
 }
 
 func (w *WriteTool) write(ctx context.Context, req WriteRequest) (WriteResponse, error) {
-	res, err := w.executor.Write(ctx, WriteInput{Path: req.Path, Content: req.Content})
+	res, err := w.executor.Write(ctx, WriteInput(req))
 	if err != nil {
 		return WriteResponse{}, fmt.Errorf("fs.write: %w", err)
 	}

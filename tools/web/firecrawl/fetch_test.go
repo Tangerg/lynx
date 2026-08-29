@@ -2,6 +2,7 @@ package firecrawl
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -43,11 +44,14 @@ func TestFetch(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	response, err := client.Fetch(t.Context(), &web.FetchRequest{URL: "https://example.com", Format: web.FormatText})
+	response, err := client.Fetch(t.Context(), &web.FetchRequest{URL: "https://example.com", Format: web.FormatMarkdown})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if response.Format != web.FormatMarkdown || response.Content != "example" {
 		t.Fatalf("response = %#v", response)
+	}
+	if _, err := client.Fetch(t.Context(), &web.FetchRequest{URL: "https://example.com", Format: web.FormatText}); !errors.Is(err, web.ErrUnsupportedFormat) {
+		t.Fatalf("text fetch error = %v, want ErrUnsupportedFormat", err)
 	}
 }

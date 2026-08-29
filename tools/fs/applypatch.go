@@ -2,7 +2,6 @@ package fs
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 
 	"github.com/Tangerg/scope/core/chat"
@@ -40,7 +39,7 @@ type ApplyPatchTool struct {
 }
 
 func NewApplyPatchTool(executor PatchApplier) *ApplyPatchTool {
-	if executor == nil {
+	if isNilBackend(executor) {
 		executor = NewLocalExecutor("")
 	}
 	t := &ApplyPatchTool{executor: executor}
@@ -48,7 +47,7 @@ func NewApplyPatchTool(executor PatchApplier) *ApplyPatchTool {
 		toolcontract.FuncConfig{
 			Name: "apply_patch",
 			Description: "Apply one Git-compatible unified diff across one or more files, including create, modify, delete, and rename operations. " +
-				"Read existing files before patching them. Group coordinated multi-file changes in one patch. " +
+				"Read existing files first so patch hunks reflect their current contents. Group coordinated multi-file changes in one patch. " +
 				"Express moves with Git rename metadata. The patch must match exactly, and an existing rename destination is never overwritten.",
 		},
 		t.apply,
@@ -58,14 +57,6 @@ func NewApplyPatchTool(executor PatchApplier) *ApplyPatchTool {
 
 func (a *ApplyPatchTool) Definition() chat.ToolDefinition {
 	return a.typed.Definition()
-}
-
-func (*ApplyPatchTool) MutationPaths(invocation toolcontract.Invocation) ([]string, error) {
-	var req ApplyPatchRequest
-	if err := json.Unmarshal(invocation.Arguments(), &req); err != nil {
-		return nil, err
-	}
-	return patchPaths(req.Patch)
 }
 
 func (a *ApplyPatchTool) Call(ctx context.Context, invocation toolcontract.Invocation) (chat.ToolOutput, error) {

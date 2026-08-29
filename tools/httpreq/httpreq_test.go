@@ -68,7 +68,9 @@ func TestClientConfigValidate(t *testing.T) {
 		{name: "blank method", config: ClientConfig{AllowedHosts: []string{"example.com"}, AllowedMethods: []Method{""}}, want: ErrInvalidClientConfig},
 		{name: "unsupported method", config: ClientConfig{AllowedHosts: []string{"example.com"}, AllowedMethods: []Method{"CONNECT"}}, want: ErrInvalidMethod},
 		{name: "negative timeout", config: ClientConfig{AllowedHosts: []string{"example.com"}, DefaultTimeout: -time.Second}, want: ErrInvalidClientConfig},
+		{name: "excessive timeout", config: ClientConfig{AllowedHosts: []string{"example.com"}, DefaultTimeout: MaxRequestTimeout + time.Nanosecond}, want: ErrInvalidClientConfig},
 		{name: "negative response limit", config: ClientConfig{AllowedHosts: []string{"example.com"}, MaxResponseBytes: -1}, want: ErrInvalidClientConfig},
+		{name: "response limit overflow", config: ClientConfig{AllowedHosts: []string{"example.com"}, MaxResponseBytes: maxSupportedResponseBytes + 1}, want: ErrInvalidClientConfig},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
@@ -80,6 +82,17 @@ func TestClientConfigValidate(t *testing.T) {
 				t.Fatalf("Validate() error = %v, want %v", err, test.want)
 			}
 		})
+	}
+}
+
+func TestRedirectPolicyRejectsNonHTTPURL(t *testing.T) {
+	policy, err := (ClientConfig{AllowedHosts: []string{"example.com"}}).compilePolicy()
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := &http.Request{Method: http.MethodGet, URL: &url.URL{Scheme: "ftp", Host: "example.com"}}
+	if err := policy.checkRedirect(request, nil); !errors.Is(err, ErrInvalidURL) {
+		t.Fatalf("checkRedirect error = %v, want ErrInvalidURL", err)
 	}
 }
 

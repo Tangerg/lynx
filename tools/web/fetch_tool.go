@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"fmt"
 
 	toolcontract "github.com/Tangerg/scope/core/tool"
 )
@@ -17,27 +16,21 @@ type FetchTool struct {
 }
 
 func NewFetchTool(fetcher Fetcher) (*FetchTool, error) {
-	if fetcher == nil {
-		return nil, ErrMissingFetcher
-	}
-	t := &FetchTool{}
-	if err := t.bind(
+	inner, err := newProviderReadOnlyTool(
+		"fetch",
 		toolcontract.FuncConfig{Name: "web_fetch", Description: webFetchDescription},
-		func(ctx context.Context, request FetchRequest) (*FetchResponse, error) {
-			prepared, err := request.Prepare()
-			if err != nil {
-				return nil, fmt.Errorf("web: prepare fetch request: %w", err)
-			}
-			response, err := fetcher.Fetch(ctx, prepared)
-			if err != nil {
-				return nil, fmt.Errorf("web: execute fetch: %w", err)
-			}
-			return response, nil
+		fetcher,
+		ErrMissingFetcher,
+		func(request FetchRequest) (*FetchRequest, error) { return request.Prepare() },
+		func(ctx context.Context, request *FetchRequest) (*FetchResponse, error) {
+			return fetcher.Fetch(ctx, request)
 		},
-	); err != nil {
-		return nil, fmt.Errorf("web: build fetch tool: %w", err)
+		func(response *FetchResponse) error { return response.Validate() },
+	)
+	if err != nil {
+		return nil, err
 	}
-	return t, nil
+	return &FetchTool{readOnlyTool: inner}, nil
 }
 
 const webFetchDescription = `Fetch and read a single web page, returning the content in a clean format.

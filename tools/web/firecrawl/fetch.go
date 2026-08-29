@@ -66,7 +66,7 @@ func (c *Client) Fetch(ctx context.Context, request *web.FetchRequest) (*web.Fet
 	request = prepared
 	format := request.Format
 	if format == web.FormatText {
-		format = web.FormatMarkdown
+		return nil, fmt.Errorf("firecrawl: %w: %s", web.ErrUnsupportedFormat, format)
 	}
 	raw, err := c.fetch(ctx, &fetchRequest{
 		URL:             request.URL,

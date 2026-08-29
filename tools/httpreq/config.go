@@ -2,6 +2,7 @@ package httpreq
 
 import (
 	"fmt"
+	"math"
 	"net/http"
 	"strings"
 	"time"
@@ -12,6 +13,8 @@ const (
 	DefaultMaxResponseBytes = int64(256 * 1024)
 	MaxRequestTimeout       = 2 * time.Minute
 )
+
+const maxSupportedResponseBytes = int64(math.MaxInt64 - 1)
 
 // ClientConfig defines the network authority and resource bounds frozen into
 // a Client. AllowedHosts is mandatory because the zero policy denies network
@@ -79,11 +82,11 @@ func (config ClientConfig) compilePolicy() (clientPolicy, error) {
 		}
 		allowedMethods[method.Normalize()] = struct{}{}
 	}
-	if config.DefaultTimeout < 0 {
-		return clientPolicy{}, fmt.Errorf("%w: default timeout must not be negative", ErrInvalidClientConfig)
+	if config.DefaultTimeout < 0 || config.DefaultTimeout > MaxRequestTimeout {
+		return clientPolicy{}, fmt.Errorf("%w: default timeout must be between 0 and %s", ErrInvalidClientConfig, MaxRequestTimeout)
 	}
-	if config.MaxResponseBytes < 0 {
-		return clientPolicy{}, fmt.Errorf("%w: maximum response bytes must not be negative", ErrInvalidClientConfig)
+	if config.MaxResponseBytes < 0 || config.MaxResponseBytes > maxSupportedResponseBytes {
+		return clientPolicy{}, fmt.Errorf("%w: maximum response bytes must be between 0 and %d", ErrInvalidClientConfig, maxSupportedResponseBytes)
 	}
 
 	maxResponseBytes := config.MaxResponseBytes

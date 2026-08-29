@@ -19,20 +19,6 @@ type unifiedPatch struct {
 	files []filePatch
 }
 
-// paths is every file this patch touches, INCLUDING a move's origin. Callers use
-// it to lock and to gate — the app wraps this tool in a guard stack that reads
-// these paths to serialize writes, refuse protected directories, and require a
-// prior read — so a move that reported only its destination would leave the file
-// it removes outside all three.
-func (u unifiedPatch) paths() []string {
-	paths := make([]string, 0, len(u.files))
-	for _, file := range u.files {
-		paths = append(paths, file.touches()...)
-	}
-	slices.Sort(paths)
-	return slices.Compact(paths)
-}
-
 // duplicatePath reports a path two file patches both touch. Endpoints count, not
 // just destinations: patching a file and moving another one onto it are two edits
 // to one path, and applying both would make the result depend on their order.
@@ -146,14 +132,6 @@ func (f filePatch) apply(source []byte) ([]byte, error) {
 		return nil, fmt.Errorf("fs.ApplyPatch: hunk for %s does not match: %w", f.path(), err)
 	}
 	return output.Bytes(), nil
-}
-
-func patchPaths(patch string) ([]string, error) {
-	parsed, err := parseUnifiedPatch(patch)
-	if err != nil {
-		return nil, err
-	}
-	return parsed.paths(), nil
 }
 
 func (l *LocalExecutor) ApplyPatch(ctx context.Context, in ApplyPatchRequest) (_ ApplyPatchResponse, err error) {

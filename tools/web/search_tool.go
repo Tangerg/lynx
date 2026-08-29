@@ -2,7 +2,6 @@ package web
 
 import (
 	"context"
-	"fmt"
 
 	toolcontract "github.com/Tangerg/scope/core/tool"
 )
@@ -17,27 +16,21 @@ type SearchTool struct {
 }
 
 func NewSearchTool(searcher Searcher) (*SearchTool, error) {
-	if searcher == nil {
-		return nil, ErrMissingSearcher
-	}
-	t := &SearchTool{}
-	if err := t.bind(
+	inner, err := newProviderReadOnlyTool(
+		"search",
 		toolcontract.FuncConfig{Name: "web_search", Description: webSearchDescription},
-		func(ctx context.Context, request SearchRequest) (*SearchResponse, error) {
-			prepared, err := request.Prepare()
-			if err != nil {
-				return nil, fmt.Errorf("web: prepare search request: %w", err)
-			}
-			response, err := searcher.Search(ctx, prepared)
-			if err != nil {
-				return nil, fmt.Errorf("web: execute search: %w", err)
-			}
-			return response, nil
+		searcher,
+		ErrMissingSearcher,
+		func(request SearchRequest) (*SearchRequest, error) { return request.Prepare() },
+		func(ctx context.Context, request *SearchRequest) (*SearchResponse, error) {
+			return searcher.Search(ctx, request)
 		},
-	); err != nil {
-		return nil, fmt.Errorf("web: build search tool: %w", err)
+		func(response *SearchResponse) error { return response.Validate() },
+	)
+	if err != nil {
+		return nil, err
 	}
-	return t, nil
+	return &SearchTool{readOnlyTool: inner}, nil
 }
 
 const webSearchDescription = `Search the web for current information.

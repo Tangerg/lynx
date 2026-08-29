@@ -29,7 +29,7 @@ type toolSet struct {
 const (
 	DefaultMaxOutputBytes = int64(256 * 1024)
 	minimumMaxOutputBytes = int64(len("<available_skills>\n  <truncated>true</truncated>\n</available_skills>"))
-	maximumMaxOutputBytes = int64(^uint64(0)>>1) - 1
+	maximumMaxOutputBytes = int64(^uint(0)>>1) - 1
 	truncationMarker      = "\n\n[output truncated]"
 )
 

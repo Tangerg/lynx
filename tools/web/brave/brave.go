@@ -156,6 +156,9 @@ func (s *searchResponse) toSearchResponse(query string) *web.SearchResponse {
 	if s.Web != nil {
 		results = make([]*web.SearchResult, 0, len(s.Web.Results))
 		for _, searchResult := range s.Web.Results {
+			if searchResult == nil {
+				continue
+			}
 			results = append(results, &web.SearchResult{
 				Title:         searchResult.Title,
 				URL:           searchResult.URL,

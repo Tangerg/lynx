@@ -106,7 +106,7 @@ func (c *Client) Search(ctx context.Context, request *web.SearchRequest) (*web.S
 	if err != nil {
 		return nil, err
 	}
-	return raw.toSearchResponse(), nil
+	return raw.toSearchResponse(request.Query), nil
 }
 
 func buildSearchRequest(request *web.SearchRequest) *searchRequest {
@@ -141,9 +141,12 @@ func recencyToTimeRange(r web.Recency) string {
 	return ""
 }
 
-func (s *searchResponse) toSearchResponse() *web.SearchResponse {
+func (s *searchResponse) toSearchResponse(query string) *web.SearchResponse {
 	results := make([]*web.SearchResult, 0, len(s.Results))
 	for _, searchResult := range s.Results {
+		if searchResult == nil {
+			continue
+		}
 		results = append(results, &web.SearchResult{
 			Title:      searchResult.Title,
 			URL:        searchResult.URL,
@@ -151,5 +154,5 @@ func (s *searchResponse) toSearchResponse() *web.SearchResponse {
 			FaviconURL: searchResult.Favicon,
 		})
 	}
-	return &web.SearchResponse{Query: s.Query, Results: results}
+	return &web.SearchResponse{Query: cmp.Or(s.Query, query), Results: results}
 }

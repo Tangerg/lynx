@@ -160,6 +160,9 @@ func recencyToStart(r web.Recency) time.Time {
 func (s *searchResponse) toSearchResponse(query string) *web.SearchResponse {
 	results := make([]*web.SearchResult, 0, len(s.Results))
 	for _, searchResult := range s.Results {
+		if searchResult == nil {
+			continue
+		}
 		results = append(results, &web.SearchResult{
 			Title:         searchResult.Title,
 			URL:           searchResult.URL,

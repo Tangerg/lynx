@@ -1,7 +1,7 @@
 # CLAUDE.md — tools module family
 
 > `tools` module 提供可直接装配的 shell、文件系统、HTTP、网页抓取、网页搜索和 skill 工具。单工具协议、typed function 与实例 Registry 属于更低层的 `core/tool`，schema 合同只由 `core/jsonschema` 拥有。
-> 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。工具名录 / 依赖版本以代码为准 —— 本则只讲宏观。
+> 项目级法则见 [`../CLAUDE.md`](../CLAUDE.md)。工具名录与依赖以代码为准 —— 本则只讲宏观。
 
 ---
 

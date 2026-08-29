@@ -20,9 +20,13 @@ const (
 	defaultGrepMaxResults = 250
 	defaultGlobMaxResults = 100
 	maximumSearchResults  = 1000
+	maximumContextLines   = 20
 )
 
 func (l *LocalExecutor) Glob(ctx context.Context, in GlobInput) (_ GlobResponse, err error) {
+	if in.MaxResults < 0 {
+		return GlobResponse{}, fmt.Errorf("%w: max_results must not be negative", ErrInvalidInput)
+	}
 	if in.Pattern == "" {
 		return GlobResponse{}, ErrEmptyPattern
 	}
@@ -49,7 +53,7 @@ func (l *LocalExecutor) Glob(ctx context.Context, in GlobInput) (_ GlobResponse,
 	}
 
 	maxResults := in.MaxResults
-	if maxResults <= 0 {
+	if maxResults == 0 {
 		maxResults = defaultGlobMaxResults
 	} else if maxResults > maximumSearchResults {
 		return GlobResponse{}, fmt.Errorf("fs.LocalExecutor.Glob: max_results exceeds %d", maximumSearchResults)

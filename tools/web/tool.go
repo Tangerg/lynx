@@ -2,6 +2,9 @@ package web
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/samber/lo"
 
 	"github.com/Tangerg/scope/core/chat"
 	toolcontract "github.com/Tangerg/scope/core/tool"
@@ -11,13 +14,48 @@ type readOnlyTool struct {
 	inner toolcontract.Tool
 }
 
-func (t *readOnlyTool) bind[I, O any](config toolcontract.FuncConfig, call func(context.Context, I) (O, error)) error {
+func newReadOnlyTool[I, O any](config toolcontract.FuncConfig, call func(context.Context, I) (O, error)) (readOnlyTool, error) {
 	inner, err := toolcontract.NewFunc(config, call)
 	if err != nil {
-		return err
+		return readOnlyTool{}, err
 	}
-	t.inner = inner
-	return nil
+	return readOnlyTool{inner: inner}, nil
+}
+
+func newProviderReadOnlyTool[I, P, O any](
+	operation string,
+	config toolcontract.FuncConfig,
+	provider any,
+	missingProvider error,
+	prepare func(I) (P, error),
+	execute func(context.Context, P) (O, error),
+	validate func(O) error,
+) (readOnlyTool, error) {
+	if lo.IsNil(provider) {
+		return readOnlyTool{}, missingProvider
+	}
+	call := func(ctx context.Context, request I) (O, error) {
+		prepared, err := prepare(request)
+		if err != nil {
+			var zero O
+			return zero, fmt.Errorf("web: prepare %s request: %w", operation, err)
+		}
+		response, err := execute(ctx, prepared)
+		if err != nil {
+			var zero O
+			return zero, fmt.Errorf("web: execute %s: %w", operation, err)
+		}
+		if err := validate(response); err != nil {
+			var zero O
+			return zero, fmt.Errorf("web: validate %s response: %w", operation, err)
+		}
+		return response, nil
+	}
+	bound, err := newReadOnlyTool(config, call)
+	if err != nil {
+		return readOnlyTool{}, fmt.Errorf("web: build %s tool: %w", operation, err)
+	}
+	return bound, nil
 }
 
 func (t readOnlyTool) Definition() chat.ToolDefinition { return t.inner.Definition() }
