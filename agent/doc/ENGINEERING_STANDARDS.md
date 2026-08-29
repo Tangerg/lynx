@@ -190,8 +190,8 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 
 ### 3.7 一个生命周期、一个扩展机制
 
-- Engine 是唯一 Process loop owner。
-- Strategy 只推进有界 Step，不创建第二套 runtime。
+- Engine 为每棵 root tree 建立唯一 commit owner；Process 不是独立 Framework mutation owner。
+- Strategy Step 与 Dispatcher I/O 只作为 owner 外的有界 job运行，不创建第二套 runtime或直接提交状态。
 - Workflow 不复制 event/snapshot/child scheduler；它只通过 Framework Effects 编排真实 child Process。
 - Extension 使用一个同质机制和结构化能力分发，不同时引入 Plugin、Hook、Advisor、Interceptor 等重叠体系。
 - Strategy 是主控制流，不伪装成 Extension。
@@ -215,12 +215,12 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - Step 只消费 Signal、归约 Execution state 并产生 Transition/Effect，不直接调用模型、Tool、Action、Store 或其他 I/O。
 - Step 对相同 ExecutionState 与 Signal 序列必须产生相同候选语义；clock、random 和外部变化先编码为 Signal，不允许 reducer 隐式读取。
 - Engine 执行封闭的 Framework Effect；Deployment 绑定 Strategy-owned dispatcher 解释其余 opaque Effect。dispatcher 不修改 Execution，只返回 Delta 和最终 settlement Signal。
-- Engine 在 Step 前保留 last-stable state。Step、Transition 或 candidate snapshot 失败时丢弃不可信实例、保留 failure，且不自动重放失败 Step。
-- prepare 原子记录候选状态、拟消费 Signal 范围、Transition、稳定 EffectID 和冻结 payload，但不推进权威 state/cursor；prepare 前不得 dispatch Effect。
-- 若调用方要求跨进程崩溃恢复，dispatch 前必须允许其取得 prepared snapshot 并确认 durability boundary；该握手只传中性 snapshot/ack，不引入 Store、transaction 或应用 write-set SPI。未确认时不得宣称该 Effect 已具备 durable recovery。
-- finalize 原子推进 candidate state、成功消费的 Signal 游标、Effect settlement、结果 Signal 入队和 Process transition，并清除 prepared step；这不宣称与 Host persistence 或外部系统原子。
-- 提交前的模型/Tool/Effect started/finished 是 attempt facts；只有状态和 settlement 成功推进后才发布 committed facts。
-- 固定顺序是 validate/capture/prepare → dispatch/settle → finalize → publish committed Event；snapshot 必须能保存 prepared step。每个崩溃点都必须有 contract test，未知外部结算按 dispatcher replay contract 处理。
+- tree owner 在 Step job 前保留 last-stable state 与 attempt identity。Step、Transition 或 candidate snapshot 失败时丢弃不可信实例；attempt 被 control/new incarnation 取消或过期时，连同 error 一起丢弃并从 last-stable state 重建。
+- Step context 只能由 Runtime 从 `context.Background()` 构造并附加 cancellation；不得继承触发请求的 value、deadline 或 cause。Strategy 仍必须自身有界并响应 cancellation。
+- Dispatcher Effect 按 declaration order 使用 planned → pending → settled。pending 先冻结 candidate state、拟消费 Signal、稳定 EffectID、capability/budget 结果和完整 prospective TreeSnapshot；pending durable callback成功前不得 dispatch。
+- Dispatcher result 规范化为 definite 或 Unknown Settlement；settled durable callback成功后，owner 才推进 candidate state、Signal cursor、settlement、结果 Signal 与 Process transition。planned Effect 不得因前项失败而伪装成 Unknown。
+- 无外部 Effect 的纯 Continue 可以从最近 acknowledged head 重算；Parked/Terminal safe cut 必须形成 canonical checkpoint。不能为“更 durable”而未经测量地逐 Step提交。
+- 提交前的模型/Tool/Effect started/finished 是 attempt facts；Event/Delta 不是恢复源。每个 Host commit 的 before/after crash prefix 都必须有 contract test，未知外部结算按 dispatcher replay contract处理。
 
 ### 3.10 阶段化交付不允许半成品
 
@@ -385,7 +385,8 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - Signal 只在 Strategy 声明并经过 contract test 的安全边界消费；steer 的最早生效点是当前不可中断 Effect 结算后的下一安全 Step，公开 GoDoc 必须说明这一延迟合同。
 - 需要独立 Agent 生命周期的并发分支必须是有界 fan-out 的 child Process；每个分支拥有独立身份、snapshot 和预算，不在单一 Execution 或 `flow` goroutine 内伪造多个生命周期。普通 in-process 并发留在 `flow` 或有界 Effect batch，并准确说明它没有 child Process 语义。
 - 锁只能解决 data race，不能代替业务冲突语义。
-- 长生命周期 tree operation 只串行化同一 root tree；不同 root tree 不得被 Engine-wide 锁无故阻塞。prepared tree change 在 Apply/Discard 前必须持续持有同一安全边界，不能释放后用 digest、revision 或 stale check 补偿 source 漂移。
+- 每棵 root tree 只有一个 Framework commit line；不同 root tree 不得被 Engine-wide 锁无故阻塞。同一 Process 最多一个 Step job，sibling job 可并行；所有 completion 必须用 incarnation/attempt identity fencing，只有 owner能提交。
+- prepared tree change 在 Apply/Discard 前必须持续持有同一安全边界。durable Host transaction 还必须 CAS current incarnation 与 acknowledged source digest；Apply 在 owner line 同时安装 resulting state 与 acknowledged head，不能释放后靠 best-effort stale check补偿 source 漂移。
 - 并发度显式有界，取消和 deadline 沿 Process tree 传播。
 - event、tool result 和 branch output 的协议顺序不依赖调度完成顺序。
 - Delta listener 失败不得使 Step、Effect 或 Process 失败；缓冲必须有界，丢弃必须产生可观测事实，恢复后不补播历史 Delta。
@@ -411,13 +412,14 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 状态机覆盖所有合法和非法转换。
 - snapshot 覆盖每个合法挂起边界的 capture → restore → continue。
 - Signal contract 覆盖乱序到达、重复投递、未知 WaitID、消费游标与 candidate state 同步提交，以及失败 Step 不吞信号。
-- Effect contract 覆盖 prepare 前无 dispatch、durable recovery 启用时 acknowledgment 前无 dispatch、prepared snapshot 恢复、稳定 EffectID、dispatcher 恢复、settlement 去重、部分 batch 结算、确定性结果顺序、不可重试副作用和 attempt/committed 事实边界。
+- Effect contract 覆盖 planned/pending/settled phase、pending callback 前无 dispatch、完整 tree head、稳定 EffectID、dispatcher 恢复、settlement 去重、declaration-order batch、Unknown/resolution、不可重试副作用和 attempt/committed 事实边界。
 - typed adapter contract 证明 schema 校验发生在边缘且 erased Engine 可以同构持有异构 Definition。
 - 终态矩阵覆盖 Engine/parent/Host/Effect 取消来源、deadline、合同违约、外部失败和 panic。
 - Delta contract 覆盖 listener 失败隔离、有界缓冲、显式丢弃、恢复不补播，以及 final Output 不依赖 Delta 重建。
 - child Process 覆盖递归、预算耗尽、取消、部分失败、祖先等待拒绝和恢复去重。
 - Process admission contract 覆盖 reject 前零 Definition.Start、accepted 后 started/aborted 唯一结论、ack 前零发布、ack failure/panic、root/child 同构身份、pending start 与 Close/tree limit 的并发边界，以及 restore 零 admission/outcome。
-- prepared tree change contract 覆盖 source 冻结、Apply/Discard 恰好一次、gate 前取消零修改、gate 后有界完成、并发 resolution 只有一个胜者、其他 root tree 独立、结果可跨 Engine restore，以及 capability 私有字段只拥有 Framework state。
+- tree durability conformance 覆盖 previous-head CAS、same-content retry、content conflict、random incarnation fencing、root/child outcome atomicity、Effect三类 boundary、Parked/Terminal coalescing与 delayed transaction/activation竞争。
+- prepared tree change contract 覆盖 acknowledged source-head 冻结、Apply/Discard 恰好一次、Host ambiguous commit 对账、gate 后有界完成、并发 resolution只有一个胜者、其他 root tree独立、结果可跨 Engine restore，以及 capability私有字段只拥有 Framework state。
 - 并行路径验证稳定结果顺序，并运行 race tests。
 - wire/snapshot codec 使用 golden 和 fuzz 验证严格性。
 - 错误测试使用 `errors.Is/As`，不比较脆弱完整字符串。

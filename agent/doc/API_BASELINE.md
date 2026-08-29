@@ -17,6 +17,23 @@ Baseline 35 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 无意变化必须被测试直接阻止，不能靠 review 人工记忆当前 API。
 
+### 1.1 已接受的下一基线修订
+
+ADR-A2-089 已接受 durable kernel 的 breaking revision；在对应实现和真实 consumer 尚未通过前，Baseline 35 digest 继续描述当前可编译事实，不提前伪造新 hash。下一基线必须一次性完成以下合同替换：
+
+- `Snapshot` → `ProcessSnapshot`，`ParseSnapshot` → `ParseProcessSnapshot`，`Process.Capture` → `Process.Snapshot`；
+- 删除 `Engine.Restore`，完整 `TreeSnapshot` 成为唯一恢复输入；
+- `Process.ResolveEffect` → `Process.ResolveUnknownEffect`；
+- 删除 `PreparedStepAcknowledger`/`EngineConfig.PreparedStepAcknowledger`，新增闭合的 `TreeDurability` 与 typed activation/effect/checkpoint boundary values；
+- `TreeSnapshot` 增加可选 `TreeIncarnationID`、canonical digest 和 Effect planned/pending/settled phase；
+- 删除 Strategy-visible `Signal.ReceivedAt` 及其 wire 字段；
+- 删除 `ProcessAdmission.StartedAt`，started lifecycle time 只由 `ProcessStartOutcome` 暴露；
+- durable Event/Delta 增加 current tree incarnation attribution；
+- durable `CaptureTree` 返回 `ErrTreeCaptureUnavailable`；
+- prepared waiting-subtree cancellation 增加 acknowledged `SourceTreeDigest` 合同。
+
+这些是一个语义迁移，不保留旧名称 alias、Process restore 旁路、旧 wire 双读、durability boolean 或万能 `Commit(any)`。每一项只有在实现、strict codec、crash-prefix、race、conformance、examples 与真实 Flame adapter 同时成立后才能写入新的 frozen digest。
+
 ## 2. 已冻结的公共窄腰
 
 根 package 的合同按 owner 分为以下单一概念：

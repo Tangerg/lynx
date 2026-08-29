@@ -2,7 +2,7 @@
 
 > 状态：已接受的目标设计基线
 > 建立日期：2026-08-06
-> 最后更新：2026-08-25
+> 最后更新：2026-08-29
 > 实施范围：唯一的 `agent` Framework module
 
 本文只定义新 Agent Framework 的定位、领域语言、边界、目标结构和不可变量，不记录阶段进度、提交或临时实施细节。
@@ -80,7 +80,7 @@ Scope 最早从 Embabel Agent 移植并发展出以 GOAP、Goal、Action、Condi
 3. **抽象程度向下递增，具体度向上累积。** 共同 Kernel 不承载 GOAP、ReAct、任意编排实现或产品 Session 的专属状态。
 4. **Execution Strategy 是主变化轴。** Interaction 和 Planning 不是 Extension；其他 Strategy 必须先证明独立推进与恢复语义。
 5. **Extension 只表达横切能力。** 事件观察、策略检查、instrumentation 等可以扩展；主控制流不能伪装成扩展。
-6. **生命周期只有一个所有者。** Engine 是唯一 Process 驱动循环，具体策略只推进一个有界步骤。
+6. **生命周期只有一个所有者。** Engine 为每棵 root tree 建立唯一 `treeRuntime` 提交线，具体策略只在 owner 外推进一个有界步骤。
 7. **组合优于包装。** orchestrator-worker 语义由已成立的 Strategy 和 child Process 组合；普通同步控制流留在 `flow`，需要独立 Process 生命周期的确定编排才进入 managed Workflow。
 8. **状态归拥有者。** GOAP 状态归 Planning，消息和轮次归 Interaction，Stage/branch/fan-out 游标归 Workflow；未来新策略的状态同样留在其 owner，不提前进入 Kernel。
 9. **框架状态与应用持久化分层。** Agent 捕获、验证和恢复执行快照；Host 决定何时、在哪里、以何种事务保存。
@@ -250,7 +250,7 @@ Strategy Effect payload 和所有 Signal payload 对 Engine 不透明。每个 S
 
 ### 6.2 Step
 
-`Step` 是单写者 Execution 上一次可调度、可捕获的状态归约，不等同于整个任务：
+`Step` 是一次可取消、可丢弃的纯候选归约，不等同于整个任务：
 
 | Strategy | 一个 Step |
 |---|---|
@@ -258,17 +258,19 @@ Strategy Effect payload 和所有 Signal payload 对 Engine 不透明。每个 S
 | GOAP | 消费观察/Action 结果，推进 observe → plan → act → reobserve 状态 |
 | Workflow | 推进一个有序 Stage 的纯归约、child start/wait 或稳定聚合边界 |
 
-任何 Strategy 的 Step 都不能执行模型、Tool、Action 或其他外部 I/O，不能永久占有调度线程、隐藏无限循环或启动无所有者 goroutine。外部操作只能由 Effect 表达并由该 Strategy 的 dispatcher 执行；Effect 的成功、失败或不确定结算以 Signal 回到下一 Step。
+任何 Strategy 的 Step 都不能执行模型、Tool、Action 或其他外部 I/O，不能隐藏无限循环或启动无所有者 goroutine。Runtime 从 `context.Background()` 构造 cancellation-only context；它不含 value、deadline 或 cause，只允许 tree owner 取消已经没有提交资格的计算。外部操作只能由 Effect 表达并由该 Strategy 的 dispatcher 执行。
 
-Engine 在每次 Step 前保留 last-stable ExecutionState。Step 必须是对相同 ExecutionState 与 Signal 序列产生相同候选语义的纯归约；不得读取 clock/random/global state，所需变化必须先成为 Signal。Step 返回 error、Transition 非法或候选 Snapshot 失败时，当前 Execution 实例视为不可信并被丢弃，从 last-stable state 重建用于诊断或显式后续控制；失败 Step 不自动重放。
+每棵 root tree 的私有 `treeRuntime` 是唯一 Framework commit owner，但纯计算不占有 owner line：同一 Process 至多有一个 Step job，不同 sibling 可以并行。owner 将 last-stable ExecutionState 与有序 Signal 前缀交给 job；job 完成 Step、Transition 校验和 candidate snapshot 后返回 attempt identity。只有 owner 可以再次校验并采用结果；Kill/Pause/Cancel 或新 incarnation 使 attempt 过期时，结果与 error 整体丢弃，Execution 从 last-stable state 重建。
 
-通用提交分为 prepare/finalize 两个 Engine 内部原子边界：
+Dispatcher Effect 使用 `planned → pending → settled` 状态机：
 
-1. 验证 Transition，捕获候选 ExecutionState，为 Effect 分配稳定 EffectID，并记录只读 prepared step；prepared step 包含 last-stable identity、候选状态、拟消费 Signal 范围、Transition 和冻结 Effect envelope，但尚不推进权威状态或消费游标。
-2. 按 prepared EffectID 调度并取得 settlement。
-3. 原子 finalize 候选状态、已消费 Signal 游标、Effect settlement、结果 Signal 入队和 Process transition，随后清除 prepared step 并发布 committed Event。
+1. owner 验证候选 state、signal consumption、budget、capability 与完整 batch identity；
+2. 当前 Effect 进入 pending，并在 durable mode 先提交包含完整 tree 的 pending boundary；
+3. pending 成功后才启动 owner 外的 Dispatcher job；
+4. Dispatcher result 被规范化为 definite 或 Unknown Settlement；
+5. settled boundary 成功后，owner 才安装 settlement、candidate state、mailbox 与 Process transition。
 
-prepared step 是 Framework snapshot 的中性恢复事实，不是 Host transaction。崩溃在 prepare 前发生时不得已有 Effect；prepare 后恢复时沿原 EffectID 和冻结 payload 继续，只按 dispatcher replay contract 重投，未知结算保持可观察、待显式裁决。Effect 执行期间已经发生的 started/delta/finished 属于 attempt facts，不能伪装成提交后的事实。该顺序只描述 Framework 内部一致性；跨进程崩溃只能恢复到 Host 实际持久化的最后一份 snapshot，Framework 不虚构未持久化保证。
+同一 Process 的 Effect 按声明顺序逐项跨越 pending/settled，尚未派发的 planned Effect不能成为 Unknown。ephemeral mode执行同一个状态机但不调用 Host durability port。Event/Delta 只记录 attempt/observation，不能替代 acknowledged `TreeSnapshot`。
 
 ### 6.3 确定性编排边界
 
@@ -357,7 +359,7 @@ type ExecutionState struct {
 
 ### 6.6 Signal、等待与安全消费
 
-Signal 是唯一进入 Execution 的运行时输入。共同信封只包含稳定 SignalID、可选 WaitID 路由、准确接收时间和不透明 JSON payload；Engine 另行记录自身分配的单调序号、投递状态和消费游标。Signal 的 kind/schema 若有需要也必须封装在 owner 自有 payload 内，不能成为共同 Process 可解释的类型。Engine 不依据 payload 决定策略控制流，也不把具体 Signal 类型放进共同 Process。
+Signal 是唯一进入 Execution 的运行时输入。共同信封只包含稳定 SignalID、可选 WaitID 路由和不透明 JSON payload；Engine 另行记录自身分配的单调序号、投递状态和消费游标。Engine wall clock 不进入 Strategy input：业务时间必须由 Host 作为稳定 payload 明确提交，接收观察时间只属于 Event。Signal 的 kind/schema 若有需要也必须封装在 owner 自有 payload 内，不能成为共同 Process 可解释的类型。Engine 不依据 payload 决定策略控制流，也不把具体 Signal 类型放进共同 Process。
 
 Signal 投递合同必须满足：
 
@@ -377,7 +379,7 @@ Effect 是 Execution 请求 Step 之外操作的唯一方式。候选信封只�
 
 Engine-owned Effect 必须用 EffectID 保证重复调度不重复创建 child、wait 或其他 Framework 实体。模型、Tool、Action 等外部 Effect 的 dispatcher 必须把 EffectID 作为稳定请求身份并明确其 replay contract：只有已证明同一 EffectID 重放仍是同一逻辑操作时才允许自动重投。无法证明时，未知结算必须停留为可观察、待显式裁决的状态，不得静默重放或假装成功；业务事务、补偿和外部幂等实现仍属于具体 adapter 或 Host。
 
-同一 Transition 的 Effect batch 可以按声明显式有界并发，但 EffectID 和 settlement 按 effect index 确定性归位；所需 settlement 未全部确定前不得提交候选状态。部分已完成、部分未知时保留每项结算事实，只按各自 replay contract 恢复，不能重跑整个 batch 或按完成先后生成协议结果。
+同一 Transition 的 Effect batch 首版按 declaration order 逐项推进；一个 Effect settled 后，下一个 planned Effect 才能进入 pending。EffectID 和 settlement 按 batch index 确定性归位；pending/Unknown 保留每项结算事实，只按各自 replay contract 恢复，不能重跑整个 batch 或按完成先后生成协议结果。并行 batch 只有在真实 benchmark/trace 证明必要且不改变 durable prefix 后才能另行设计。
 
 ### 6.8 输入、输出与 typed adapter
 
@@ -536,15 +538,15 @@ managed 复杂度按真实树线性显现：最小 Workflow 示例是四个 Proc
 
 ### 11.1 Engine
 
-Engine 是最小托管执行边界：启动、推进、暂停、恢复和终止 Process；接受并投递 Signal；调用有界 Step；验证 Transition；为 Effect 建立稳定身份并调用 Deployment 绑定的 dispatcher；管理 Process tree、等待和取消；捕获/恢复 snapshot；执行通用 limit/policy；发布中性 framework events 和临时 delta。
+Engine 是最小托管执行边界：为每棵 root tree 建立唯一 `treeRuntime`，启动、推进、暂停、恢复和终止 Process；接受并投递 Signal；调度有界 Step/Dispatch job并只在 owner line 提交结果；管理 Process tree、等待和取消；捕获/恢复完整 tree；执行通用 limit/policy；发布中性 framework events 和临时 delta。
 
 Engine 不拥有产品 Session、数据库事务、模型 catalog、价格表或 UI 协议。
 
-EngineConfig 为每棵 root tree 冻结 Limits、TreeLimits 与最大 CapabilitySet；child 只能从父预算永久划拨并衰减能力。可选 `ProcessAdmitter` 是根与子 Process 共用的唯一启动准入合同：它读取 immutable `ProcessAdmission` 中的 ProcessRelation、exact DeploymentRef、Descriptor、Budget、CapabilitySet 与 prospective StartedAt，并以启动方的 context 返回批准或拒绝。它不能修改分配、创建 Process 或取得 Engine/Process 控制权；Engine 的预算、能力子集和树限额始终在唯一 Kernel 状态中执行。产品身份、订阅、价格与 transaction 不进入该值。
+EngineConfig 为每棵 root tree 冻结 Limits、TreeLimits 与最大 CapabilitySet；child 只能从父预算永久划拨并衰减能力。可选 `ProcessAdmitter` 是根与子 Process 共用的唯一启动准入合同：它读取 immutable `ProcessAdmission` 中的 ProcessRelation、exact DeploymentRef、Descriptor、Budget 与 CapabilitySet，并以启动方的 context 返回批准或拒绝。它不能修改分配、创建 Process 或取得 Engine/Process 控制权；Engine 的预算、能力子集和树限额始终在唯一 Kernel 状态中执行。产品身份、订阅、价格与 transaction 不进入该值。
 
 准入发生在 Definition.Start 和 Process 发布之前；拒绝的 root 不启动，拒绝的 child 形成稳定 child-start failure。admitter 可以协调 caller-owned 外部准入，但必须尊重 context、保持有界和并发安全、不得重入 Engine/Process，并对同一 prospective ProcessID 的可能重放自行保证业务正确性；Framework 不因此定义 Store、transaction、charge、lease 或幂等 SPI。
 
-准入成功只表示允许初始化，不代表 Process 已经发布。可选 `ProcessStartOutcomeAcknowledger` 对每个已接受 admission 接收且只接收一个中性结论：初始化与初始 snapshot 自证完成时为 `started`，任一初始化边界失败时为带稳定 `Failure` 的 `aborted`。outcome 只复用原 `ProcessAdmission`、Framework status 与 Failure；不携带产品 identity、持久化对象、应用状态或回调 capability。Engine 在内部保留 prospective start reservation：`started` 在 acknowledgment 返回 nil 后才无失败地发布；`aborted` 永不发布；acknowledgment 失败同样不发布。Event listener 没有 veto/error 通道，不能替代该同步正确性边界。
+准入成功只表示允许初始化，不代表 Process 已经发布。可选 `ProcessStartOutcomeAcknowledger` 对每个已接受 admission 接收且只接收一个中性结论：初始化与初始 snapshot 自证完成时为 `started`，任一初始化边界失败时为带稳定 `Failure` 的 `aborted`。tentative `StartedAt` 只在 accepted admission 之后生成，且只有 started outcome 成功后才成为生命周期事实；aborted outcome 没有 StartedAt。outcome 不携带产品 identity、持久化对象、应用状态或回调 capability。Engine 在内部保留 prospective start reservation：`started` 在 acknowledgment 返回 nil 后才无失败地发布；`aborted` 永不发布；acknowledgment 失败同样不发布。Event listener 没有 veto/error 通道，不能替代该同步正确性边界。
 
 已经捕获的 Process 恢复其原 admission，不按当前 admitter 再判一次，也不重放 start outcome；撤销授权由调用方在恢复前决定或通过明确的 Process control 表达，不能让 snapshot 恢复结果依赖隐藏的实时政策。
 
@@ -585,7 +587,7 @@ Platform 的零值是可用的空部署聚合；`New(deployments...)` 只为一�
 
 ## 12. Snapshot、恢复与持久化
 
-Agent Framework 负责捕获一致的 Process/tree 执行状态、校验 schema/DeploymentRef/父子关系/状态机不变量，并从已提供的 snapshot 和精确 Deployment 恢复。不可序列化状态必须显式失败。
+Agent Framework 负责捕获一致的 Process/tree 执行状态、校验 schema/DeploymentRef/父子关系/状态机不变量，并从完整 `TreeSnapshot` 和精确 Deployment 恢复。不可序列化状态必须显式失败。
 
 Host 负责 Store、transaction、CAS、lease、幂等、retention、产品身份关联、应用 write-set 原子提交，以及崩溃后的调度政策。Agent 不定义 Store/Repository 来假装拥有持久化，也不在 Transition 内回调 Host transaction。
 
@@ -595,15 +597,17 @@ Host 负责 Store、transaction、CAS、lease、幂等、retention、产品身�
 - Strategy 把恢复所需状态显式放入自己的 ExecutionState。
 - Snapshot 只能在 last-stable 或 prepared-step 原子边界捕获；prepared snapshot 必须完整包含候选状态、拟消费 Signal 范围、EffectID、冻结 payload 和已有 settlement。两个边界之间的并发 capture 必须确定等待或拒绝，不能读半提交状态。
 - Framework 定义一致 capture 点，Host 决定哪些 capture 被持久化；“已捕获”不等于“已持久化”。
-- 单 Process snapshot 只允许恢复从未分配 child budget、没有 child relation 或活动 child wait 的独立 root；一旦形成 Process tree，恢复单位必须是完整 TreeSnapshot，禁止把 child 当新 root 或只恢复父级。
-- TreeSnapshot 严格保存每个 Process snapshot 和 Engine-owned 活动 direct-child wait，不保存 dispatcher、resolver 或 Host persistence 对象。capture 使用 Engine 私有的安全边界栅栏：停止新 Step 和新 child 创建，等待 in-flight Effect 依既有 settlement 合同收口，同时继续吸收 child completion 与 parent termination，取得一致 cut 后立即释放；栅栏不是公开 Process 状态或第二执行入口。capture、restore 和持有该栅栏的变更按 root tree 串行化，不相关 root tree 保持独立，不能用 Engine-wide 锁把一个长期边界扩散到所有 Process。
+- `ProcessSnapshot` 只用于诊断、Strategy inspector、Event/debug tooling 和测试，不是恢复输入；完整 `TreeSnapshot` 是唯一恢复单位，禁止把 child 当新 root 或只恢复父级。
+- `TreeSnapshot` 严格保存每个 Process snapshot、Engine-owned 活动 direct-child wait、planned/pending/settled Effect phase 与完整 tree program counter，不保存 dispatcher、resolver 或 Host persistence 对象。每棵树的 owner line直接形成 canonical snapshot；in-flight Step/Dispatch job 不进入 snapshot，只保留 last-stable state与已提交 Effect phase。
 - tree restore 先校验 root/parent/depth/ChildKey、预算总和、能力衰减、tree limits、活动 child wait 和每个精确 DeploymentRef，再原子注册完整树；任一校验或解析失败不得留下部分 Process。
 - 等待子树取消是 Kernel 自有的一次性 prepared capability：`PrepareWaitingSubtreeCancellation` 在完整 tree quiescent cut 上冻结 source root tree，计算确定的 resulting TreeSnapshot、parent-before-child 的 canceled Process IDs 和需要显式继续的 paused parent IDs，并返回 `PreparedWaitingSubtreeCancellation`。该 capability 必须且只能以 `Apply` 或 `Discard` 结束；在结束前同一 root tree 不能越过冻结边界，因而不存在 source digest、stale plan 或第二次重算。
 - prepared 结果保留被取消 Process 及永久 child budget allocation，以 host-canceled target、parent-canceled active descendants、已关闭等待和 Kernel-owned child-completion Signal 表达事实；直接父级在消费完成 Signal 前进入 Paused。所有可失败、可取消的 Process projection staging 都在 Prepare 返回 capability 前完成；失败会释放 source tree且 live state 不变。返回后的 contextless `Apply()` 只跨越单一 apply gate并完成既有 finalization，caller 不能用请求取消撤销已经形成的 durable decision；`Discard` 只释放 source tree。两者都保留既有 Process handle，不替换 controller，不解析或修改 opaque ExecutionState，也不引入 persistence、transaction、checkpoint、lease 或产品删除模型。
 - Process admission 与其 conclusive start outcome 只属于首次 root/child start；restore 不重复调用 admitter/acknowledger，也不把 live policy 或 outcome 写入共同 snapshot。Host 若不允许恢复，必须在调用恢复前拒绝或显式终止已恢复 Process。
-- 只有在 Effect dispatch 前已向 Host 暴露 prepared snapshot 且 Host 明确认可该 durability boundary 时，Engine 才能宣称跨进程崩溃可恢复该 Effect；该握手不得演变为 Framework Store/transaction SPI。未启用该边界的运行必须诚实标记为只恢复到最后已持久化 snapshot。
+- durable mode 由闭合 `TreeDurability` port 驱动：root/child start outcome、Effect pending/settled/resolved、Parked/Terminal checkpoint 和 restore activation 都提交完整 prospective TreeSnapshot。Host callback 必须以 previous digest/current incarnation 做原子 CAS，但该合同不得演变为 Framework Store/transaction SPI。
 - 外部副作用用幂等键、外部事实或显式 checkpoint 协议处理，不能只靠 snapshot 猜测。
 - snapshot schema 在开发阶段直接 breaking，不保留长期 dual-read。
+
+ephemeral snapshot 没有 incarnation；durable snapshot 以有效、crypto-random `TreeIncarnationID` 作为唯一 mode 表示。每次 restore 在发布任何 Process 前生成新 incarnation，并由 Host 对 previous `(digest, incarnation)` 完成 activation CAS。durable Engine 不开放释放 owner 后再保存的 `CaptureTree`；只有 Runtime durability callback 或仍冻结 source 的具体 prepared tree capability 可以推进 authoritative head。
 
 Interaction 默认把精确恢复所需的 WorkingContext 自足地保存在私有 ExecutionState；Host 的产品历史不是恢复时可静默重建它的第二真相源。若某个 Strategy 真实依赖可变外部事实，只能在自己的 state 保存不透明 revision/digest，并由该 Strategy 的 provider 校验；外部事实变化时拒绝精确恢复，从新事实开始属于创建新 Process。
 
@@ -613,7 +617,7 @@ Host 对自身事实执行销毁、回滚、替换或恢复时，必须在自己
 
 ## 13. Extension、事件与可观测性
 
-横切替换点按真实消费位置定义一个准确的小接口，不建立通用 Extension marker、capability registry 或按运行时类型分派的 god scope。`ProcessAdmitter` 只负责启动准入；`ProcessStartOutcomeAcknowledger` 只负责接受已准入初始化的唯一 started/aborted 结论；`EventListener`/`DeltaListener` 只负责观察；prepared-step acknowledgment 只负责 pre-dispatch durability handshake。它们语义不同，不合并成 Policy/Guard/Middleware 近义层。只有一个实现且没有外部替换需求的内部依赖直接使用 concrete type。
+横切替换点按真实消费位置定义一个准确的小接口，不建立通用 Extension marker、capability registry 或按运行时类型分派的 god scope。`ProcessAdmitter` 只负责启动准入；`ProcessStartOutcomeAcknowledger` 只负责 ephemeral admission lifecycle 闭合；完整 durable Host 实现闭合 `TreeDurability`；`EventListener`/`DeltaListener` 只负责观察。它们语义不同，不合并成 Policy/Guard/Middleware 或万能 Commit 近义层。只有一个实现且没有外部替换需求的内部依赖直接使用 concrete type。
 
 Event 描述已经发生的框架事实，不承担 Signal、命令、Transition 或产品协议。每个 Event 都携带 Process-local sequence、ProcessID、exact DeploymentRef、ProcessRelation、可选 Step/Effect identity、稳定名称、phase、OccurredAt 与独立 payload，因此 child、版本和恢复归因不依赖 Host 查询。Event 分为 attempt facts 与 committed facts：前者证明一次 Step 或 Effect 确实尝试过，后者证明 Process/Signal/Step 状态已由 Engine 提交。
 
