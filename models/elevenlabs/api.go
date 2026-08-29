@@ -150,6 +150,60 @@ type transcriptionRequest struct {
 	Keyterms              []string
 }
 
+func (t *transcriptionRequest) form() (map[string]string, error) {
+	form := map[string]string{}
+	if t == nil {
+		return form, nil
+	}
+	if t.ModelID != "" {
+		form["model_id"] = t.ModelID
+	}
+	if t.LanguageCode != "" {
+		form["language_code"] = t.LanguageCode
+	}
+	if t.Diarize != nil {
+		form["diarize"] = strconv.FormatBool(*t.Diarize)
+	}
+	if t.NumSpeakers != nil {
+		form["num_speakers"] = strconv.Itoa(*t.NumSpeakers)
+	}
+	if t.TagAudioEvents != nil {
+		form["tag_audio_events"] = strconv.FormatBool(*t.TagAudioEvents)
+	}
+	if t.TimestampsGranularity != "" {
+		form["timestamps_granularity"] = t.TimestampsGranularity
+	}
+	if t.DiarizationThreshold != nil {
+		form["diarization_threshold"] = strconv.FormatFloat(*t.DiarizationThreshold, 'f', -1, 64)
+	}
+	if t.FileFormat != "" {
+		form["file_format"] = t.FileFormat
+	}
+	if t.Temperature != nil {
+		form["temperature"] = strconv.FormatFloat(*t.Temperature, 'f', -1, 64)
+	}
+	if t.Seed != nil {
+		form["seed"] = strconv.Itoa(*t.Seed)
+	}
+	if t.NoVerbatim != nil {
+		form["no_verbatim"] = strconv.FormatBool(*t.NoVerbatim)
+	}
+	if t.UseSpeakerLibrary != nil {
+		form["use_speaker_library"] = strconv.FormatBool(*t.UseSpeakerLibrary)
+	}
+	if t.DetectSpeakerRoles != nil {
+		form["detect_speaker_roles"] = strconv.FormatBool(*t.DetectSpeakerRoles)
+	}
+	if len(t.Keyterms) > 0 {
+		encoded, err := json.Marshal(t.Keyterms)
+		if err != nil {
+			return nil, fmt.Errorf("elevenlabs: encode transcription keyterms: %w", err)
+		}
+		form["keyterms"] = string(encoded)
+	}
+	return form, nil
+}
+
 // TranscriptionResponse models /v1/speech-to-text JSON output.
 type transcriptionResponse struct {
 	LanguageCode        string                `json:"language_code"`
@@ -179,55 +233,9 @@ func (a *api) transcription(ctx context.Context, audio []byte, mimeType string, 
 	if len(audio) == 0 {
 		return nil, errors.New("elevenlabs: transcription audio must not be empty")
 	}
-
-	form := map[string]string{}
-	if req != nil {
-		if req.ModelID != "" {
-			form["model_id"] = req.ModelID
-		}
-		if req.LanguageCode != "" {
-			form["language_code"] = req.LanguageCode
-		}
-		if req.Diarize != nil {
-			form["diarize"] = strconv.FormatBool(*req.Diarize)
-		}
-		if req.NumSpeakers != nil {
-			form["num_speakers"] = strconv.Itoa(*req.NumSpeakers)
-		}
-		if req.TagAudioEvents != nil {
-			form["tag_audio_events"] = strconv.FormatBool(*req.TagAudioEvents)
-		}
-		if req.TimestampsGranularity != "" {
-			form["timestamps_granularity"] = req.TimestampsGranularity
-		}
-		if req.DiarizationThreshold != nil {
-			form["diarization_threshold"] = strconv.FormatFloat(*req.DiarizationThreshold, 'f', -1, 64)
-		}
-		if req.FileFormat != "" {
-			form["file_format"] = req.FileFormat
-		}
-		if req.Temperature != nil {
-			form["temperature"] = strconv.FormatFloat(*req.Temperature, 'f', -1, 64)
-		}
-		if req.Seed != nil {
-			form["seed"] = strconv.Itoa(*req.Seed)
-		}
-		if req.NoVerbatim != nil {
-			form["no_verbatim"] = strconv.FormatBool(*req.NoVerbatim)
-		}
-		if req.UseSpeakerLibrary != nil {
-			form["use_speaker_library"] = strconv.FormatBool(*req.UseSpeakerLibrary)
-		}
-		if req.DetectSpeakerRoles != nil {
-			form["detect_speaker_roles"] = strconv.FormatBool(*req.DetectSpeakerRoles)
-		}
-		if len(req.Keyterms) > 0 {
-			encoded, err := json.Marshal(req.Keyterms)
-			if err != nil {
-				return nil, fmt.Errorf("elevenlabs: encode transcription keyterms: %w", err)
-			}
-			form["keyterms"] = string(encoded)
-		}
+	form, err := req.form()
+	if err != nil {
+		return nil, err
 	}
 
 	var out transcriptionResponse
