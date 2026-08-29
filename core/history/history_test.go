@@ -1,11 +1,9 @@
 package history_test
 
 import (
-	"context"
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/scope/core/chat"
 	"github.com/Tangerg/scope/core/history"
 )
 
@@ -33,54 +31,4 @@ func TestConversationIDContextAndValidation(t *testing.T) {
 	if conversationID.String() != "opaque/id:1" {
 		t.Fatalf("ConversationID.String() = %q", conversationID.String())
 	}
-}
-
-func TestHistoryHelpersUseOptionalCapabilities(t *testing.T) {
-	if err := history.Replace(t.Context(), nil, "c"); !errors.Is(err, history.ErrNilStore) {
-		t.Fatalf("nil Replace error = %v", err)
-	}
-	if _, err := history.Count(t.Context(), nil, "c"); !errors.Is(err, history.ErrNilStore) {
-		t.Fatalf("nil Count error = %v", err)
-	}
-	var typedNil *basicStore
-	if err := history.Replace(t.Context(), typedNil, "c"); !errors.Is(err, history.ErrNilStore) {
-		t.Fatalf("typed-nil Replace error = %v", err)
-	}
-	if _, err := history.Count(t.Context(), typedNil, "c"); !errors.Is(err, history.ErrNilStore) {
-		t.Fatalf("typed-nil Count error = %v", err)
-	}
-
-	store := &basicStore{}
-	if err := store.Write(t.Context(), "c", chat.NewUserMessage(chat.NewTextPart("one"))); err != nil {
-		t.Fatal(err)
-	}
-	if count, err := history.Count(t.Context(), store, "c"); err != nil || count != 1 {
-		t.Fatalf("fallback Count = %d, %v", count, err)
-	}
-	if err := history.Replace(t.Context(), store, "c", chat.NewUserMessage(chat.NewTextPart("two"))); !errors.Is(err, history.ErrReplacementUnsupported) {
-		t.Fatalf("unsupported Replace error = %v", err)
-	}
-	if store.clears != 0 || len(store.messages) != 1 || store.messages[0].Text() != "one" {
-		t.Fatalf("unsupported Replace mutated state = clears %d, messages %#v", store.clears, store.messages)
-	}
-}
-
-type basicStore struct {
-	messages []chat.Message
-	clears   int
-}
-
-func (b *basicStore) Write(_ context.Context, _ history.ConversationID, messages ...chat.Message) error {
-	b.messages = append(b.messages, messages...)
-	return nil
-}
-
-func (b *basicStore) Read(context.Context, history.ConversationID) ([]chat.Message, error) {
-	return append([]chat.Message(nil), b.messages...), nil
-}
-
-func (b *basicStore) Clear(context.Context, history.ConversationID) error {
-	b.clears++
-	b.messages = nil
-	return nil
 }

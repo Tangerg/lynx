@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 
+	"github.com/Tangerg/scope/core/metadata"
 	"github.com/Tangerg/scope/core/transcription"
 )
 
@@ -112,7 +113,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 
 	alt := apiResp.Results.Channels[0].Alternatives[0]
 
-	outputMetadata := &transcription.OutputMetadata{}
+	var outputMetadata metadata.Map
 	if setErr := outputMetadata.Set("deepgram/confidence", alt.Confidence); setErr != nil {
 		return nil, setErr
 	}

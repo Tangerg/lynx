@@ -264,7 +264,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 
 	queryParams := []azcosmos.QueryParameter{
 		{Name: "@queryVec", Value: queryVec},
-		{Name: "@topK", Value: req.Options.TopK},
+		{Name: "@topK", Value: req.Options.ResultLimit()},
 	}
 	for _, p := range params {
 		queryParams = append(queryParams, azcosmos.QueryParameter{Name: p.Name, Value: p.Value})
@@ -275,7 +275,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		QueryParameters: queryParams,
 	})
 
-	docs = make([]*vectorstore.SearchResult, 0, req.Options.TopK)
+	docs = make([]*vectorstore.SearchResult, 0, req.Options.ResultLimit())
 	for pager.More() {
 		page, err := pager.NextPage(ctx)
 		if err != nil {

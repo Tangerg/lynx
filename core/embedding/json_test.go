@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 func TestJSONBoundaries(t *testing.T) {
@@ -50,7 +51,7 @@ func TestJSONBoundaries(t *testing.T) {
 		t.Fatalf("failed Request decode mutated receiver: %#v", request)
 	}
 
-	output, err := embedding.NewOutput([]float64{1}, &embedding.OutputMetadata{})
+	output, err := embedding.NewOutput([]float64{1}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +68,7 @@ func TestJSONBoundaries(t *testing.T) {
 }
 
 func TestResponseJSONRoundTripPreservesValidatedMetadata(t *testing.T) {
-	outputMetadata := &embedding.OutputMetadata{}
+	var outputMetadata metadata.Map
 	if err := outputMetadata.Set("provider/output", map[string]any{"index": 0}); err != nil {
 		t.Fatal(err)
 	}
@@ -103,14 +104,8 @@ func TestResponseJSONRoundTripPreservesValidatedMetadata(t *testing.T) {
 }
 
 func TestResponseJSONRejectsInvalidNestedValues(t *testing.T) {
-	if err := (*embedding.OutputMetadata)(nil).Set("provider/value", true); !errors.Is(err, embedding.ErrInvalidResponse) {
-		t.Fatalf("nil OutputMetadata.Set error = %v", err)
-	}
 	if err := (*embedding.ResponseMetadata)(nil).Set("provider/value", true); !errors.Is(err, embedding.ErrInvalidResponse) {
 		t.Fatalf("nil ResponseMetadata.Set error = %v", err)
-	}
-	if err := (&embedding.OutputMetadata{}).Set("provider/value", func() {}); !errors.Is(err, embedding.ErrInvalidResponse) {
-		t.Fatalf("invalid OutputMetadata.Set error = %v", err)
 	}
 	if _, err := json.Marshal(embedding.Usage{InputTokens: -1}); !errors.Is(err, embedding.ErrInvalidResponse) {
 		t.Fatalf("negative Usage marshal error = %v", err)
@@ -122,11 +117,11 @@ func TestResponseJSONRejectsInvalidNestedValues(t *testing.T) {
 		t.Fatalf("negative Created marshal error = %v", err)
 	}
 
-	left, err := embedding.NewOutput([]float64{1}, &embedding.OutputMetadata{})
+	left, err := embedding.NewOutput([]float64{1}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	right, err := embedding.NewOutput([]float64{1, 2}, &embedding.OutputMetadata{})
+	right, err := embedding.NewOutput([]float64{1, 2}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

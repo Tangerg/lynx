@@ -256,7 +256,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 
 	neighbor := nearestNeighbor{
 		Vector: queryVec,
-		K:      req.Options.TopK,
+		K:      req.Options.ResultLimit(),
 	}
 	filterQuery, err := s.buildFilterQuery(req.Options.Filter)
 	if err != nil {
@@ -267,7 +267,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	}
 
 	body, err := encodeJSONRequest(searchRequest{
-		Size: req.Options.TopK,
+		Size: req.Options.ResultLimit(),
 		Query: nearestNeighborQuery{
 			KNN: map[string]nearestNeighbor{s.embeddingField: neighbor},
 		},

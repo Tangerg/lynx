@@ -16,6 +16,7 @@ import (
 
 	"github.com/Tangerg/scope/core/image"
 	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 const DefaultMaxOutputBytes = int64(32 * 1024 * 1024)
@@ -213,7 +214,7 @@ func (i *ImageModel) mapResponse(ctx context.Context, generation *lumaagents.Gen
 		if err != nil {
 			return nil, err
 		}
-		outputMetadata := &image.OutputMetadata{}
+		var outputMetadata metadata.Map
 		if setErr := outputMetadata.Set("luma/output", generationOutput); setErr != nil {
 			return nil, setErr
 		}

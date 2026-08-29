@@ -183,7 +183,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	}()
 
 	searchOpts := map[string]any{
-		"limit": req.Options.TopK,
+		"limit": req.Options.ResultLimit(),
 	}
 	filterFragment, err := s.buildFilter(req.Options.Filter)
 	if err != nil {

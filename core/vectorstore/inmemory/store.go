@@ -186,7 +186,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		return cmp.Compare(b.score, a.score)
 	})
 
-	limit := min(req.Options.TopK, len(candidates))
+	limit := min(req.Options.ResultLimit(), len(candidates))
 	out = make([]*vectorstore.SearchResult, 0, limit)
 	for i := range limit {
 		out = append(out, &vectorstore.SearchResult{Document: candidates[i].doc, Score: candidates[i].score})

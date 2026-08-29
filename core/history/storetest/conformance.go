@@ -13,12 +13,10 @@ import (
 // Capabilities is the exact history interface set a store promises. False
 // means the store must not accidentally satisfy that capability.
 type Capabilities struct {
-	Reader   bool
-	Writer   bool
-	Clearer  bool
-	Lister   bool
-	Replacer bool
-	Counter  bool
+	Reader  bool
+	Writer  bool
+	Clearer bool
+	Lister  bool
 }
 
 // Run verifies a store's exact capability set and the validation that must
@@ -34,15 +32,11 @@ func Run(t *testing.T, store any, want Capabilities) {
 	writer, hasWriter := store.(history.Writer)
 	clearer, hasClearer := store.(history.Clearer)
 	lister, hasLister := store.(history.Lister)
-	replacer, hasReplacer := store.(history.Replacer)
-	counter, hasCounter := store.(history.Counter)
 
 	assertCapability(t, "Reader", hasReader, want.Reader)
 	assertCapability(t, "Writer", hasWriter, want.Writer)
 	assertCapability(t, "Clearer", hasClearer, want.Clearer)
 	assertCapability(t, "Lister", hasLister, want.Lister)
-	assertCapability(t, "Replacer", hasReplacer, want.Replacer)
-	assertCapability(t, "Counter", hasCounter, want.Counter)
 
 	ctx := t.Context()
 	canceledCtx, cancel := context.WithCancel(ctx)
@@ -98,35 +92,6 @@ func Run(t *testing.T, store any, want Capabilities) {
 		t.Run("ConversationsRejectsCanceledContextBeforeIO", func(t *testing.T) {
 			if _, err := lister.Conversations(canceledCtx); !errors.Is(err, context.Canceled) {
 				t.Fatalf("Conversations(canceled context) error = %v, want %v", err, context.Canceled)
-			}
-		})
-	}
-	if want.Replacer && hasReplacer {
-		t.Run("ReplaceRejectsCanceledContextBeforeIO", func(t *testing.T) {
-			if err := replacer.Replace(canceledCtx, "conversation"); !errors.Is(err, context.Canceled) {
-				t.Fatalf("Replace(canceled context) error = %v, want %v", err, context.Canceled)
-			}
-		})
-		t.Run("ReplaceRejectsInvalidConversationBeforeIO", func(t *testing.T) {
-			if err := replacer.Replace(ctx, ""); !errors.Is(err, history.ErrInvalidConversationID) {
-				t.Fatalf("Replace(empty conversation) error = %v, want %v", err, history.ErrInvalidConversationID)
-			}
-		})
-		t.Run("ReplaceRejectsInvalidMessageBeforeIO", func(t *testing.T) {
-			if err := replacer.Replace(ctx, "conversation", chat.Message{}); !errors.Is(err, chat.ErrInvalidMessage) {
-				t.Fatalf("Replace(invalid message) error = %v, want %v", err, chat.ErrInvalidMessage)
-			}
-		})
-	}
-	if want.Counter && hasCounter {
-		t.Run("CountRejectsCanceledContextBeforeIO", func(t *testing.T) {
-			if _, err := counter.Count(canceledCtx, "conversation"); !errors.Is(err, context.Canceled) {
-				t.Fatalf("Count(canceled context) error = %v, want %v", err, context.Canceled)
-			}
-		})
-		t.Run("CountRejectsInvalidConversationBeforeIO", func(t *testing.T) {
-			if _, err := counter.Count(ctx, ""); !errors.Is(err, history.ErrInvalidConversationID) {
-				t.Fatalf("Count(empty conversation) error = %v, want %v", err, history.ErrInvalidConversationID)
 			}
 		})
 	}

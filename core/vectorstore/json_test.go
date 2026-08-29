@@ -32,7 +32,7 @@ func TestJSONRejectsInvalidModels(t *testing.T) {
 		want  error
 	}{
 		{name: "index request", value: vectorstore.IndexRequest{}, want: vectorstore.ErrInvalidRequest},
-		{name: "search options", value: vectorstore.SearchOptions{}, want: vectorstore.ErrInvalidOptions},
+		{name: "search options", value: vectorstore.SearchOptions{TopK: -1}, want: vectorstore.ErrInvalidOptions},
 		{name: "search request", value: vectorstore.SearchRequest{}, want: vectorstore.ErrInvalidRequest},
 		{name: "search result", value: vectorstore.SearchResult{}, want: vectorstore.ErrInvalidResponse},
 		{name: "search response", value: vectorstore.SearchResponse{Results: []*vectorstore.SearchResult{nil}}, want: vectorstore.ErrInvalidResponse},
@@ -91,7 +91,7 @@ func TestJSONUnmarshalRejectsInvalidModels(t *testing.T) {
 		want   error
 	}{
 		{name: "index request", data: `{"documents":[]}`, target: &vectorstore.IndexRequest{}, want: vectorstore.ErrInvalidRequest},
-		{name: "search options", data: `{"top_k":0}`, target: &vectorstore.SearchOptions{}, want: vectorstore.ErrInvalidOptions},
+		{name: "search options", data: `{"top_k":-1}`, target: &vectorstore.SearchOptions{}, want: vectorstore.ErrInvalidOptions},
 		{name: "search request", data: `{"query":"","options":{"top_k":1}}`, target: &vectorstore.SearchRequest{}, want: vectorstore.ErrInvalidRequest},
 		{name: "search result", data: `{"document":null,"score":1}`, target: &vectorstore.SearchResult{}, want: vectorstore.ErrInvalidResponse},
 		{name: "search response", data: `{"results":[null]}`, target: &vectorstore.SearchResponse{}, want: vectorstore.ErrInvalidResponse},

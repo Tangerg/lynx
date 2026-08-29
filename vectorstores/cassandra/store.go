@@ -422,7 +422,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	stmt := fmt.Sprintf(
 		"SELECT %s FROM %s%s ORDER BY %s ANN OF %s LIMIT %d",
 		strings.Join(columns, ", "), s.fullTable, wherePart,
-		s.embeddingColumn, vecLiteral, req.Options.TopK,
+		s.embeddingColumn, vecLiteral, req.Options.ResultLimit(),
 	)
 
 	iterator := queryIterator{value: s.session.Query(stmt, whereArgs...).WithContext(ctx).Iter()}
@@ -432,7 +432,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		}
 	}()
 
-	docs = make([]*vectorstore.SearchResult, 0, req.Options.TopK)
+	docs = make([]*vectorstore.SearchResult, 0, req.Options.ResultLimit())
 	scanDestinations := s.scanDestinations()
 	for iterator.scan(scanDestinations...) {
 		match, err := s.searchResultFromScan(scanDestinations, req.Options.MinScore)

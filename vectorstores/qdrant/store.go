@@ -352,7 +352,7 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 func (s *Store) buildQueryPoints(ctx context.Context, req *vectorstore.SearchRequest) (*qdrant.QueryPoints, error) {
 	queryPoints := &qdrant.QueryPoints{
 		CollectionName: s.collectionName,
-		Limit:          new(uint64(req.Options.TopK)),
+		Limit:          new(uint64(req.Options.ResultLimit())),
 		WithPayload:    qdrant.NewWithPayload(true),
 	}
 	if threshold, ok := s.distanceMetric.rawScoreThreshold(req.Options.MinScore); ok {

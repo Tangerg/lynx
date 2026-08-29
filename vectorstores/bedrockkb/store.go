@@ -131,7 +131,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 // layering caller-supplied overrides on top of the request defaults.
 
 func (s *Store) vectorSearchConfig(req *vectorstore.SearchRequest) (*types.KnowledgeBaseVectorSearchConfiguration, error) {
-	topK := int32(req.Options.TopK)
+	topK := int32(req.Options.ResultLimit())
 	config := &types.KnowledgeBaseVectorSearchConfiguration{
 		NumberOfResults:             &topK,
 		OverrideSearchType:          s.overrideSearchType,

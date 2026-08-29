@@ -8,6 +8,7 @@ import (
 	"iter"
 	"net/http"
 
+	"github.com/Tangerg/scope/core/metadata"
 	tts "github.com/Tangerg/scope/core/speech"
 )
 
@@ -117,7 +118,7 @@ func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Respo
 	if len(audio) == 0 {
 		return nil, errors.New("deepgram: speech response contained no audio")
 	}
-	outputMetadata := &tts.OutputMetadata{}
+	var outputMetadata metadata.Map
 	if ct := hdr.Get("Content-Type"); ct != "" {
 		if err := outputMetadata.Set("deepgram/mime_type", ct); err != nil {
 			return nil, err

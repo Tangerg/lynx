@@ -378,7 +378,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		params = make(map[string]any)
 	}
 	params["indexName"] = s.indexName
-	params["k"] = req.Options.TopK
+	params["k"] = req.Options.ResultLimit()
 	params["vec"] = queryVec
 	params["threshold"] = req.Options.MinScore
 

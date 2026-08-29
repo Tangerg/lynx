@@ -36,12 +36,10 @@ const (
 type historyOperation string
 
 const (
-	operationRead    historyOperation = "read"
-	operationWrite   historyOperation = "write"
-	operationClear   historyOperation = "clear"
-	operationList    historyOperation = "list"
-	operationReplace historyOperation = "replace"
-	operationCount   historyOperation = "count"
+	operationRead  historyOperation = "read"
+	operationWrite historyOperation = "write"
+	operationClear historyOperation = "clear"
+	operationList  historyOperation = "list"
 )
 
 func (o historyOperation) spanName() string { return "history." + string(o) }
@@ -117,22 +115,6 @@ func (m Middleware) Conversations(next corehistory.Lister) corehistory.Lister {
 		return nil
 	}
 	return historyLister{middleware: m, next: next}
-}
-
-// Replace instruments the optional atomic replacement capability.
-func (m Middleware) Replace(next corehistory.Replacer) corehistory.Replacer {
-	if lo.IsNil(next) {
-		return nil
-	}
-	return historyReplacer{middleware: m, next: next}
-}
-
-// Count instruments the optional message-count capability.
-func (m Middleware) Count(next corehistory.Counter) corehistory.Counter {
-	if lo.IsNil(next) {
-		return nil
-	}
-	return historyCounter{middleware: m, next: next}
 }
 
 func (m Middleware) start(
@@ -241,31 +223,4 @@ func (h historyLister) Conversations(ctx context.Context) ([]corehistory.Convers
 	observation.span.SetAttributes(attribute.Int(conversationCountAttribute, len(ids)))
 	observation.finish(err)
 	return ids, err
-}
-
-type historyReplacer struct {
-	middleware Middleware
-	next       corehistory.Replacer
-}
-
-func (h historyReplacer) Replace(ctx context.Context, conversationID corehistory.ConversationID, messages ...chat.Message) error {
-	ctx, observation := h.middleware.start(ctx, operationReplace, conversationID,
-		attribute.Int(messageCountAttribute, len(messages)),
-	)
-	err := h.next.Replace(ctx, conversationID, messages...)
-	observation.finish(err)
-	return err
-}
-
-type historyCounter struct {
-	middleware Middleware
-	next       corehistory.Counter
-}
-
-func (h historyCounter) Count(ctx context.Context, conversationID corehistory.ConversationID) (int, error) {
-	ctx, observation := h.middleware.start(ctx, operationCount, conversationID)
-	count, err := h.next.Count(ctx, conversationID)
-	observation.span.SetAttributes(attribute.Int(messageCountAttribute, count))
-	observation.finish(err)
-	return count, err
 }

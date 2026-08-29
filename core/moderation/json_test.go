@@ -54,7 +54,7 @@ func TestJSONBoundaries(t *testing.T) {
 
 	output, err := moderation.NewOutput(
 		moderation.Categories{"safe": {}},
-		&moderation.OutputMetadata{},
+		nil,
 	)
 	if err != nil {
 		t.Fatal(err)

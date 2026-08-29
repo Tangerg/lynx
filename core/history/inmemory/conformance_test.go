@@ -9,6 +9,6 @@ import (
 func TestStoreConformance(t *testing.T) {
 	storetest.Run(t, new(Store), storetest.Capabilities{
 		Reader: true, Writer: true, Clearer: true,
-		Lister: true, Replacer: true, Counter: true,
+		Lister: true,
 	})
 }

@@ -8,57 +8,6 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
-// OutputMetadata holds per-segment metadata returned by the provider.
-type OutputMetadata struct {
-	// Extra carries JSON-safe provider-specific metadata.
-	Extra metadata.Map `json:"extra,omitzero"`
-}
-
-func (o *OutputMetadata) Set(key string, value any) error {
-	if o == nil {
-		return fmt.Errorf("transcription: set output metadata: %w: nil receiver", ErrInvalidResponse)
-	}
-	if err := o.Extra.Set(key, value); err != nil {
-		return fmt.Errorf("transcription: set output metadata: %w: %w", ErrInvalidResponse, err)
-	}
-	return nil
-}
-
-func (o *OutputMetadata) validate() error {
-	if o == nil {
-		return fmt.Errorf("%w: output metadata must not be nil", ErrInvalidResponse)
-	}
-	if err := o.Extra.Validate(); err != nil {
-		return fmt.Errorf("%w: output metadata: %w", ErrInvalidResponse, err)
-	}
-	return nil
-}
-
-func (o OutputMetadata) MarshalJSON() ([]byte, error) {
-	if err := (&o).validate(); err != nil {
-		return nil, err
-	}
-	type wireOutputMetadata OutputMetadata
-	return json.Marshal(wireOutputMetadata(o))
-}
-
-func (o *OutputMetadata) UnmarshalJSON(data []byte) error {
-	if o == nil {
-		return fmt.Errorf("%w: output metadata receiver is nil", ErrInvalidResponse)
-	}
-	type wireOutputMetadata OutputMetadata
-	var decoded wireOutputMetadata
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("%w: decode output metadata: %w", ErrInvalidResponse, err)
-	}
-	candidate := OutputMetadata(decoded)
-	if err := candidate.validate(); err != nil {
-		return err
-	}
-	*o = candidate
-	return nil
-}
-
 // Output is one transcription segment.
 type Output struct {
 	// Text is the transcribed text. Empty is allowed for partial /
@@ -66,11 +15,11 @@ type Output struct {
 	Text string `json:"text"`
 
 	// Metadata carries per-segment extras.
-	Metadata *OutputMetadata `json:"metadata,omitempty"`
+	Metadata metadata.Map `json:"metadata,omitzero"`
 }
 
-func NewOutput(text string, metadata *OutputMetadata) (*Output, error) {
-	output := &Output{Text: text, Metadata: metadata}
+func NewOutput(text string, outputMetadata metadata.Map) (*Output, error) {
+	output := &Output{Text: text, Metadata: outputMetadata.Clone()}
 	if err := output.Validate(); err != nil {
 		return nil, fmt.Errorf("transcription: create output: %w", err)
 	}
@@ -81,8 +30,8 @@ func (o *Output) Validate() error {
 	if o == nil {
 		return fmt.Errorf("%w: output must not be nil", ErrInvalidResponse)
 	}
-	if err := o.Metadata.validate(); err != nil {
-		return err
+	if err := o.Metadata.Validate(); err != nil {
+		return fmt.Errorf("%w: output metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
@@ -136,7 +85,7 @@ func (r *ResponseMetadata) Set(key string, value any) error {
 
 func (r *ResponseMetadata) validate() error {
 	if r == nil {
-		return fmt.Errorf("%w: response metadata must not be nil", ErrInvalidResponse)
+		return nil
 	}
 	if r.Model != "" && strings.TrimSpace(r.Model) != r.Model {
 		return fmt.Errorf("%w: response metadata model must not have surrounding whitespace", ErrInvalidResponse)

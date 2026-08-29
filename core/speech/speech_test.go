@@ -91,13 +91,10 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 }
 
 func TestResponseValidation(t *testing.T) {
-	if _, err := speech.NewOutput(nil, &speech.OutputMetadata{}); !errors.Is(err, speech.ErrInvalidResponse) {
+	if _, err := speech.NewOutput(nil, nil); !errors.Is(err, speech.ErrInvalidResponse) {
 		t.Fatalf("NewOutput empty audio error = %v", err)
 	}
-	if _, err := speech.NewOutput([]byte("audio"), nil); !errors.Is(err, speech.ErrInvalidResponse) {
-		t.Fatalf("NewOutput nil metadata error = %v", err)
-	}
-	output, _ := speech.NewOutput([]byte("audio"), &speech.OutputMetadata{})
+	output, _ := speech.NewOutput([]byte("audio"), nil)
 	if _, err := speech.NewResponse(output, &speech.ResponseMetadata{}); err != nil {
 		t.Fatal(err)
 	}
@@ -148,7 +145,7 @@ func TestResponseAndRequestErrorBoundaries(t *testing.T) {
 		t.Fatal("NewRequest accepted empty text")
 	}
 	audio := []byte("audio")
-	output, _ := speech.NewOutput(audio, &speech.OutputMetadata{})
+	output, _ := speech.NewOutput(audio, nil)
 	audio[0] = 'X'
 	if string(output.Audio) != "audio" {
 		t.Fatal("NewOutput aliases caller audio")
@@ -156,8 +153,8 @@ func TestResponseAndRequestErrorBoundaries(t *testing.T) {
 	if _, err := speech.NewResponse(nil, &speech.ResponseMetadata{}); err == nil {
 		t.Fatal("NewResponse accepted nil output")
 	}
-	if _, err := speech.NewResponse(output, nil); err == nil {
-		t.Fatal("NewResponse accepted nil metadata")
+	if _, err := speech.NewResponse(output, nil); err != nil {
+		t.Fatalf("NewResponse rejected optional metadata: %v", err)
 	}
 	if err := (&speech.Response{Output: output, Metadata: &speech.ResponseMetadata{Created: -1}}).Validate(); err == nil {
 		t.Fatal("Validate accepted a negative creation time")

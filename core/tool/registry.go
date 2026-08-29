@@ -16,11 +16,6 @@ var (
 	ErrInvalidRegistry = errors.New("tool: invalid registry")
 )
 
-type entry struct {
-	binding    Binding
-	definition chat.ToolDefinition
-}
-
 // Registry is an instance-scoped, concurrency-safe collection of executable
 // tools. Its zero value is ready to use. Each runtime or process owns its
 // registry explicitly; there is no package-global counterpart. Registration is
@@ -28,7 +23,7 @@ type entry struct {
 // and model-visible views are returned as defensive copies in stable name order.
 type Registry struct {
 	mu      sync.RWMutex
-	entries map[string]entry
+	entries map[string]Binding
 }
 
 func NewRegistry(initial ...Tool) (*Registry, error) {
@@ -47,7 +42,7 @@ func (r *Registry) Register(values ...Tool) error {
 		return nil
 	}
 
-	pending := make(map[string]entry, len(values))
+	pending := make(map[string]Binding, len(values))
 	for index, value := range values {
 		binding, err := Bind(value)
 		if err != nil {
@@ -57,7 +52,7 @@ func (r *Registry) Register(values ...Tool) error {
 		if _, duplicate := pending[definition.Name]; duplicate {
 			return fmt.Errorf("%w: %q appears more than once in batch", ErrDuplicateTool, definition.Name)
 		}
-		pending[definition.Name] = entry{binding: binding, definition: definition}
+		pending[definition.Name] = binding
 	}
 
 	r.mu.Lock()
@@ -68,7 +63,7 @@ func (r *Registry) Register(values ...Tool) error {
 		}
 	}
 	if r.entries == nil {
-		r.entries = make(map[string]entry, len(pending))
+		r.entries = make(map[string]Binding, len(pending))
 	}
 	maps.Copy(r.entries, pending)
 	return nil
@@ -81,7 +76,7 @@ func (r *Registry) Resolve(name string) (Binding, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	value, ok := r.entries[name]
-	return value.binding, ok
+	return value, ok
 }
 
 func (r *Registry) Definitions() []chat.ToolDefinition {
@@ -90,8 +85,8 @@ func (r *Registry) Definitions() []chat.ToolDefinition {
 	}
 	r.mu.RLock()
 	definitions := make([]chat.ToolDefinition, 0, len(r.entries))
-	for _, value := range r.entries {
-		definitions = append(definitions, value.definition.Clone())
+	for _, binding := range r.entries {
+		definitions = append(definitions, binding.Definition())
 	}
 	r.mu.RUnlock()
 

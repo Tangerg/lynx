@@ -213,7 +213,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 
 	args = append(args, queryVec)
 	distancePlaceholder := fmt.Sprintf("$%d", len(args))
-	args = append(args, req.Options.TopK)
+	args = append(args, req.Options.ResultLimit())
 	limitPlaceholder := fmt.Sprintf("$%d", len(args))
 
 	sql := fmt.Sprintf(
@@ -228,7 +228,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	}
 	defer rows.Close()
 
-	docs = make([]*vectorstore.SearchResult, 0, req.Options.TopK)
+	docs = make([]*vectorstore.SearchResult, 0, req.Options.ResultLimit())
 	for rows.Next() {
 		var (
 			id       string

@@ -106,9 +106,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *cohere.EmbedByTypeResponse, expe
 
 	outputs := make([]*embedding.Output, 0, len(apiResp.Embeddings.Float))
 	for _, vec := range apiResp.Embeddings.Float {
-		outputMetadata := &embedding.OutputMetadata{}
-
-		output, err := embedding.NewOutput(vec, outputMetadata)
+		output, err := embedding.NewOutput(vec, nil)
 		if err != nil {
 			return nil, err
 		}

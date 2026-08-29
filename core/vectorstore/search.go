@@ -13,7 +13,7 @@ import (
 
 // Similarity-score range for [SearchOptions.MinScore] and search defaults.
 const (
-	// DefaultTopK is the recommended value for [SearchOptions.TopK].
+	// DefaultTopK is used when [SearchOptions.TopK] is zero.
 	DefaultTopK = 5
 
 	// MinSimilarityScore is the lowest valid score.
@@ -25,18 +25,15 @@ const (
 
 // SearchOptions owns the policies applied to a semantic search.
 type SearchOptions struct {
+	// TopK limits the result count. Zero uses DefaultTopK.
 	TopK     int              `json:"top_k,omitempty"`
 	MinScore Score            `json:"min_score,omitempty"`
 	Filter   filter.Predicate `json:"-"`
 }
 
-func NewSearchOptions() SearchOptions {
-	return SearchOptions{TopK: DefaultTopK}
-}
-
 func (s SearchOptions) Validate() error {
-	if s.TopK <= 0 {
-		return fmt.Errorf("%w: top K must be greater than zero, got %d", ErrInvalidOptions, s.TopK)
+	if s.TopK < 0 {
+		return fmt.Errorf("%w: top K must not be negative, got %d", ErrInvalidOptions, s.TopK)
 	}
 	if err := s.MinScore.Validate(); err != nil {
 		return fmt.Errorf("%w: minimum score: %w", ErrInvalidOptions, err)
@@ -47,6 +44,14 @@ func (s SearchOptions) Validate() error {
 		}
 	}
 	return nil
+}
+
+// ResultLimit returns the explicit TopK or DefaultTopK when it is omitted.
+func (s SearchOptions) ResultLimit() int {
+	if s.TopK == 0 {
+		return DefaultTopK
+	}
+	return s.TopK
 }
 
 func (s SearchOptions) MarshalJSON() ([]byte, error) {
@@ -81,7 +86,7 @@ type SearchRequest struct {
 }
 
 func NewSearchRequest(query string) (*SearchRequest, error) {
-	request := &SearchRequest{Query: query, Options: NewSearchOptions()}
+	request := &SearchRequest{Query: query}
 	if err := request.Validate(); err != nil {
 		return nil, fmt.Errorf("vectorstore: create search request: %w", err)
 	}
@@ -246,8 +251,9 @@ func (s *SearchResponse) ValidateFor(request *SearchRequest) error {
 	if err := s.Validate(); err != nil {
 		return err
 	}
-	if len(s.Results) > request.Options.TopK {
-		return fmt.Errorf("%w: got %d results, top K is %d", ErrInvalidResponse, len(s.Results), request.Options.TopK)
+	limit := request.Options.ResultLimit()
+	if len(s.Results) > limit {
+		return fmt.Errorf("%w: got %d results, top K is %d", ErrInvalidResponse, len(s.Results), limit)
 	}
 	for index, result := range s.Results {
 		if result.Score < request.Options.MinScore {

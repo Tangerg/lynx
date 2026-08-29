@@ -214,9 +214,7 @@
           0.3
         ],
         "metadata": {
-          "extra": {
-            "source": "fixture"
-          }
+          "source": "fixture"
         }
       }
     ],
@@ -258,9 +256,7 @@
           }
         },
         "metadata": {
-          "extra": {
-            "revised_prompt": "A detailed scope"
-          }
+          "revised_prompt": "A detailed scope"
         }
       }
     ],
@@ -402,9 +398,7 @@
           }
         },
         "metadata": {
-          "extra": {
-            "input_index": 1
-          }
+          "input_index": 1
         }
       }
     ],
@@ -435,9 +429,7 @@
     "output": {
       "audio": "YXVkaW8=",
       "metadata": {
-        "extra": {
-          "duration_ms": 250
-        }
+        "duration_ms": 250
       }
     },
     "metadata": {
@@ -470,9 +462,7 @@
     "output": {
       "text": "A scope.",
       "metadata": {
-        "extra": {
-          "duration": 1.5
-        }
+        "duration": 1.5
       }
     },
     "metadata": {

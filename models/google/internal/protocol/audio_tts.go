@@ -10,6 +10,7 @@ import (
 
 	"google.golang.org/genai"
 
+	"github.com/Tangerg/scope/core/metadata"
 	tts "github.com/Tangerg/scope/core/speech"
 )
 
@@ -175,7 +176,7 @@ func (a *AudioTTSModel) buildTTSResponse(apiResp *genai.GenerateContentResponse)
 		return nil, errNoAudio
 	}
 
-	outputMetadata := &tts.OutputMetadata{}
+	var outputMetadata metadata.Map
 	if mimeType != "" {
 		if err := outputMetadata.Set(protocolKey(a.provider, "mime_type"), mimeType); err != nil {
 			return nil, err

@@ -347,7 +347,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		"path":          s.embeddingPath,
 		"queryVector":   queryVec,
 		"numCandidates": s.numCandidates,
-		"limit":         req.Options.TopK,
+		"limit":         req.Options.ResultLimit(),
 	}
 	if req.Options.Filter != nil {
 		filterDoc, filterErr := s.buildFilter(req.Options.Filter)
@@ -377,7 +377,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	}
 	defer cursor.Close(ctx)
 
-	docs = make([]*vectorstore.SearchResult, 0, req.Options.TopK)
+	docs = make([]*vectorstore.SearchResult, 0, req.Options.ResultLimit())
 	for cursor.Next(ctx) {
 		var raw bson.M
 		if err := cursor.Decode(&raw); err != nil {

@@ -298,7 +298,7 @@ func (s *Store) buildQueryOptions(req *vectorstore.SearchRequest, queryVector []
 
 	opts := []v2.CollectionQueryOption{
 		v2.WithQueryEmbeddings(queryEmb),
-		v2.WithNResults(req.Options.TopK),
+		v2.WithNResults(req.Options.ResultLimit()),
 		v2.WithInclude(v2.IncludeDocuments, v2.IncludeMetadatas, v2.IncludeDistances),
 	}
 

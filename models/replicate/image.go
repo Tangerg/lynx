@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tangerg/scope/core/image"
 	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 type ImageModelConfig struct {
@@ -276,7 +277,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		if err != nil {
 			return nil, err
 		}
-		outputMetadata := &image.OutputMetadata{}
+		var outputMetadata metadata.Map
 		if setErr := outputMetadata.Set("replicate/output_url", outputURL); setErr != nil {
 			return nil, setErr
 		}

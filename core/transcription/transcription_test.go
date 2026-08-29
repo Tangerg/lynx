@@ -73,12 +73,9 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 }
 
 func TestResponseValidation(t *testing.T) {
-	output, err := transcription.NewOutput("", &transcription.OutputMetadata{})
+	output, err := transcription.NewOutput("", nil)
 	if err != nil {
 		t.Fatalf("NewOutput rejected empty transcript: %v", err)
-	}
-	if _, err := transcription.NewOutput("text", nil); err == nil {
-		t.Fatal("NewOutput accepted nil metadata")
 	}
 	if _, err := transcription.NewResponse(output, &transcription.ResponseMetadata{}); err != nil {
 		t.Fatal(err)
@@ -128,12 +125,12 @@ func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
 }
 
 func TestResponseErrorBoundaries(t *testing.T) {
-	output, _ := transcription.NewOutput("scope", &transcription.OutputMetadata{})
+	output, _ := transcription.NewOutput("scope", nil)
 	if _, err := transcription.NewResponse(nil, &transcription.ResponseMetadata{}); err == nil {
 		t.Fatal("NewResponse accepted nil output")
 	}
-	if _, err := transcription.NewResponse(output, nil); err == nil {
-		t.Fatal("NewResponse accepted nil metadata")
+	if _, err := transcription.NewResponse(output, nil); err != nil {
+		t.Fatalf("NewResponse rejected optional metadata: %v", err)
 	}
 	if err := (&transcription.Response{Output: output, Metadata: &transcription.ResponseMetadata{Created: -1}}).Validate(); err == nil {
 		t.Fatal("Validate accepted a negative creation time")

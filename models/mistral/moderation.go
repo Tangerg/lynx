@@ -70,7 +70,7 @@ func (m *ModerationModel) Call(ctx context.Context, req *moderation.Request) (*m
 	outputs := make([]*moderation.Output, 0, len(apiResp.Results))
 	for _, item := range apiResp.Results {
 		cats := mapMistralCategories(item.Categories, item.CategoryScores)
-		res, err := moderation.NewOutput(cats, &moderation.OutputMetadata{})
+		res, err := moderation.NewOutput(cats, nil)
 		if err != nil {
 			return nil, err
 		}

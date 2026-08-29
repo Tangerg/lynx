@@ -376,7 +376,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 
 	args := []any{vecText}
 	args = append(args, whereArgs...)
-	args = append(args, req.Options.TopK)
+	args = append(args, req.Options.ResultLimit())
 
 	rows, err := s.db.QueryContext(ctx, stmt, args...)
 	if err != nil {
@@ -384,7 +384,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	}
 	defer rows.Close()
 
-	docs = make([]*vectorstore.SearchResult, 0, req.Options.TopK)
+	docs = make([]*vectorstore.SearchResult, 0, req.Options.ResultLimit())
 	for rows.Next() {
 		var (
 			id       string

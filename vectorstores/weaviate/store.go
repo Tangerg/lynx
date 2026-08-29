@@ -328,7 +328,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		WithClassName(s.className).
 		WithFields(fields...).
 		WithNearVector(s.buildNearVector(vector, req.Options.MinScore)).
-		WithLimit(req.Options.TopK)
+		WithLimit(req.Options.ResultLimit())
 
 	if req.Options.Filter != nil {
 		visitor := NewVisitor()

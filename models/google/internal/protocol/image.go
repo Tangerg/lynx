@@ -14,6 +14,7 @@ import (
 
 	"github.com/Tangerg/scope/core/image"
 	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 const (
@@ -390,7 +391,7 @@ func (i *ImageModel) buildResponse(apiResp *imageInteractionResponse) (*image.Re
 			if err != nil {
 				return nil, fmt.Errorf("google: image: steps[%d].content[%d]: %w", stepIndex, contentIndex, err)
 			}
-			outputMetadata := &image.OutputMetadata{}
+			var outputMetadata metadata.Map
 			if setErr := outputMetadata.Set("google/image_content", rawContent); setErr != nil {
 				return nil, setErr
 			}

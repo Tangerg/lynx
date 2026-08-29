@@ -123,7 +123,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 		return nil, err
 	}
 
-	output, err := image.NewOutput(value, &image.OutputMetadata{})
+	output, err := image.NewOutput(value, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -95,7 +95,7 @@ func (a *AudioTranscriptionModel) buildAPITranscriptionRequest(req *transcriptio
 }
 
 func (a *AudioTranscriptionModel) buildTranscriptionResponse(resp *openai.AudioTranscriptionNewResponseUnion) (*transcription.Response, error) {
-	output, err := transcription.NewOutput(resp.Text, &transcription.OutputMetadata{})
+	output, err := transcription.NewOutput(resp.Text, nil)
 	if err != nil {
 		return nil, err
 	}

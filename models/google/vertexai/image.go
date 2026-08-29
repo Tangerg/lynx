@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tangerg/scope/core/image"
 	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 type ImageModelConfig struct {
@@ -186,7 +187,7 @@ func (i *ImageModel) buildResponse(apiResp *genai.GenerateContentResponse) (*ima
 			if err != nil {
 				return nil, fmt.Errorf("vertexai: image: candidates[%d].parts[%d]: %w", candidateIndex, partIndex, err)
 			}
-			outputMetadata := &image.OutputMetadata{}
+			var outputMetadata metadata.Map
 			if setErr := outputMetadata.Set(imageNativePartMetadataKey, part); setErr != nil {
 				return nil, setErr
 			}

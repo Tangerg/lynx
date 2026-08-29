@@ -16,7 +16,8 @@ func TestSearchRequestValidate(t *testing.T) {
 		ok   bool
 	}{
 		{"empty query", vectorstore.SearchRequest{Options: vectorstore.SearchOptions{TopK: 5}}, false},
-		{"zero topk", vectorstore.SearchRequest{Query: "hi"}, false},
+		{"default topk", vectorstore.SearchRequest{Query: "hi"}, true},
+		{"negative topk", vectorstore.SearchRequest{Query: "hi", Options: vectorstore.SearchOptions{TopK: -1}}, false},
 		{"out-of-range minscore", vectorstore.SearchRequest{Query: "hi", Options: vectorstore.SearchOptions{TopK: 5, MinScore: 1.5}}, false},
 		{"nan minscore", vectorstore.SearchRequest{Query: "hi", Options: vectorstore.SearchOptions{TopK: 5, MinScore: vectorstore.Score(math.NaN())}}, false},
 		{"valid", vectorstore.SearchRequest{Query: "hi", Options: vectorstore.SearchOptions{TopK: 5, MinScore: 0.5}}, true},
@@ -31,6 +32,20 @@ func TestSearchRequestValidate(t *testing.T) {
 				t.Fatal("expected error")
 			}
 		})
+	}
+}
+
+func TestSearchOptionsZeroValueUsesDefaultLimit(t *testing.T) {
+	var options vectorstore.SearchOptions
+	if err := options.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if got := options.ResultLimit(); got != vectorstore.DefaultTopK {
+		t.Fatalf("ResultLimit = %d, want %d", got, vectorstore.DefaultTopK)
+	}
+	options.TopK = 3
+	if got := options.ResultLimit(); got != 3 {
+		t.Fatalf("explicit ResultLimit = %d, want 3", got)
 	}
 }
 

@@ -9,6 +9,7 @@ import (
 	"google.golang.org/genai"
 
 	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 type EmbeddingModelConfig struct {
@@ -124,7 +125,7 @@ func (e *EmbeddingModel) buildResponse(modelName string, apiResp *genai.EmbedCon
 			values[i] = float64(value)
 		}
 
-		outputMetadata := &embedding.OutputMetadata{}
+		var outputMetadata metadata.Map
 		if item.Statistics != nil {
 			if err := outputMetadata.Set(protocolKey(e.provider, "token_count"), item.Statistics.TokenCount); err != nil {
 				return nil, err

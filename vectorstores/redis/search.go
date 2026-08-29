@@ -44,7 +44,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	// RediSearch hybrid syntax: <filter>=>[KNN <k> @embedding $vec AS distance]
 	queryStr := fmt.Sprintf(
 		"%s=>[KNN %d @%s $%s AS %s]",
-		filterQuery, req.Options.TopK, s.embeddingField, vectorParamName, distanceFieldName,
+		filterQuery, req.Options.ResultLimit(), s.embeddingField, vectorParamName, distanceFieldName,
 	)
 
 	returnFields := []goredis.FTSearchReturn{
@@ -61,7 +61,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		},
 		Return:         returnFields,
 		LimitOffset:    0,
-		Limit:          req.Options.TopK,
+		Limit:          req.Options.ResultLimit(),
 		DialectVersion: redisSearchDialectVersion,
 		SortBy: []goredis.FTSearchSortBy{
 			{FieldName: distanceFieldName, Asc: true},

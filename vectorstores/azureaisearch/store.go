@@ -301,12 +301,12 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	vectorQuery := map[string]any{
 		"kind":   "vector",
 		"vector": queryVec,
-		"k":      req.Options.TopK,
+		"k":      req.Options.ResultLimit(),
 		"fields": s.embeddingField,
 	}
 	body := map[string]any{
 		"count":         false,
-		"top":           req.Options.TopK,
+		"top":           req.Options.ResultLimit(),
 		"vectorQueries": []any{vectorQuery},
 	}
 	if filterStr != "" {

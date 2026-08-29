@@ -113,9 +113,7 @@ func (e *EmbeddingModel) buildEmbeddingResponse(apiResp *openai.CreateEmbeddingR
 		if seen[item.Index] {
 			return nil, fmt.Errorf("openai: embeddings response repeats index %d", item.Index)
 		}
-		outputMetadata := &embedding.OutputMetadata{}
-
-		output, err := embedding.NewOutput(item.Embedding, outputMetadata)
+		output, err := embedding.NewOutput(item.Embedding, nil)
 		if err != nil {
 			return nil, err
 		}

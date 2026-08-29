@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Tangerg/scope/core/metadata"
 	"github.com/Tangerg/scope/core/transcription"
 )
 
@@ -117,7 +118,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, err
 	}
 
-	outputMetadata := &transcription.OutputMetadata{}
+	var outputMetadata metadata.Map
 	if len(final.Result.Transcription.Languages) > 0 {
 		if setErr := outputMetadata.Set("gladia/languages", final.Result.Transcription.Languages); setErr != nil {
 			return nil, setErr

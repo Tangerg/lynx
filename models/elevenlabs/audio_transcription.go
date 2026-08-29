@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 
+	"github.com/Tangerg/scope/core/metadata"
 	"github.com/Tangerg/scope/core/transcription"
 )
 
@@ -94,7 +95,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, err
 	}
 
-	outputMetadata := &transcription.OutputMetadata{}
+	var outputMetadata metadata.Map
 	if apiResp.LanguageCode != "" {
 		if setErr := outputMetadata.Set("elevenlabs/language_code", apiResp.LanguageCode); setErr != nil {
 			return nil, setErr

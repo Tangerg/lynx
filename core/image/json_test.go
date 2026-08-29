@@ -54,7 +54,7 @@ func TestJSONBoundaries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	output, err := image.NewOutput(generated, &image.OutputMetadata{})
+	output, err := image.NewOutput(generated, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

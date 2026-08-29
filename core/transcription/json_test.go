@@ -54,7 +54,7 @@ func TestJSONBoundaries(t *testing.T) {
 		t.Fatalf("failed Request decode mutated receiver: %#v", request)
 	}
 
-	output, err := transcription.NewOutput("keep", &transcription.OutputMetadata{})
+	output, err := transcription.NewOutput("keep", nil)
 	if err != nil {
 		t.Fatal(err)
 	}

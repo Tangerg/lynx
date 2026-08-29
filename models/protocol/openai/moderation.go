@@ -144,7 +144,7 @@ func (m *ModerationModel) buildModerationResponse(resp *openai.ModerationNewResp
 			},
 		}
 
-		output, err := moderation.NewOutput(cats, &moderation.OutputMetadata{})
+		output, err := moderation.NewOutput(cats, nil)
 		if err != nil {
 			return nil, err
 		}

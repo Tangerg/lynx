@@ -220,7 +220,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		VectorBucketName: aws.String(s.vectorBucketName),
 		IndexName:        aws.String(s.indexName),
 		QueryVector:      &types.VectorDataMemberFloat32{Value: queryVec},
-		TopK:             aws.Int32(int32(req.Options.TopK)),
+		TopK:             aws.Int32(int32(req.Options.ResultLimit())),
 		ReturnDistance:   true,
 		ReturnMetadata:   true,
 	}

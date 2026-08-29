@@ -71,7 +71,7 @@ func TestCategoriesAndResponse(t *testing.T) {
 	if !categories.Flagged() {
 		t.Fatal("Flagged did not aggregate Hate")
 	}
-	output, err := moderation.NewOutput(categories, &moderation.OutputMetadata{})
+	output, err := moderation.NewOutput(categories, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -139,27 +139,23 @@ func TestCategoriesRemainOpen(t *testing.T) {
 
 func TestResponseConstructorsRejectInvalidValues(t *testing.T) {
 	categories := moderation.Categories{"safe": {}}
-	metadata := new(moderation.OutputMetadata)
-	if _, err := moderation.NewOutput(nil, metadata); err == nil {
+	if _, err := moderation.NewOutput(nil, nil); err == nil {
 		t.Fatal("NewOutput accepted empty categories")
-	}
-	if _, err := moderation.NewOutput(categories, nil); err == nil {
-		t.Fatal("NewOutput accepted nil metadata")
 	}
 	for name, verdict := range map[string]moderation.Verdict{
 		"negative": {Score: -0.1},
 		"too high": {Score: 1.1},
 	} {
-		if _, err := moderation.NewOutput(moderation.Categories{name: verdict}, metadata); err == nil {
+		if _, err := moderation.NewOutput(moderation.Categories{name: verdict}, nil); err == nil {
 			t.Fatalf("NewOutput accepted %s score", name)
 		}
 	}
-	output, _ := moderation.NewOutput(categories, metadata)
+	output, _ := moderation.NewOutput(categories, nil)
 	if _, err := moderation.NewResponse(nil, &moderation.ResponseMetadata{}); err == nil {
 		t.Fatal("NewResponse accepted no outputs")
 	}
-	if _, err := moderation.NewResponse([]*moderation.Output{output}, nil); err == nil {
-		t.Fatal("NewResponse accepted nil metadata")
+	if _, err := moderation.NewResponse([]*moderation.Output{output}, nil); err != nil {
+		t.Fatalf("NewResponse rejected optional metadata: %v", err)
 	}
 	if (&moderation.Response{}).First() != nil || (*moderation.Response)(nil).First() != nil {
 		t.Fatal("empty response returned a output")

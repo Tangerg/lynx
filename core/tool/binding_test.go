@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"strings"
 	"sync/atomic"
 	"testing"
 
@@ -50,8 +49,8 @@ func TestBindingPromotesOnlySchemaValidCalls(t *testing.T) {
 		{ID: "call", Name: "search", Arguments: `{"query":"x"}`},
 		{ID: "call", Name: "search", Arguments: `{"query":"ok","extra":true}`},
 	} {
-		if _, err := binding.Prepare(call); !errors.Is(err, tool.ErrInvalidInvocation) {
-			t.Errorf("Prepare(%+v) error = %v, want ErrInvalidInvocation", call, err)
+		if _, prepareErr := binding.Prepare(call); !errors.Is(prepareErr, tool.ErrInvalidInvocation) {
+			t.Errorf("Prepare(%+v) error = %v, want ErrInvalidInvocation", call, prepareErr)
 		}
 	}
 	if executable.calls.Load() != 0 {
@@ -118,19 +117,5 @@ func TestBindingRejectsForeignInvocation(t *testing.T) {
 	}
 	if _, err := second.Call(t.Context(), invocation); !errors.Is(err, tool.ErrInvalidInvocation) {
 		t.Fatalf("Call error = %v, want ErrInvalidInvocation", err)
-	}
-}
-
-type panickingDefinitionTool struct{}
-
-func (panickingDefinitionTool) Definition() chat.ToolDefinition { panic("boom") }
-func (panickingDefinitionTool) Call(context.Context, tool.Invocation) (chat.ToolOutput, error) {
-	return chat.ToolOutput{}, nil
-}
-
-func TestBindContainsDefinitionPanics(t *testing.T) {
-	_, err := tool.Bind(panickingDefinitionTool{})
-	if !errors.Is(err, tool.ErrInvalidTool) || !strings.Contains(err.Error(), "definition panicked") {
-		t.Fatalf("Bind error = %v", err)
 	}
 }

@@ -78,14 +78,3 @@ func TestCapabilityRejectsWrappingCycles(t *testing.T) {
 		})
 	}
 }
-
-type panickingWrapper struct{ markedTool }
-
-func (*panickingWrapper) Unwrap() tool.Tool { panic("broken unwrap") }
-
-func TestCapabilityReturnsUnwrapPanics(t *testing.T) {
-	_, ok, err := tool.Capability[interface{ Missing() }](new(panickingWrapper))
-	if ok || !errors.Is(err, tool.ErrInvalidWrappingChain) {
-		t.Fatalf("Capability() = _, %v, %v; want false, ErrInvalidWrappingChain", ok, err)
-	}
-}

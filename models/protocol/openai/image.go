@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tangerg/scope/core/image"
 	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 type ImageModelConfig struct {
@@ -115,7 +116,7 @@ func (i *ImageModel) buildImageResponse(resp *openai.ImagesResponse, mimeType st
 		if err != nil {
 			return nil, fmt.Errorf("openai: image %d: %w", index, err)
 		}
-		outputMetadata := &image.OutputMetadata{}
+		var outputMetadata metadata.Map
 		if generated.RevisedPrompt != "" {
 			if setErr := outputMetadata.Set(i.provider+"/revised_prompt", generated.RevisedPrompt); setErr != nil {
 				return nil, setErr

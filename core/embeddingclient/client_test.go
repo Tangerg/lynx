@@ -20,7 +20,7 @@ func (*pointerModel) Call(context.Context, *embedding.Request) (*embedding.Respo
 func responseFor(texts []string) *embedding.Response {
 	outputs := make([]*embedding.Output, len(texts))
 	for i := range texts {
-		outputs[i], _ = embedding.NewOutput([]float64{1, 2, 3, 4}, &embedding.OutputMetadata{})
+		outputs[i], _ = embedding.NewOutput([]float64{1, 2, 3, 4}, nil)
 	}
 	response, _ := embedding.NewResponse(outputs, &embedding.ResponseMetadata{Model: "fake"})
 	return response

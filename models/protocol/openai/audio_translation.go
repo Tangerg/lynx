@@ -119,7 +119,7 @@ func (a *AudioTranslationModel) Call(ctx context.Context, req *transcription.Req
 		return nil, err
 	}
 
-	output, err := transcription.NewOutput(apiResp.Text, &transcription.OutputMetadata{})
+	output, err := transcription.NewOutput(apiResp.Text, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -89,9 +89,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *embeddingResponse, expectedResul
 
 	outputs := make([]*embedding.Output, 0, len(apiResp.Embeddings))
 	for _, vec := range apiResp.Embeddings {
-		outputMetadata := &embedding.OutputMetadata{}
-
-		output, err := embedding.NewOutput(vec, outputMetadata)
+		output, err := embedding.NewOutput(vec, nil)
 		if err != nil {
 			return nil, err
 		}

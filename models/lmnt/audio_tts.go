@@ -8,6 +8,7 @@ import (
 	"iter"
 	"net/http"
 
+	"github.com/Tangerg/scope/core/metadata"
 	tts "github.com/Tangerg/scope/core/speech"
 )
 
@@ -122,7 +123,7 @@ func buildResponse(audio []byte, headers http.Header, model string) (*tts.Respon
 	if len(audio) == 0 {
 		return nil, errors.New("lmnt: speech response contained no audio")
 	}
-	outputMetadata := &tts.OutputMetadata{}
+	var outputMetadata metadata.Map
 	if contentType := headers.Get("Content-Type"); contentType != "" {
 		if err := outputMetadata.Set("lmnt/mime_type", contentType); err != nil {
 			return nil, err

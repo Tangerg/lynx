@@ -11,17 +11,15 @@ import (
 )
 
 var (
-	_ history.Store    = (*Store)(nil)
-	_ history.Lister   = (*Store)(nil)
-	_ history.Replacer = (*Store)(nil)
-	_ history.Counter  = (*Store)(nil)
+	_ history.Store  = (*Store)(nil)
+	_ history.Lister = (*Store)(nil)
 )
 
 // Store is a concurrent in-process history store suitable for tests,
 // development, and single-instance applications. Its zero value is ready to
-// use. Writes and replacements validate then snapshot messages before locking;
+// use. Writes validate then snapshot messages before locking;
 // reads return deep caller-owned snapshots, and missing conversations behave as
-// empty histories. Replace swaps the complete sequence atomically.
+// empty histories.
 type Store struct {
 	mu       sync.RWMutex
 	messages map[history.ConversationID][]chat.Message
@@ -83,43 +81,6 @@ func (s *Store) Clear(ctx context.Context, conversationID history.ConversationID
 	defer s.mu.Unlock()
 	delete(s.messages, conversationID)
 	return nil
-}
-
-func (s *Store) Replace(ctx context.Context, conversationID history.ConversationID, messages ...chat.Message) error {
-	if err := ctx.Err(); err != nil {
-		return err
-	}
-	if err := conversationID.Validate(); err != nil {
-		return err
-	}
-	messageSnapshot, err := snapshotMessages(messages)
-	if err != nil {
-		return err
-	}
-
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	if len(messageSnapshot) == 0 {
-		delete(s.messages, conversationID)
-		return nil
-	}
-	if s.messages == nil {
-		s.messages = make(map[history.ConversationID][]chat.Message)
-	}
-	s.messages[conversationID] = messageSnapshot
-	return nil
-}
-
-func (s *Store) Count(ctx context.Context, conversationID history.ConversationID) (int, error) {
-	if err := ctx.Err(); err != nil {
-		return 0, err
-	}
-	if err := conversationID.Validate(); err != nil {
-		return 0, err
-	}
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return len(s.messages[conversationID]), nil
 }
 
 func (s *Store) Conversations(ctx context.Context) ([]history.ConversationID, error) {

@@ -12,7 +12,7 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
-func TestStoreOwnsMessagesAndSupportsOptionalCapabilities(t *testing.T) {
+func TestStoreOwnsMessages(t *testing.T) {
 	var store inmemory.Store
 	message := chat.NewUserMessage(chat.NewTextPart("original"))
 	message.Metadata = metadata.Map{}
@@ -39,20 +39,8 @@ func TestStoreOwnsMessagesAndSupportsOptionalCapabilities(t *testing.T) {
 		t.Fatalf("second Read = %#v, %v", readAgain, err)
 	}
 
-	if count, countErr := store.Count(t.Context(), "conversation"); countErr != nil || count != 1 {
-		t.Fatalf("Count = %d, %v", count, countErr)
-	}
 	if ids, conversationsErr := store.Conversations(t.Context()); conversationsErr != nil || !slices.Equal(ids, []history.ConversationID{"conversation"}) {
 		t.Fatalf("Conversations = %v, %v", ids, conversationsErr)
-	}
-
-	replacement := chat.NewAssistantMessage(chat.NewTextPart("replacement"))
-	if replaceErr := history.Replace(t.Context(), &store, "conversation", replacement); replaceErr != nil {
-		t.Fatal(replaceErr)
-	}
-	read, err = store.Read(t.Context(), "conversation")
-	if err != nil || len(read) != 1 || read[0].Text() != "replacement" {
-		t.Fatalf("replacement Read = %#v, %v", read, err)
 	}
 	if err := store.Clear(t.Context(), "conversation"); err != nil {
 		t.Fatal(err)

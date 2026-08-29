@@ -33,7 +33,6 @@ func TestModalityWireValuesValidateAtJSONBoundary(t *testing.T) {
 
 		{"embedding.Options", embedding.Options{}, new(embedding.Options)},
 		{"embedding.Request", embedding.Request{}, new(embedding.Request)},
-		{"embedding.OutputMetadata", embedding.OutputMetadata{}, new(embedding.OutputMetadata)},
 		{"embedding.Output", embedding.Output{}, new(embedding.Output)},
 		{"embedding.Usage", embedding.Usage{}, new(embedding.Usage)},
 		{"embedding.ResponseMetadata", embedding.ResponseMetadata{}, new(embedding.ResponseMetadata)},
@@ -41,21 +40,18 @@ func TestModalityWireValuesValidateAtJSONBoundary(t *testing.T) {
 
 		{"image.Options", image.Options{}, new(image.Options)},
 		{"image.Request", image.Request{}, new(image.Request)},
-		{"image.OutputMetadata", image.OutputMetadata{}, new(image.OutputMetadata)},
 		{"image.Output", image.Output{}, new(image.Output)},
 		{"image.ResponseMetadata", image.ResponseMetadata{}, new(image.ResponseMetadata)},
 		{"image.Response", image.Response{}, new(image.Response)},
 
 		{"speech.Options", speech.Options{}, new(speech.Options)},
 		{"speech.Request", speech.Request{}, new(speech.Request)},
-		{"speech.OutputMetadata", speech.OutputMetadata{}, new(speech.OutputMetadata)},
 		{"speech.Output", speech.Output{}, new(speech.Output)},
 		{"speech.ResponseMetadata", speech.ResponseMetadata{}, new(speech.ResponseMetadata)},
 		{"speech.Response", speech.Response{}, new(speech.Response)},
 
 		{"transcription.Options", transcription.Options{}, new(transcription.Options)},
 		{"transcription.Request", transcription.Request{}, new(transcription.Request)},
-		{"transcription.OutputMetadata", transcription.OutputMetadata{}, new(transcription.OutputMetadata)},
 		{"transcription.Output", transcription.Output{}, new(transcription.Output)},
 		{"transcription.ResponseMetadata", transcription.ResponseMetadata{}, new(transcription.ResponseMetadata)},
 		{"transcription.Response", transcription.Response{}, new(transcription.Response)},
@@ -64,7 +60,6 @@ func TestModalityWireValuesValidateAtJSONBoundary(t *testing.T) {
 		{"moderation.Request", moderation.Request{}, new(moderation.Request)},
 		{"moderation.Verdict", moderation.Verdict{}, new(moderation.Verdict)},
 		{"moderation.Categories", moderation.Categories{}, new(moderation.Categories)},
-		{"moderation.OutputMetadata", moderation.OutputMetadata{}, new(moderation.OutputMetadata)},
 		{"moderation.Output", moderation.Output{}, new(moderation.Output)},
 		{"moderation.ResponseMetadata", moderation.ResponseMetadata{}, new(moderation.ResponseMetadata)},
 		{"moderation.Response", moderation.Response{}, new(moderation.Response)},

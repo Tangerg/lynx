@@ -121,7 +121,7 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 
 	outputs := make([]*embedding.Output, len(batch.vectors))
 	for index, vector := range batch.vectors {
-		output, resultErr := embedding.NewOutput(vector, &embedding.OutputMetadata{})
+		output, resultErr := embedding.NewOutput(vector, nil)
 		if resultErr != nil {
 			return nil, fmt.Errorf("bedrock: embedding response output %d: %w", index, resultErr)
 		}

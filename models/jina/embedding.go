@@ -102,9 +102,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *embeddingResponse, expectedResul
 		if seen[item.Index] {
 			return nil, fmt.Errorf("jina: embedding response repeats index %d", item.Index)
 		}
-		outputMetadata := &embedding.OutputMetadata{}
-
-		output, err := embedding.NewOutput(item.Embedding, outputMetadata)
+		output, err := embedding.NewOutput(item.Embedding, nil)
 		if err != nil {
 			return nil, err
 		}

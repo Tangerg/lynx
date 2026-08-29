@@ -49,7 +49,7 @@ func TestJSONBoundaries(t *testing.T) {
 		t.Fatalf("failed Request decode mutated receiver: %#v", request)
 	}
 
-	output, err := speech.NewOutput([]byte("audio"), &speech.OutputMetadata{})
+	output, err := speech.NewOutput([]byte("audio"), nil)
 	if err != nil {
 		t.Fatal(err)
 	}

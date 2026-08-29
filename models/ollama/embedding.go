@@ -94,9 +94,7 @@ func (e *EmbeddingModel) buildResponse(apiResp *nativeEmbedResponse, expectedRes
 			values[i] = float64(value)
 		}
 
-		outputMetadata := &embedding.OutputMetadata{}
-
-		output, err := embedding.NewOutput(values, outputMetadata)
+		output, err := embedding.NewOutput(values, nil)
 		if err != nil {
 			return nil, err
 		}

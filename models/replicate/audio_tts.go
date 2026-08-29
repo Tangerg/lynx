@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Tangerg/scope/core/metadata"
 	tts "github.com/Tangerg/scope/core/speech"
 )
 
@@ -213,7 +214,7 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		return nil, err
 	}
 
-	outputMetadata := &tts.OutputMetadata{}
+	var outputMetadata metadata.Map
 	if contentType != "" {
 		if setErr := outputMetadata.Set("replicate/mime_type", contentType); setErr != nil {
 			return nil, setErr

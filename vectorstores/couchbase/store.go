@@ -428,7 +428,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 
 	knnFragment := fmt.Sprintf(
 		`{"query":{"match_none":{}},"knn":[{"field":"%s","k":%d,"vector":%s}]}`,
-		embeddingField, req.Options.TopK, string(vectorJSON),
+		embeddingField, req.Options.ResultLimit(), string(vectorJSON),
 	)
 	indexFullName := fmt.Sprintf("%s.%s.%s", s.bucketName, s.scopeName, s.vectorIndexName)
 	stmt := fmt.Sprintf(
@@ -436,7 +436,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 			`WHERE SEARCH(c, %s, {"index": "%s"})%s ORDER BY SEARCH_SCORE() DESC LIMIT %d`,
 		resultScoreField,
 		s.bucketName, s.scopeName, s.collectionName,
-		knnFragment, indexFullName, whereExtra, req.Options.TopK,
+		knnFragment, indexFullName, whereExtra, req.Options.ResultLimit(),
 	)
 
 	rows, err := s.scope.Query(stmt, &gocb.QueryOptions{Context: ctx})
@@ -445,7 +445,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	}
 	defer rows.Close()
 
-	docs = make([]*vectorstore.SearchResult, 0, req.Options.TopK)
+	docs = make([]*vectorstore.SearchResult, 0, req.Options.ResultLimit())
 	for rows.Next() {
 		var raw map[string]any
 		if err := rows.Row(&raw); err != nil {

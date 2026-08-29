@@ -107,68 +107,17 @@ func (c *Categories) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// OutputMetadata holds per-input metadata returned by the provider.
-type OutputMetadata struct {
-	// Extra carries JSON-safe provider-specific metadata.
-	Extra metadata.Map `json:"extra,omitzero"`
-}
-
-func (o *OutputMetadata) Set(key string, value any) error {
-	if o == nil {
-		return fmt.Errorf("moderation: set output metadata: %w: nil receiver", ErrInvalidResponse)
-	}
-	if err := o.Extra.Set(key, value); err != nil {
-		return fmt.Errorf("moderation: set output metadata: %w: %w", ErrInvalidResponse, err)
-	}
-	return nil
-}
-
-func (o *OutputMetadata) validate() error {
-	if o == nil {
-		return fmt.Errorf("%w: output metadata must not be nil", ErrInvalidResponse)
-	}
-	if err := o.Extra.Validate(); err != nil {
-		return fmt.Errorf("%w: output metadata: %w", ErrInvalidResponse, err)
-	}
-	return nil
-}
-
-func (o OutputMetadata) MarshalJSON() ([]byte, error) {
-	if err := (&o).validate(); err != nil {
-		return nil, err
-	}
-	type wireOutputMetadata OutputMetadata
-	return json.Marshal(wireOutputMetadata(o))
-}
-
-func (o *OutputMetadata) UnmarshalJSON(data []byte) error {
-	if o == nil {
-		return fmt.Errorf("%w: output metadata receiver is nil", ErrInvalidResponse)
-	}
-	type wireOutputMetadata OutputMetadata
-	var decoded wireOutputMetadata
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("%w: decode output metadata: %w", ErrInvalidResponse, err)
-	}
-	candidate := OutputMetadata(decoded)
-	if err := candidate.validate(); err != nil {
-		return err
-	}
-	*o = candidate
-	return nil
-}
-
 // Output is one input's moderation verdict plus metadata.
 type Output struct {
 	// Categories holds the per-category verdict.
 	Categories Categories `json:"categories,omitzero"`
 
 	// Metadata carries per-input extras.
-	Metadata *OutputMetadata `json:"metadata,omitempty"`
+	Metadata metadata.Map `json:"metadata,omitzero"`
 }
 
-func NewOutput(categories Categories, metadata *OutputMetadata) (*Output, error) {
-	output := &Output{Categories: maps.Clone(categories), Metadata: metadata}
+func NewOutput(categories Categories, outputMetadata metadata.Map) (*Output, error) {
+	output := &Output{Categories: maps.Clone(categories), Metadata: outputMetadata.Clone()}
 	if err := output.Validate(); err != nil {
 		return nil, fmt.Errorf("moderation: create output: %w", err)
 	}
@@ -182,8 +131,8 @@ func (o *Output) Validate() error {
 	if err := o.Categories.validate(); err != nil {
 		return err
 	}
-	if err := o.Metadata.validate(); err != nil {
-		return err
+	if err := o.Metadata.Validate(); err != nil {
+		return fmt.Errorf("%w: output metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
@@ -240,7 +189,7 @@ func (r *ResponseMetadata) Set(key string, value any) error {
 
 func (r *ResponseMetadata) validate() error {
 	if r == nil {
-		return fmt.Errorf("%w: response metadata must not be nil", ErrInvalidResponse)
+		return nil
 	}
 	if r.ID != "" && strings.TrimSpace(r.ID) != r.ID {
 		return fmt.Errorf("%w: response metadata ID must not have surrounding whitespace", ErrInvalidResponse)

@@ -15,26 +15,16 @@ var ErrInvalidWrappingChain = errors.New("tool: invalid wrapping chain")
 // the inner tool may acquire.
 type WrappingTool interface {
 	// Unwrap returns the next inner tool in a finite decorator chain. It must
-	// return the same binding for the wrapper's lifetime and must not perform I/O;
-	// nil, cycles, excessive depth, and panics make the chain invalid.
+	// return the same tool for the wrapper's lifetime and must not perform I/O;
+	// cycles and excessive depth make the chain invalid.
 	Unwrap() Tool
 }
 
 const maxWrappingDepth = 64
 
 // Capability finds T on value or through its wrapping chain. The outermost
-// implementation wins. Malformed chains and panicking Unwrap implementations
-// are returned as errors.
+// implementation wins. Malformed chains are returned as errors.
 func Capability[T any](value Tool) (capability T, found bool, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			var zero T
-			capability = zero
-			found = false
-			err = fmt.Errorf("%w: %T Unwrap panicked: %v", ErrInvalidWrappingChain, value, recovered)
-		}
-	}()
-
 	current := value
 	for depth := 0; !lo.IsNil(current); depth++ {
 		if capability, ok := any(current).(T); ok {

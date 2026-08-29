@@ -9,57 +9,6 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
-// OutputMetadata holds per-segment metadata returned by the provider.
-type OutputMetadata struct {
-	// Extra carries JSON-safe provider-specific metadata.
-	Extra metadata.Map `json:"extra,omitzero"`
-}
-
-func (o *OutputMetadata) Set(key string, value any) error {
-	if o == nil {
-		return fmt.Errorf("speech: set output metadata: %w: nil receiver", ErrInvalidResponse)
-	}
-	if err := o.Extra.Set(key, value); err != nil {
-		return fmt.Errorf("speech: set output metadata: %w: %w", ErrInvalidResponse, err)
-	}
-	return nil
-}
-
-func (o *OutputMetadata) validate() error {
-	if o == nil {
-		return fmt.Errorf("%w: output metadata must not be nil", ErrInvalidResponse)
-	}
-	if err := o.Extra.Validate(); err != nil {
-		return fmt.Errorf("%w: output metadata: %w", ErrInvalidResponse, err)
-	}
-	return nil
-}
-
-func (o OutputMetadata) MarshalJSON() ([]byte, error) {
-	if err := (&o).validate(); err != nil {
-		return nil, err
-	}
-	type wireOutputMetadata OutputMetadata
-	return json.Marshal(wireOutputMetadata(o))
-}
-
-func (o *OutputMetadata) UnmarshalJSON(data []byte) error {
-	if o == nil {
-		return fmt.Errorf("%w: output metadata receiver is nil", ErrInvalidResponse)
-	}
-	type wireOutputMetadata OutputMetadata
-	var decoded wireOutputMetadata
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("%w: decode output metadata: %w", ErrInvalidResponse, err)
-	}
-	candidate := OutputMetadata(decoded)
-	if err := candidate.validate(); err != nil {
-		return err
-	}
-	*o = candidate
-	return nil
-}
-
 // Output is one chunk of generated audio. For synchronous calls the
 // chunk is the entire audio; for streaming calls Audio is whatever
 // segment the provider just produced.
@@ -69,11 +18,11 @@ type Output struct {
 	Audio []byte `json:"audio,omitzero"`
 
 	// Metadata carries per-chunk extras.
-	Metadata *OutputMetadata `json:"metadata,omitempty"`
+	Metadata metadata.Map `json:"metadata,omitzero"`
 }
 
-func NewOutput(audio []byte, metadata *OutputMetadata) (*Output, error) {
-	output := &Output{Audio: slices.Clone(audio), Metadata: metadata}
+func NewOutput(audio []byte, outputMetadata metadata.Map) (*Output, error) {
+	output := &Output{Audio: slices.Clone(audio), Metadata: outputMetadata.Clone()}
 	if err := output.Validate(); err != nil {
 		return nil, fmt.Errorf("speech: create output: %w", err)
 	}
@@ -87,8 +36,8 @@ func (o *Output) Validate() error {
 	if len(o.Audio) == 0 {
 		return fmt.Errorf("%w: audio must not be empty", ErrInvalidResponse)
 	}
-	if err := o.Metadata.validate(); err != nil {
-		return err
+	if err := o.Metadata.Validate(); err != nil {
+		return fmt.Errorf("%w: output metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
@@ -142,7 +91,7 @@ func (r *ResponseMetadata) Set(key string, value any) error {
 
 func (r *ResponseMetadata) validate() error {
 	if r == nil {
-		return fmt.Errorf("%w: response metadata must not be nil", ErrInvalidResponse)
+		return nil
 	}
 	if r.Model != "" && strings.TrimSpace(r.Model) != r.Model {
 		return fmt.Errorf("%w: response metadata model must not have surrounding whitespace", ErrInvalidResponse)

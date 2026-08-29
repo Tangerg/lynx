@@ -7,6 +7,7 @@ import (
 	"iter"
 	"net/http"
 
+	"github.com/Tangerg/scope/core/metadata"
 	tts "github.com/Tangerg/scope/core/speech"
 )
 
@@ -125,7 +126,7 @@ func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Respo
 	if len(audio) == 0 {
 		return nil, errors.New("elevenlabs: speech response contained no audio")
 	}
-	outputMetadata := &tts.OutputMetadata{}
+	var outputMetadata metadata.Map
 	details := speechResponseMetadata{
 		ContentType:   hdr.Get(contentTypeHeader),
 		CharacterCost: hdr.Get(characterCostHeader),

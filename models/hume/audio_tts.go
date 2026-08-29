@@ -9,6 +9,7 @@ import (
 	"iter"
 	"net/http"
 
+	"github.com/Tangerg/scope/core/metadata"
 	tts "github.com/Tangerg/scope/core/speech"
 )
 
@@ -145,7 +146,7 @@ func (a *AudioTTSModel) buildResponse(apiResp *ttsResponse, model string) (*tts.
 	if err != nil {
 		return nil, err
 	}
-	outputMetadata := &tts.OutputMetadata{}
+	var outputMetadata metadata.Map
 	if len(apiResp.Generations) > 0 {
 		g := apiResp.Generations[0]
 		if setErr := outputMetadata.Set(metadataEncodingFormat, g.Encoding.Format); setErr != nil {
@@ -234,7 +235,7 @@ func (t *ttsStreamEvent) response(model string) (*tts.Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	outputMetadata := &tts.OutputMetadata{}
+	var outputMetadata metadata.Map
 	if setErr := outputMetadata.Set(metadataAudioFormat, t.AudioFormat); setErr != nil {
 		return nil, setErr
 	}

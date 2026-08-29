@@ -138,7 +138,7 @@ func (a *AudioTranscriptionModel) buildTranscriptionResponse(apiResp *genai.Gene
 		}
 	}
 
-	output, err := transcription.NewOutput(text.String(), &transcription.OutputMetadata{})
+	output, err := transcription.NewOutput(text.String(), nil)
 	if err != nil {
 		return nil, err
 	}

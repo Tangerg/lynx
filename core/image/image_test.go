@@ -93,7 +93,7 @@ func TestResponseValidation(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	output, err := image.NewOutput(generated, &image.OutputMetadata{})
+	output, err := image.NewOutput(generated, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -148,15 +148,12 @@ func TestOptionsResolveAndCopies(t *testing.T) {
 }
 
 func TestResponseMetadataAndErrors(t *testing.T) {
-	resultMetadata := &image.OutputMetadata{Extra: mustMetadata(t, map[string]any{"revised_prompt": "scope"})}
+	resultMetadata := mustMetadata(t, map[string]any{"revised_prompt": "scope"})
 	responseMetadata := &image.ResponseMetadata{Extra: mustMetadata(t, map[string]any{"region": "local"})}
 
 	generated, _ := media.NewURI("image/png", "https://example.com/image.png")
 	if _, err := image.NewOutput(nil, resultMetadata); err == nil {
 		t.Fatal("NewOutput accepted nil media")
-	}
-	if _, err := image.NewOutput(generated, nil); err == nil {
-		t.Fatal("NewOutput accepted nil metadata")
 	}
 	audio, _ := media.NewBytes("audio/mpeg", []byte("audio"))
 	if _, err := image.NewOutput(audio, resultMetadata); err == nil {
@@ -169,8 +166,8 @@ func TestResponseMetadataAndErrors(t *testing.T) {
 	if _, err := image.NewResponse([]*image.Output{nil}, responseMetadata); err == nil {
 		t.Fatal("NewResponse accepted nil output")
 	}
-	if _, err := image.NewResponse([]*image.Output{output}, nil); err == nil {
-		t.Fatal("NewResponse accepted nil metadata")
+	if _, err := image.NewResponse([]*image.Output{output}, nil); err != nil {
+		t.Fatalf("NewResponse rejected optional metadata: %v", err)
 	}
 }
 

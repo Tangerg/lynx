@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/Tangerg/scope/core/metadata"
 	"github.com/Tangerg/scope/core/transcription"
 )
 
@@ -118,7 +119,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 		return nil, err
 	}
 
-	outputMetadata := &transcription.OutputMetadata{}
+	var outputMetadata metadata.Map
 	if final.Language != "" {
 		if setErr := outputMetadata.Set("revai/language", final.Language); setErr != nil {
 			return nil, setErr

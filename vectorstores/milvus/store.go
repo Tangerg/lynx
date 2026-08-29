@@ -361,7 +361,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 
 	queryVec := entity.FloatVector(embedding.Float32Vector(vector))
 
-	searchOpt := milvusclient.NewSearchOption(s.collectionName, int(req.Options.TopK), []entity.Vector{queryVec}).
+	searchOpt := milvusclient.NewSearchOption(s.collectionName, req.Options.ResultLimit(), []entity.Vector{queryVec}).
 		WithANNSField(fieldVector).
 		WithOutputFields(fieldID, fieldContent, fieldMeta)
 

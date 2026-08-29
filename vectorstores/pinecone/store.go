@@ -269,7 +269,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 
 	queryReq := &pinecone.QueryByVectorValuesRequest{
 		Vector:          embedding.Float32Vector(vector),
-		TopK:            uint32(req.Options.TopK),
+		TopK:            uint32(req.Options.ResultLimit()),
 		IncludeMetadata: true,
 	}
 

@@ -131,9 +131,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	embeddingResponse := &embedding.Response{
 		Outputs: []*embedding.Output{{
 			Embedding: []float64{0.1, 0.2, 0.3},
-			Metadata: &embedding.OutputMetadata{
-				Extra: mustMetadata(t, map[string]any{"source": "fixture"}),
-			},
+			Metadata:  mustMetadata(t, map[string]any{"source": "fixture"}),
 		}},
 		Metadata: &embedding.ResponseMetadata{
 			Model:   "embedding-model",
@@ -158,7 +156,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	imageResponse := &image.Response{
 		Outputs: []*image.Output{{
 			Media:    generatedMedia,
-			Metadata: &image.OutputMetadata{Extra: mustMetadata(t, map[string]any{"revised_prompt": "A detailed scope"})},
+			Metadata: mustMetadata(t, map[string]any{"revised_prompt": "A detailed scope"}),
 		}},
 		Metadata: &image.ResponseMetadata{
 			Created: 1700000001,
@@ -176,7 +174,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	moderationResponse := &moderation.Response{
 		Outputs: []*moderation.Output{{
 			Categories: representativeCategories(),
-			Metadata:   &moderation.OutputMetadata{Extra: mustMetadata(t, map[string]any{"input_index": 1})},
+			Metadata:   mustMetadata(t, map[string]any{"input_index": 1}),
 		}},
 		Metadata: &moderation.ResponseMetadata{
 			ID:      "moderation-1",
@@ -199,7 +197,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	speechResponse := &speech.Response{
 		Output: &speech.Output{
 			Audio:    []byte("audio"),
-			Metadata: &speech.OutputMetadata{Extra: mustMetadata(t, map[string]any{"duration_ms": 250})},
+			Metadata: mustMetadata(t, map[string]any{"duration_ms": 250}),
 		},
 		Metadata: &speech.ResponseMetadata{
 			Model:   "speech-model",
@@ -219,7 +217,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	transcriptionResponse := &transcription.Response{
 		Output: &transcription.Output{
 			Text:     "A scope.",
-			Metadata: &transcription.OutputMetadata{Extra: mustMetadata(t, map[string]any{"duration": 1.5})},
+			Metadata: mustMetadata(t, map[string]any{"duration": 1.5}),
 		},
 		Metadata: &transcription.ResponseMetadata{
 			Model:   "transcription-model",

@@ -122,14 +122,11 @@ func TestProtocolConstructorsRejectInvalidValues(t *testing.T) {
 	if resolved, err := (embedding.Options{}).Resolve(embedding.Options{}); err != nil || resolved.Model != "" || resolved.Dimensions != nil || len(resolved.Extensions) != 0 {
 		t.Fatalf("zero Options.Resolve(empty) = %#v, %v", resolved, err)
 	}
-	if _, err := embedding.NewOutput(nil, &embedding.OutputMetadata{}); err == nil {
+	if _, err := embedding.NewOutput(nil, nil); err == nil {
 		t.Fatal("NewOutput accepted an empty vector")
 	}
-	if _, err := embedding.NewOutput([]float64{1}, nil); err == nil {
-		t.Fatal("NewOutput accepted nil metadata")
-	}
 	vector := []float64{1}
-	output, _ := embedding.NewOutput(vector, &embedding.OutputMetadata{})
+	output, _ := embedding.NewOutput(vector, nil)
 	vector[0] = 2
 	if output.Embedding[0] != 1 {
 		t.Fatal("NewOutput aliases the input vector")
@@ -137,10 +134,7 @@ func TestProtocolConstructorsRejectInvalidValues(t *testing.T) {
 	if _, err := embedding.NewResponse(nil, &embedding.ResponseMetadata{}); err == nil {
 		t.Fatal("NewResponse accepted no outputs")
 	}
-	if _, err := embedding.NewResponse([]*embedding.Output{output}, nil); err == nil {
-		t.Fatal("NewResponse accepted nil metadata")
-	}
-	response, _ := embedding.NewResponse([]*embedding.Output{output}, &embedding.ResponseMetadata{})
+	response, _ := embedding.NewResponse([]*embedding.Output{output}, nil)
 	if response.First() != output {
 		t.Fatal("First did not return the first output")
 	}
@@ -148,7 +142,7 @@ func TestProtocolConstructorsRejectInvalidValues(t *testing.T) {
 		t.Fatal("empty response returned a output")
 	}
 	invalid := &embedding.Response{
-		Outputs:  []*embedding.Output{{Embedding: []float64{math.NaN()}, Metadata: &embedding.OutputMetadata{}}},
+		Outputs:  []*embedding.Output{{Embedding: []float64{math.NaN()}}},
 		Metadata: &embedding.ResponseMetadata{},
 	}
 	if err := invalid.Validate(); err == nil {

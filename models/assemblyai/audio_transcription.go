@@ -8,6 +8,7 @@ import (
 	"slices"
 	"time"
 
+	"github.com/Tangerg/scope/core/metadata"
 	"github.com/Tangerg/scope/core/transcription"
 )
 
@@ -182,7 +183,7 @@ func (a *AudioTranscriptionModel) pollUntilDone(ctx context.Context, id string) 
 }
 
 func (a *AudioTranscriptionModel) buildResponse(apiResp *transcriptResponse) (*transcription.Response, error) {
-	outputMetadata := &transcription.OutputMetadata{}
+	var outputMetadata metadata.Map
 	if err := outputMetadata.Set("assemblyai/confidence", apiResp.Confidence); err != nil {
 		return nil, err
 	}

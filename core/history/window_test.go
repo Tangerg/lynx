@@ -14,7 +14,7 @@ func TestNewWindowStoreValidatesConstruction(t *testing.T) {
 	if _, err := history.NewWindowStore(nil, 1); !errors.Is(err, history.ErrNilStore) {
 		t.Fatalf("nil store error = %v", err)
 	}
-	var typedNil *basicStore
+	var typedNil *inmemory.Store
 	if _, err := history.NewWindowStore(typedNil, 1); !errors.Is(err, history.ErrNilStore) {
 		t.Fatalf("typed-nil store error = %v", err)
 	}

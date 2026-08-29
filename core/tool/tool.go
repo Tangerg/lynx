@@ -52,9 +52,9 @@ func Bind(executable Tool) (Binding, error) {
 	if isNilTool(executable) {
 		return Binding{}, fmt.Errorf("%w: tool is nil", ErrInvalidTool)
 	}
-	definition, err := safeDefinition(executable)
-	if err != nil {
-		return Binding{}, err
+	definition := executable.Definition()
+	if err := definition.Validate(); err != nil {
+		return Binding{}, fmt.Errorf("%w: definition: %w", ErrInvalidTool, err)
 	}
 	input, err := corejsonschema.Parse(definition.InputSchema)
 	if err != nil {
@@ -80,20 +80,6 @@ func isNilTool(executable Tool) bool {
 	}
 }
 
-func safeDefinition(executable Tool) (definition chat.ToolDefinition, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			definition = chat.ToolDefinition{}
-			err = fmt.Errorf("%w: definition panicked: %v", ErrInvalidTool, recovered)
-		}
-	}()
-	definition = executable.Definition()
-	if err := definition.Validate(); err != nil {
-		return chat.ToolDefinition{}, fmt.Errorf("%w: definition: %w", ErrInvalidTool, err)
-	}
-	return definition.Clone(), nil
-}
-
 // Definition returns an independent snapshot of the frozen definition.
 func (b Binding) Definition() chat.ToolDefinition {
 	if b.contract == nil {
@@ -107,7 +93,6 @@ func (b Binding) Definition() chat.ToolDefinition {
 // promote an untrusted model proposal into an executable invocation.
 type Invocation struct {
 	contract  *boundContract
-	call      chat.ToolCall
 	arguments []byte
 }
 
@@ -135,8 +120,7 @@ func (b Binding) Prepare(call chat.ToolCall) (Invocation, error) {
 		return Invocation{}, fmt.Errorf("%w: arguments: %w", ErrInvalidInvocation, err)
 	}
 	owned := append([]byte(nil), arguments...)
-	call.Arguments = string(owned)
-	return Invocation{contract: b.contract, call: call, arguments: owned}, nil
+	return Invocation{contract: b.contract, arguments: owned}, nil
 }
 
 // Call executes an Invocation created by this exact Binding. It rejects values
@@ -148,12 +132,5 @@ func (b Binding) Call(ctx context.Context, invocation Invocation) (chat.ToolOutp
 	return b.contract.executable.Call(ctx, invocation)
 }
 
-// ToolCall returns an owned copy of the model proposal after argument
-// normalization and validation.
-func (i Invocation) ToolCall() chat.ToolCall { return i.call }
-
 // Arguments returns an owned copy of the validated JSON object.
 func (i Invocation) Arguments() []byte { return append([]byte(nil), i.arguments...) }
-
-// Valid reports whether the Invocation was produced by a Binding.
-func (i Invocation) Valid() bool { return i.contract != nil && len(i.arguments) != 0 }

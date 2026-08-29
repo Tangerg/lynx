@@ -107,7 +107,7 @@ func (a *AudioTTSModel) buildAPITTSRequest(req *tts.Request) (*openai.AudioSpeec
 }
 
 func (a *AudioTTSModel) buildTTSResponse(data []byte) (*tts.Response, error) {
-	output, err := tts.NewOutput(data, &tts.OutputMetadata{})
+	output, err := tts.NewOutput(data, nil)
 	if err != nil {
 		return nil, err
 	}

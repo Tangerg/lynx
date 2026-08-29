@@ -230,7 +230,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		return nil, fmt.Errorf("typesense: embed query: %w", err)
 	}
 	queryVec := embedding.Float32Vector(vector)
-	vectorQuery := formatVectorQuery(queryVec, req.Options.TopK)
+	vectorQuery := formatVectorQuery(queryVec, req.Options.ResultLimit())
 
 	filterBy, err := s.buildFilter(req.Options.Filter)
 	if err != nil {
@@ -240,7 +240,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	params := &api.SearchCollectionParams{
 		Q:           new("*"),
 		VectorQuery: new(vectorQuery),
-		PerPage:     new(req.Options.TopK),
+		PerPage:     new(req.Options.ResultLimit()),
 	}
 	if filterBy != "" {
 		params.FilterBy = new(filterBy)

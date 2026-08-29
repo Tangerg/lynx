@@ -269,7 +269,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	}
 
 	nn := fmt.Sprintf("{targetHits:%d}nearestNeighbor(%s, %s)",
-		req.Options.TopK, s.embeddingField, s.queryTensorName)
+		req.Options.ResultLimit(), s.embeddingField, s.queryTensorName)
 	yql := fmt.Sprintf("select * from %s where %s", s.schemaName, nn)
 	if filterFragment != "" {
 		yql = yql + " and " + filterFragment
@@ -277,7 +277,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 
 	body := map[string]any{
 		"yql":  yql,
-		"hits": req.Options.TopK,
+		"hits": req.Options.ResultLimit(),
 		fmt.Sprintf("input.query(%s)", s.queryTensorName): map[string]any{"values": queryVec},
 		"ranking": s.rankingProfile,
 	}

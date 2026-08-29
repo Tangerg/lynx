@@ -11,68 +11,17 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
-// OutputMetadata holds per-image metadata returned by the provider.
-type OutputMetadata struct {
-	// Extra carries JSON-safe provider-specific metadata.
-	Extra metadata.Map `json:"extra,omitzero"`
-}
-
-func (o *OutputMetadata) Set(key string, value any) error {
-	if o == nil {
-		return fmt.Errorf("image: set output metadata: %w: nil receiver", ErrInvalidResponse)
-	}
-	if err := o.Extra.Set(key, value); err != nil {
-		return fmt.Errorf("image: set output metadata: %w: %w", ErrInvalidResponse, err)
-	}
-	return nil
-}
-
-func (o *OutputMetadata) validate() error {
-	if o == nil {
-		return fmt.Errorf("%w: output metadata must not be nil", ErrInvalidResponse)
-	}
-	if err := o.Extra.Validate(); err != nil {
-		return fmt.Errorf("%w: output metadata: %w", ErrInvalidResponse, err)
-	}
-	return nil
-}
-
-func (o OutputMetadata) MarshalJSON() ([]byte, error) {
-	if err := (&o).validate(); err != nil {
-		return nil, err
-	}
-	type wireOutputMetadata OutputMetadata
-	return json.Marshal(wireOutputMetadata(o))
-}
-
-func (o *OutputMetadata) UnmarshalJSON(data []byte) error {
-	if o == nil {
-		return fmt.Errorf("%w: output metadata receiver is nil", ErrInvalidResponse)
-	}
-	type wireOutputMetadata OutputMetadata
-	var decoded wireOutputMetadata
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return fmt.Errorf("%w: decode output metadata: %w", ErrInvalidResponse, err)
-	}
-	candidate := OutputMetadata(decoded)
-	if err := candidate.validate(); err != nil {
-		return err
-	}
-	*o = candidate
-	return nil
-}
-
 // Output is one generated image plus its metadata.
 type Output struct {
 	// Media holds the generated image as bytes or an absolute URI.
 	Media *media.Media `json:"media,omitempty"`
 
 	// Metadata carries per-image extras.
-	Metadata *OutputMetadata `json:"metadata,omitempty"`
+	Metadata metadata.Map `json:"metadata,omitzero"`
 }
 
-func NewOutput(value *media.Media, metadata *OutputMetadata) (*Output, error) {
-	output := &Output{Media: value, Metadata: metadata}
+func NewOutput(value *media.Media, outputMetadata metadata.Map) (*Output, error) {
+	output := &Output{Media: value, Metadata: outputMetadata.Clone()}
 	if err := output.Validate(); err != nil {
 		return nil, fmt.Errorf("image: create output: %w", err)
 	}
@@ -90,8 +39,8 @@ func (o *Output) Validate() error {
 	if !strings.HasPrefix(mediaType, "image/") && mediaType != "application/octet-stream" {
 		return fmt.Errorf("%w: media MIME type %q is not an image", ErrInvalidResponse, o.Media.MIME)
 	}
-	if err := o.Metadata.validate(); err != nil {
-		return err
+	if err := o.Metadata.Validate(); err != nil {
+		return fmt.Errorf("%w: output metadata: %w", ErrInvalidResponse, err)
 	}
 	return nil
 }
@@ -143,7 +92,7 @@ func (r *ResponseMetadata) Set(key string, value any) error {
 
 func (r *ResponseMetadata) validate() error {
 	if r == nil {
-		return fmt.Errorf("%w: response metadata must not be nil", ErrInvalidResponse)
+		return nil
 	}
 	if r.Created < 0 {
 		return fmt.Errorf("%w: created must not be negative", ErrInvalidResponse)

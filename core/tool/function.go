@@ -88,9 +88,6 @@ func (f Func[In, Out]) Call(ctx context.Context, invocation Invocation) (chat.To
 	if f.function == nil {
 		return chat.ToolOutput{}, fmt.Errorf("%w: function tool is nil", ErrInvalidTool)
 	}
-	if !invocation.Valid() || invocation.ToolCall().Name != f.config.Name {
-		return chat.ToolOutput{}, fmt.Errorf("%w: function tool %q", ErrInvalidInvocation, f.config.Name)
-	}
 	input, err := f.decodeInput(invocation.Arguments())
 	if err != nil {
 		return chat.ToolOutput{}, fmt.Errorf("tool: decode function arguments: %w", err)
@@ -108,9 +105,6 @@ func (f Func[In, Out]) Call(ctx context.Context, invocation Invocation) (chat.To
 
 func (f Func[In, Out]) decodeInput(arguments []byte) (In, error) {
 	var input In
-	if err := f.input.Validate(arguments); err != nil {
-		return input, fmt.Errorf("arguments violate input schema: %w", err)
-	}
 	if err := jsonv2.Unmarshal(arguments, &input, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return input, err
 	}

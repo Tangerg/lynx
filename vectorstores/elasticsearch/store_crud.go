@@ -153,8 +153,8 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	knn := nearestNeighborQuery{
 		Field:         s.embeddingField,
 		QueryVector:   queryVec,
-		K:             req.Options.TopK,
-		NumCandidates: int(stdmath.Ceil(float64(req.Options.TopK) * s.numCandidatesMul)),
+		K:             req.Options.ResultLimit(),
+		NumCandidates: int(stdmath.Ceil(float64(req.Options.ResultLimit()) * s.numCandidatesMul)),
 	}
 
 	filterQuery, err := s.buildFilterQuery(req.Options.Filter)
@@ -165,7 +165,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		knn.Filter = &queryClause{QueryString: queryString{Query: filterQuery}}
 	}
 
-	body, err := encodeJSONRequest(searchRequest{Size: req.Options.TopK, KNN: knn})
+	body, err := encodeJSONRequest(searchRequest{Size: req.Options.ResultLimit(), KNN: knn})
 	if err != nil {
 		return nil, err
 	}

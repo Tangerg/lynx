@@ -10,7 +10,7 @@ import (
 
 func Example() {
 	model := embedding.ModelFunc(func(context.Context, *embedding.Request) (*embedding.Response, error) {
-		output, _ := embedding.NewOutput([]float64{0.1, 0.2}, &embedding.OutputMetadata{})
+		output, _ := embedding.NewOutput([]float64{0.1, 0.2}, nil)
 		return embedding.NewResponse([]*embedding.Output{output}, &embedding.ResponseMetadata{})
 	})
 	client, err := embeddingclient.New(model)

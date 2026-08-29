@@ -10,6 +10,7 @@ import (
 
 	"github.com/Tangerg/scope/core/image"
 	"github.com/Tangerg/scope/core/media"
+	"github.com/Tangerg/scope/core/metadata"
 )
 
 type ImageModelConfig struct {
@@ -134,7 +135,7 @@ func (i *ImageModel) buildResponse(body []byte, hdr http.Header, outputFormat st
 		return nil, err
 	}
 
-	outputMetadata := &image.OutputMetadata{}
+	var outputMetadata metadata.Map
 	if envelope.FinishReason != "" {
 		if setErr := outputMetadata.Set("stability/finish_reason", envelope.FinishReason); setErr != nil {
 			return nil, setErr

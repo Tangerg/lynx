@@ -262,7 +262,7 @@ func (s searcher) Search(ctx context.Context, request *corevectorstore.SearchReq
 	var topK int
 	var minScore float64
 	if request != nil {
-		topK = request.Options.TopK
+		topK = request.Options.ResultLimit()
 		minScore = request.Options.MinScore.Float64()
 	}
 	ctx, observation := s.middleware.start(ctx, operationSearch,
