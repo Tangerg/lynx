@@ -81,7 +81,18 @@ func (r *Repository) List(ctx context.Context) (summaries []Summary, err error) 
 		return nil, errors.New("skills: list: filesystem directory does not implement fs.ReadDirFile")
 	}
 
-	summaries = make([]Summary, 0)
+	summaries, err = r.readSummaries(ctx, reader)
+	if err != nil {
+		return nil, err
+	}
+	slices.SortFunc(summaries, func(a, b Summary) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	return summaries, nil
+}
+
+func (r *Repository) readSummaries(ctx context.Context, reader fs.ReadDirFile) ([]Summary, error) {
+	summaries := make([]Summary, 0)
 	entriesSeen := 0
 	for {
 		entries, readErr := reader.ReadDir(64)
@@ -90,39 +101,41 @@ func (r *Repository) List(ctx context.Context) (summaries []Summary, err error) 
 			if entriesSeen > r.limits.maxEntries {
 				return nil, fmt.Errorf("%w: limit %d", ErrRepositoryLarge, r.limits.maxEntries)
 			}
-			if err := contextError(ctx, "list"); err != nil {
+			summary, include, err := r.summaryForEntry(ctx, entry)
+			if err != nil {
 				return nil, err
 			}
-			if !entry.IsDir() {
-				continue
+			if include {
+				summaries = append(summaries, summary)
 			}
-			name := entry.Name()
-			if ValidateName(name) != nil {
-				continue
-			}
-			summary, summaryErr := r.loadSummary(ctx, name)
-			if summaryErr != nil {
-				if ctxErr := contextError(ctx, "list"); ctxErr != nil {
-					return nil, ctxErr
-				}
-				if errors.Is(summaryErr, fs.ErrNotExist) || errors.Is(summaryErr, ErrInvalidSkill) {
-					continue
-				}
-				return nil, fmt.Errorf("skills: list: %w", summaryErr)
-			}
-			summaries = append(summaries, summary)
 		}
 		if errors.Is(readErr, io.EOF) {
-			break
+			return summaries, nil
 		}
 		if readErr != nil {
 			return nil, fmt.Errorf("skills: list directory: %w", readErr)
 		}
 	}
-	slices.SortFunc(summaries, func(a, b Summary) int {
-		return strings.Compare(a.Name, b.Name)
-	})
-	return summaries, nil
+}
+
+func (r *Repository) summaryForEntry(ctx context.Context, entry fs.DirEntry) (Summary, bool, error) {
+	if err := contextError(ctx, "list"); err != nil {
+		return Summary{}, false, err
+	}
+	if !entry.IsDir() || ValidateName(entry.Name()) != nil {
+		return Summary{}, false, nil
+	}
+	summary, err := r.loadSummary(ctx, entry.Name())
+	if err == nil {
+		return summary, true, nil
+	}
+	if ctxErr := contextError(ctx, "list"); ctxErr != nil {
+		return Summary{}, false, ctxErr
+	}
+	if errors.Is(err, fs.ErrNotExist) || errors.Is(err, ErrInvalidSkill) {
+		return Summary{}, false, nil
+	}
+	return Summary{}, false, fmt.Errorf("skills: list: %w", err)
 }
 
 // Load reads, parses, and validates one skill by directory name.
@@ -250,6 +263,9 @@ func (r *Repository) OpenResource(ctx context.Context, name, resource string) (f
 		return nil, err
 	}
 	if err := validateResourcePath(resource); err != nil {
+		return nil, err
+	}
+	if _, err := r.load(ctx, name); err != nil {
 		return nil, err
 	}
 	operation := fmt.Sprintf("open resource %q/%q", name, resource)

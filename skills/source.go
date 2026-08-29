@@ -39,7 +39,7 @@ type ResourceSource interface {
 }
 
 func contextError(ctx context.Context, operation string) error {
-	if err := ctx.Err(); err != nil {
+	if err := context.Cause(ctx); err != nil {
 		return fmt.Errorf("skills: %s: %w", operation, err)
 	}
 	return nil

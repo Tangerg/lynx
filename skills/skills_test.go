@@ -179,6 +179,35 @@ func TestParseNoFrontmatter(t *testing.T) {
 	}
 }
 
+func TestRepositoryResourceRequiresValidOwningSkill(t *testing.T) {
+	repository := mustNewFS(fstest.MapFS{
+		"broken/SKILL.md":           {Data: []byte("not frontmatter")},
+		"broken/references/note.md": {Data: []byte("must not escape invalid bundle")},
+	})
+	if _, _, err := ReadResource(t.Context(), repository, "broken", "references/note.md", DefaultMaxResourceBytes); !errors.Is(err, ErrInvalidSkill) {
+		t.Fatalf("ReadResource error = %v, want ErrInvalidSkill", err)
+	}
+}
+
+func TestRepositoryResourceMustBeRegularFile(t *testing.T) {
+	repository := mustNewFS(fstest.MapFS{
+		"safe-skill/SKILL.md":                skillFile("safe-skill", "safe skill", "body"),
+		"safe-skill/references/reference.md": {Data: []byte("reference")},
+	})
+	if _, _, err := ReadResource(t.Context(), repository, "safe-skill", "references", DefaultMaxResourceBytes); !errors.Is(err, ErrResourceNotRegular) {
+		t.Fatalf("ReadResource error = %v, want ErrResourceNotRegular", err)
+	}
+}
+
+func TestRepositoryPreservesCancellationCause(t *testing.T) {
+	want := errors.New("repository stopped")
+	ctx, cancel := context.WithCancelCause(t.Context())
+	cancel(want)
+	if _, err := newTestFS().List(ctx); !errors.Is(err, want) {
+		t.Fatalf("List error = %v, want cancellation cause", err)
+	}
+}
+
 func TestParseValidatesSkill(t *testing.T) {
 	_, err := Parse([]byte("---\nname: invalid-skill\ndescription:\n---\n"))
 	if !errors.Is(err, ErrInvalidSkill) || !errors.Is(err, ErrDescriptionEmpty) {

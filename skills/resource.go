@@ -60,11 +60,11 @@ type contextReader struct {
 }
 
 func (reader contextReader) Read(buffer []byte) (int, error) {
-	if err := reader.ctx.Err(); err != nil {
+	if err := context.Cause(reader.ctx); err != nil {
 		return 0, err
 	}
 	read, err := reader.reader.Read(buffer)
-	if contextErr := reader.ctx.Err(); contextErr != nil {
+	if contextErr := context.Cause(reader.ctx); contextErr != nil {
 		return read, errors.Join(err, contextErr)
 	}
 	return read, err
@@ -98,6 +98,19 @@ func checkedResourceFile(
 	}
 	if lo.IsNil(file) {
 		return nil, fmt.Errorf("skills: %s: %w", operation, ErrNilResourceFile)
+	}
+	info, statErr := file.Stat()
+	if statErr != nil {
+		return nil, errors.Join(
+			resourceIOError("stat", name, resource, statErr),
+			closeResourceFile(name, resource, file),
+		)
+	}
+	if !info.Mode().IsRegular() {
+		return nil, errors.Join(
+			fmt.Errorf("skills: %s: %w: mode %s", operation, ErrResourceNotRegular, info.Mode().Type()),
+			closeResourceFile(name, resource, file),
+		)
 	}
 	return file, nil
 }

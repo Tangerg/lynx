@@ -7,7 +7,7 @@ const (
 	DefaultMaxFrontmatterBytes  = int64(64 * 1024)
 	DefaultMaxSkillBytes        = int64(1024 * 1024)
 	DefaultMaxResourceBytes     = int64(1024 * 1024)
-	maxBoundedReadBytes         = int64(^uint64(0)>>1) - 1
+	maxBoundedReadBytes         = int64(^uint(0)>>1) - 1
 )
 
 // RepositoryConfig bounds repository discovery and skill-document reads.
