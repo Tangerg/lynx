@@ -1,14 +1,14 @@
 # Agent Framework 公共合同基线
 
-> 状态：Baseline 37 已冻结
-> 冻结日期：2026-08-29
-> 适用范围：`agent` 根 package、`agent/agenttest`、`agent/interaction`、`agent/planning`、`agent/planning/goap`、`agent/workflow`、`agent/platform`、Process Snapshot v8、TreeSnapshot v6、child/framework-effect protocol v2、Interaction state/protocol v8/v8、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
+> 状态：Baseline 38 已冻结
+> 冻结日期：2026-08-30
+> 适用范围：`agent` 根 package、`agent/agenttest`、`agent/interaction`、`agent/planning`、`agent/planning/goap`、`agent/workflow`、`agent/platform`、Process Snapshot v9、TreeSnapshot v7、child/framework-effect protocol v2、Interaction state/protocol v8/v8、Planning state/protocol v3/v1、Workflow state v2、Event/Delta observation wire
 
 本文只记录已经由真实 Interaction、child composition、独立 command consumer、Planning/GOAP、managed Workflow、Platform 与恢复合同共同证明的公共合同基线。目标架构、ADR 和工程标准仍由各自现行文档拥有；已完成阶段记录只作为历史归档，不在这里复制。
 
 ## 1. 基线的含义
 
-Baseline 37 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、派生 JSON Schema、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
+Baseline 38 不是兼容承诺或发布版本。仓库仍允许 breaking change，但任何公共名称、参数名、签名、GoDoc、派生 JSON Schema、sentinel error、Framework/Strategy recovery wire 或 observation wire 的变化都必须是显式设计决策：
 
 1. 先用真实 Strategy 或 consumer 证明变化必要；
 2. 更新或追加 ADR，不保留 alias、双读、双写或兼容 shim；
@@ -17,29 +17,20 @@ Baseline 37 不是兼容承诺或发布版本。仓库仍允许 breaking change�
 
 无意变化必须被测试直接阻止，不能靠 review 人工记忆当前 API。
 
-### 1.1 已接受的后续基线修订
+### 1.1 Baseline 38 durable kernel 修订
 
-ADR-A2-089 已接受 durable kernel 的 breaking revision。Baseline 36 已完整实施其前两个纵切：root tree 单一 owner line，以及唯一 tree recovery unit 与显式 Effect phase：
+ADR-A2-089 的 Scope kernel 部分已由 Baseline 36～38 完整实施。Baseline 38 在既有 root-tree owner、唯一 tree recovery unit、稳定 Signal 输入与 `StartedAt` 归属之上闭合 durable execution：
 
-- `Snapshot` → `ProcessSnapshot`，`ParseSnapshot` → `ParseProcessSnapshot`，`Process.Capture` → `Process.Snapshot`；
-- 删除 `Engine.Restore`，完整 `TreeSnapshot` 成为唯一恢复输入；
-- `Process.ResolveEffect` → `Process.ResolveUnknownEffect`；
-- `TreeSnapshot` 增加可选 `TreeIncarnationID` 与 canonical digest，Process Snapshot wire 用显式 `planned/pending/settled` phase 代替 settlement nil 猜测；
-- 恢复严格区分未派发的 planned Effect 与可能已派发的 pending Effect，batch 只允许 declaration-order 单调推进。
+- 删除 `PreparedStepAcknowledger`/`EngineConfig.PreparedStepAcknowledger`，以闭合 `TreeDurability` 嵌入唯一 start-outcome lifecycle，并增加 Engine-minted immutable `TreeActivation`、`EffectBoundary` 与 `TreeCheckpoint`；
+- root/child outcome、Dispatcher Effect pending/settled/resolved、Parked/Terminal safe cut 都提交完整 prospective `TreeSnapshot`，同一 tree 只有一个 callback in flight；
+- `TreeIncarnationID` 是 durable mode 与 active writer 的唯一表示；restore 先建立不可见 local tree reservation，再以 previous digest/incarnation CAS 激活新 incarnation，成功后才发布 Process；
+- durable pending recovery 对 SameIdentity 重派原 EffectID，对 Never 先提交 settled Unknown；无效 replay policy 在 activation 前拒绝；
+- durable Event/Delta 携带 current incarnation，`CaptureTree` 返回 `ErrTreeCaptureUnavailable`；`Termination` 以 canonical `UnresolvedEffectIDs` 保留 tree fault、Kill 与 sibling in-flight 对账身份；
+- child admission 的 provisional budget 只参与运行期资源门禁，直到 child outcome prospective tree 才与 topology、parent settlement 一起转成 committed reservation；
+- `PreparedWaitingSubtreeCancellation` 增加 acknowledged `SourceTreeDigest`，durable Apply 只安装 Host 已原子提交的 exact projection并推进 acknowledged head；
+- `agenttest` 删除单 Process prepared recorder，新增 typed `MemoryTreeDurability` teaching adapter、最小 conformance driver 与正常 Engine 路径的公开 suite。
 
-Baseline 37 进一步关闭确定性输入与启动时间归属：
-
-- `Signal` 只保留稳定 `SignalID`、可选 `WaitID` 与 canonical payload；删除 Strategy-visible `ReceivedAt` 和 `received_at` wire，同一 `SignalRequest` 重投产生字节等价输入；
-- `ProcessAdmission` 只描述稳定准入事实；`StartedAt` 只存在于 started `ProcessStartOutcome`，aborted outcome 没有生命周期时间。
-
-后续纵切继续完成：
-
-- 删除 `PreparedStepAcknowledger`/`EngineConfig.PreparedStepAcknowledger`，新增闭合的 `TreeDurability` 与 typed activation/effect/checkpoint boundary values；
-- durable Event/Delta 增加 current tree incarnation attribution；
-- durable `CaptureTree` 返回 `ErrTreeCaptureUnavailable`；
-- prepared waiting-subtree cancellation 增加 acknowledged `SourceTreeDigest` 合同。
-
-这些纵切不保留旧名称 alias、Process restore 旁路、旧 wire 双读、durability boolean 或万能 `Commit(any)`。每一批只有在自己的实现、strict codec、race、consumer 与文档同时闭合后才进入 frozen digest。
+Process Snapshot/TreeSnapshot 直接升级为 v9/v7，Event/Delta wire 增加可选 `tree_incarnation_id`。本 revision 不保留旧名称 alias、Process restore 旁路、旧 wire 双读、durability boolean、测试 boundary constructor 或万能 `Commit(any)`。Flame 的 Store/transaction/boot adapter 是 harness 集成，不进入此 agent 公共基线。
 
 ## 2. 已冻结的公共窄腰
 
@@ -56,7 +47,8 @@ Baseline 37 进一步关闭确定性输入与启动时间归属：
 - Budget/Limits/TreeLimits/CapabilitySet/Usage：本地工作上限、tree expansion、authority attenuation 与事实计数。
 - ProcessAdmission/ProcessAdmitter：根与子 Process 共用、只读、context-aware 且不能修改 Framework 资源的启动准入边界。
 - ProcessStartOutcome/ProcessStartOutcomeAcknowledger：每个 accepted admission 唯一的 started/aborted 初始化结论，以及 Process 发布前的同步中性 acknowledgment。
-- Event/Delta：自足携带 exact execution attribution 的权威已发生事实与 best-effort 临时增量；listener 无 veto/error 通道，Engine 以不可变饱和计数快照暴露被隔离的 listener panic。
+- TreeDurability/TreeActivation/EffectBoundary/TreeCheckpoint：完整 durable Host 的闭合事务 port、writer 接管握手和三类 Engine-minted immutable tree boundary；不暴露 Store、transaction、lease 或 boundary constructor。
+- Event/Delta：自足携带 exact execution attribution 的已发生观察事实与 best-effort 临时增量；durable value携带 current incarnation，listener 无 veto/error 通道，Engine 以不可变饱和计数快照暴露被隔离的 listener panic。
 - Descriptor.EncodeInput/DecodeOutput 与 Input/Output.Decode：只存在于类型擦除边缘的 Go 1.27 方法泛型；不改变非泛型 Engine 窄腰。
 
 `interaction` package 冻结为一个 Strategy：Definition 拥有 WorkingContext、模型/Tool 状态机、exact managed Delegate、typed Delegate artifacts 与可选 pure completion validator，Dispatcher 只拥有模型和普通 Tool I/O。Delegate 将目标 Descriptor Input 暴露为模型 Tool schema，但只能由 Execution 经 Framework `StartChild`/`WaitForChildren` 推进；成功 child Output 经 exact schema 复验后进入 immutable validator view，validator 读取防御性复制的当前 WorkingContext/candidate/artifacts，拒绝候选时以有界 feedback 进入下一模型轮次。`ModelInvocation.AppliedSteerSignalIDs` 只归因首次进入当前模型请求的 steer Signal；`ActiveDelegateChildrenFromSnapshot` 只解释 Interaction 自己的已提交 opaque state，并以不可变 `ActiveDelegateChild` 公开模型调用序号、ToolCall 位置和值、ChildKey 与 ProcessID。两者都不暴露 private wire，也不保存 Engine handle 或 Host identity。`HostFailure` 只标记 Host 在尚未跨越模型或 Tool 外部边界前已经拒绝的自有前置条件；Dispatcher 必须把它结算为确定的 terminal failure，不能伪装成 provider 错误或模型可见 Tool output。普通模型/Tool 错误的既有语义不变。Dispatcher 以不可变饱和计数快照暴露被隔离的模型/Tool observer panic，不改变 settlement。HITL/steer/stream/tool concurrency 仍通过根窄腰表达。Interaction 不拥有 Process lifecycle、产品 history、artifact store、UI 或 approval policy。
@@ -71,24 +63,24 @@ Baseline 37 进一步关闭确定性输入与启动时间归属：
 
 ## 3. 自动守卫
 
-`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和现有 GoDoc 的任何漂移都会失败。AST 守卫只强制关键接口及其每个具名方法拥有契约注释，同时要求公开 callable 的参数使用语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链；constructor、codec、clone、validate、简单 accessor、字段与 sentinel error 不因导出而被迫生成复述型注释。Baseline 37 public digest：
+`baseline_test.go` 对七个已冻结公共 package 的完整 `go doc -all` 输出做 SHA-256 校验，因此 exported identifier、参数名、字段、签名和现有 GoDoc 的任何漂移都会失败。AST 守卫只强制关键接口及其每个具名方法拥有契约注释，同时要求公开 callable 的参数使用语义名称，并禁止 error cause 通过 `%v` 丢失 `errors.Is/As` 链；constructor、codec、clone、validate、简单 accessor、字段与 sentinel error 不因导出而被迫生成复述型注释。Baseline 38 public digest：
 
 P25 将 Agent 的 JSON Schema 派生与编译归并到 Core 共享 owner；P24 已将 Planning `Truth` 纳入同一稳定文本值对象规则：
 
-- root kernel：`899e33b582ae710c09b54de70b7e9e40b4f4947f996d6a96e8aefa1331c15f96`
-- agenttest：`ee493eb270bb15affeb19da31105cef1a09fa54ffe54b66cc45b5ce6feb5bf55`
+- root kernel：`c823bf8a818954036025888e423c741253e9675dd245ed1f4d007cc0c92b22fc`
+- agenttest：`2a7dc4bffb9ebb9c1d1f94efeb49999daff333d1d5cfffd9b0c5c713bf2d91aa`
 - interaction：`8b39cc9e28e0bdd00579c4563dbc3d9b8237f3b932b30740f85941f2911fdf54`
 - planning：`4ca18318b81c7fc646ee7121c9f2e303df2cc2d28fcd8357e2c3b07cebd1a014`
 - planning/goap：`0f7376bbf8b1815315005984540bdc5d5aabb7bccea5147f957c2911a55e04e7`
 - workflow：`f0f995aa9a543e0985d650ca9815d6baac1aa6367f6d75483b958489113fda16`
 - platform：`f55a3f35ae808a709284bc828e0bd8dcdc8d258bf2a8185ebe2a88da39a97d1e`
 
-Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 37 wire digest：
+Kernel 测试独立冻结其全部 production `*Wire`、Framework Event payload 与 schema version；每个 Strategy package 冻结自己的私有 ExecutionState 和 Effect/Signal/Delta protocol。覆盖守卫要求新增 production wire 或私有 JSON struct 必须进入所有者 baseline，Kernel 始终只保存 opaque `ExecutionState.Payload`，不会递归解释 Strategy shape。Baseline 38 wire digest：
 
 下列 digest 冻结当前 Kernel、Interaction 与 Planning 的完整 wire 类型形状：
 
-- Kernel snapshot/protocol wire：`bc057dd6141de1deca52ed31400fd50410a8a74e660ff6e0bf4c7443908ccbdc`
-- Framework Event/Delta observation wire：`a087b14412eddf40b5bddcc051a4a02f0620b150daa94977816882c80f3ccf1f`
+- Kernel snapshot/protocol wire：`791221b7d2c2f059bb0985801d69233eebae83f38f8dcf68661fd08535ef164d`
+- Framework Event/Delta observation wire：`1ee6b9c1505ab36a3df0ac4ed0b0eb6e7df15f9427457381053d6e08690278fc`
 - Interaction state/protocol wire：`ef93719a0d98d6400c6696bc47e00b2308710b89cdb5dfd0d0ee19e2b3f8ca72`
 - Planning state/protocol wire：`dc6f02ca28f1fbb9e14899bd3103a781b4f5341a397cd8d8bbef279d198a784e`
 - Workflow state wire：`2d4d33d0c9996077abb594f3d2aab47d37059c6e126ad5e971ee8d484bb4442d`
@@ -195,6 +187,8 @@ P34 依据 ADR-A2-089 形成 Baseline 36。Framework 恢复入口收敛为完整
 
 P35 依据 ADR-A2-089 形成 Baseline 37。`Signal` 删除 Engine wall clock 与 `received_at` wire，只保留稳定 delivery/wait identity 和 canonical payload；重复构造同一 `SignalRequest` 产生字节等价的 Strategy 输入，业务时间必须显式进入 payload，接收观察时间仍由 Event 拥有。`ProcessAdmission` 同步删除 `StartedAt`，准入只携带可重投的稳定事实；accepted admission 后生成的 UTC lifecycle time 只由 started `ProcessStartOutcome` 暴露，aborted outcome 明确无时间。Process Snapshot/TreeSnapshot 分别直接升级到 v8/v6，旧 wire 严格拒绝；root public 与 Kernel wire digest 显式更新，其他 owner contract 不变。
 
+P36 依据 ADR-A2-089 形成 Baseline 38。Kernel 删除单 Process `PreparedStepAcknowledger`，安装闭合 `TreeDurability`、root-tree 单一 durability commit line、root/child atomic outcome、Effect pending/settled/resolved、Parked/Terminal checkpoint、crypto-random incarnation activation fencing 和 durable observation attribution。restore publication 前的 whole-tree reservation 消除 activation 后本地注册失败窗口；child provisional budget 消除 sibling snapshot 中“预算已扣、child 尚不存在”的半状态；tree-scoped fault 以 canonical 两阶段终止保留全部 sibling unresolved EffectID。durable `CaptureTree` 明确拒绝，waiting-subtree prepared transform 以 acknowledged source/result digest 接续同一 head。`agenttest` 用 typed memory adapter 和公开 conformance 取代 prepared recorder。Process Snapshot/TreeSnapshot 直接升级为 v9/v7，observation wire 增加可选 incarnation；root、agenttest、Kernel wire与 observation digest 显式更新，其他 owner contract 不变。
+
 ## 4. 明确不在基线中的能力
 
-Baseline 37 保持唯一 `agent` module、一次性 prepared authority、mutable owner pointer identity、提交式取消请求、Interaction-owned steer 归因与准确 JSON wire schema 合同。Delta barrier 只表达 Framework-owned observation ordering，不接收 Host callback、事务或资源 identity；observation failure snapshot 只表达 owner 已隔离的 panic 数量，不成为第二事件流或控制面。Interaction host-failure 标记只表达外部调用前的 Host 拒绝，不携带 Runtime、RPC、数据库或产品终态。Model context reducer 只替换模型可见 messages 并回写 Strategy 状态，不拥有持久化、压缩算法或产品事件。ToolInvocation 只拥有一个实际 Tool 边界的精确模型结果映射，不拥有 Host transcript/persistence。Core Chat 的单 Output 是 Interaction 唯一模型响应合同，不提供复数候选或旧 Result wire 兼容读取。具有稳定文本身份的枚举与 Planning `Truth` 使用 named string value object；仅用于进程内控制的 FSM 判别值、位掩码和计数仍保持与其运算语义匹配的数值表示。JSON Schema 的通用反射与编译由 Core 单点拥有，领域值只通过 typed model 描述自己的 wire；规则不认识 Runtime/provider，也不泄露第三方 schema 实现。模块路径变化不引入 alias、replace compatibility 或旧 wire 双读。七个公共 package及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`agenttest` 不模拟 Framework 生命周期；`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow Topology 只是 sealed algebra 的静态投影，不是可执行图。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。
+Baseline 38 保持唯一 `agent` module、root-tree 单一 commit owner、一次性 prepared authority、mutable owner pointer identity、提交式取消请求、Interaction-owned steer 归因与准确 JSON wire schema 合同。完整 durability 只通过 Engine-minted typed values 和闭合 `TreeDurability` port进入，未增加 Store、transaction、Run、Session、lease、万能 hook 或 dynamic map；`EngineConfig{}` 仍是正确的 ephemeral 路径。Delta barrier 只表达 Framework-owned observation ordering，不接收 Host callback、事务或资源 identity；observation failure snapshot 只表达 owner 已隔离的 panic 数量，不成为第二事件流或控制面。Interaction host-failure 标记只表达外部调用前的 Host 拒绝，不携带 Runtime、RPC、数据库或产品终态。Model context reducer 只替换模型可见 messages 并回写 Strategy 状态，不拥有持久化、压缩算法或产品事件。ToolInvocation 只拥有一个实际 Tool 边界的精确模型结果映射，不拥有 Host transcript/persistence。Core Chat 的单 Output 是 Interaction 唯一模型响应合同，不提供复数候选或旧 Result wire 兼容读取。具有稳定文本身份的枚举与 Planning `Truth` 使用 named string value object；仅用于进程内控制的 FSM 判别值、位掩码和计数仍保持与其运算语义匹配的数值表示。JSON Schema 的通用反射与编译由 Core 单点拥有，领域值只通过 typed model 描述自己的 wire；规则不认识 Runtime/provider，也不泄露第三方 schema 实现。模块路径变化不引入 alias、replace compatibility 或旧 wire 双读。七个公共 package及全部 snapshot、Strategy protocol 和 observation wire 的语义仍由各自 digest 守卫。`agenttest` 只用真实 Engine 路径验证 adapter，不模拟 Framework owner 或暴露 private boundary constructor；`flow` 保持独立 in-process 库，不形成 Agent adapter API 或依赖；Workflow Topology 只是 sealed algebra 的静态投影，不是可执行图。未来编辑器图只能在更高层编译成已验证的 Workflow Definition，不能反向扩张 Kernel 或恢复 wire。

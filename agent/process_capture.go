@@ -91,14 +91,24 @@ func restoreProcessLoop(
 			if record.Phase != effectPhasePending || record.Effect.Target() != EffectTargetDispatcher {
 				continue
 			}
-			if dispatcherReplayPolicy(deployment.effectDispatcher(), record.Effect) == ReplayPolicySameIdentity {
+			policy, policyErr := dispatcherReplayPolicy(
+				deployment.effectDispatcher(), record.Effect,
+			)
+			if policyErr != nil {
+				return nil, fmt.Errorf("%w: restore pending Effect: %w", ErrInvalidSnapshot, policyErr)
+			}
+			if engine.durability == nil && policy == ReplayPolicyNever {
+				if err := record.settleUnknown(); err != nil {
+					return nil, fmt.Errorf("%w: restore pending Effect: %w", ErrInvalidSnapshot, err)
+				}
 				continue
 			}
-			if err := record.settleUnknown(); err != nil {
-				return nil, fmt.Errorf("%w: restore pending Effect: %w", ErrInvalidSnapshot, err)
+			if loop.restoredPending.id.Valid() {
+				return nil, fmt.Errorf("%w: multiple pending Effects", ErrInvalidSnapshot)
 			}
+			loop.restoredPending = restoredPendingEffect{id: record.ID, replayPolicy: policy}
 		}
-		loop.prepared = &preparedStep{wire: preparedWire, acknowledged: true}
+		loop.prepared = &preparedStep{wire: preparedWire}
 	}
 	controller.updateView(loop.status, loop.currentWaitID, loop.usage)
 	return loop, nil

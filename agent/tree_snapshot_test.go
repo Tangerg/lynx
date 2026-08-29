@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"sync"
 	"testing"
 	"testing/synctest"
 )
@@ -339,58 +338,52 @@ func TestTreeRestoreResolvesEveryExactDeployment(t *testing.T) {
 	}
 }
 
-func TestTreeRestoreReplaysPreparedChildStartWithStableIdentity(t *testing.T) {
-	acknowledger := newBlockingChildStartAcknowledger()
+func TestDurableChildOutcomeCommitsWholeProspectiveTree(t *testing.T) {
+	durability := &recordingTreeDurability{}
 	deployment := newChildTestDeployment(t)
-	engine, err := NewEngine(EngineConfig{PreparedStepAcknowledger: acknowledger})
+	engine, err := NewEngine(EngineConfig{TreeDurability: durability})
 	if err != nil {
 		t.Fatal(err)
 	}
 	input, _ := EncodeInput(childTestInput{Mode: "parent"})
-	original, err := engine.Start(context.Background(), deployment, input)
+	root, err := engine.Start(context.Background(), deployment, input)
 	if err != nil {
 		t.Fatal(err)
 	}
-	prepared := <-acknowledger.captured
-	preparedWire, _ := prepared.wire()
-	wantChildID := deriveChildProcessID(preparedWire.Prepared.Effects[0].ID)
-	tree, err := newTreeSnapshot(treeSnapshotWire{
-		SchemaVersion: treeSnapshotSchemaVersion,
-		RootID:        prepared.ProcessID(), ProcessSnapshots: []ProcessSnapshot{prepared},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	restoredEngine, _ := NewEngine(EngineConfig{})
-	restored, err := restoredEngine.RestoreTree(context.Background(), deployment, tree)
-	if err != nil {
-		t.Fatal(err)
-	}
-	result := mustAwait(t, restored)
+	result := mustAwait(t, root)
 	output := childTestResult(t, result)
-	if len(output.ChildIDs) != 1 || output.ChildIDs[0] != wantChildID.String() {
-		t.Fatalf("restored child output = %#v, want %s", output, wantChildID)
+	if len(output.ChildIDs) != 1 {
+		t.Fatalf("child output = %#v", output)
 	}
-	if len(directChildIDs(t, restoredEngine, restored.ID())) != 1 {
-		t.Fatal("prepared child start did not restore exactly once")
+	wantChildID, err := ParseProcessID(output.ChildIDs[0])
+	if err != nil {
+		t.Fatal(err)
 	}
-	child, found := restoredEngine.Process(wantChildID)
+	var childOutcome ProcessStartOutcome
+	for _, outcome := range durability.startOutcomes() {
+		if outcome.Admission().Relation().ProcessID() == wantChildID {
+			childOutcome = outcome
+			break
+		}
+	}
+	previous, hasPrevious := childOutcome.PreviousTreeDigest()
+	tree, hasTree := childOutcome.TreeSnapshot()
+	if !childOutcome.Valid() || !hasPrevious || !previous.Valid() || !hasTree {
+		t.Fatalf("child outcome lacks durable tree facts: %#v", childOutcome)
+	}
+	if len(tree.ProcessSnapshots()) != 2 || !snapshotByID(tree.ProcessSnapshots(), wantChildID).Valid() {
+		t.Fatalf("child outcome tree does not contain both Processes: %#v", tree.ProcessSnapshots())
+	}
+	parentWire, err := snapshotByID(tree.ProcessSnapshots(), root.ID()).wire()
+	if err != nil || parentWire.Prepared == nil ||
+		!parentWire.Prepared.Effects[0].definitelySettled() {
+		t.Fatalf("parent child-start settlement is not atomic with child: %v", err)
+	}
+	child, found := engine.Process(wantChildID)
 	if !found {
-		t.Fatal("stable restored child is missing")
+		t.Fatal("committed child was not published")
 	}
 	_ = mustAwait(t, child)
-	if err := restoredEngine.Close(); err != nil {
-		t.Fatal(err)
-	}
-
-	acknowledger.release()
-	_ = mustAwait(t, original)
-	for _, encoded := range directChildIDs(t, engine, original.ID()) {
-		id, _ := ParseProcessID(encoded)
-		child, _ := engine.Process(id)
-		_ = mustAwait(t, child)
-	}
 	if err := engine.Close(); err != nil {
 		t.Fatal(err)
 	}
@@ -436,37 +429,6 @@ func TestTreeRestoreValidatesTerminalOutputAgainstExactDeployment(t *testing.T) 
 		t.Fatal(err)
 	}
 }
-
-type blockingChildStartAcknowledger struct {
-	captured chan ProcessSnapshot
-	once     sync.Once
-	gate     chan struct{}
-}
-
-func newBlockingChildStartAcknowledger() *blockingChildStartAcknowledger {
-	return &blockingChildStartAcknowledger{
-		captured: make(chan ProcessSnapshot, 1), gate: make(chan struct{}),
-	}
-}
-
-func (b *blockingChildStartAcknowledger) AcknowledgePreparedStep(
-	_ context.Context,
-	snapshot ProcessSnapshot,
-) error {
-	wire, err := snapshot.wire()
-	if err != nil || wire.Prepared == nil || len(wire.Prepared.Effects) != 1 {
-		return err
-	}
-	operation, err := decodeFrameworkEffectOperation(wire.Prepared.Effects[0].Effect.Payload())
-	if err != nil || operation != frameworkEffectStartChild {
-		return err
-	}
-	b.once.Do(func() { b.captured <- snapshot })
-	<-b.gate
-	return nil
-}
-
-func (b *blockingChildStartAcknowledger) release() { close(b.gate) }
 
 func assertNoChildWaitRegistrations(t *testing.T, engine *Engine) {
 	t.Helper()

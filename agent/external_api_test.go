@@ -137,11 +137,9 @@ func TestExternalPackageCanComposeAndRunDefinition(t *testing.T) {
 		t.Fatal(err)
 	}
 	observations := &agenttest.ObservationRecorder{}
-	preparedSteps := agenttest.NewPreparedStepRecorder(nil)
 	engine, err := agent.NewEngine(agent.EngineConfig{
-		PreparedStepAcknowledger: preparedSteps,
-		EventListeners:           []agent.EventListener{observations},
-		DeltaListeners:           []agent.DeltaListener{observations},
+		EventListeners: []agent.EventListener{observations},
+		DeltaListeners: []agent.DeltaListener{observations},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -167,9 +165,6 @@ func TestExternalPackageCanComposeAndRunDefinition(t *testing.T) {
 	}
 	if dispatcher.Remaining() != 0 || len(dispatcher.Requests()) != 1 {
 		t.Fatalf("remaining dispatches=%d requests=%d", dispatcher.Remaining(), len(dispatcher.Requests()))
-	}
-	if len(preparedSteps.Snapshots()) != 1 {
-		t.Fatalf("prepared snapshots=%d, want 1", len(preparedSteps.Snapshots()))
 	}
 	if len(observations.Events()) == 0 || len(observations.Deltas()) != 1 {
 		t.Fatalf("events=%d deltas=%d", len(observations.Events()), len(observations.Deltas()))

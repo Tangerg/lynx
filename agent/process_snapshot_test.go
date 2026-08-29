@@ -201,10 +201,10 @@ func completedEngineTestSnapshot(t testing.TB) ProcessSnapshot {
 
 func preparedEngineTestSnapshot(t testing.TB) ProcessSnapshot {
 	t.Helper()
-	acknowledger := &engineTestAcknowledger{}
+	durability := &recordingTreeDurability{}
 	definition := newEngineTestDefinition(t, "engine.effect", "effect")
 	deployment := engineTestDeployment(t, definition, &engineTestDispatcher{policy: ReplayPolicyNever})
-	engine, err := NewEngine(EngineConfig{PreparedStepAcknowledger: acknowledger})
+	engine, err := NewEngine(EngineConfig{TreeDurability: durability})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -215,7 +215,20 @@ func preparedEngineTestSnapshot(t testing.TB) ProcessSnapshot {
 	if _, err := engine.Run(context.Background(), deployment, input); err != nil {
 		t.Fatal(err)
 	}
-	snapshot := acknowledger.captured()
+	boundaries := durability.effectBoundaries()
+	if len(boundaries) == 0 || boundaries[0].Kind() != EffectBoundaryPending {
+		t.Fatalf("pending Effect boundary is missing: %#v", boundaries)
+	}
+	snapshot := boundaries[0].TreeSnapshot().ProcessSnapshots()[0]
+	wire, err := snapshot.wire()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wire.Prepared.Effects[0].Phase = effectPhasePlanned
+	snapshot, err = newProcessSnapshot(wire)
+	if err != nil {
+		t.Fatal(err)
+	}
 	if err := engine.Close(); err != nil {
 		t.Fatal(err)
 	}

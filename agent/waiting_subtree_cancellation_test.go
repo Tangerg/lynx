@@ -81,6 +81,61 @@ func TestPreparedWaitingSubtreeCancellationAppliesExactTreeState(t *testing.T) {
 	}
 }
 
+func TestDurablePreparedWaitingSubtreeCancellationAdvancesFromAcknowledgedHead(t *testing.T) {
+	durability := &recordingTreeDurability{}
+	deployment := newChildTestDeployment(t)
+	engine, err := NewEngine(EngineConfig{TreeDurability: durability})
+	if err != nil {
+		t.Fatal(err)
+	}
+	root, target, descendant := startWaitingSubtreeInEngine(t, engine, deployment)
+	prepared, err := engine.PrepareWaitingSubtreeCancellation(
+		context.Background(), root.ID(), target.ID(), "durable branch cancellation",
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !prepared.SourceTreeDigest().Valid() ||
+		prepared.SourceTreeDigest() == prepared.ResultingSnapshot().Digest() {
+		t.Fatalf(
+			"source=%s resulting=%s",
+			prepared.SourceTreeDigest(), prepared.ResultingSnapshot().Digest(),
+		)
+	}
+	checkpoints := durability.treeCheckpoints()
+	if len(checkpoints) == 0 ||
+		checkpoints[len(checkpoints)-1].TreeSnapshot().Digest() != prepared.SourceTreeDigest() {
+		t.Fatalf("prepared source was not the acknowledged checkpoint head")
+	}
+	sourceIncarnation, sourceDurable := prepared.source.snapshot.IncarnationID()
+	resultIncarnation, resultDurable := prepared.ResultingSnapshot().IncarnationID()
+	if !sourceDurable || !resultDurable || sourceIncarnation != resultIncarnation {
+		t.Fatalf(
+			"source incarnation=%s/%t result=%s/%t",
+			sourceIncarnation, sourceDurable, resultIncarnation, resultDurable,
+		)
+	}
+	if err := prepared.Apply(); err != nil {
+		t.Fatal(err)
+	}
+	if root.Status() != StatusPaused {
+		t.Fatalf("root status=%s", root.Status())
+	}
+	if result := mustAwait(t, target); result.Status() != StatusCanceled {
+		t.Fatalf("target status=%s", result.Status())
+	}
+	if result := mustAwait(t, descendant); result.Status() != StatusCanceled {
+		t.Fatalf("descendant status=%s", result.Status())
+	}
+	if err := root.Resume(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	_ = mustAwait(t, root)
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPreparedWaitingSubtreeCancellationRejectsNilAndZeroValues(t *testing.T) {
 	var nilPrepared *PreparedWaitingSubtreeCancellation
 	if err := nilPrepared.Apply(); !errors.Is(err, ErrInvalidPreparedWaitingSubtreeCancellation) {

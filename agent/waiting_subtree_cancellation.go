@@ -28,12 +28,22 @@ var (
 type PreparedWaitingSubtreeCancellation struct {
 	engine             *Engine
 	source             *quiescedTree
+	sourceTreeDigest   Digest
 	resultingSnapshot  TreeSnapshot
 	canceledProcessIDs []ProcessID
 	pausedProcessIDs   []ProcessID
 	projection         *treeStateProjection
 
 	resolution *waitingSubtreeCancellationResolution
+}
+
+// SourceTreeDigest returns the authoritative head that the Host transaction
+// must compare before installing ResultingSnapshot.
+func (p *PreparedWaitingSubtreeCancellation) SourceTreeDigest() Digest {
+	if p == nil {
+		return Digest{}
+	}
+	return p.sourceTreeDigest
 }
 
 // waitingSubtreeCancellationResolution is the identity of the one-shot
@@ -117,6 +127,7 @@ func (p *PreparedWaitingSubtreeCancellation) Discard() error {
 func (p *PreparedWaitingSubtreeCancellation) valid() bool {
 	return p.engine != nil &&
 		p.source.valid(p.engine, p.resultingSnapshot.RootID()) &&
+		p.sourceTreeDigest.Valid() && p.source.snapshot.Digest() == p.sourceTreeDigest &&
 		p.resultingSnapshot.Valid() &&
 		len(p.canceledProcessIDs) > 0 &&
 		p.projection != nil && len(p.projection.changes) ==
@@ -154,7 +165,7 @@ func (e *Engine) PrepareWaitingSubtreeCancellation(
 		return nil, fmt.Errorf("%w: %w", ErrInvalidProcessControl, err)
 	}
 	ctx = requireContext(ctx)
-	sourceTree, err := e.quiesceOwnedTree(ctx, rootID, treeFreezeModeExclusive)
+	sourceTree, err := e.quiesceAcknowledgedTree(ctx, rootID)
 	if err != nil {
 		return nil, err
 	}
@@ -186,14 +197,42 @@ func (e *Engine) PrepareWaitingSubtreeCancellation(
 	}
 	prepared = &PreparedWaitingSubtreeCancellation{
 		engine: e, source: sourceTree,
+		sourceTreeDigest:  source.Digest(),
 		resultingSnapshot: result, canceledProcessIDs: canceled, pausedProcessIDs: paused,
-		projection: &treeStateProjection{changes: stateChanges, childWaits: registrations},
+		projection: &treeStateProjection{
+			changes: stateChanges, childWaits: registrations,
+			sourceDigest: source.Digest(), resultingDigest: result.Digest(),
+		},
 		resolution: &waitingSubtreeCancellationResolution{},
 	}
 	if !prepared.valid() {
 		return nil, ErrInvalidPreparedWaitingSubtreeCancellation
 	}
 	return prepared, nil
+}
+
+func (e *Engine) quiesceAcknowledgedTree(
+	ctx context.Context,
+	rootID ProcessID,
+) (*quiescedTree, error) {
+	for {
+		source, err := e.quiesceOwnedTree(ctx, rootID, treeFreezeModeExclusive)
+		if err != nil {
+			return nil, err
+		}
+		if e.durability == nil || source.snapshot.Digest() == source.acknowledgedHead {
+			return source, nil
+		}
+		previousHead := source.acknowledgedHead
+		runtime := source.freeze.runtime
+		source.release()
+		if !previousHead.Valid() || runtime == nil {
+			return nil, ErrWaitingSubtreeCancellationUnavailable
+		}
+		if err := runtime.awaitHeadAdvance(ctx, previousHead); err != nil {
+			return nil, err
+		}
+	}
 }
 
 func validWaitingSubtreeCancellationProjection(

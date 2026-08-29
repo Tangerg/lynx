@@ -1,0 +1,268 @@
+package agent
+
+import (
+	"context"
+	"errors"
+)
+
+func (t *treeRuntime) applyCommand(command treeCommand) {
+	if t.deferDuringCommit(command) {
+		return
+	}
+	switch command.kind {
+	case treeCommandAcquireFreeze:
+		t.acquireFreeze(command.acquisition)
+		return
+	case treeCommandReleaseFreeze:
+		err := t.releaseFreeze(command.freeze)
+		command.response <- err
+		return
+	case treeCommandApplyFreeze:
+		err := t.applyFreeze(command.freeze, command.projection)
+		command.response <- err
+		return
+	case treeCommandWaitHeadAdvance:
+		if t.engine.durability == nil || !command.previousHead.Valid() {
+			command.response <- ErrTreeDurabilityMismatch
+			return
+		}
+		if t.headDigest != command.previousHead {
+			command.response <- nil
+			return
+		}
+		t.headWaiters = append(t.headWaiters, treeHeadWaiter{
+			previous: command.previousHead, response: command.response,
+		})
+		return
+	case treeCommandProcess:
+		if t.freeze != nil {
+			t.freeze.deferred = append(t.freeze.deferred, command)
+			return
+		}
+	default:
+		if command.response != nil {
+			command.response <- ErrEngineQuiescenceUnavailable
+		}
+		return
+	}
+	process := t.processes[command.processID]
+	if process == nil {
+		command.process.reply(processResponse{err: ErrProcessNotRunning})
+		return
+	}
+	processCommand := command.process
+	if processCommand.kind == commandHostTerminated {
+		if !process.status.Terminal() {
+			process.recordHostTermination(processCommand.hostErr)
+			t.invalidateStep(process)
+			t.markRunnable(process.controller.processID)
+		}
+		return
+	}
+	if processCommand.kind == commandResolveUnknownEffect {
+		if process.pendingControl.hasTerminalIntent() {
+			processCommand.reply(processResponse{err: ErrProcessFinished})
+			return
+		}
+		if t.engine.durability != nil {
+			if err := t.startUnknownResolutionCommit(process, processCommand); err != nil {
+				processCommand.reply(processResponse{err: err})
+				if !errors.Is(err, ErrEffectNotPending) {
+					t.failDurability(err, process.controller.processID, processCommand.settlement.EffectID())
+				}
+			}
+			return
+		}
+	}
+	process.applyCommand(t.context, processCommand)
+	if process.pendingControl.hasTerminalIntent() || process.pendingControl.pauseReason != "" {
+		t.invalidateStep(process)
+	}
+	t.finishIfTerminal(process)
+	if !process.status.Terminal() {
+		t.markRunnable(process.controller.processID)
+	}
+}
+
+func (t *treeRuntime) acquireFreeze(acquisition *treeFreezeAcquisition) {
+	if acquisition == nil || acquisition.response == nil || acquisition.canceled == nil ||
+		(acquisition.mode != treeFreezeModeSnapshot && acquisition.mode != treeFreezeModeExclusive) ||
+		t.freeze != nil {
+		if acquisition != nil && acquisition.response != nil {
+			acquisition.response <- treeFreezeAcquisitionResult{err: ErrEngineQuiescenceUnavailable}
+		}
+		return
+	}
+	freeze := &treeFreeze{runtime: t}
+	t.freeze = &activeTreeFreeze{acquisition: acquisition, freeze: freeze}
+	t.freezeHeld.Store(true)
+	if acquisition.mode == treeFreezeModeExclusive {
+		for _, process := range t.processes {
+			t.invalidateStep(process)
+		}
+	}
+	t.completeFreeze()
+}
+
+func (t *treeRuntime) completeFreeze() {
+	if t.freeze == nil || t.freeze.ready || t.freezeBlockedByJob() {
+		return
+	}
+	snapshot, err := t.captureTree()
+	if err != nil {
+		acquisition := t.freeze.acquisition
+		t.releaseFreeze(t.freeze.freeze)
+		acquisition.response <- treeFreezeAcquisitionResult{err: err}
+		return
+	}
+	t.freeze.ready = true
+	t.freeze.acquisition.response <- treeFreezeAcquisitionResult{
+		freeze: t.freeze.freeze, snapshot: snapshot,
+	}
+}
+
+func (t *treeRuntime) freezeBlockedByJob() bool {
+	if t.freeze == nil {
+		return false
+	}
+	if t.freeze.acquisition.mode == treeFreezeModeExclusive {
+		return len(t.jobs) != 0
+	}
+	allTerminal := true
+	for _, process := range t.processes {
+		allTerminal = allTerminal && process.status.Terminal()
+	}
+	if allTerminal {
+		return len(t.jobs) != 0
+	}
+	for _, job := range t.jobs {
+		if job.kind != processJobStep {
+			return true
+		}
+	}
+	return false
+}
+
+func (t *treeRuntime) captureTree() (TreeSnapshot, error) {
+	wire := treeSnapshotWire{SchemaVersion: treeSnapshotSchemaVersion, RootID: t.rootID}
+	if t.incarnation.Valid() {
+		incarnation := t.incarnation
+		wire.IncarnationID = &incarnation
+	}
+	for _, process := range t.processes {
+		snapshot, err := process.capture()
+		if err != nil {
+			return TreeSnapshot{}, err
+		}
+		wire.ProcessSnapshots = append(wire.ProcessSnapshots, snapshot)
+	}
+	for _, registration := range t.childWaits {
+		wire.ChildWaits = append(wire.ChildWaits, childWaitSnapshotWire{
+			ParentProcessID: registration.parent,
+			WaitID:          registration.waitID,
+			Spec:            childWaitSpecWireFromValue(registration.spec),
+		})
+	}
+	return newTreeSnapshot(wire)
+}
+
+func (t *treeRuntime) releaseFreeze(freeze *treeFreeze) error {
+	if t.freeze == nil || freeze == nil || t.freeze.freeze != freeze {
+		return ErrEngineQuiescenceUnavailable
+	}
+	deferred := t.freeze.deferred
+	t.freeze = nil
+	t.freezeHeld.Store(false)
+	for _, process := range t.processes {
+		if !process.status.Terminal() {
+			t.markRunnable(process.controller.processID)
+		}
+	}
+	for _, command := range deferred {
+		t.applyCommand(command)
+	}
+	return nil
+}
+
+func (t *treeRuntime) applyFreeze(
+	freeze *treeFreeze,
+	projection *treeStateProjection,
+) error {
+	if t.freeze == nil || !t.freeze.ready || freeze == nil || t.freeze.freeze != freeze ||
+		projection == nil {
+		return ErrInvalidPreparedWaitingSubtreeCancellation
+	}
+	if t.engine.durability != nil && t.headDigest != projection.sourceDigest {
+		return ErrTreeIncarnationConflict
+	}
+	for _, change := range projection.changes {
+		process := t.processes[change.processID]
+		if err := change.validateSource(process); err != nil {
+			return err
+		}
+	}
+	for _, change := range projection.changes {
+		process := t.processes[change.processID]
+		change.apply(t.context, process)
+	}
+	t.childWaits = make(map[WaitID]*childWaitRegistration, len(projection.childWaits))
+	for _, registration := range projection.childWaits {
+		t.childWaits[registration.waitID] = registration
+	}
+	for _, change := range projection.changes {
+		t.finishIfTerminal(t.processes[change.processID])
+	}
+	if t.engine.durability != nil {
+		result, err := t.captureTree()
+		if err != nil || result.Digest() != projection.resultingDigest {
+			return ErrInvalidPreparedWaitingSubtreeCancellation
+		}
+		t.headDigest = projection.resultingDigest
+		t.notifyHeadWaiters(nil)
+		t.publishCheckpoint()
+	}
+	return t.releaseFreeze(freeze)
+}
+
+func (t *treeRuntime) awaitHeadAdvance(ctx context.Context, previous Digest) error {
+	ctx = requireContext(ctx)
+	response := make(chan error, 1)
+	select {
+	case t.commands <- treeCommand{
+		kind: treeCommandWaitHeadAdvance, previousHead: previous, response: response,
+	}:
+	case <-t.done:
+		return ErrEngineQuiescenceUnavailable
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	select {
+	case err := <-response:
+		return err
+	case <-t.done:
+		return ErrEngineQuiescenceUnavailable
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func (t *treeRuntime) notifyHeadWaiters(commitErr error) {
+	remaining := t.headWaiters[:0]
+	for _, waiter := range t.headWaiters {
+		if commitErr == nil && waiter.previous == t.headDigest {
+			remaining = append(remaining, waiter)
+			continue
+		}
+		waiter.response <- commitErr
+	}
+	t.headWaiters = remaining
+}
+
+func (t *treeRuntime) invalidateStep(process *processState) {
+	job := t.jobs[process.controller.processID]
+	if job == nil || job.kind != processJobStep || job.stale {
+		return
+	}
+	job.stale = true
+	job.cancel()
+}

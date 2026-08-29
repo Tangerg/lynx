@@ -2,7 +2,7 @@
 
 > 状态：已接受的目标设计基线
 > 建立日期：2026-08-06
-> 最后更新：2026-08-29
+> 最后更新：2026-08-30
 > 实施范围：唯一的 `agent` Framework module
 
 本文只定义新 Agent Framework 的定位、领域语言、边界、目标结构和不可变量，不记录阶段进度、提交或临时实施细节。
@@ -605,6 +605,9 @@ Host 负责 Store、transaction、CAS、lease、幂等、retention、产品身�
 - prepared 结果保留被取消 Process 及永久 child budget allocation，以 host-canceled target、parent-canceled active descendants、已关闭等待和 Kernel-owned child-completion Signal 表达事实；直接父级在消费完成 Signal 前进入 Paused。所有可失败、可取消的 Process projection staging 都在 Prepare 返回 capability 前完成；失败会释放 source tree且 live state 不变。返回后的 contextless `Apply()` 只跨越单一 apply gate并完成既有 finalization，caller 不能用请求取消撤销已经形成的 durable decision；`Discard` 只释放 source tree。两者都保留既有 Process handle，不替换 controller，不解析或修改 opaque ExecutionState，也不引入 persistence、transaction、checkpoint、lease 或产品删除模型。
 - Process admission 与其 conclusive start outcome 只属于首次 root/child start；restore 不重复调用 admitter/acknowledger，也不把 live policy 或 outcome 写入共同 snapshot。Host 若不允许恢复，必须在调用恢复前拒绝或显式终止已恢复 Process。
 - durable mode 由闭合 `TreeDurability` port 驱动：root/child start outcome、Effect pending/settled/resolved、Parked/Terminal checkpoint 和 restore activation 都提交完整 prospective TreeSnapshot。Host callback 必须以 previous digest/current incarnation 做原子 CAS，但该合同不得演变为 Framework Store/transaction SPI。
+- child admission 期间的预算只作为 treeRuntime job 拥有的 provisional reservation 参与资源门禁，不进入 snapshot 的 committed reserved budget；started outcome 在同一 prospective tree 中同时安装 child、topology、parent settlement 和 committed reservation，其他路径释放 provisional state。
+- durable restore 在 activation 前先建立不可见的 whole-tree local reservation；CAS 成功后的动作只剩无失败 publication，避免 authoritative head 已换代后才发现同 Engine identity 冲突。旧 writer 迟到 completion 由 attempt/incarnation fence 丢弃。
+- tree-scoped durability fault 先收集每个 Process 的既有 Unknown、当前 boundary 与 sibling in-flight 外部 EffectID，再以 canonical 两阶段决议终止全树；终止结果不得受 map 遍历或 parent propagation 时序影响。
 - 外部副作用用幂等键、外部事实或显式 checkpoint 协议处理，不能只靠 snapshot 猜测。
 - snapshot schema 在开发阶段直接 breaking，不保留长期 dual-read。
 

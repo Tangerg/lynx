@@ -37,10 +37,14 @@ func (p ProcessStartOutcomeStatus) String() string {
 // accepted ProcessAdmission. A started outcome is acknowledged immediately
 // before Engine publication; an aborted outcome guarantees no publication.
 type ProcessStartOutcome struct {
-	admission ProcessAdmission
-	status    ProcessStartOutcomeStatus
-	startedAt time.Time
-	failure   Failure
+	admission          ProcessAdmission
+	status             ProcessStartOutcomeStatus
+	startedAt          time.Time
+	failure            Failure
+	previousTreeDigest Digest
+	hasPreviousTree    bool
+	treeSnapshot       TreeSnapshot
+	hasTreeSnapshot    bool
 }
 
 // Admission returns the exact accepted admission concluded by this outcome.
@@ -63,15 +67,55 @@ func (p ProcessStartOutcome) Failure() (Failure, bool) {
 	return p.failure, p.status == ProcessStartOutcomeStatusAborted
 }
 
+// PreviousTreeDigest returns the authoritative head compared by a durable
+// child outcome. Root and ephemeral outcomes return false.
+func (p ProcessStartOutcome) PreviousTreeDigest() (Digest, bool) {
+	return p.previousTreeDigest, p.hasPreviousTree
+}
+
+// TreeSnapshot returns the prospective complete tree installed atomically by
+// a durable started or child-aborted outcome. Ephemeral and root-aborted
+// outcomes return false.
+func (p ProcessStartOutcome) TreeSnapshot() (TreeSnapshot, bool) {
+	return p.treeSnapshot, p.hasTreeSnapshot
+}
+
 func (p ProcessStartOutcome) Valid() bool {
 	if !p.admission.Valid() {
 		return false
+	}
+	if p.hasPreviousTree != p.previousTreeDigest.Valid() ||
+		p.hasTreeSnapshot != p.treeSnapshot.Valid() ||
+		p.hasPreviousTree && !p.hasTreeSnapshot {
+		return false
+	}
+	if p.hasTreeSnapshot && p.treeSnapshot.RootID() != p.admission.Relation().RootID() {
+		return false
+	}
+	if p.hasPreviousTree && p.previousTreeDigest == p.treeSnapshot.Digest() {
+		return false
+	}
+	if p.hasTreeSnapshot {
+		if _, durable := p.treeSnapshot.IncarnationID(); !durable {
+			return false
+		}
+		containsProcess := false
+		for _, snapshot := range p.treeSnapshot.ProcessSnapshots() {
+			if snapshot.ProcessID() == p.admission.Relation().ProcessID() {
+				containsProcess = true
+				break
+			}
+		}
+		if containsProcess != (p.status == ProcessStartOutcomeStatusStarted) {
+			return false
+		}
 	}
 	switch p.status {
 	case ProcessStartOutcomeStatusStarted:
 		return !p.startedAt.IsZero() && p.startedAt.Location() == time.UTC && !p.failure.Valid()
 	case ProcessStartOutcomeStatusAborted:
-		return p.startedAt.IsZero() && p.failure.Valid()
+		return p.startedAt.IsZero() && p.failure.Valid() &&
+			(!p.hasTreeSnapshot || p.hasPreviousTree)
 	default:
 		return false
 	}
@@ -115,12 +159,41 @@ func startedProcessOutcome(admission ProcessAdmission, startedAt time.Time) Proc
 	}
 }
 
+func startedProcessTreeOutcome(
+	admission ProcessAdmission,
+	startedAt time.Time,
+	previousTreeDigest Digest,
+	hasPreviousTree bool,
+	treeSnapshot TreeSnapshot,
+) ProcessStartOutcome {
+	outcome := startedProcessOutcome(admission, startedAt)
+	outcome.previousTreeDigest = previousTreeDigest
+	outcome.hasPreviousTree = hasPreviousTree
+	outcome.treeSnapshot = treeSnapshot
+	outcome.hasTreeSnapshot = true
+	return outcome
+}
+
 func abortedProcessOutcome(admission ProcessAdmission, failure Failure) ProcessStartOutcome {
 	return ProcessStartOutcome{
 		admission: admission,
 		status:    ProcessStartOutcomeStatusAborted,
 		failure:   failure,
 	}
+}
+
+func abortedProcessTreeOutcome(
+	admission ProcessAdmission,
+	failure Failure,
+	previousTreeDigest Digest,
+	treeSnapshot TreeSnapshot,
+) ProcessStartOutcome {
+	outcome := abortedProcessOutcome(admission, failure)
+	outcome.previousTreeDigest = previousTreeDigest
+	outcome.hasPreviousTree = true
+	outcome.treeSnapshot = treeSnapshot
+	outcome.hasTreeSnapshot = true
+	return outcome
 }
 
 func acknowledgeProcessStartOutcome(

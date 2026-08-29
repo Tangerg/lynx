@@ -14,34 +14,44 @@ type processState struct {
 	deployment Deployment
 	execution  Execution
 
-	startedAt            time.Time
-	finishedAt           time.Time
-	status               Status
-	committedSteps       uint64
-	processEventSequence uint64
-	lastStableState      ExecutionState
-	mailbox              signalMailbox
-	prepared             *preparedStep
-	currentWaitID        WaitID
-	pauseReason          string
-	pendingControl       pendingControl
-	finalOutput          Output
-	termination          Termination
-	limits               Limits
-	treeLimits           TreeLimits
-	budget               Budget
-	reservedBudget       Budget
-	capabilities         CapabilitySet
-	usage                Usage
-	restored             bool
-	runtime              *treeRuntime
-	attemptSequence      uint64
+	startedAt              time.Time
+	finishedAt             time.Time
+	status                 Status
+	committedSteps         uint64
+	processEventSequence   uint64
+	lastStableState        ExecutionState
+	mailbox                signalMailbox
+	prepared               *preparedStep
+	currentWaitID          WaitID
+	pauseReason            string
+	pendingControl         pendingControl
+	finalOutput            Output
+	termination            Termination
+	limits                 Limits
+	treeLimits             TreeLimits
+	budget                 Budget
+	reservedBudget         Budget
+	provisionalChildBudget Budget
+	capabilities           CapabilitySet
+	usage                  Usage
+	restored               bool
+	restoredPending        restoredPendingEffect
+	runtime                *treeRuntime
+	attemptSequence        uint64
+}
+
+type restoredPendingEffect struct {
+	id           EffectID
+	replayPolicy ReplayPolicy
+}
+
+func (r restoredPendingEffect) matches(effectID EffectID) bool {
+	return r.id.Valid() && r.id == effectID && r.replayPolicy.Valid()
 }
 
 type preparedStep struct {
-	wire         preparedStepWire
-	candidate    Execution
-	acknowledged bool
+	wire      preparedStepWire
+	candidate Execution
 }
 
 type pendingControl struct {
@@ -149,10 +159,11 @@ func (p *processState) recordParentTermination(parent Termination) {
 }
 
 func (p *processState) deliverChildrenCompleted(ctx context.Context, signal Signal) bool {
+	reservedBudget := p.effectiveReservedBudget()
 	if !resourceQuantitiesFit(p.limits.MaxSignals, p.usage.AcceptedSignals, 1) ||
 		!resourceQuantitiesFit(p.limits.MaxPendingSignals, p.mailbox.pendingCount(), 1) ||
 		!resourceQuantitiesFit(
-			p.budget.Signals, p.usage.AcceptedSignals, p.reservedBudget.Signals, 1,
+			p.budget.Signals, p.usage.AcceptedSignals, reservedBudget.Signals, 1,
 		) {
 		p.fail(FailureKindExecution, "engine.limit.child_completion_signal", ErrResourceLimitExceeded)
 		return false
@@ -193,10 +204,11 @@ func (p *processState) deliver(ctx context.Context, command processCommand) {
 		return
 	}
 	reserved := p.reservedSettlementSignals()
+	reservedBudget := p.effectiveReservedBudget()
 	if !resourceQuantitiesFit(p.limits.MaxSignals, p.usage.AcceptedSignals, reserved, 1) ||
 		!resourceQuantitiesFit(p.limits.MaxPendingSignals, p.mailbox.pendingCount(), reserved, 1) ||
 		!resourceQuantitiesFit(
-			p.budget.Signals, p.usage.AcceptedSignals, p.reservedBudget.Signals, reserved, 1,
+			p.budget.Signals, p.usage.AcceptedSignals, reservedBudget.Signals, reserved, 1,
 		) {
 		command.reply(processResponse{err: ErrResourceLimitExceeded})
 		return
@@ -234,9 +246,10 @@ func (p *processState) deliverBatch(ctx context.Context, command processCommand)
 	}
 	count := uint64(len(command.signalRequests))
 	reserved := p.reservedSettlementSignals()
+	reservedBudget := p.effectiveReservedBudget()
 	if !resourceQuantitiesFit(p.limits.MaxSignals, p.usage.AcceptedSignals, reserved, count) ||
 		!resourceQuantitiesFit(p.limits.MaxPendingSignals, p.mailbox.pendingCount(), reserved, count) ||
-		!resourceQuantitiesFit(p.budget.Signals, p.usage.AcceptedSignals, p.reservedBudget.Signals, reserved, count) {
+		!resourceQuantitiesFit(p.budget.Signals, p.usage.AcceptedSignals, reservedBudget.Signals, reserved, count) {
 		command.reply(processResponse{err: ErrResourceLimitExceeded})
 		return
 	}

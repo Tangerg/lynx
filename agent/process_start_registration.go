@@ -2,6 +2,7 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 )
@@ -40,6 +41,9 @@ func (e *Engine) reserveProcessStart(
 	if _, exists := e.startReservations[processID]; exists {
 		return ErrProcessAlreadyExists
 	}
+	if e.restoredProcessReserved(processID) {
+		return ErrProcessAlreadyExists
+	}
 	if relation.IsRoot() {
 		return e.reserveRootStart(reservation)
 	}
@@ -72,6 +76,9 @@ func (e *Engine) reserveChildStart(reservation processStartReservation) error {
 		return ErrInvalidChildStart
 	}
 	if _, exists := e.childStartReservations[identity]; exists {
+		return ErrInvalidChildStart
+	}
+	if e.restoredChildReserved(identity) {
 		return ErrInvalidChildStart
 	}
 	parent := e.processes[parentID]
@@ -183,12 +190,54 @@ func (e *Engine) acknowledgeStartedProcessOutcome(
 	admission ProcessAdmission,
 	startedAt time.Time,
 ) error {
-	if err := acknowledgeProcessStartOutcome(
-		ctx, e.startOutcomeAcknowledger, startedProcessOutcome(admission, startedAt),
-	); err != nil {
+	if err := e.acknowledgeProcessStartOutcome(ctx, startedProcessOutcome(admission, startedAt)); err != nil {
 		return fmt.Errorf("agent: acknowledge started Process: %w", err)
 	}
 	return nil
+}
+
+func (e *Engine) acknowledgeProcessStartOutcome(
+	ctx context.Context,
+	outcome ProcessStartOutcome,
+) error {
+	if err := e.validateProcessStartOutcomeMode(outcome); err != nil {
+		return err
+	}
+	if err := acknowledgeProcessStartOutcome(ctx, e.startOutcomeAcknowledger, outcome); err != nil {
+		return fmt.Errorf("agent: acknowledge Process start outcome: %w", err)
+	}
+	return nil
+}
+
+func (e *Engine) validateProcessStartOutcomeMode(outcome ProcessStartOutcome) error {
+	if !outcome.Valid() {
+		return errors.New("agent: invalid Process start outcome")
+	}
+	_, hasPreviousTree := outcome.PreviousTreeDigest()
+	_, hasTreeSnapshot := outcome.TreeSnapshot()
+	if e.durability == nil {
+		if hasPreviousTree || hasTreeSnapshot {
+			return ErrTreeDurabilityMismatch
+		}
+		return nil
+	}
+	if outcome.Admission().Relation().IsRoot() {
+		switch outcome.Status() {
+		case ProcessStartOutcomeStatusStarted:
+			if !hasPreviousTree && hasTreeSnapshot {
+				return nil
+			}
+		case ProcessStartOutcomeStatusAborted:
+			if !hasPreviousTree && !hasTreeSnapshot {
+				return nil
+			}
+		}
+		return errors.New("agent: invalid durable root Process outcome")
+	}
+	if hasPreviousTree && hasTreeSnapshot {
+		return nil
+	}
+	return errors.New("agent: invalid durable child Process outcome")
 }
 
 func (e *Engine) acknowledgeAbortedProcessOutcome(
@@ -196,9 +245,7 @@ func (e *Engine) acknowledgeAbortedProcessOutcome(
 	admission ProcessAdmission,
 	failure Failure,
 ) error {
-	if err := acknowledgeProcessStartOutcome(
-		ctx, e.startOutcomeAcknowledger, abortedProcessOutcome(admission, failure),
-	); err != nil {
+	if err := e.acknowledgeProcessStartOutcome(ctx, abortedProcessOutcome(admission, failure)); err != nil {
 		return fmt.Errorf("agent: acknowledge aborted Process: %w", err)
 	}
 	return nil

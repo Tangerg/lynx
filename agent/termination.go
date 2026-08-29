@@ -1,9 +1,11 @@
 package agent
 
 import (
+	"cmp"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 )
 
@@ -202,10 +204,11 @@ func (t TerminationCause) String() string {
 
 // Termination is the immutable result of applying the terminal priority matrix.
 type Termination struct {
-	status  Status
-	cause   TerminationCause
-	reason  string
-	failure Failure
+	status              Status
+	cause               TerminationCause
+	reason              string
+	failure             Failure
+	unresolvedEffectIDs []EffectID
 }
 
 // resolveTermination applies Engine kill, deadline, cancellation, and Step
@@ -286,13 +289,39 @@ func (t Termination) Failure() (Failure, bool) {
 	return t.failure, t.status == StatusFailed
 }
 
+// UnresolvedEffectIDs returns the canonical identities of external operations
+// that may have occurred but were not durably resolved when the tree stopped.
+func (t Termination) UnresolvedEffectIDs() []EffectID {
+	return slices.Clone(t.unresolvedEffectIDs)
+}
+
+func (t Termination) withUnresolvedEffectIDs(effectIDs []EffectID) Termination {
+	t.unresolvedEffectIDs = canonicalEffectIDs(effectIDs)
+	return t
+}
+
+func canonicalEffectIDs(effectIDs []EffectID) []EffectID {
+	canonical := slices.Clone(effectIDs)
+	slices.SortFunc(canonical, func(left, right EffectID) int {
+		return cmp.Compare(left.String(), right.String())
+	})
+	return slices.Compact(canonical)
+}
+
 func (t Termination) Valid() bool {
 	if !t.status.Terminal() || !t.cause.Valid() {
 		return false
 	}
+	for index, effectID := range t.unresolvedEffectIDs {
+		if !effectID.Valid() || index > 0 &&
+			t.unresolvedEffectIDs[index-1].String() >= effectID.String() {
+			return false
+		}
+	}
 	switch t.status {
 	case StatusCompleted:
-		return t.cause == TerminationCauseCompletion && t.reason == "" && !t.failure.Valid()
+		return t.cause == TerminationCauseCompletion && t.reason == "" &&
+			!t.failure.Valid() && len(t.unresolvedEffectIDs) == 0
 	case StatusFailed:
 		if !t.failure.Valid() || t.reason != t.failure.Message() {
 			return false
@@ -319,9 +348,10 @@ func (t Termination) MarshalJSON() ([]byte, error) {
 		return nil, errInvalidTermination
 	}
 	wire := terminationWire{
-		Status: t.status,
-		Cause:  t.cause,
-		Reason: t.reason,
+		Status:              t.status,
+		Cause:               t.cause,
+		Reason:              t.reason,
+		UnresolvedEffectIDs: t.UnresolvedEffectIDs(),
 	}
 	if t.failure.Valid() {
 		wire.Failure = &t.failure
@@ -337,7 +367,10 @@ func (t *Termination) UnmarshalJSON(data []byte) error {
 	if err != nil {
 		return fmt.Errorf("%w: decode: %w", errInvalidTermination, err)
 	}
-	value := Termination{status: wire.Status, cause: wire.Cause, reason: wire.Reason}
+	value := Termination{
+		status: wire.Status, cause: wire.Cause, reason: wire.Reason,
+		unresolvedEffectIDs: slices.Clone(wire.UnresolvedEffectIDs),
+	}
 	if wire.Failure != nil {
 		value.failure = *wire.Failure
 	}
@@ -349,8 +382,9 @@ func (t *Termination) UnmarshalJSON(data []byte) error {
 }
 
 type terminationWire struct {
-	Status  Status           `json:"status"`
-	Cause   TerminationCause `json:"cause"`
-	Reason  string           `json:"reason,omitempty"`
-	Failure *Failure         `json:"failure,omitempty"`
+	Status              Status           `json:"status"`
+	Cause               TerminationCause `json:"cause"`
+	Reason              string           `json:"reason,omitempty"`
+	Failure             *Failure         `json:"failure,omitempty"`
+	UnresolvedEffectIDs []EffectID       `json:"unresolved_effect_ids,omitempty"`
 }

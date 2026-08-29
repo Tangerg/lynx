@@ -41,6 +41,19 @@ type EffectRequest struct {
 	effect        Effect
 }
 
+func (e EffectRequest) clone() EffectRequest {
+	e.effect = e.effect.clone()
+	return e
+}
+
+// Valid reports whether the request contains one complete Engine-minted
+// dispatch identity and immutable Effect.
+func (e EffectRequest) Valid() bool {
+	return e.processID.Valid() && e.deploymentRef.Valid() && e.relation.Valid() &&
+		e.relation.ProcessID() == e.processID && e.stepSequence > 0 && e.id.Valid() &&
+		e.effect.Valid()
+}
+
 func newEffectRequest(
 	processID ProcessID,
 	deploymentRef DeploymentRef,

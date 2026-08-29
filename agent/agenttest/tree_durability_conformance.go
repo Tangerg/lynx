@@ -1,0 +1,680 @@
+package agenttest
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"sync"
+	"testing"
+	"time"
+
+	agent "github.com/Tangerg/scope/agent"
+)
+
+// TreeDurabilityConformanceDriver exposes one empty adapter instance and its
+// authoritative head reader to the reusable TreeDurability contract suite.
+type TreeDurabilityConformanceDriver interface {
+	// TreeDurability returns the adapter under test.
+	TreeDurability() agent.TreeDurability
+	// LoadTree reads the current authoritative head without activating it.
+	LoadTree(ctx context.Context, rootID agent.ProcessID) (agent.TreeSnapshot, bool, error)
+}
+
+// RunTreeDurabilityConformance exercises base-head creation, same-content
+// callback retry, pending/settled/resolved Effect boundaries, Parked/Terminal
+// checkpoints, and old-writer fencing against concurrent restore. Each factory
+// call must return a new driver backed by an empty isolated store.
+func RunTreeDurabilityConformance(
+	t *testing.T,
+	factory func() TreeDurabilityConformanceDriver,
+) {
+	t.Helper()
+	if factory == nil {
+		t.Fatal("TreeDurability conformance factory is nil")
+	}
+	t.Run("effect boundaries and terminal head", func(t *testing.T) {
+		driver := factory()
+		probe := newConformanceDurabilityProbe(t, driver.TreeDurability())
+		deployment := conformanceDeployment(t, conformanceModeUnknownEffect)
+		engine, err := agent.NewEngine(agent.EngineConfig{TreeDurability: probe})
+		if err != nil {
+			t.Fatal(err)
+		}
+		input, err := deployment.Descriptor().EncodeInput(conformanceInput{Value: "committed"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		process, err := engine.Start(context.Background(), deployment, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		effectID := waitForConformanceUnknownEffect(t, process)
+		payload, err := json.Marshal(conformanceOutput{Value: "committed"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		settlement, err := agent.NewSettlement(
+			effectID, agent.SettlementStatusSucceeded, payload,
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := process.ResolveUnknownEffect(context.Background(), settlement); err != nil {
+			t.Fatal(err)
+		}
+		result, err := process.Await(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		head, exists, err := driver.LoadTree(context.Background(), result.ProcessID())
+		if err != nil || !exists || !head.Valid() {
+			t.Fatalf("authoritative terminal head exists=%t error=%v", exists, err)
+		}
+		root := conformanceSnapshotByID(head.ProcessSnapshots(), result.ProcessID())
+		if !root.Valid() || root.Status() != agent.StatusCompleted {
+			t.Fatalf("authoritative root status=%s", root.Status())
+		}
+		probe.assertEffectLifecycle(t)
+		if err := engine.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("concurrent restore fencing", func(t *testing.T) {
+		driver := factory()
+		probe := newConformanceDurabilityProbe(t, driver.TreeDurability())
+		deployment := conformanceDeployment(t, conformanceModePause)
+		originalEngine, err := agent.NewEngine(agent.EngineConfig{TreeDurability: probe})
+		if err != nil {
+			t.Fatal(err)
+		}
+		input, err := deployment.Descriptor().EncodeInput(conformanceInput{Value: "paused"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		original, err := originalEngine.Start(context.Background(), deployment, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		waitForConformanceStatus(t, original, agent.StatusPaused)
+		head := waitForConformanceHeadStatus(
+			t, driver, original.ID(), agent.StatusPaused,
+		)
+		probe.assertSingleCheckpoint(t, agent.TreeCheckpointParked)
+
+		type restoreResult struct {
+			engine  *agent.Engine
+			process *agent.Process
+			err     error
+		}
+		results := make(chan restoreResult, 2)
+		for range 2 {
+			go func() {
+				engine, engineErr := agent.NewEngine(agent.EngineConfig{TreeDurability: probe})
+				if engineErr != nil {
+					results <- restoreResult{err: engineErr}
+					return
+				}
+				process, restoreErr := engine.RestoreTree(
+					context.Background(), deployment, head,
+				)
+				results <- restoreResult{engine: engine, process: process, err: restoreErr}
+			}()
+		}
+		var winner restoreResult
+		conflicts := 0
+		for range 2 {
+			result := <-results
+			if result.err == nil {
+				winner = result
+				continue
+			}
+			if !errors.Is(result.err, agent.ErrTreeIncarnationConflict) {
+				t.Fatalf("losing restore error=%v", result.err)
+			}
+			conflicts++
+			if result.engine != nil {
+				_ = result.engine.Close()
+			}
+		}
+		if winner.process == nil || conflicts != 1 {
+			t.Fatalf("restore winner=%v conflicts=%d", winner.process != nil, conflicts)
+		}
+		if err := winner.process.Kill(context.Background(), "conformance cleanup"); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := winner.process.Await(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+		if err := winner.engine.Close(); err != nil {
+			t.Fatal(err)
+		}
+		_ = original.Kill(context.Background(), "stale writer cleanup")
+		_, _ = original.Await(context.Background())
+		if err := originalEngine.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("delayed commit loses to activation", func(t *testing.T) {
+		driver := factory()
+		blocking := newConformanceBlockingPendingDurability(t, driver.TreeDurability())
+		t.Cleanup(blocking.releasePending)
+		deployment := conformanceDeployment(t, conformanceModeEffect)
+		originalEngine, err := agent.NewEngine(agent.EngineConfig{TreeDurability: blocking})
+		if err != nil {
+			t.Fatal(err)
+		}
+		input, err := deployment.Descriptor().EncodeInput(conformanceInput{Value: "fenced"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		original, err := originalEngine.Start(context.Background(), deployment, input)
+		if err != nil {
+			t.Fatal(err)
+		}
+		blocking.waitUntilPending(t)
+		base, exists, err := driver.LoadTree(context.Background(), original.ID())
+		if err != nil || !exists || !base.Valid() {
+			t.Fatalf("authoritative base head exists=%t error=%v", exists, err)
+		}
+
+		restoredEngine, err := agent.NewEngine(agent.EngineConfig{TreeDurability: blocking})
+		if err != nil {
+			t.Fatal(err)
+		}
+		restored, err := restoredEngine.RestoreTree(context.Background(), deployment, base)
+		if err != nil {
+			t.Fatal(err)
+		}
+		blocking.releasePending()
+		if result, awaitErr := restored.Await(context.Background()); awaitErr != nil ||
+			result.Status() != agent.StatusCompleted {
+			t.Fatalf("restored result status=%s error=%v", result.Status(), awaitErr)
+		}
+		stale, err := original.Await(context.Background())
+		if err != nil {
+			t.Fatal(err)
+		}
+		failure, failed := stale.Termination().Failure()
+		if stale.Status() != agent.StatusFailed || !failed ||
+			failure.Kind() != agent.FailureKindExternal {
+			t.Fatalf("stale writer result=%+v failure=%+v present=%t", stale, failure, failed)
+		}
+		if err := restoredEngine.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err := originalEngine.Close(); err != nil {
+			t.Fatal(err)
+		}
+	})
+}
+
+type conformanceDurabilityProbe struct {
+	durability agent.TreeDurability
+
+	mu          sync.Mutex
+	effects     []agent.EffectBoundaryKind
+	checkpoints []agent.TreeCheckpointKind
+}
+
+func newConformanceDurabilityProbe(
+	t *testing.T,
+	durability agent.TreeDurability,
+) *conformanceDurabilityProbe {
+	t.Helper()
+	if durability == nil {
+		t.Fatal("TreeDurability conformance driver returned nil")
+	}
+	return &conformanceDurabilityProbe{durability: durability}
+}
+
+func (p *conformanceDurabilityProbe) AcknowledgeProcessStartOutcome(
+	ctx context.Context,
+	outcome agent.ProcessStartOutcome,
+) error {
+	return p.retry(func() error {
+		return p.durability.AcknowledgeProcessStartOutcome(ctx, outcome)
+	})
+}
+
+func (p *conformanceDurabilityProbe) ActivateTree(
+	ctx context.Context,
+	activation agent.TreeActivation,
+) error {
+	return p.retry(func() error { return p.durability.ActivateTree(ctx, activation) })
+}
+
+func (p *conformanceDurabilityProbe) CommitEffect(
+	ctx context.Context,
+	boundary agent.EffectBoundary,
+) error {
+	err := p.retry(func() error { return p.durability.CommitEffect(ctx, boundary) })
+	if err == nil {
+		p.mu.Lock()
+		p.effects = append(p.effects, boundary.Kind())
+		p.mu.Unlock()
+	}
+	return err
+}
+
+func (p *conformanceDurabilityProbe) CommitCheckpoint(
+	ctx context.Context,
+	checkpoint agent.TreeCheckpoint,
+) error {
+	err := p.retry(func() error {
+		return p.durability.CommitCheckpoint(ctx, checkpoint)
+	})
+	if err == nil {
+		p.mu.Lock()
+		p.checkpoints = append(p.checkpoints, checkpoint.Kind())
+		p.mu.Unlock()
+	}
+	return err
+}
+
+func (p *conformanceDurabilityProbe) retry(commit func() error) error {
+	if err := commit(); err != nil {
+		return err
+	}
+	return commit()
+}
+
+func (p *conformanceDurabilityProbe) assertEffectLifecycle(t *testing.T) {
+	t.Helper()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.effects) != 3 || p.effects[0] != agent.EffectBoundaryPending ||
+		p.effects[1] != agent.EffectBoundarySettled ||
+		p.effects[2] != agent.EffectBoundaryResolved {
+		t.Fatalf("Effect boundary order=%v", p.effects)
+	}
+	if len(p.checkpoints) == 0 ||
+		p.checkpoints[len(p.checkpoints)-1] != agent.TreeCheckpointTerminal {
+		t.Fatalf("checkpoint order=%v", p.checkpoints)
+	}
+}
+
+func (p *conformanceDurabilityProbe) assertSingleCheckpoint(
+	t *testing.T,
+	want agent.TreeCheckpointKind,
+) {
+	t.Helper()
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if len(p.checkpoints) != 1 || p.checkpoints[0] != want {
+		t.Fatalf("checkpoint order=%v, want [%s]", p.checkpoints, want)
+	}
+}
+
+type conformanceBlockingPendingDurability struct {
+	durability agent.TreeDurability
+	entered    chan struct{}
+	release    chan struct{}
+	blocked    bool
+	released   sync.Once
+	mu         sync.Mutex
+}
+
+func newConformanceBlockingPendingDurability(
+	t *testing.T,
+	durability agent.TreeDurability,
+) *conformanceBlockingPendingDurability {
+	t.Helper()
+	if durability == nil {
+		t.Fatal("TreeDurability conformance driver returned nil")
+	}
+	return &conformanceBlockingPendingDurability{
+		durability: durability,
+		entered:    make(chan struct{}),
+		release:    make(chan struct{}),
+	}
+}
+
+func (b *conformanceBlockingPendingDurability) AcknowledgeProcessStartOutcome(
+	ctx context.Context,
+	outcome agent.ProcessStartOutcome,
+) error {
+	return b.durability.AcknowledgeProcessStartOutcome(ctx, outcome)
+}
+
+func (b *conformanceBlockingPendingDurability) ActivateTree(
+	ctx context.Context,
+	activation agent.TreeActivation,
+) error {
+	return b.durability.ActivateTree(ctx, activation)
+}
+
+func (b *conformanceBlockingPendingDurability) CommitEffect(
+	ctx context.Context,
+	boundary agent.EffectBoundary,
+) error {
+	if boundary.Kind() == agent.EffectBoundaryPending && b.blockFirstPending() {
+		close(b.entered)
+		select {
+		case <-b.release:
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+	return b.durability.CommitEffect(ctx, boundary)
+}
+
+func (b *conformanceBlockingPendingDurability) CommitCheckpoint(
+	ctx context.Context,
+	checkpoint agent.TreeCheckpoint,
+) error {
+	return b.durability.CommitCheckpoint(ctx, checkpoint)
+}
+
+func (b *conformanceBlockingPendingDurability) blockFirstPending() bool {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.blocked {
+		return false
+	}
+	b.blocked = true
+	return true
+}
+
+func (b *conformanceBlockingPendingDurability) waitUntilPending(t *testing.T) {
+	t.Helper()
+	select {
+	case <-b.entered:
+	case <-time.After(conformanceStatusTimeout):
+		t.Fatal("pending Effect commit did not start")
+	}
+}
+
+func (b *conformanceBlockingPendingDurability) releasePending() {
+	b.released.Do(func() { close(b.release) })
+}
+
+type conformanceMode uint8
+
+const (
+	conformanceModeInvalid conformanceMode = iota
+	conformanceModeEffect
+	conformanceModeUnknownEffect
+	conformanceModePause
+)
+
+type conformancePhase uint8
+
+const (
+	conformancePhaseInvalid conformancePhase = iota
+	conformancePhaseReady
+	conformancePhaseAwaitingEffect
+	conformancePhaseFinished
+)
+
+const conformanceExecutionStateSchemaVersion uint16 = 1
+
+const (
+	conformanceStatusTimeout = 5 * time.Second
+	conformancePollInterval  = time.Millisecond
+)
+
+type conformanceInput struct {
+	Value string `json:"value"`
+}
+
+type conformanceOutput struct {
+	Value string `json:"value"`
+}
+
+type conformanceState struct {
+	Phase conformancePhase `json:"phase"`
+	Value string           `json:"value"`
+}
+
+type conformanceDefinition struct {
+	descriptor agent.Descriptor
+	mode       conformanceMode
+}
+
+func conformanceDeployment(t *testing.T, mode conformanceMode) agent.Deployment {
+	t.Helper()
+	inputSchema, err := agent.SchemaFor[conformanceInput]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	outputSchema, err := agent.SchemaFor[conformanceOutput]()
+	if err != nil {
+		t.Fatal(err)
+	}
+	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
+		Name:        "agenttest.durability_conformance",
+		Description: "Exercises the complete durable tree commit contract.",
+		Version:     "1.0.0", InputSchema: inputSchema, OutputSchema: outputSchema,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition := &conformanceDefinition{descriptor: descriptor, mode: mode}
+	dispatcher := conformanceDispatcher{unknown: mode == conformanceModeUnknownEffect}
+	deployment, err := agent.NewDeployment(agent.DeploymentConfig{
+		Definition:           definition,
+		Dispatcher:           dispatcher,
+		ImplementationDigest: agent.ComputeDigest([]byte("agenttest durability implementation v1")),
+		ConfigurationDigest:  agent.ComputeDigest([]byte{byte(mode)}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return deployment
+}
+
+func (d *conformanceDefinition) Descriptor() agent.Descriptor { return d.descriptor }
+
+func (d *conformanceDefinition) Start(input agent.Input) (agent.Execution, error) {
+	value, err := input.Decode[conformanceInput]()
+	if err != nil {
+		return nil, err
+	}
+	return &conformanceExecution{
+		definition: d,
+		state:      conformanceState{Phase: conformancePhaseReady, Value: value.Value},
+	}, nil
+}
+
+func (d *conformanceDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
+	if state.Kind() != d.descriptor.Name() ||
+		state.SchemaVersion() != conformanceExecutionStateSchemaVersion {
+		return nil, agent.ErrInvalidExecutionState
+	}
+	var value conformanceState
+	if err := json.Unmarshal(state.Payload(), &value); err != nil {
+		return nil, err
+	}
+	if !value.Phase.valid() {
+		return nil, agent.ErrInvalidExecutionState
+	}
+	return &conformanceExecution{definition: d, state: value}, nil
+}
+
+type conformanceExecution struct {
+	definition *conformanceDefinition
+	state      conformanceState
+}
+
+func (e *conformanceExecution) Step(
+	_ context.Context,
+	signals []agent.Signal,
+) (agent.Transition, error) {
+	switch e.definition.mode {
+	case conformanceModeEffect, conformanceModeUnknownEffect:
+		return e.stepEffect(signals)
+	case conformanceModePause:
+		if e.state.Phase != conformancePhaseReady || len(signals) != 0 {
+			return agent.Transition{}, errors.New("agenttest: paused execution cannot advance")
+		}
+		e.state.Phase = conformancePhaseFinished
+		return agent.Pause(0, "durability conformance parked state")
+	default:
+		return agent.Transition{}, errors.New("agenttest: invalid conformance mode")
+	}
+}
+
+func (e *conformanceExecution) stepEffect(signals []agent.Signal) (agent.Transition, error) {
+	switch e.state.Phase {
+	case conformancePhaseReady:
+		if len(signals) != 0 {
+			return agent.Transition{}, errors.New("agenttest: unexpected initial Signal")
+		}
+		e.state.Phase = conformancePhaseAwaitingEffect
+		payload, err := json.Marshal(conformanceInput{Value: e.state.Value})
+		if err != nil {
+			return agent.Transition{}, err
+		}
+		effect, err := agent.NewDispatcherEffect(payload)
+		if err != nil {
+			return agent.Transition{}, err
+		}
+		return agent.Continue(0, effect)
+	case conformancePhaseAwaitingEffect:
+		if len(signals) != 1 {
+			return agent.Transition{}, errors.New("agenttest: settlement Signal is missing")
+		}
+		var output conformanceOutput
+		if err := json.Unmarshal(signals[0].Payload(), &output); err != nil {
+			return agent.Transition{}, err
+		}
+		e.state.Phase = conformancePhaseFinished
+		encoded, err := agent.EncodeOutput(output)
+		if err != nil {
+			return agent.Transition{}, err
+		}
+		return agent.Complete(1, encoded)
+	default:
+		return agent.Transition{}, errors.New("agenttest: completed execution cannot advance")
+	}
+}
+
+func (e *conformanceExecution) Snapshot() (agent.ExecutionState, error) {
+	payload, err := json.Marshal(e.state)
+	if err != nil {
+		return agent.ExecutionState{}, err
+	}
+	return agent.NewExecutionState(
+		e.definition.descriptor.Name(), conformanceExecutionStateSchemaVersion, payload,
+	)
+}
+
+func (p conformancePhase) valid() bool {
+	return p == conformancePhaseReady || p == conformancePhaseAwaitingEffect ||
+		p == conformancePhaseFinished
+}
+
+type conformanceDispatcher struct {
+	unknown bool
+}
+
+func (c conformanceDispatcher) Dispatch(
+	_ context.Context,
+	request agent.EffectRequest,
+	_ agent.DeltaEmitter,
+) (agent.Settlement, error) {
+	var input conformanceInput
+	if err := json.Unmarshal(request.Effect().Payload(), &input); err != nil {
+		return agent.Settlement{}, err
+	}
+	payload, err := json.Marshal(conformanceOutput(input))
+	if err != nil {
+		return agent.Settlement{}, err
+	}
+	status := agent.SettlementStatusSucceeded
+	if c.unknown {
+		status = agent.SettlementStatusUnknown
+	}
+	return agent.NewSettlement(request.ID(), status, payload)
+}
+
+func (conformanceDispatcher) ReplayPolicy(agent.Effect) agent.ReplayPolicy {
+	return agent.ReplayPolicyNever
+}
+
+func waitForConformanceUnknownEffect(
+	t *testing.T,
+	process *agent.Process,
+) agent.EffectID {
+	t.Helper()
+	deadline := time.NewTimer(conformanceStatusTimeout)
+	defer deadline.Stop()
+	ticker := time.NewTicker(conformancePollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			effectIDs, err := process.UnknownEffectIDs(context.Background())
+			if err == nil && len(effectIDs) == 1 {
+				return effectIDs[0]
+			}
+		case <-deadline.C:
+			t.Fatal("Process did not expose one Unknown Effect")
+		}
+	}
+}
+
+func conformanceSnapshotByID(
+	snapshots []agent.ProcessSnapshot,
+	processID agent.ProcessID,
+) agent.ProcessSnapshot {
+	for _, snapshot := range snapshots {
+		if snapshot.ProcessID() == processID {
+			return snapshot
+		}
+	}
+	return agent.ProcessSnapshot{}
+}
+
+func waitForConformanceStatus(
+	t *testing.T,
+	process *agent.Process,
+	want agent.Status,
+) {
+	t.Helper()
+	deadline := time.NewTimer(conformanceStatusTimeout)
+	defer deadline.Stop()
+	ticker := time.NewTicker(conformancePollInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if process.Status() == want {
+				return
+			}
+		case <-deadline.C:
+			t.Fatalf("Process status=%s, want %s", process.Status(), want)
+		}
+	}
+}
+
+func waitForConformanceHeadStatus(
+	t *testing.T,
+	driver TreeDurabilityConformanceDriver,
+	rootID agent.ProcessID,
+	want agent.Status,
+) agent.TreeSnapshot {
+	t.Helper()
+	deadline := time.NewTimer(conformanceStatusTimeout)
+	defer deadline.Stop()
+	ticker := time.NewTicker(conformancePollInterval)
+	defer ticker.Stop()
+	var lastError error
+	for {
+		head, exists, err := driver.LoadTree(context.Background(), rootID)
+		lastError = err
+		if err == nil && exists && head.Valid() {
+			root := conformanceSnapshotByID(head.ProcessSnapshots(), rootID)
+			if root.Valid() && root.Status() == want {
+				return head
+			}
+		}
+		select {
+		case <-ticker.C:
+		case <-deadline.C:
+			t.Fatalf("authoritative root status did not become %s: last error=%v", want, lastError)
+		}
+	}
+}

@@ -14,8 +14,9 @@ type stepPreparationFailure struct {
 }
 
 func (p *processState) stepSchedulingFailure() *stepPreparationFailure {
+	reservedBudget := p.effectiveReservedBudget()
 	if resourceQuantitiesFit(p.limits.MaxSteps, p.committedSteps, 1) &&
-		resourceQuantitiesFit(p.budget.Steps, p.committedSteps, p.reservedBudget.Steps, 1) {
+		resourceQuantitiesFit(p.budget.Steps, p.committedSteps, reservedBudget.Steps, 1) {
 		return nil
 	}
 	return &stepPreparationFailure{
@@ -42,9 +43,10 @@ func (p *processState) prepareStepResult(
 		}
 	}
 	effectCount := uint64(len(transition.Effects()))
+	reservedBudget := p.effectiveReservedBudget()
 	if !resourceQuantitiesFit(p.limits.MaxEffects, p.usage.PreparedEffects, effectCount) ||
 		!resourceQuantitiesFit(
-			p.budget.Effects, p.usage.PreparedEffects, p.reservedBudget.Effects, effectCount,
+			p.budget.Effects, p.usage.PreparedEffects, reservedBudget.Effects, effectCount,
 		) {
 		return &stepPreparationFailure{
 			kind: FailureKindExecution, code: "engine.limit.effects", cause: ErrResourceLimitExceeded,
@@ -54,7 +56,7 @@ func (p *processState) prepareStepResult(
 	if !resourceQuantitiesFit(p.limits.MaxSignals, p.usage.AcceptedSignals, effectCount) ||
 		!resourceQuantitiesFit(p.limits.MaxPendingSignals, remainingPending, effectCount) ||
 		!resourceQuantitiesFit(
-			p.budget.Signals, p.usage.AcceptedSignals, p.reservedBudget.Signals, effectCount,
+			p.budget.Signals, p.usage.AcceptedSignals, reservedBudget.Signals, effectCount,
 		) {
 		return &stepPreparationFailure{
 			kind: FailureKindExecution, code: "engine.limit.signals", cause: ErrResourceLimitExceeded,
@@ -85,9 +87,7 @@ func (p *processState) prepareStepResult(
 			Phase: effectPhasePlanned,
 		})
 	}
-	p.prepared = &preparedStep{
-		wire: wire, candidate: result.candidate, acknowledged: len(wire.Effects) == 0,
-	}
+	p.prepared = &preparedStep{wire: wire, candidate: result.candidate}
 	p.usage.PreparedEffects += effectCount
 	p.updateView()
 	p.publishEvent(ctx, EventStepPrepared, EventPhaseAttempt, sequence, EffectID{}, emptyEventPayload())
@@ -236,6 +236,7 @@ func (p *preparedStepFinalization) registerChildWait(record preparedEffectWire) 
 
 func (p *preparedStepFinalization) enqueueImmediateChildSignals() error {
 	preparedSignals := uint64(len(p.prepared.wire.Effects))
+	reservedBudget := p.loop.effectiveReservedBudget()
 	for index, signal := range p.immediateChildSignals {
 		acceptedSignals := uint64(index) + 1
 		if !resourceQuantitiesFit(
@@ -245,7 +246,7 @@ func (p *preparedStepFinalization) enqueueImmediateChildSignals() error {
 			p.loop.limits.MaxPendingSignals, p.mailbox.pendingCount(), 1,
 		) || !resourceQuantitiesFit(
 			p.loop.budget.Signals,
-			p.loop.usage.AcceptedSignals, p.loop.reservedBudget.Signals,
+			p.loop.usage.AcceptedSignals, reservedBudget.Signals,
 			preparedSignals, acceptedSignals,
 		) {
 			return ErrResourceLimitExceeded
@@ -269,8 +270,11 @@ func (p *preparedStepFinalization) prepareTransition() error {
 		p.transition.status = StatusPaused
 		p.transition.pauseReason, _ = transition.Reason()
 	case TransitionKindComplete:
-		p.transition.finalOutput, _ = transition.Output()
+		output, _ := transition.Output()
 		p.prepareTermination(completedOutcome())
+		if p.transition.status == StatusCompleted {
+			p.transition.finalOutput = output
+		}
 	case TransitionKindFail:
 		failure, _ := transition.Failure()
 		outcome, err := failedOutcome(failure)
@@ -381,8 +385,15 @@ func (p *processState) fail(kind FailureKind, code string, err error) {
 }
 
 func (p *processState) commitTermination(outcome stepOutcome) {
+	p.commitTerminationWithUnresolved(outcome, nil)
+}
+
+func (p *processState) commitTerminationWithUnresolved(
+	outcome stepOutcome,
+	unresolvedEffectIDs []EffectID,
+) {
 	termination := p.resolveStepTermination(outcome)
-	p.termination = termination
+	p.termination = termination.withUnresolvedEffectIDs(unresolvedEffectIDs)
 	p.status = termination.Status()
 	p.finishedAt = time.Now().Round(0).UTC()
 	p.currentWaitID = WaitID{}

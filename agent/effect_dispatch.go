@@ -3,10 +3,13 @@ package agent
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 )
 
 const nullJSON = "null"
+
+var errInvalidReplayPolicy = errors.New("agent: invalid Dispatcher replay policy")
 
 func (p *processState) dispatchFrameworkEffect(ctx context.Context, record *preparedEffectWire) error {
 	var header struct {
@@ -53,17 +56,21 @@ func (p *processState) dispatchFrameworkEffect(ctx context.Context, record *prep
 	}
 }
 
-func dispatcherReplayPolicy(dispatcher Dispatcher, effect Effect) (policy ReplayPolicy) {
+func dispatcherReplayPolicy(
+	dispatcher Dispatcher,
+	effect Effect,
+) (policy ReplayPolicy, err error) {
 	defer func() {
-		if recover() != nil {
-			policy = ReplayPolicyNever
+		if recovered := recover(); recovered != nil {
+			policy = ReplayPolicyInvalid
+			err = fmt.Errorf("%w: panic: %v", errInvalidReplayPolicy, recovered)
 		}
 	}()
 	policy = dispatcher.ReplayPolicy(effect)
-	if policy != ReplayPolicyNever && policy != ReplayPolicySameIdentity {
-		return ReplayPolicyNever
+	if !policy.Valid() {
+		return ReplayPolicyInvalid, errInvalidReplayPolicy
 	}
-	return policy
+	return policy, nil
 }
 
 func dispatchEffect(

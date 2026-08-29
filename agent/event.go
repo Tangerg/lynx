@@ -73,6 +73,7 @@ type Event struct {
 	processID       ProcessID
 	deploymentRef   DeploymentRef
 	relation        ProcessRelation
+	incarnationID   TreeIncarnationID
 	stepSequence    uint64
 	effectID        EffectID
 	name            string
@@ -86,6 +87,7 @@ type eventSpec struct {
 	processID       ProcessID
 	deploymentRef   DeploymentRef
 	relation        ProcessRelation
+	incarnationID   TreeIncarnationID
 	stepSequence    uint64
 	effectID        EffectID
 	name            string
@@ -107,6 +109,9 @@ func newEvent(spec eventSpec) (Event, error) {
 	if !spec.relation.Valid() || spec.relation.ProcessID() != spec.processID {
 		return Event{}, fmt.Errorf("%w: relation: %w", ErrInvalidEvent, ErrInvalidProcessRelation)
 	}
+	if spec.incarnationID != (TreeIncarnationID{}) && !spec.incarnationID.Valid() {
+		return Event{}, fmt.Errorf("%w: tree incarnation is invalid", ErrInvalidEvent)
+	}
 	if !validQualifiedName(spec.name) {
 		return Event{}, fmt.Errorf("%w: name must be a lowercase qualified name", ErrInvalidEvent)
 	}
@@ -125,6 +130,7 @@ func newEvent(spec eventSpec) (Event, error) {
 		processID:       spec.processID,
 		deploymentRef:   spec.deploymentRef,
 		relation:        spec.relation,
+		incarnationID:   spec.incarnationID,
 		stepSequence:    spec.stepSequence,
 		effectID:        spec.effectID,
 		name:            spec.name,
@@ -145,6 +151,12 @@ func (e Event) DeploymentRef() DeploymentRef { return e.deploymentRef }
 
 // Relation returns the Process tree location that emitted the fact.
 func (e Event) Relation() ProcessRelation { return e.relation }
+
+// TreeIncarnationID returns the active durable writer that emitted this event.
+// Events from ephemeral trees return false.
+func (e Event) TreeIncarnationID() (TreeIncarnationID, bool) {
+	return e.incarnationID, e.incarnationID.Valid()
+}
 
 // StepSequence returns the one-based Step sequence and true, or zero and false
 // for a Process fact outside a Step.
@@ -171,6 +183,7 @@ func (e Event) Payload() json.RawMessage { return bytes.Clone(e.payload) }
 func (e Event) Valid() bool {
 	return e.processSequence > 0 && e.processID.Valid() && e.deploymentRef.Valid() &&
 		e.relation.Valid() && e.relation.ProcessID() == e.processID && validQualifiedName(e.name) &&
+		(e.incarnationID == (TreeIncarnationID{}) || e.incarnationID.Valid()) &&
 		e.phase.Valid() &&
 		!e.occurredAt.IsZero() && len(e.payload) > 0
 }
@@ -192,6 +205,9 @@ func (e Event) MarshalJSON() ([]byte, error) {
 	}
 	if e.effectID.Valid() {
 		wire.EffectID = &e.effectID
+	}
+	if e.incarnationID.Valid() {
+		wire.IncarnationID = &e.incarnationID
 	}
 	return json.Marshal(wire)
 }
@@ -217,6 +233,7 @@ func (e *Event) UnmarshalJSON(data []byte) error {
 		processID:       wire.ProcessID,
 		deploymentRef:   wire.DeploymentRef,
 		relation:        relation,
+		incarnationID:   treeIncarnationOrZero(wire.IncarnationID),
 		stepSequence:    wire.StepSequence,
 		effectID:        effectID,
 		name:            wire.Name,
@@ -236,10 +253,18 @@ type eventWire struct {
 	ProcessID       ProcessID           `json:"process_id"`
 	DeploymentRef   DeploymentRef       `json:"deployment_ref"`
 	Relation        processRelationWire `json:"relation"`
+	IncarnationID   *TreeIncarnationID  `json:"tree_incarnation_id,omitempty"`
 	StepSequence    uint64              `json:"step_sequence,omitempty"`
 	EffectID        *EffectID           `json:"effect_id,omitempty"`
 	Name            string              `json:"name"`
 	Phase           EventPhase          `json:"phase"`
 	OccurredAt      time.Time           `json:"occurred_at"`
 	Payload         json.RawMessage     `json:"payload"`
+}
+
+func treeIncarnationOrZero(value *TreeIncarnationID) TreeIncarnationID {
+	if value == nil {
+		return TreeIncarnationID{}
+	}
+	return *value
 }

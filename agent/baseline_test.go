@@ -17,8 +17,8 @@ import (
 )
 
 const (
-	currentAPIBaseline         = 37
-	currentAPIBaselineFrozenOn = "2026-08-29"
+	currentAPIBaseline         = 38
+	currentAPIBaselineFrozenOn = "2026-08-30"
 )
 
 var exportedAPIBaselines = []struct {
@@ -27,8 +27,8 @@ var exportedAPIBaselines = []struct {
 	directory string
 	want      string
 }{
-	{name: "kernel", label: "root kernel", directory: ".", want: "899e33b582ae710c09b54de70b7e9e40b4f4947f996d6a96e8aefa1331c15f96"},
-	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "ee493eb270bb15affeb19da31105cef1a09fa54ffe54b66cc45b5ce6feb5bf55"},
+	{name: "kernel", label: "root kernel", directory: ".", want: "c823bf8a818954036025888e423c741253e9675dd245ed1f4d007cc0c92b22fc"},
+	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "2a7dc4bffb9ebb9c1d1f94efeb49999daff333d1d5cfffd9b0c5c713bf2d91aa"},
 	{name: "interaction", label: "interaction", directory: "interaction", want: "8b39cc9e28e0bdd00579c4563dbc3d9b8237f3b932b30740f85941f2911fdf54"},
 	{name: "planning", label: "planning", directory: "planning", want: "4ca18318b81c7fc646ee7121c9f2e303df2cc2d28fcd8357e2c3b07cebd1a014"},
 	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "0f7376bbf8b1815315005984540bdc5d5aabb7bccea5147f957c2911a55e04e7"},
@@ -289,7 +289,7 @@ func isErrorCauseName(name string) bool {
 func TestSnapshotWireBaseline(t *testing.T) {
 	shape := snapshotWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "bc057dd6141de1deca52ed31400fd50410a8a74e660ff6e0bf4c7443908ccbdc"
+	const want = "791221b7d2c2f059bb0985801d69233eebae83f38f8dcf68661fd08535ef164d"
 	if got != want {
 		t.Fatalf("snapshot wire changed: got %s, want %s\n%s", got, want, shape)
 	}
@@ -340,7 +340,7 @@ func TestWireBaselinesCoverEveryProductionWireType(t *testing.T) {
 func TestObservationWireBaseline(t *testing.T) {
 	shape := observationWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "a087b14412eddf40b5bddcc051a4a02f0620b150daa94977816882c80f3ccf1f"
+	const want = "1ee6b9c1505ab36a3df0ac4ed0b0eb6e7df15f9427457381053d6e08690278fc"
 	if got != want {
 		t.Fatalf("observation wire changed: got %s, want %s\n%s", got, want, shape)
 	}

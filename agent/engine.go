@@ -20,27 +20,13 @@ var (
 	ErrProcessAlreadyExists        = errors.New("agent: process identity already exists")
 )
 
-// PreparedStepAcknowledger is the optional durability boundary immediately
-// before external Effect dispatch. Returning nil confirms only that this exact
-// ProcessSnapshot reached the caller's chosen durable boundary; it does not grant the
-// Framework ownership of the caller's persistence or atomicity semantics.
-type PreparedStepAcknowledger interface {
-	// AcknowledgePreparedStep synchronously accepts the exact prepared ProcessSnapshot
-	// before any declared external Effect is dispatched. Returning nil opens the
-	// dispatch boundary; returning an error leaves the Effect undispatched. The
-	// implementation must honor ctx, be bounded and concurrency-safe, and must
-	// not re-enter the represented Process.
-	AcknowledgePreparedStep(ctx context.Context, snapshot ProcessSnapshot) error
-}
-
 // EngineConfig contains only cross-Strategy execution mechanics. Definition,
 // Dispatcher, schema, and behavior configuration belong to each Deployment.
 type EngineConfig struct {
-	// PreparedStepAcknowledger enables the optional pre-dispatch durability
-	// handshake. Implementations may be called concurrently for different
-	// Processes, must return in bounded time, and must not re-enter the Process
-	// represented by the supplied ProcessSnapshot.
-	PreparedStepAcknowledger PreparedStepAcknowledger
+	// TreeDurability enables active recovery for complete root Process trees. It
+	// owns the atomic Host transaction behind lifecycle, Effect, checkpoint, and
+	// activation boundaries. Nil selects zero-configuration ephemeral execution.
+	TreeDurability TreeDurability
 
 	// ProcessStartOutcomeAcknowledger enables the optional conclusive handshake
 	// after an accepted admission. A started outcome is acknowledged before
@@ -88,7 +74,7 @@ type EngineConfig struct {
 // Deployment catalog or Host persistence abstraction. Engine values must be
 // constructed with NewEngine and must not be copied after first use.
 type Engine struct {
-	acknowledger             PreparedStepAcknowledger
+	durability               TreeDurability
 	startOutcomeAcknowledger ProcessStartOutcomeAcknowledger
 	resolver                 DeploymentResolver
 	admitter                 ProcessAdmitter
@@ -99,13 +85,14 @@ type Engine struct {
 	treeOperationsMu         sync.Mutex
 	treeOperations           map[ProcessID]*treeOperation
 
-	mu                     sync.RWMutex
-	processes              map[ProcessID]*processController
-	trees                  map[ProcessID]*treeRuntime
-	startReservations      map[ProcessID]processStartReservation
-	children               map[childIdentity]ProcessID
-	childStartReservations map[childIdentity]ProcessID
-	closed                 bool
+	mu                      sync.RWMutex
+	processes               map[ProcessID]*processController
+	trees                   map[ProcessID]*treeRuntime
+	startReservations       map[ProcessID]processStartReservation
+	treeRestoreReservations map[ProcessID]*treeRestoration
+	children                map[childIdentity]ProcessID
+	childStartReservations  map[childIdentity]ProcessID
+	closed                  bool
 }
 
 // ObservationFailures returns a concurrency-safe snapshot of listener panics
@@ -133,11 +120,17 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 	if config.DeltaBufferCapacity < 0 {
 		return nil, fmt.Errorf("%w: DeltaBufferCapacity must not be negative", ErrInvalidEngineConfig)
 	}
-	if config.PreparedStepAcknowledger != nil && lo.IsNil(config.PreparedStepAcknowledger) {
-		return nil, fmt.Errorf("%w: PreparedStepAcknowledger is typed nil", ErrInvalidEngineConfig)
+	if config.TreeDurability != nil && lo.IsNil(config.TreeDurability) {
+		return nil, fmt.Errorf("%w: TreeDurability is typed nil", ErrInvalidEngineConfig)
 	}
 	if config.ProcessStartOutcomeAcknowledger != nil && lo.IsNil(config.ProcessStartOutcomeAcknowledger) {
 		return nil, fmt.Errorf("%w: ProcessStartOutcomeAcknowledger is typed nil", ErrInvalidEngineConfig)
+	}
+	if config.TreeDurability != nil && config.ProcessStartOutcomeAcknowledger != nil {
+		return nil, fmt.Errorf(
+			"%w: TreeDurability and ProcessStartOutcomeAcknowledger are mutually exclusive",
+			ErrInvalidEngineConfig,
+		)
 	}
 	if config.DeploymentResolver != nil && lo.IsNil(config.DeploymentResolver) {
 		return nil, fmt.Errorf("%w: DeploymentResolver is typed nil", ErrInvalidEngineConfig)
@@ -170,9 +163,13 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 	if !config.Capabilities.Valid() {
 		return nil, fmt.Errorf("%w: capabilities are invalid", ErrInvalidEngineConfig)
 	}
+	startOutcomeAcknowledger := config.ProcessStartOutcomeAcknowledger
+	if config.TreeDurability != nil {
+		startOutcomeAcknowledger = config.TreeDurability
+	}
 	return &Engine{
-		acknowledger:             config.PreparedStepAcknowledger,
-		startOutcomeAcknowledger: config.ProcessStartOutcomeAcknowledger,
+		durability:               config.TreeDurability,
+		startOutcomeAcknowledger: startOutcomeAcknowledger,
 		resolver:                 config.DeploymentResolver,
 		admitter:                 config.ProcessAdmitter,
 		observation:              newObservationBus(config.EventListeners, config.DeltaListeners, capacity),
@@ -183,6 +180,7 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		processes:                make(map[ProcessID]*processController),
 		trees:                    make(map[ProcessID]*treeRuntime),
 		startReservations:        make(map[ProcessID]processStartReservation),
+		treeRestoreReservations:  make(map[ProcessID]*treeRestoration),
 		children:                 make(map[childIdentity]ProcessID),
 		childStartReservations:   make(map[childIdentity]ProcessID),
 	}, nil
@@ -237,7 +235,27 @@ func (e *Engine) Start(ctx context.Context, deployment Deployment, input Input) 
 	)
 	loop := newProcessState(e, controller, deployment, execution, state, startedAt, e.limits)
 	runtime := newTreeRuntime(e, relation.RootID(), ctx, loop)
-	if err := e.acknowledgeStartedProcessOutcome(ctx, admission, startedAt); err != nil {
+	if e.durability != nil {
+		incarnation, incarnationErr := newTreeIncarnationID()
+		if incarnationErr != nil {
+			e.discardProcessStartReservation(id)
+			return nil, incarnationErr
+		}
+		runtime.incarnation = incarnation
+		baseSnapshot, captureErr := runtime.captureTree()
+		if captureErr != nil {
+			e.discardProcessStartReservation(id)
+			return nil, captureErr
+		}
+		outcome := startedProcessTreeOutcome(
+			admission, startedAt, Digest{}, false, baseSnapshot,
+		)
+		if err := e.acknowledgeProcessStartOutcome(ctx, outcome); err != nil {
+			e.discardProcessStartReservation(id)
+			return nil, err
+		}
+		runtime.establishDurableHead(incarnation, baseSnapshot)
+	} else if err := e.acknowledgeStartedProcessOutcome(ctx, admission, startedAt); err != nil {
 		e.discardProcessStartReservation(id)
 		return nil, err
 	}
@@ -282,14 +300,48 @@ func (e *Engine) Close() error {
 		e.mu.Unlock()
 		return nil
 	}
-	if len(e.startReservations) != 0 {
+	if len(e.startReservations) != 0 || len(e.treeRestoreReservations) != 0 {
 		e.mu.Unlock()
-		return ErrEngineHasActiveProcesses
+		return fmt.Errorf("%w: Process publication is pending", ErrEngineHasActiveProcesses)
 	}
+	var unpublished []*processController
 	for _, controller := range e.processes {
 		if !controller.status().Terminal() {
 			e.mu.Unlock()
-			return ErrEngineHasActiveProcesses
+			return fmt.Errorf(
+				"%w: Process %s is not terminal",
+				ErrEngineHasActiveProcesses, controller.processID,
+			)
+		}
+		select {
+		case <-controller.treeSettled:
+		default:
+			unpublished = append(unpublished, controller)
+		}
+	}
+	for rootID, runtime := range e.trees {
+		if runtime.inflight.Load() != 0 || runtime.freezeHeld.Load() {
+			e.mu.Unlock()
+			return fmt.Errorf(
+				"%w: tree %s still owns active work",
+				ErrEngineHasActiveProcesses, rootID,
+			)
+		}
+	}
+	if len(unpublished) != 0 {
+		if e.durability != nil {
+			e.mu.Unlock()
+			return fmt.Errorf(
+				"%w: Process %s has unpublished durable tree state",
+				ErrEngineHasActiveProcesses, unpublished[0].processID,
+			)
+		}
+		// No external job or durability callback remains. A terminal view can
+		// become visible immediately before its owner publishes the immutable
+		// Result; keeping e.mu held prevents a concurrent Start from reopening
+		// the Engine during this bounded local hand-off.
+		for _, controller := range unpublished {
+			<-controller.treeSettled
 		}
 	}
 	e.closed = true

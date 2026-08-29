@@ -51,7 +51,7 @@ func TestDeltaIsEffectLocalAndImmutable(t *testing.T) {
 	processID, _ := ParseProcessID("process:1")
 	effectID, _ := ParseEffectID("process:1:step:2:effect:0")
 	payload := json.RawMessage(` { "text": "partial" } `)
-	delta, err := newDelta(processID, effectID, 1, time.Unix(30, 0), payload)
+	delta, err := newDelta(processID, effectID, TreeIncarnationID{}, 1, time.Unix(30, 0), payload)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestDeltaDeliveryPreservesValuesWithoutRequestCancellation(t *testing.T) {
 
 	processID, _ := ParseProcessID("process:delta-context")
 	effectID, _ := ParseEffectID("process:delta-context:step:1:effect:0")
-	delta, err := newDelta(processID, effectID, 1, time.Unix(30, 0), json.RawMessage(`{"text":"partial"}`))
+	delta, err := newDelta(processID, effectID, TreeIncarnationID{}, 1, time.Unix(30, 0), json.RawMessage(`{"text":"partial"}`))
 	if err != nil {
 		t.Fatal(err)
 	}

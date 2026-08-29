@@ -49,6 +49,11 @@ type Settlement struct {
 	payload  json.RawMessage
 }
 
+func (s Settlement) clone() Settlement {
+	s.payload = bytes.Clone(s.payload)
+	return s
+}
+
 func NewSettlement(effectID EffectID, status SettlementStatus, payload json.RawMessage) (Settlement, error) {
 	if !effectID.Valid() {
 		return Settlement{}, fmt.Errorf("%w: effect ID: %w", ErrInvalidSettlement, ErrInvalidIdentity)

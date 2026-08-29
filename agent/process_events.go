@@ -15,8 +15,26 @@ func (p *processState) publishEvent(
 	effectID EffectID,
 	payload json.RawMessage,
 ) {
-	if p.processEventSequence == math.MaxUint64 {
+	event, ok := p.prepareEvent(name, phase, step, effectID, payload)
+	if !ok {
 		return
+	}
+	p.publishPreparedEvent(ctx, event)
+}
+
+func (p *processState) prepareEvent(
+	name string,
+	phase EventPhase,
+	step uint64,
+	effectID EffectID,
+	payload json.RawMessage,
+) (Event, bool) {
+	if p.processEventSequence == math.MaxUint64 {
+		return Event{}, false
+	}
+	var incarnationID TreeIncarnationID
+	if p.runtime != nil {
+		incarnationID = p.runtime.incarnation
 	}
 	nextSequence := p.processEventSequence + 1
 	event, err := newEvent(eventSpec{
@@ -24,6 +42,7 @@ func (p *processState) publishEvent(
 		processID:       p.controller.processID,
 		deploymentRef:   p.deployment.DeploymentRef(),
 		relation:        p.controller.relation,
+		incarnationID:   incarnationID,
 		stepSequence:    step,
 		effectID:        effectID,
 		name:            name,
@@ -32,9 +51,13 @@ func (p *processState) publishEvent(
 		payload:         payload,
 	})
 	if err != nil {
-		return
+		return Event{}, false
 	}
 	p.processEventSequence = nextSequence
+	return event, true
+}
+
+func (p *processState) publishPreparedEvent(ctx context.Context, event Event) {
 	p.engine.observation.publishEvent(context.WithoutCancel(ctx), event)
 }
 
@@ -56,15 +79,28 @@ func (p *processState) publishSettlementEvent(
 	status SettlementStatus,
 	startedAt time.Time,
 ) {
+	event, ok := p.prepareSettlementEvent(effectID, target, status, startedAt)
+	if !ok {
+		return
+	}
+	p.publishPreparedEvent(ctx, event)
+}
+
+func (p *processState) prepareSettlementEvent(
+	effectID EffectID,
+	target EffectTarget,
+	status SettlementStatus,
+	startedAt time.Time,
+) (Event, bool) {
 	payload, err := json.Marshal(effectFinishedEventPayload{
 		EffectTarget: target, SettlementStatus: status,
 		DurationMS: time.Since(startedAt).Milliseconds(),
 	})
 	if err != nil {
-		return
+		return Event{}, false
 	}
-	p.publishEvent(
-		ctx, EventEffectFinished, EventPhaseAttempt,
+	return p.prepareEvent(
+		EventEffectFinished, EventPhaseAttempt,
 		p.prepared.wire.StepSequence, effectID, payload,
 	)
 }

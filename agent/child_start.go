@@ -21,6 +21,7 @@ type childStartPlan struct {
 	relation         ProcessRelation
 	limits           Limits
 	treeLimits       TreeLimits
+	requestDigest    Digest
 }
 
 type childStartJobResult struct {
@@ -29,6 +30,9 @@ type childStartJobResult struct {
 	execution  Execution
 	state      ExecutionState
 	startedAt  time.Time
+	admission  ProcessAdmission
+	failure    Failure
+	admitted   bool
 }
 
 func (r childStartJobResult) started() bool {
@@ -70,14 +74,14 @@ func (p *processState) prepareChildStart(
 			spec, FailureKindContract, "engine.child.capability_escalation", ErrInvalidCapability,
 		)}
 	}
-	if !p.reserveChildBudget(spec.Budget) {
+	if !p.reserveProvisionalChildBudget(spec.Budget) {
 		return childStartPreparation{result: failedChildStart(
 			spec, FailureKindExecution, "engine.child.budget_exhausted", ErrResourceLimitExceeded,
 		)}
 	}
 	childLimits, err := limitsFromBudget(p.limits, spec.Budget)
 	if err != nil {
-		p.releaseChildBudget(spec.Budget)
+		p.releaseProvisionalChildBudget(spec.Budget)
 		return childStartPreparation{result: failedChildStart(
 			spec, FailureKindExecution, "engine.child.budget_invalid", err,
 		)}
@@ -85,7 +89,7 @@ func (p *processState) prepareChildStart(
 	if reserveProcessStartErr := p.engine.reserveProcessStart(
 		relation, spec.DeploymentRef, p.treeLimits, requestDigest,
 	); reserveProcessStartErr != nil {
-		p.releaseChildBudget(spec.Budget)
+		p.releaseProvisionalChildBudget(spec.Budget)
 		if errors.Is(reserveProcessStartErr, ErrResourceLimitExceeded) {
 			return childStartPreparation{result: failedChildStart(
 				spec, FailureKindExecution, "engine.child.tree_limit", reserveProcessStartErr,
@@ -104,6 +108,7 @@ func (p *processState) prepareChildStart(
 		engine: p.engine, parentDeployment: p.deployment,
 		spec: spec, childID: childID, relation: relation,
 		limits: childLimits, treeLimits: p.treeLimits,
+		requestDigest: requestDigest,
 	}}
 }
 
@@ -128,37 +133,49 @@ func (p *childStartPlan) execute(ctx context.Context) childStartJobResult {
 	startedAt := time.Now().Round(0).UTC()
 	execution, state, failure, err := initializeExecution(deployment.Definition(), p.spec.Input)
 	if err != nil {
-		acknowledgeErr := p.engine.acknowledgeAbortedProcessOutcome(ctx, admission, failure)
-		return childStartJobResult{result: failedChildStart(
-			p.spec, failure.Kind(), failure.Code(), errors.Join(err, acknowledgeErr),
-		)}
-	}
-	if err := p.engine.acknowledgeStartedProcessOutcome(ctx, admission, startedAt); err != nil {
-		return childStartJobResult{result: failedChildStart(
-			p.spec, FailureKindExternal, "engine.child.start_outcome.unacknowledged", err,
-		)}
+		return childStartJobResult{
+			result:    failedChildStart(p.spec, failure.Kind(), failure.Code(), err),
+			admission: admission, failure: failure, admitted: true,
+		}
 	}
 	return childStartJobResult{
 		result: ChildStartResult{
 			key: p.spec.Key, processID: p.childID, deploymentRef: p.spec.DeploymentRef,
 		},
 		deployment: deployment, execution: execution, state: state, startedAt: startedAt,
+		admission: admission, admitted: true,
 	}
 }
 
-func (p *processState) reserveChildBudget(requested Budget) bool {
-	if !p.budget.canAllocate(p.usage, p.reservedBudget, requested) {
+func (p *processState) reserveProvisionalChildBudget(requested Budget) bool {
+	if p.provisionalChildBudget.Valid() ||
+		!p.budget.canAllocate(p.usage, p.effectiveReservedBudget(), requested) {
 		return false
 	}
-	reserved, ok := p.reservedBudget.add(requested)
-	if !ok {
-		return false
-	}
-	p.reservedBudget = reserved
+	p.provisionalChildBudget = requested
 	return true
 }
 
-func (p *processState) releaseChildBudget(released Budget) {
+func (p *processState) commitProvisionalChildBudget(requested Budget) error {
+	if !requested.Valid() || p.provisionalChildBudget != requested {
+		return ErrResourceLimitExceeded
+	}
+	reserved, ok := p.reservedBudget.add(requested)
+	if !ok {
+		return ErrResourceLimitExceeded
+	}
+	p.reservedBudget = reserved
+	p.provisionalChildBudget = Budget{}
+	return nil
+}
+
+func (p *processState) releaseProvisionalChildBudget(requested Budget) {
+	if p.provisionalChildBudget == requested {
+		p.provisionalChildBudget = Budget{}
+	}
+}
+
+func (p *processState) releaseCommittedChildBudget(released Budget) {
 	if released.Steps > p.reservedBudget.Steps ||
 		released.Effects > p.reservedBudget.Effects ||
 		released.Signals > p.reservedBudget.Signals {
@@ -167,6 +184,14 @@ func (p *processState) releaseChildBudget(released Budget) {
 	p.reservedBudget.Steps -= released.Steps
 	p.reservedBudget.Effects -= released.Effects
 	p.reservedBudget.Signals -= released.Signals
+}
+
+func (p *processState) effectiveReservedBudget() Budget {
+	reserved, ok := p.reservedBudget.add(p.provisionalChildBudget)
+	if !ok {
+		panic("agent: Process resource reservation overflow")
+	}
+	return reserved
 }
 
 func (p *childStartPlan) resolveDeployment() (Deployment, error) {

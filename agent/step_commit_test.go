@@ -87,3 +87,33 @@ func TestPreparedStepFinalizationCountsEveryImmediateChildSignal(t *testing.T) {
 		t.Fatalf("pending immediate child Signals = %d, want 1 before cumulative limit", pending)
 	}
 }
+
+func TestPreparedCompletionDoesNotRetainOutputWhenKillWins(t *testing.T) {
+	output, err := EncodeOutput(struct {
+		Value string `json:"value"`
+	}{Value: "superseded"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	transition, err := Complete(0, output)
+	if err != nil {
+		t.Fatal(err)
+	}
+	kill, err := newKillIntent("operator requested kill")
+	if err != nil {
+		t.Fatal(err)
+	}
+	finalization := &preparedStepFinalization{
+		loop:     &processState{pendingControl: pendingControl{kill: kill}},
+		prepared: &preparedStep{wire: preparedStepWire{Transition: transition}},
+	}
+	if err := finalization.prepareTransition(); err != nil {
+		t.Fatal(err)
+	}
+	if finalization.transition.status != StatusKilled {
+		t.Fatalf("resolved status=%s, want %s", finalization.transition.status, StatusKilled)
+	}
+	if finalization.transition.finalOutput.Valid() {
+		t.Fatal("superseded completion output survived Kill priority")
+	}
+}

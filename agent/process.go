@@ -56,7 +56,7 @@ func (p *Process) Relation() ProcessRelation {
 	return p.controller.relation
 }
 
-// StartedAt returns when the Engine created this Process.
+// StartedAt returns the lifecycle time committed by its started outcome.
 func (p *Process) StartedAt() time.Time {
 	if p == nil || p.controller == nil {
 		return time.Time{}
@@ -292,6 +292,7 @@ type processController struct {
 	runtime            *treeRuntime
 	done               chan struct{}
 	treeSettled        chan struct{}
+	treeSettledOnce    sync.Once
 
 	viewMu              sync.RWMutex
 	viewStatus          Status
@@ -373,7 +374,9 @@ func (p *processController) complete(result Result, snapshot ProcessSnapshot, ca
 	close(p.done)
 }
 
-func (p *processController) markTreeSettled() { close(p.treeSettled) }
+func (p *processController) markTreeSettled() {
+	p.treeSettledOnce.Do(func() { close(p.treeSettled) })
+}
 
 func (p *processController) terminalResult() Result {
 	p.viewMu.RLock()

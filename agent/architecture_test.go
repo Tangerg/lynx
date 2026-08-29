@@ -49,6 +49,10 @@ func TestProcessStartOutcomeContainsOnlyFrameworkLifecycleContracts(t *testing.T
 		{name: "status", typeOf: reflect.TypeFor[ProcessStartOutcomeStatus]()},
 		{name: "startedAt", typeOf: reflect.TypeFor[time.Time]()},
 		{name: "failure", typeOf: reflect.TypeFor[Failure]()},
+		{name: "previousTreeDigest", typeOf: reflect.TypeFor[Digest]()},
+		{name: "hasPreviousTree", typeOf: reflect.TypeFor[bool]()},
+		{name: "treeSnapshot", typeOf: reflect.TypeFor[TreeSnapshot]()},
+		{name: "hasTreeSnapshot", typeOf: reflect.TypeFor[bool]()},
 	}
 	if typeOf.NumField() != len(want) {
 		t.Fatalf("ProcessStartOutcome fields = %d, want %d", typeOf.NumField(), len(want))
@@ -69,6 +73,7 @@ func TestPreparedWaitingSubtreeCancellationOwnsOnlyFrameworkState(t *testing.T) 
 	}{
 		{name: "engine", typeOf: reflect.TypeFor[*Engine]()},
 		{name: "source", typeOf: reflect.TypeFor[*quiescedTree]()},
+		{name: "sourceTreeDigest", typeOf: reflect.TypeFor[Digest]()},
 		{name: "resultingSnapshot", typeOf: reflect.TypeFor[TreeSnapshot]()},
 		{name: "canceledProcessIDs", typeOf: reflect.TypeFor[[]ProcessID]()},
 		{name: "pausedProcessIDs", typeOf: reflect.TypeFor[[]ProcessID]()},
@@ -122,6 +127,7 @@ func TestEventContainsOnlyFrameworkObservationContracts(t *testing.T) {
 		{name: "processID", typeOf: reflect.TypeFor[ProcessID]()},
 		{name: "deploymentRef", typeOf: reflect.TypeFor[DeploymentRef]()},
 		{name: "relation", typeOf: reflect.TypeFor[ProcessRelation]()},
+		{name: "incarnationID", typeOf: reflect.TypeFor[TreeIncarnationID]()},
 		{name: "stepSequence", typeOf: reflect.TypeFor[uint64]()},
 		{name: "effectID", typeOf: reflect.TypeFor[EffectID]()},
 		{name: "name", typeOf: reflect.TypeFor[string]()},

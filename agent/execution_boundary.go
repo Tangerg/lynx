@@ -128,16 +128,3 @@ func processInitializationFailure(kind FailureKind, code string, cause error) Fa
 	)
 	return failure
 }
-
-func acknowledgePreparedStep(
-	ctx context.Context,
-	acknowledger PreparedStepAcknowledger,
-	snapshot ProcessSnapshot,
-) (err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			err = fmt.Errorf("prepared-step acknowledger panicked: %v", recovered)
-		}
-	}()
-	return acknowledger.AcknowledgePreparedStep(ctx, snapshot)
-}

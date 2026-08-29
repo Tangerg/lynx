@@ -328,26 +328,6 @@ func (f *failingEngineTestDispatcher) Dispatch(
 
 func (*failingEngineTestDispatcher) ReplayPolicy(Effect) ReplayPolicy { return ReplayPolicyNever }
 
-type engineTestAcknowledger struct {
-	mu       sync.Mutex
-	snapshot ProcessSnapshot
-	called   atomic.Bool
-}
-
-func (e *engineTestAcknowledger) AcknowledgePreparedStep(_ context.Context, snapshot ProcessSnapshot) error {
-	e.mu.Lock()
-	e.snapshot = snapshot
-	e.mu.Unlock()
-	e.called.Store(true)
-	return nil
-}
-
-func (e *engineTestAcknowledger) captured() ProcessSnapshot {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	return e.snapshot
-}
-
 func TestEngineRunsEffectToValidatedOutput(t *testing.T) {
 	definition := newEngineTestDefinition(t, "engine.effect", "effect")
 	dispatcher := &engineTestDispatcher{policy: ReplayPolicyNever}
@@ -410,18 +390,18 @@ func TestEngineMintsWaitIDAndRequiresAddressedAnswer(t *testing.T) {
 	}
 }
 
-func TestEngineAcknowledgesPreparedSnapshotBeforeDispatch(t *testing.T) {
+func TestEngineCommitsPendingTreeBeforeDispatch(t *testing.T) {
 	definition := newEngineTestDefinition(t, "engine.effect", "effect")
-	acknowledger := &engineTestAcknowledger{}
+	durability := &recordingTreeDurability{}
 	dispatcher := &engineTestDispatcher{policy: ReplayPolicyNever}
 	dispatcher.check = func() error {
-		if !acknowledger.called.Load() {
-			return errors.New("dispatch happened before prepared acknowledgment")
+		if !durability.pending.Load() {
+			return errors.New("dispatch happened before pending tree commit")
 		}
 		return nil
 	}
 	deployment := engineTestDeployment(t, definition, dispatcher)
-	engine, err := NewEngine(EngineConfig{PreparedStepAcknowledger: acknowledger})
+	engine, err := NewEngine(EngineConfig{TreeDurability: durability})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -430,10 +410,16 @@ func TestEngineAcknowledgesPreparedSnapshotBeforeDispatch(t *testing.T) {
 	if err != nil || result.Status() != StatusCompleted {
 		t.Fatalf("result=%+v err=%v", result, err)
 	}
-	snapshot := acknowledger.captured()
-	wire, err := snapshot.wire()
-	if err != nil || wire.Prepared == nil || wire.Prepared.Effects[0].Settlement != nil {
-		t.Fatalf("acknowledged snapshot does not contain pre-dispatch prepared boundary: %v", err)
+	boundaries := durability.effectBoundaries()
+	if len(boundaries) < 2 || boundaries[0].Kind() != EffectBoundaryPending ||
+		boundaries[1].Kind() != EffectBoundarySettled {
+		t.Fatalf("Effect boundaries = %#v", boundaries)
+	}
+	processSnapshots := boundaries[0].TreeSnapshot().ProcessSnapshots()
+	wire, err := processSnapshots[0].wire()
+	if err != nil || wire.Prepared == nil ||
+		wire.Prepared.Effects[0].Phase != effectPhasePending {
+		t.Fatalf("pending boundary does not contain pending Effect: %v", err)
 	}
 }
 
@@ -616,15 +602,15 @@ func TestWaitingProcessRestoresWithSameWaitIdentity(t *testing.T) {
 
 func TestRestoredPreparedEffectReplaysOnlyWithSameIdentityPolicy(t *testing.T) {
 	definition := newEngineTestDefinition(t, "engine.effect", "effect")
-	acknowledger := &engineTestAcknowledger{}
+	durability := &recordingTreeDurability{}
 	dispatcher := &engineTestDispatcher{policy: ReplayPolicySameIdentity}
 	deployment := engineTestDeployment(t, definition, dispatcher)
-	engine, _ := NewEngine(EngineConfig{PreparedStepAcknowledger: acknowledger})
+	engine, _ := NewEngine(EngineConfig{TreeDurability: durability})
 	input, _ := EncodeInput(engineTestInput{Value: "replay"})
 	if _, err := engine.Run(context.Background(), deployment, input); err != nil {
 		t.Fatal(err)
 	}
-	snapshot := acknowledger.captured()
+	snapshot := durability.effectBoundaries()[0].TreeSnapshot().ProcessSnapshots()[0]
 	tree := singleProcessTreeSnapshot(t, snapshot)
 	restoredEngine, _ := NewEngine(EngineConfig{})
 	restored, err := restoredEngine.RestoreTree(context.Background(), deployment, tree)

@@ -1,8 +1,8 @@
 # Agent durable kernel 设计
 
-> 状态：已接受，实施中（见 ADR-A2-089）
+> 状态：Scope kernel 已实施并进入 Baseline 38；Flame durable Host adapter 仍按 §17 独立实施（见 ADR-A2-089）
 > 范围：`scope/agent` 内核；Flame 是 harness 与首个 durable Host
-> 日期：2026-08-29
+> 日期：2026-08-30
 > 读者：Scope/Flame 的实现者、评审者与 durable Host adapter 作者
 
 ## 1. 结论
@@ -431,7 +431,7 @@ ReplayPolicy 只表示“相同 EffectID 是相同逻辑外部操作”，不表
 
 Runtime 在以下 canonical safe cut 自动形成 checkpoint：
 
-1. **Parked**：没有 Step/Dispatch/durability job in flight，没有 unresolved Effect，没有 runnable Process，所有非终态 Process 均为 Waiting 或 Paused；
+1. **Parked**：没有 Step/Dispatch/durability job in flight，没有 pending Effect，没有 runnable Process；所有非终态 Process 均为 Waiting、Paused，或停在已经提交为 settled Unknown、等待 Host 对账的 Effect 上；
 2. **Terminal**：整棵树的 topology、child completion、budget 归还和终态 bookkeeping 已稳定。
 
 相同 tree digest 不重复提交。checkpoint 是状态边界，不是定时 autosave。
@@ -682,6 +682,8 @@ child outcome 是一个 tree transaction：
 - callback 成功后才发布 child/应用 parent settlement；
 - callback 失败使整棵活树进入 durability fault，而不是把基础设施失败伪装成普通 child business failure。
 
+child admission job 使用 Runtime 私有的 provisional budget reservation。资源门禁必须计入它，但 `ProcessSnapshot.ReservedBudget` 不得提前包含它：只有 started outcome 的 prospective tree 同时出现 child 与 parent committed reservation 时才转正；aborted、stale 或 durability fault 路径释放 provisional reservation。这样 sibling boundary 永远不会捕获“预算已扣、child 尚不存在”的半状态。
+
 同一 child ProcessID 的恢复重投必须得到内容等价 outcome；否则是 definition/deployment nondeterminism 或 Host protocol conflict。
 
 ## 10. fencing 与 restore
@@ -704,11 +706,14 @@ child outcome 是一个 tree transaction：
 1. 严格解析 candidate authoritative head；
 2. 解析所有 exact DeploymentRef；
 3. 验证 snapshot mode 与 Engine mode；
-4. 生成新的 random incarnation；
-5. 构造只替换 incarnation 的 prospective snapshot；
-6. 调用 `ActivateTree`；
-7. Host CAS previous `(digest, incarnation)` 并安装 new head/lease；
-8. callback 成功后才发布任何 Process。
+4. 在目标 Engine 内建立不可见的完整 tree restoration reservation，使 `Start`、`Close` 和同 Engine 并发 restore 都能看到占位；
+5. 生成新的 random incarnation；
+6. 构造只替换 incarnation 的 prospective snapshot；
+7. 调用 `ActivateTree`；
+8. Host CAS previous `(digest, incarnation)` 并安装 new head/lease；
+9. callback 成功后把 reservation 无失败地迁移成完整 live tree，再发布 Process。
+
+reservation 在 activation 前完成，是为了消除“Host 已成功接管 head，随后才发现本地 identity 冲突”的不可恢复窗口；activation 失败则 reservation 整体释放，零 Process 发布。
 
 两个并发 restore 从同一 old head 生成不同 ID，因此最多一个 CAS 成功。旧 Engine 的迟到 callback、Event 和 Delta 均携带 old ID，可被拒绝。
 
@@ -728,9 +733,9 @@ child outcome 是一个 tree transaction：
 活 Runtime 收到 `ErrTreeIncarnationConflict`：
 
 - 立即停止启动新的 Step/Effect；
-- cancel in-flight jobs；
+- 取消 Framework 自己可撤销的 Step job；已经跨入 bounded Dispatcher/admission 的 job 不靠 caller context 强拆，而由 attempt fence 丢弃迟到 completion；
 - 以 tree-scoped external durability fault 结束本地执行；
-- 保留所有 pending/Unknown EffectID；
+- 在统一终止前收集整树已有 Unknown、当前失败 boundary 以及 sibling in-flight Dispatcher/child-admission EffectID，按 Process canonical 保存到 `Termination`；
 - 本地 Result/Event 仅供清理和诊断，不能更新 current Run。
 
 activation 阶段 conflict 则 `RestoreTree` 原样返回，不发布 Process。
@@ -908,6 +913,8 @@ Unknown retention、人工升级、容量上限和最终 RunLost 生存时间（
 - 无仍在运行的 Step/Dispatch/durability job；
 - observation worker 可安全结束。
 
+ephemeral Process 的 terminal view 与 immutable Result 发布之间存在一个纯内存、无外部工作的短 hand-off；`Close` 可以在持有 Engine admission gate 时同步等它完成。durable Process 在 Terminal checkpoint 返回前不得使用这条例外，必须继续返回 `ErrEngineHasActiveProcesses`。
+
 Kill 会把 pending/Unknown EffectID 冻结进 immutable `Termination`。这些 unresolved facts 不再需要活 Runtime；terminal checkpoint、Result 和 Host 记录负责保留它们，因此不会永久阻塞 `Close`。
 
 `Close` 不是“帮我杀掉所有工作”。强制关闭必须由 Host 先明确 Kill/RunLost。durability fault 已使本地树终止时，Host 可以在记录清理决议后关闭旧 Engine，再从 authoritative head 恢复或结束产品 Run。
@@ -1005,7 +1012,7 @@ Host 作者只需记住五句话：
 4. restore 先 CAS 新 incarnation，再发布执行；
 5. Unknown 不猜、不自动抹掉。
 
-`agenttest` 提供 recorder、crash gate、head model 和 conformance driver，避免每个 Host 自己理解 20 个 crash window。
+`agenttest` 提供 typed in-memory head model 和只通过正常 Engine 路径驱动 opaque boundary 的 conformance suite，避免每个 Host 重写核心生命周期测试。需要伪造 content conflict 或数据库 commit ambiguity 的测试仍属于 adapter 自己的存储层；Kernel 不为测试暴露 boundary constructor 或任意 mutation hook。
 
 ### 15.3 错误分类
 
@@ -1033,7 +1040,7 @@ var ErrTreeCaptureUnavailable = errors.New("agent: tree capture unavailable")
 - 一个内存 `TreeDurability` teaching adapter；
 - 一张 durable lifecycle/crash matrix；
 - Flame adapter 的 integration contract；
-- 每个 exported type 的 package-level usage link。
+- durable public value 与 port 的聚焦 GoDoc。
 
 ## 16. observation 不参与状态决议
 
@@ -1242,23 +1249,15 @@ if in-memory apply fails: tear down and restore committed head
 
 ### 19.4 TreeDurability conformance
 
-`agenttest` driver 允许 adapter 测试实现：
+`agenttest.TreeDurabilityConformanceDriver` 只要求提供一个空的隔离 adapter 和 authoritative head reader。公共 suite 不获得 boundary constructor、私有 wire 或 Store mutation 后门；它通过正常 Engine 执行验证：
 
-- seed/load authoritative head；
-- 构造 adapter；
-- 注入 before/after commit ambiguity；
-- 观察 committed idempotency facts。
+- root outcome 建立 base head，所有 callback 的 same-content retry 幂等；
+- Effect pending → settled Unknown → resolved 三类 boundary 与 Terminal head；
+- Parked checkpoint 只提交一次；
+- 两个并发 restore 只有一个 incarnation activation 成功；
+- 一个被延迟的旧-writer pending transaction 与新 activation 竞争时，旧 writer 被 fenced。
 
-公共 suite 验证：
-
-- exact head CAS；
-- same-content retry；
-- conflicting-content rejection；
-- incarnation fencing；
-- root/child outcome atomicity；
-- Effect 三类 boundary；
-- Parked/Terminal checkpoint coalescing；
-- delayed transaction 与 activation 只有一个赢家。
+Kernel owner tests另外验证 child outcome 的 topology/budget/parent-settlement prospective tree、checkpoint coalescing、错误分类、Unknown retention 和 crash prefix。adapter 自己的存储测试必须能直接制造 conflicting content、commit 前后 timeout 与事务回滚；这些不是 opaque Framework value 的公共合法流，不能为了测试它们而泄露 constructor 或通用 mutation API。
 
 Scope 不能证明第三方数据库真的支持 CAS，但可以让“不实现合同的 adapter”无法通过官方 suite。
 
@@ -1389,7 +1388,7 @@ Flame migration 同时运行其 Runtime/application/adapter 集成测试。性�
 
 ## 22. 接受标准
 
-只有同时满足以下条件，本设计才可进入 accepted baseline：
+Scope kernel 只有同时满足以下条件才可进入 agent accepted baseline：
 
 - root tree 是唯一恢复和 Framework consistency unit；
 - treeRuntime 拥有唯一 commit line，slow Step 不阻塞 sibling；
@@ -1407,9 +1406,10 @@ Flame migration 同时运行其 Runtime/application/adapter 集成测试。性�
 - Scope 没有 Store、Run、Session、model、tool 或 lease 抽象；
 - capability GoDoc 不宣称 sandbox；
 - agenttest conformance 与 crash-prefix suite 完整；
-- Flame 真实事务证明 product facts 与 tree head 原子；
 - Architecture、Engineering Standards、API Baseline、ADR、examples 与实现同步；
 - 无 compatibility shim、双重恢复路径或重复权威字段残留。
+
+Flame 开启 active recovery 还必须额外以自己的集成测试证明 product facts 与 tree head 原子、boot recovery fail closed、stale observation 被过滤，并完成 §17 的全部条件。这是 harness 的生产启用门，不反向阻塞 Scope kernel 合同冻结，也不能被 Scope 的内存 adapter 冒充证明。
 
 达到这些条件后，对 Scope 更准确的描述不是“像 OTP/Temporal”，而是：
 
