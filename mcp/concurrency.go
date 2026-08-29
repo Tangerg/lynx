@@ -1,8 +1,10 @@
 package mcp
 
-import sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
+import (
+	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
-import toolcontract "github.com/Tangerg/scope/core/tool"
+	toolcontract "github.com/Tangerg/scope/core/tool"
+)
 
 var _ ToolConcurrencyPolicy = AnnotatedReadOnlyConcurrencyPolicy
 
