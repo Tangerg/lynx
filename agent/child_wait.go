@@ -105,8 +105,8 @@ func WaitForChildren(spec ChildWaitSpec) (Effect, error) {
 		return Effect{}, ErrInvalidChildWait
 	}
 	payload, err := json.Marshal(childWaitEffectWire{
-		Operation: frameworkEffectWaitChildren, SchemaVersion: frameworkEffectSchemaVersion,
-		Spec: childWaitSpecWireFromValue(spec),
+		Operation: frameworkEffectWaitChildren,
+		Spec:      childWaitSpecWireFromValue(spec),
 	})
 	if err != nil {
 		return Effect{}, fmt.Errorf("%w: encode request: %w", ErrInvalidChildWait, err)
@@ -145,8 +145,7 @@ func ParseChildWaitOpened(signal Signal) (ChildWaitOpened, error) {
 		return ChildWaitOpened{}, fmt.Errorf("%w: decode opened Signal: %w", ErrInvalidChildWait, err)
 	}
 	spec, err := wire.Spec.value()
-	if err != nil || wire.SchemaVersion != childProtocolSchemaVersion ||
-		wire.Operation != childSignalWaitOpened {
+	if err != nil || wire.Operation != childSignalWaitOpened {
 		return ChildWaitOpened{}, ErrInvalidChildWait
 	}
 	opened := ChildWaitOpened{waitID: waitID, spec: spec}
@@ -219,8 +218,7 @@ func ParseChildrenCompleted(signal Signal) (ChildrenCompleted, error) {
 	if err != nil {
 		return ChildrenCompleted{}, fmt.Errorf("%w: decode completion Signal: %w", ErrInvalidChildWait, err)
 	}
-	if wire.SchemaVersion != childProtocolSchemaVersion ||
-		wire.Operation != childSignalChildrenCompleted || !wire.Key.Valid() || len(wire.Outcomes) == 0 {
+	if wire.Operation != childSignalChildrenCompleted || !wire.Key.Valid() || len(wire.Outcomes) == 0 {
 		return ChildrenCompleted{}, ErrInvalidChildWait
 	}
 	completed := ChildrenCompleted{waitID: waitID, key: wire.Key}
@@ -256,22 +254,19 @@ type childWaitSpecWire struct {
 }
 
 type childWaitEffectWire struct {
-	Operation     frameworkEffectOperation `json:"operation"`
-	SchemaVersion uint16                   `json:"schema_version"`
-	Spec          childWaitSpecWire        `json:"spec"`
+	Operation frameworkEffectOperation `json:"operation"`
+	Spec      childWaitSpecWire        `json:"spec"`
 }
 
 type childWaitOpenedWire struct {
-	SchemaVersion uint16               `json:"schema_version"`
-	Operation     childSignalOperation `json:"operation"`
-	Spec          childWaitSpecWire    `json:"spec"`
+	Operation childSignalOperation `json:"operation"`
+	Spec      childWaitSpecWire    `json:"spec"`
 }
 
 type childrenCompletedWire struct {
-	SchemaVersion uint16               `json:"schema_version"`
-	Operation     childSignalOperation `json:"operation"`
-	Key           WaitKey              `json:"key"`
-	Outcomes      []childOutcomeWire   `json:"outcomes"`
+	Operation childSignalOperation `json:"operation"`
+	Key       WaitKey              `json:"key"`
+	Outcomes  []childOutcomeWire   `json:"outcomes"`
 }
 
 type childOutcomeWire struct {
@@ -317,7 +312,7 @@ func decodeChildWaitEffect(payload json.RawMessage) (ChildWaitSpec, error) {
 	if err != nil {
 		return ChildWaitSpec{}, fmt.Errorf("%w: decode request: %w", ErrInvalidChildWait, err)
 	}
-	if wire.Operation != frameworkEffectWaitChildren || wire.SchemaVersion != frameworkEffectSchemaVersion {
+	if wire.Operation != frameworkEffectWaitChildren {
 		return ChildWaitSpec{}, ErrInvalidChildWait
 	}
 	return wire.Spec.value()
@@ -328,9 +323,8 @@ func encodeChildWaitOpened(spec ChildWaitSpec) (json.RawMessage, error) {
 		return nil, ErrInvalidChildWait
 	}
 	return json.Marshal(childWaitOpenedWire{
-		SchemaVersion: childProtocolSchemaVersion,
-		Operation:     childSignalWaitOpened,
-		Spec:          childWaitSpecWireFromValue(spec),
+		Operation: childSignalWaitOpened,
+		Spec:      childWaitSpecWireFromValue(spec),
 	})
 }
 
@@ -383,10 +377,9 @@ func encodeChildrenCompleted(
 		return Signal{}, ErrInvalidChildWait
 	}
 	wire := childrenCompletedWire{
-		SchemaVersion: childProtocolSchemaVersion,
-		Operation:     childSignalChildrenCompleted,
-		Key:           key,
-		Outcomes:      make([]childOutcomeWire, len(outcomes)),
+		Operation: childSignalChildrenCompleted,
+		Key:       key,
+		Outcomes:  make([]childOutcomeWire, len(outcomes)),
 	}
 	for index, outcome := range outcomes {
 		wire.Outcomes[index] = childOutcomeWire{

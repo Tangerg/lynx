@@ -28,12 +28,12 @@ func TestRetrievalToolExposesStrictSchemaAndCandidates(t *testing.T) {
 		t.Fatalf("definition = %#v", definition)
 	}
 
-	raw, err := executable.Call(t.Context(), `{"query":"Go design"}`)
+	raw, err := invokeTestTool(t.Context(), executable, `{"query":"Go design"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	var output rag.RetrievalToolOutput
-	if err := json.Unmarshal([]byte(raw), &output); err != nil {
+	if err := json.Unmarshal(raw.Details, &output); err != nil {
 		t.Fatal(err)
 	}
 	if err := output.Validate(); err != nil {
@@ -66,7 +66,7 @@ func TestRetrievalToolRejectsInvalidConfigurationAndArguments(t *testing.T) {
 		`{"query":""}`,
 		`{"query":"valid","unexpected":true}`,
 	} {
-		if _, err := retrievalTool.Call(t.Context(), arguments); err == nil {
+		if _, err := invokeTestTool(t.Context(), retrievalTool, arguments); err == nil {
 			t.Fatalf("Call(%s) succeeded", arguments)
 		}
 	}
@@ -84,7 +84,7 @@ func TestRetrievalToolPreservesRetrieverErrors(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := retrievalTool.Call(t.Context(), `{"query":"question"}`); !errors.Is(err, want) {
+	if _, err := invokeTestTool(t.Context(), retrievalTool, `{"query":"question"}`); !errors.Is(err, want) {
 		t.Fatalf("retrieval error = %v", err)
 	}
 }

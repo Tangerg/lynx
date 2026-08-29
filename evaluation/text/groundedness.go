@@ -32,7 +32,7 @@ type groundednessVariables struct {
 }
 
 func NewGroundednessEvaluator(config ModelEvaluatorConfig) (*GroundednessEvaluator, error) {
-	metric, err := evaluation.NewMetric("text", MetricGroundedness, nil)
+	metric, err := evaluation.NewMetric(evaluation.MetricConfig{Namespace: "text", Name: MetricGroundedness})
 	if err != nil {
 		return nil, err
 	}

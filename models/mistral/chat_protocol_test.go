@@ -98,7 +98,9 @@ func TestChatMapsNativeThinkingAndReplaysIt(t *testing.T) {
 	secondRequest := &corechat.Request{Messages: []corechat.Message{
 		firstRequest.Messages[0],
 		result.Message.Clone(),
-		corechat.NewToolMessage(corechat.ToolResult{ID: "call-1", Name: "lookup", Result: `{"name":"scope"}`}),
+		corechat.NewToolMessage(corechat.ToolResult{
+			ID: "call-1", Name: "lookup", Output: corechat.NewTextToolOutput(`{"name":"scope"}`),
+		}),
 	}}
 	if _, err := model.Call(t.Context(), secondRequest); err != nil {
 		t.Fatalf("second Call: %v", err)

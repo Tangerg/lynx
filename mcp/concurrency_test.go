@@ -5,6 +5,7 @@ import (
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
+	toolcontract "github.com/Tangerg/scope/core/tool"
 	scopemcp "github.com/Tangerg/scope/mcp"
 )
 
@@ -39,7 +40,9 @@ func TestAnnotatedReadOnlyConcurrencyPolicy(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			key, concurrent := scopemcp.AnnotatedReadOnlyConcurrencyPolicy("source", "tool", test.annotations, `{"id":"one"}`)
+			key, concurrent := scopemcp.AnnotatedReadOnlyConcurrencyPolicy(
+				"source", "tool", test.annotations, toolcontract.Invocation{},
+			)
 			if key != "" || concurrent != test.concurrent {
 				t.Fatalf("AnnotatedReadOnlyConcurrencyPolicy() = %q, %t, want empty key, %t", key, concurrent, test.concurrent)
 			}

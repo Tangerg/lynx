@@ -104,7 +104,7 @@ func newTextDeployment() (agent.Deployment, error) {
 	}
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
 		Name: "example.uppercase", Description: "Return input text in uppercase.",
-		Version: "1.0.0", InputSchema: inputSchema, OutputSchema: outputSchema,
+		InputSchema: inputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {
 		return agent.Deployment{}, err
@@ -127,7 +127,7 @@ func (*textDefinition) Start(input agent.Input) (agent.Execution, error) {
 }
 
 func (*textDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
-	if state.Kind() != "example.uppercase" || state.SchemaVersion() != 1 {
+	if state.Kind() != "example.uppercase" {
 		return nil, agent.ErrInvalidExecutionState
 	}
 	var execution textExecution
@@ -156,7 +156,7 @@ func (t *textExecution) Snapshot() (agent.ExecutionState, error) {
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
-	return agent.NewExecutionState("example.uppercase", 1, payload)
+	return agent.NewExecutionState("example.uppercase", payload)
 }
 
 func newModelDeployment() (agent.Deployment, error) {
@@ -166,7 +166,7 @@ func newModelDeployment() (agent.Deployment, error) {
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "example.composition_model", Description: "Return one deterministic composition response.",
-		Version: "1.0.0", MaxModelCalls: 1,
+		MaxModelCalls: 1,
 	})
 	if err != nil {
 		return agent.Deployment{}, err
@@ -208,7 +208,7 @@ func newCompositionDeployment(local, model agent.DeploymentRef) (agent.Deploymen
 	}
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
 		Name: "example.composition", Description: "Compose deterministic local and model child Processes.",
-		Version: "1.0.0", InputSchema: inputSchema, OutputSchema: outputSchema,
+		InputSchema: inputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {
 		return agent.Deployment{}, err
@@ -237,7 +237,7 @@ func (c *compositionDefinition) Start(input agent.Input) (agent.Execution, error
 }
 
 func (c *compositionDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
-	if state.Kind() != "example.composition" || state.SchemaVersion() != 1 {
+	if state.Kind() != "example.composition" {
 		return nil, agent.ErrInvalidExecutionState
 	}
 	var decoded compositionState
@@ -399,7 +399,7 @@ func (c *compositionExecution) Snapshot() (agent.ExecutionState, error) {
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
-	return agent.NewExecutionState("example.composition", 1, payload)
+	return agent.NewExecutionState("example.composition", payload)
 }
 
 type compositionModel struct{}

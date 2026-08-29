@@ -49,10 +49,12 @@ func (g *GlobTool) Definition() chat.ToolDefinition {
 
 // ConcurrencyKey opts glob into parallel execution — a read-only filename
 // search has no conflict (the tool loop's optional concurrency contract).
-func (g *GlobTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
+func (g *GlobTool) ConcurrencyKey(toolcontract.Invocation) (key string, concurrent bool) {
+	return "", true
+}
 
-func (g *GlobTool) Call(ctx context.Context, arguments string) (string, error) {
-	return g.typed.Call(ctx, arguments)
+func (g *GlobTool) Call(ctx context.Context, invocation toolcontract.Invocation) (chat.ToolOutput, error) {
+	return g.typed.Call(ctx, invocation)
 }
 
 func (g *GlobTool) glob(ctx context.Context, req GlobRequest) (GlobResponse, error) {

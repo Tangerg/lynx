@@ -83,7 +83,7 @@ func (c *chatStreamState) mapToolDeltas(calls []chatToolCall) ([]corechat.Part, 
 		deltaArguments := tool.pendingArguments
 		tool.pendingArguments = ""
 		c.tools[index] = tool
-		parts = append(parts, corechat.NewToolCallPart(corechat.ToolCall{
+		parts = append(parts, corechat.NewToolCallDeltaPart(corechat.ToolCallDelta{
 			ID: tool.id, Name: tool.name, Arguments: deltaArguments,
 		}))
 	}

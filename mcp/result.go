@@ -5,6 +5,9 @@ import (
 	"fmt"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/media"
 )
 
 type remoteResult struct {
@@ -12,12 +15,12 @@ type remoteResult struct {
 	value      *sdkmcp.CallToolResult
 }
 
-func (r remoteResult) unwrap() (string, error) {
+func (r remoteResult) unwrap() (chat.ToolOutput, error) {
 	if r.value == nil {
-		return "", fmt.Errorf("mcp: call tool %q: server returned a nil result", r.remoteName)
+		return chat.ToolOutput{}, fmt.Errorf("mcp: call tool %q: server returned a nil result", r.remoteName)
 	}
 	if r.value.IsError {
-		return "", &ToolCallError{
+		return chat.ToolOutput{}, &ToolCallError{
 			RemoteName: r.remoteName,
 			Message:    r.firstText("tool returned isError=true with no text content"),
 		}
@@ -25,27 +28,81 @@ func (r remoteResult) unwrap() (string, error) {
 	return r.content()
 }
 
-func (r remoteResult) content() (string, error) {
-	if len(r.value.Content) == 0 {
-		if r.value.StructuredContent == nil {
-			return "", nil
+func (r remoteResult) content() (chat.ToolOutput, error) {
+	output := chat.ToolOutput{Content: make([]chat.Part, 0, len(r.value.Content))}
+	for index := range r.value.Content {
+		part, include, err := mapRemoteContent(r.value.Content[index])
+		if err != nil {
+			return chat.ToolOutput{}, fmt.Errorf("mcp: tool content[%d]: %w", index, err)
 		}
+		if include {
+			output.Content = append(output.Content, part)
+		}
+	}
+	if r.value.StructuredContent != nil {
 		encoded, err := json.Marshal(r.value.StructuredContent)
 		if err != nil {
-			return "", fmt.Errorf("mcp: encode structured tool content: %w", err)
+			return chat.ToolOutput{}, fmt.Errorf("mcp: encode structured tool content: %w", err)
 		}
-		return string(encoded), nil
+		output.Details = encoded
 	}
-	if len(r.value.Content) == 1 {
-		if text, ok := r.value.Content[0].(*sdkmcp.TextContent); ok {
-			return text.Text, nil
+	if err := output.Validate(); err != nil {
+		return chat.ToolOutput{}, fmt.Errorf("mcp: mapped tool output: %w", err)
+	}
+	return output, nil
+}
+
+func mapRemoteContent(content sdkmcp.Content) (chat.Part, bool, error) {
+	switch value := content.(type) {
+	case *sdkmcp.TextContent:
+		if value.Text == "" {
+			return chat.Part{}, false, nil
+		}
+		return chat.NewTextPart(value.Text), true, nil
+	case *sdkmcp.ImageContent:
+		part, err := remoteBytesMedia(value.MIMEType, value.Data)
+		return part, err == nil, err
+	case *sdkmcp.AudioContent:
+		part, err := remoteBytesMedia(value.MIMEType, value.Data)
+		return part, err == nil, err
+	case *sdkmcp.ResourceLink:
+		if value.MIMEType != "" {
+			linked, err := media.NewURI(value.MIMEType, value.URI)
+			if err == nil {
+				linked.Name = value.Name
+				return chat.NewMediaPart(linked), true, nil
+			}
+		}
+	case *sdkmcp.EmbeddedResource:
+		if value.Resource != nil {
+			if value.Resource.Text != "" {
+				return chat.NewTextPart(value.Resource.Text), true, nil
+			}
+			if len(value.Resource.Blob) != 0 && value.Resource.MIMEType != "" {
+				part, err := remoteBytesMedia(value.Resource.MIMEType, value.Resource.Blob)
+				return part, err == nil, err
+			}
+			if value.Resource.URI != "" && value.Resource.MIMEType != "" {
+				linked, err := media.NewURI(value.Resource.MIMEType, value.Resource.URI)
+				if err == nil {
+					return chat.NewMediaPart(linked), true, nil
+				}
+			}
 		}
 	}
-	encoded, err := json.Marshal(r.value.Content)
+	encoded, err := json.Marshal(content)
 	if err != nil {
-		return "", fmt.Errorf("mcp: encode tool content: %w", err)
+		return chat.Part{}, false, fmt.Errorf("encode unsupported content %T: %w", content, err)
 	}
-	return string(encoded), nil
+	return chat.NewTextPart(string(encoded)), true, nil
+}
+
+func remoteBytesMedia(mimeType string, data []byte) (chat.Part, error) {
+	value, err := media.NewBytes(mimeType, data)
+	if err != nil {
+		return chat.Part{}, err
+	}
+	return chat.NewMediaPart(value), nil
 }
 
 func (r remoteResult) firstText(fallback string) string {

@@ -1,9 +1,11 @@
 package mcp
 
 import (
-	"cmp"
 	"context"
+	"encoding/json"
 	"fmt"
+	"mime"
+	"strings"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 	"go.opentelemetry.io/otel/attribute"
@@ -11,6 +13,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 
 	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/media"
 	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
@@ -49,7 +52,7 @@ func Register(server *sdkmcp.Server, tools ...toolcontract.Tool) error {
 }
 
 type serverTool struct {
-	executable toolcontract.Tool
+	executable toolcontract.Binding
 	definition corechat.ToolDefinition
 }
 
@@ -85,16 +88,92 @@ func (s serverTool) handle(ctx context.Context, req *sdkmcp.CallToolRequest) (*s
 		rawArgs = string(req.Params.Arguments)
 	}
 
-	out, err := s.executable.Call(ctx, cmp.Or(rawArgs, "{}"))
+	invocation, err := s.executable.Prepare(corechat.ToolCall{
+		ID: "mcp/" + toolName, Name: toolName, Arguments: rawArgs,
+	})
 	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return &sdkmcp.CallToolResult{
-			Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: err.Error()}},
-			IsError: true,
-		}, nil
+		return s.errorResult(span, err), nil
 	}
+	output, err := s.executable.Call(ctx, invocation)
+	if err != nil {
+		return s.errorResult(span, err), nil
+	}
+	result, err := mapServerToolOutput(output)
+	if err != nil {
+		return s.errorResult(span, err), nil
+	}
+	return result, nil
+}
+
+func (s serverTool) errorResult(span trace.Span, err error) *sdkmcp.CallToolResult {
+	span.RecordError(err)
+	span.SetStatus(codes.Error, err.Error())
 	return &sdkmcp.CallToolResult{
-		Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: out}},
-	}, nil
+		Content: []sdkmcp.Content{&sdkmcp.TextContent{Text: err.Error()}},
+		IsError: true,
+	}
+}
+
+func mapServerToolOutput(output corechat.ToolOutput) (*sdkmcp.CallToolResult, error) {
+	if err := output.Validate(); err != nil {
+		return nil, fmt.Errorf("mcp: invalid Tool output: %w", err)
+	}
+	result := &sdkmcp.CallToolResult{Content: make([]sdkmcp.Content, 0, len(output.Content))}
+	for index := range output.Content {
+		part := output.Content[index]
+		switch part.Kind {
+		case corechat.PartText:
+			result.Content = append(result.Content, &sdkmcp.TextContent{Text: part.Text})
+		case corechat.PartMedia:
+			content, err := mapServerMedia(part.Media)
+			if err != nil {
+				return nil, fmt.Errorf("mcp: tool output content[%d]: %w", index, err)
+			}
+			result.Content = append(result.Content, content)
+		default:
+			return nil, fmt.Errorf("mcp: tool output content[%d]: unsupported part %q", index, part.Kind)
+		}
+	}
+	if len(output.Details) != 0 {
+		if err := json.Unmarshal(output.Details, &result.StructuredContent); err != nil {
+			return nil, fmt.Errorf("mcp: decode structured Tool details: %w", err)
+		}
+	}
+	return result, nil
+}
+
+func mapServerMedia(value *media.Media) (sdkmcp.Content, error) {
+	mediaType, _, err := mime.ParseMediaType(value.MIME)
+	if err != nil {
+		return nil, err
+	}
+	if value.Source.Kind == media.SourceBytes {
+		data, bytesErr := value.Bytes()
+		if bytesErr != nil {
+			return nil, bytesErr
+		}
+		switch {
+		case strings.HasPrefix(mediaType, "image/"):
+			return &sdkmcp.ImageContent{MIMEType: value.MIME, Data: data}, nil
+		case strings.HasPrefix(mediaType, "audio/"):
+			return &sdkmcp.AudioContent{MIMEType: value.MIME, Data: data}, nil
+		default:
+			return &sdkmcp.EmbeddedResource{Resource: &sdkmcp.ResourceContents{
+				URI: "scope://tool-output/" + value.Name, MIMEType: value.MIME, Blob: data,
+			}}, nil
+		}
+	}
+	var uri string
+	switch value.Source.Kind {
+	case media.SourceURI:
+		uri, err = value.URI()
+	case media.SourceReference:
+		uri, err = value.Reference()
+	default:
+		return nil, media.ErrInvalidSource
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &sdkmcp.ResourceLink{URI: uri, Name: value.Name, MIMEType: value.MIME}, nil
 }

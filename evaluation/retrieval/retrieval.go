@@ -42,7 +42,9 @@ func (metric Metric) reportMetric(cutoff int) (evaluation.Metric, error) {
 	if err := parameters.Set("cutoff", cutoff); err != nil {
 		return evaluation.Metric{}, err
 	}
-	return evaluation.NewMetric("retrieval", evaluation.MetricName(metric), parameters)
+	return evaluation.NewMetric(evaluation.MetricConfig{
+		Namespace: "retrieval", Name: evaluation.MetricName(metric), Parameters: parameters,
+	})
 }
 
 // Sample is an observed ranking and its complete binary relevance judgment.
@@ -228,9 +230,11 @@ func (evaluator *Evaluator) Evaluate(ctx context.Context, sample Sample) (evalua
 	if err != nil {
 		return evaluation.Report{}, fmt.Errorf("evaluation/retrieval: calculate %s: %w", evaluator.reportMetric, err)
 	}
-	report := evaluation.Report{
-		Metric: evaluator.reportMetric, Passed: score.Passes(evaluator.threshold), Score: score,
+	verdict, err := score.Verdict(evaluator.threshold)
+	if err != nil {
+		return evaluation.Report{}, fmt.Errorf("evaluation/retrieval: verdict: %w", err)
 	}
+	report := evaluation.Report{Metric: evaluator.reportMetric, Verdict: verdict, Score: &score}
 	if err := report.Validate(); err != nil {
 		return evaluation.Report{}, err
 	}

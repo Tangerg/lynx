@@ -25,7 +25,7 @@ func FuzzExecutionStateRestore(f *testing.F) {
 	f.Add([]byte(`null`))
 	f.Add([]byte(`{"phase":"waiting_delegates"}`))
 	f.Fuzz(func(t *testing.T, payload []byte) {
-		state, err := agent.NewExecutionState(executionStateKind, executionStateSchemaVersion, payload)
+		state, err := agent.NewExecutionState(executionStateKind, payload)
 		if err != nil {
 			return
 		}
@@ -63,7 +63,7 @@ func fuzzInteractionDefinition(f testing.TB) *Definition {
 	}
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
 		Name: "interaction.fuzz_worker", Description: "Provide a deterministic fuzz worker contract.",
-		Version: "1.0.0", InputSchema: inputSchema, OutputSchema: outputSchema,
+		InputSchema: inputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {
 		f.Fatal(err)
@@ -87,7 +87,7 @@ func fuzzInteractionDefinition(f testing.TB) *Definition {
 	}
 	definition, err := NewDefinition(DefinitionConfig{
 		Name: "interaction.fuzz", Description: "Exercise strict Interaction state restoration.",
-		Version: "1.0.0", MaxModelCalls: 4, Delegates: []Delegate{delegate},
+		MaxModelCalls: 4, Delegates: []Delegate{delegate},
 	})
 	if err != nil {
 		f.Fatal(err)
@@ -140,7 +140,7 @@ func fuzzInteractionStates(f testing.TB, definition *Definition) []agent.Executi
 		if err != nil {
 			f.Fatal(err)
 		}
-		envelope, err := agent.NewExecutionState(executionStateKind, executionStateSchemaVersion, payload)
+		envelope, err := agent.NewExecutionState(executionStateKind, payload)
 		if err != nil {
 			f.Fatal(err)
 		}

@@ -24,9 +24,6 @@ func ParseModelResponseDelta(payload json.RawMessage) (ModelResponseDelta, error
 	if err := jsonv2.Unmarshal(payload, &wire, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return ModelResponseDelta{}, fmt.Errorf("interaction: decode model response Delta: %w", err)
 	}
-	if wire.SchemaVersion != protocolSchemaVersion {
-		return ModelResponseDelta{}, errors.New("interaction: unsupported model response Delta schema")
-	}
 	if err := wire.Response.Validate(); err != nil {
 		return ModelResponseDelta{}, fmt.Errorf("interaction: model response Delta: %w", err)
 	}
@@ -39,8 +36,7 @@ func (m ModelResponseDelta) Response() *chat.Response {
 }
 
 type modelResponseDeltaWire struct {
-	SchemaVersion uint16        `json:"schema_version"`
-	Response      chat.Response `json:"response"`
+	Response chat.Response `json:"response"`
 }
 
 func encodeModelResponseDelta(response *chat.Response) (json.RawMessage, error) {
@@ -48,8 +44,7 @@ func encodeModelResponseDelta(response *chat.Response) (json.RawMessage, error) 
 		return nil, errors.New("interaction: cannot encode a nil model response Delta")
 	}
 	payload, err := json.Marshal(modelResponseDeltaWire{
-		SchemaVersion: protocolSchemaVersion,
-		Response:      *response.Clone(),
+		Response: *response.Clone(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("interaction: encode model response Delta: %w", err)

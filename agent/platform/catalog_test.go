@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"strings"
 	"sync"
 	"testing"
 
@@ -14,8 +15,8 @@ import (
 var _ agent.DeploymentResolver = platform.Catalog{}
 
 func TestCatalogResolvesOnlyExactDeploymentReferences(t *testing.T) {
-	first := catalogDeployment(t, "test.writer", "1.0.0", "first")
-	replacement := catalogDeployment(t, "test.writer", "1.0.0", "replacement")
+	first := catalogDeployment(t, "test.writer", "first")
+	replacement := catalogDeployment(t, "test.writer", "replacement")
 	catalog, err := platform.NewCatalog(first, replacement)
 	if err != nil {
 		t.Fatal(err)
@@ -34,7 +35,7 @@ func TestCatalogResolvesOnlyExactDeploymentReferences(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err := catalog.Resolve(missingReference); !errors.Is(err, platform.ErrDeploymentNotFound) {
-		t.Fatalf("same-name/version missing reference error = %v", err)
+		t.Fatalf("same-name missing reference error = %v", err)
 	}
 	if _, err := catalog.Resolve(agent.DeploymentRef{}); !errors.Is(err, agent.ErrInvalidDeploymentRef) {
 		t.Fatalf("invalid reference error = %v", err)
@@ -42,7 +43,7 @@ func TestCatalogResolvesOnlyExactDeploymentReferences(t *testing.T) {
 }
 
 func TestCatalogRejectsInvalidAndDuplicateBindings(t *testing.T) {
-	deployment := catalogDeployment(t, "test.duplicate", "1.0.0", "only")
+	deployment := catalogDeployment(t, "test.duplicate", "only")
 	for _, test := range []struct {
 		name        string
 		deployments []agent.Deployment
@@ -61,22 +62,26 @@ func TestCatalogRejectsInvalidAndDuplicateBindings(t *testing.T) {
 
 func TestCatalogEnumerationIsStableAndOwnershipIsolated(t *testing.T) {
 	deployments := []agent.Deployment{
-		catalogDeployment(t, "test.zebra", "1.0.0", "zebra"),
-		catalogDeployment(t, "test.alpha", "1.10.0", "newer"),
-		catalogDeployment(t, "test.alpha", "1.2.0", "older"),
+		catalogDeployment(t, "test.zebra", "zebra"),
+		catalogDeployment(t, "test.alpha", "second"),
+		catalogDeployment(t, "test.alpha", "first"),
 	}
 	catalog, err := platform.NewCatalog(deployments...)
 	if err != nil {
 		t.Fatal(err)
 	}
 	listed := catalog.Deployments()
-	want := []string{"test.alpha@1.2.0", "test.alpha@1.10.0", "test.zebra@1.0.0"}
-	got := make([]string, len(listed))
-	for index, deployment := range listed {
-		got[index] = deployment.DeploymentRef().Name() + "@" + deployment.DeploymentRef().Version()
-	}
-	if !slices.Equal(got, want) {
-		t.Fatalf("catalog order = %v, want %v", got, want)
+	if !slices.IsSortedFunc(listed, func(left, right agent.Deployment) int {
+		leftRef, rightRef := left.DeploymentRef(), right.DeploymentRef()
+		if leftRef.Name() < rightRef.Name() {
+			return -1
+		}
+		if leftRef.Name() > rightRef.Name() {
+			return 1
+		}
+		return strings.Compare(leftRef.Digest().String(), rightRef.Digest().String())
+	}) {
+		t.Fatalf("catalog order is unstable: %v", listed)
 	}
 	listed[0] = agent.Deployment{}
 	if again := catalog.Deployments(); len(again) != 3 || !again[0].Valid() {
@@ -89,7 +94,7 @@ func TestCatalogZeroValueIsEmptyAndConcurrentSafe(t *testing.T) {
 	if listed := empty.Deployments(); len(listed) != 0 {
 		t.Fatalf("zero Catalog deployments = %#v", listed)
 	}
-	deployment := catalogDeployment(t, "test.concurrent", "1.0.0", "stable")
+	deployment := catalogDeployment(t, "test.concurrent", "stable")
 	catalog, err := platform.NewCatalog(deployment)
 	if err != nil {
 		t.Fatal(err)
@@ -142,14 +147,14 @@ func (catalogDispatcher) ReplayPolicy(agent.Effect) agent.ReplayPolicy {
 	return agent.ReplayPolicyNever
 }
 
-func catalogDeployment(t *testing.T, name, version, configuration string) agent.Deployment {
+func catalogDeployment(t *testing.T, name, configuration string) agent.Deployment {
 	t.Helper()
 	schema, err := agent.SchemaFor[struct{}]()
 	if err != nil {
 		t.Fatal(err)
 	}
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
-		Name: name, Description: "Provide one immutable catalog test binding.", Version: version,
+		Name: name, Description: "Provide one immutable catalog test binding.",
 		InputSchema: schema, OutputSchema: schema,
 	})
 	if err != nil {

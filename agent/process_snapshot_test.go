@@ -25,26 +25,6 @@ func TestSnapshotStrictlyRejectsUnknownFields(t *testing.T) {
 	}
 }
 
-func TestSnapshotRejectsPriorSchemaVersion(t *testing.T) {
-	snapshot := completedEngineTestSnapshot(t)
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(snapshot.JSON(), &fields); err != nil {
-		t.Fatal(err)
-	}
-	version, err := json.Marshal(processSnapshotSchemaVersion - 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fields["schema_version"] = version
-	data, err := json.Marshal(fields)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := ParseProcessSnapshot(data); !errors.Is(err, ErrInvalidSnapshot) {
-		t.Fatalf("prior schema error = %v, want ErrInvalidSnapshot", err)
-	}
-}
-
 func TestSnapshotRejectsAcceptedSignalCountThatDisagreesWithMailbox(t *testing.T) {
 	snapshot := completedEngineTestSnapshot(t)
 	wire, err := snapshot.wire()

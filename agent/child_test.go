@@ -669,7 +669,7 @@ func newChildTestDeploymentWithDispatcher(t testing.TB, dispatcher Dispatcher) D
 	}
 	descriptor, err := NewDescriptor(DescriptorConfig{
 		Name: "test.child", Description: "Exercise child Process framework Effects.",
-		Version: "1.0.0", InputSchema: inputSchema, OutputSchema: outputSchema,
+		InputSchema: inputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -705,7 +705,7 @@ func (c *childTestDefinition) Start(input Input) (Execution, error) {
 }
 
 func (c *childTestDefinition) Restore(state ExecutionState) (Execution, error) {
-	if state.Kind() != "test.child" || state.SchemaVersion() != 1 {
+	if state.Kind() != "test.child" {
 		return nil, ErrInvalidExecutionState
 	}
 	var decoded childTestState
@@ -1076,7 +1076,7 @@ func (c *childTestExecution) Snapshot() (ExecutionState, error) {
 	if err != nil {
 		return ExecutionState{}, err
 	}
-	return NewExecutionState("test.child", 1, payload)
+	return NewExecutionState("test.child", payload)
 }
 
 type childTestDispatcher struct{}

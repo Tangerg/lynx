@@ -112,13 +112,13 @@ func (t ToolInvocation) ToolCall() chat.ToolCall { return t.toolCall }
 // ModelResult maps the executable Tool's Go return values onto the exact
 // provider-neutral ToolResult consumed by Interaction. present=false means the
 // cause belongs to the host or control plane and must not enter model context.
-func (t ToolInvocation) ModelResult(output string, cause error) (result chat.ToolResult, present bool) {
+func (t ToolInvocation) ModelResult(output chat.ToolOutput, cause error) (result chat.ToolResult, present bool) {
 	if !t.Valid() {
 		return chat.ToolResult{}, false
 	}
 	call := t.toolCall
 	if cause == nil {
-		return chat.ToolResult{ID: call.ID, Name: call.Name, Result: output}, true
+		return chat.ToolResult{ID: call.ID, Name: call.Name, Output: output.Clone()}, true
 	}
 	if errors.Is(cause, ErrHostFailure) ||
 		errors.Is(cause, context.Canceled) ||
@@ -130,7 +130,7 @@ func (t ToolInvocation) ModelResult(output string, cause error) (result chat.Too
 	}
 	return chat.ToolResult{
 		ID: call.ID, Name: call.Name,
-		Result:  fmt.Sprintf("error: tool %q failed: %s", call.Name, boundedDiagnostic(cause.Error())),
+		Output:  chat.NewTextToolOutput(fmt.Sprintf("error: tool %q failed: %s", call.Name, boundedDiagnostic(cause.Error()))),
 		IsError: true,
 	}, true
 }

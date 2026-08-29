@@ -93,18 +93,39 @@ func (report CaseReport) Clone() CaseReport {
 	return report
 }
 
+// Distribution summarizes one homogeneous numeric signal. Count distinguishes
+// an absent distribution from a real distribution whose values are all zero.
+type Distribution struct {
+	Count   int
+	Mean    float64
+	Minimum float64
+	P10     float64
+	P50     float64
+	P90     float64
+	Maximum float64
+}
+
+// MetricSummary keeps score and measurement distributions attached to their
+// full Metric identity so unrelated units, directions, and configurations are
+// never aggregated together.
+type MetricSummary struct {
+	Metric       Metric
+	Evaluated    int
+	Passed       int
+	Failed       int
+	Unjudged     int
+	Scores       Distribution
+	Measurements Distribution
+}
+
 type Summary struct {
 	Total     int
 	Evaluated int
 	Passed    int
 	Failed    int
+	Unjudged  int
 	Errors    int
-	Mean      Score
-	Minimum   Score
-	P10       Score
-	P50       Score
-	P90       Score
-	Maximum   Score
+	Metrics   []MetricSummary
 }
 
 type RunReport struct {
@@ -116,6 +137,10 @@ func (report RunReport) Clone() RunReport {
 	report.Cases = slices.Clone(report.Cases)
 	for index := range report.Cases {
 		report.Cases[index] = report.Cases[index].Clone()
+	}
+	report.Summary.Metrics = slices.Clone(report.Summary.Metrics)
+	for index := range report.Summary.Metrics {
+		report.Summary.Metrics[index].Metric = report.Summary.Metrics[index].Metric.Clone()
 	}
 	return report
 }
@@ -202,7 +227,47 @@ func validateCases[T any](cases []Case[T]) error {
 
 func summarize(results []CaseReport) Summary {
 	summary := Summary{Total: len(results)}
-	scores := make([]Score, 0, len(results))
+	type accumulator struct {
+		index        int
+		scores       []float64
+		measurements []float64
+	}
+	metrics := make(map[string]*accumulator)
+	var summarizeMetric func(Report) error
+	summarizeMetric = func(report Report) error {
+		identity, err := report.Metric.identity()
+		if err != nil {
+			return err
+		}
+		current := metrics[identity]
+		if current == nil {
+			current = &accumulator{index: len(summary.Metrics)}
+			metrics[identity] = current
+			summary.Metrics = append(summary.Metrics, MetricSummary{Metric: report.Metric.Clone()})
+		}
+		metricSummary := &summary.Metrics[current.index]
+		metricSummary.Evaluated++
+		switch report.Verdict {
+		case VerdictPass:
+			metricSummary.Passed++
+		case VerdictFail:
+			metricSummary.Failed++
+		default:
+			metricSummary.Unjudged++
+		}
+		if report.Score != nil {
+			current.scores = append(current.scores, report.Score.Float64())
+		}
+		if report.Measurement != nil {
+			current.measurements = append(current.measurements, *report.Measurement)
+		}
+		for _, detail := range report.Details {
+			if err := summarizeMetric(detail); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
 	for _, result := range results {
 		if result.Err != nil {
 			summary.Errors++
@@ -213,28 +278,46 @@ func summarize(results []CaseReport) Summary {
 			continue
 		}
 		summary.Evaluated++
-		if result.Report.Passed {
+		switch result.Report.Verdict {
+		case VerdictPass:
 			summary.Passed++
-		} else {
+		case VerdictFail:
 			summary.Failed++
+		default:
+			summary.Unjudged++
 		}
-		scores = append(scores, result.Report.Score)
-		summary.Mean += result.Report.Score
+
+		if err := summarizeMetric(result.Report); err != nil {
+			summary.Errors++
+			summary.Evaluated--
+			continue
+		}
 	}
-	if len(scores) == 0 {
-		return summary
+	for _, current := range metrics {
+		metricSummary := &summary.Metrics[current.index]
+		metricSummary.Scores = distribution(current.scores)
+		metricSummary.Measurements = distribution(current.measurements)
 	}
-	summary.Mean /= Score(len(scores))
-	slices.Sort(scores)
-	summary.Minimum = scores[0]
-	summary.P10 = percentile(scores, 0.10)
-	summary.P50 = percentile(scores, 0.50)
-	summary.P90 = percentile(scores, 0.90)
-	summary.Maximum = scores[len(scores)-1]
 	return summary
 }
 
-func percentile(sorted []Score, quantile float64) Score {
+func distribution(values []float64) Distribution {
+	if len(values) == 0 {
+		return Distribution{}
+	}
+	slices.Sort(values)
+	result := Distribution{
+		Count: len(values), Minimum: values[0], Maximum: values[len(values)-1],
+		P10: percentile(values, 0.10), P50: percentile(values, 0.50), P90: percentile(values, 0.90),
+	}
+	for _, value := range values {
+		result.Mean += value
+	}
+	result.Mean /= float64(len(values))
+	return result
+}
+
+func percentile(sorted []float64, quantile float64) float64 {
 	index := max(0, int(math.Ceil(quantile*float64(len(sorted))))-1)
 	return sorted[index]
 }

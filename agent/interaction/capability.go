@@ -1,5 +1,7 @@
 package interaction
 
+import "github.com/Tangerg/scope/core/tool"
+
 // DirectResultTool is an optional Tool capability declaring that a successful
 // model-requested batch containing only such tools returns its ordered results
 // directly instead of making another model call. The declaration is frozen by
@@ -28,5 +30,5 @@ type ConcurrentTool interface {
 	// concurrent=true with the same non-empty key serializes calls to that
 	// resource. The method must be deterministic, bounded, side-effect-free, and
 	// must not retain arguments.
-	ConcurrencyKey(arguments string) (key string, concurrent bool)
+	ConcurrencyKey(invocation tool.Invocation) (key string, concurrent bool)
 }

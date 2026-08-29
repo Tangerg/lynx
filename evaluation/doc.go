@@ -1,9 +1,12 @@
 // Package evaluation defines a subject-agnostic quality-evaluation kernel.
-// Evaluator is generic over the subject, Metric carries structured identity,
-// CompositeEvaluator makes score and pass aggregation explicit, and Runner
-// executes identified cases with bounded concurrency and distribution
-// summaries. ProjectionEvaluator adapts aggregate datasets to narrow evaluator
-// subjects without forcing a shared sample shape.
+// Evaluator is generic over the subject, Metric carries structured identity and
+// measurement semantics, and Report independently represents an optional
+// verdict, normalized quality score, raw numeric measurement, feedback, and
+// child reports. SuiteEvaluator preserves heterogeneous results while
+// CompositeEvaluator explicitly aggregates comparable scored verdicts. Runner
+// executes identified cases with bounded concurrency and per-metric
+// distributions. ProjectionEvaluator adapts aggregate datasets to narrow
+// evaluator subjects without forcing a shared sample shape.
 //
 // Domain vocabularies live outside the kernel: judge supplies generic
 // model-backed evaluation, text owns generated-text metrics, and retrieval owns

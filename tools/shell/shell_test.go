@@ -143,13 +143,13 @@ func TestTool_Definition(t *testing.T) {
 func TestTool_Call_HappyPath(t *testing.T) {
 	skipWithoutShell(t)
 	tool := NewTool(nil)
-	result, err := tool.Call(t.Context(), `{"command":"echo hi"}`)
+	result, err := invokeTestTool(t.Context(), tool, `{"command":"echo hi"}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
 	var resp Response
-	if err := json.Unmarshal([]byte(result), &resp); err != nil {
-		t.Fatalf("Unmarshal response: %v\nbody=%s", err, result)
+	if err := json.Unmarshal(result.Details, &resp); err != nil {
+		t.Fatalf("Unmarshal response: %v\nbody=%s", err, result.Details)
 	}
 	if !strings.Contains(resp.Stdout, "hi") {
 		t.Errorf("Response.Stdout = %q, want substring %q", resp.Stdout, "hi")
@@ -160,7 +160,7 @@ func TestTool_Call_HappyPath(t *testing.T) {
 }
 
 func TestTool_Call_BadJSON(t *testing.T) {
-	if _, err := NewTool(nil).Call(t.Context(), `{bad json}`); err == nil {
+	if _, err := invokeTestTool(t.Context(), NewTool(nil), `{bad json}`); err == nil {
 		t.Fatal("Call with bad JSON: want error")
 	}
 }
@@ -174,7 +174,7 @@ func TestTool_Call_EnforcesPreciseInputContract(t *testing.T) {
 		`{"command":"true"} {}`,
 		`{}`,
 	} {
-		if _, err := tool.Call(t.Context(), arguments); err == nil {
+		if _, err := invokeTestTool(t.Context(), tool, arguments); err == nil {
 			t.Fatalf("shell accepted arguments outside its contract: %s", arguments)
 		}
 	}
@@ -183,7 +183,7 @@ func TestTool_Call_EnforcesPreciseInputContract(t *testing.T) {
 func TestTool_Call_NilExecutorDefaultsToLocal(t *testing.T) {
 	skipWithoutShell(t)
 	tool := NewTool(nil) // must not panic; should pick up LocalExecutor
-	if _, err := tool.Call(t.Context(), `{"command":"true"}`); err != nil {
+	if _, err := invokeTestTool(t.Context(), tool, `{"command":"true"}`); err != nil {
 		t.Fatalf("Call with nil-executor default: %v", err)
 	}
 }

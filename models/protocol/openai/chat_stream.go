@@ -76,7 +76,7 @@ func (o *openAIStreamState) mapChunkOutput(choice openaisdk.ChatCompletionChunkC
 			return nil, false, fmt.Errorf("tool_calls[%d]: %w", i, err)
 		}
 		if include {
-			parts = append(parts, corechat.NewToolCallPart(call))
+			parts = append(parts, corechat.NewToolCallDeltaPart(call))
 		}
 	}
 	message := &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
@@ -103,9 +103,9 @@ func (o *openAIStreamState) mapChunkOutput(choice openaisdk.ChatCompletionChunkC
 	return mapped, include, nil
 }
 
-func (o *openAIStreamState) mapChunkTool(delta openaisdk.ChatCompletionChunkChoiceDeltaToolCall) (corechat.ToolCall, bool, error) {
+func (o *openAIStreamState) mapChunkTool(delta openaisdk.ChatCompletionChunkChoiceDeltaToolCall) (corechat.ToolCallDelta, bool, error) {
 	if delta.Type != "" && delta.Type != "function" {
-		return corechat.ToolCall{}, false, fmt.Errorf("unsupported type %q", delta.Type)
+		return corechat.ToolCallDelta{}, false, fmt.Errorf("unsupported type %q", delta.Type)
 	}
 	state := o.tools[delta.Index]
 	if delta.ID != "" {
@@ -117,12 +117,12 @@ func (o *openAIStreamState) mapChunkTool(delta openaisdk.ChatCompletionChunkChoi
 	state.pendingArguments += delta.Function.Arguments
 	o.tools[delta.Index] = state
 	if state.id == "" || state.name == "" {
-		return corechat.ToolCall{}, false, nil
+		return corechat.ToolCallDelta{}, false, nil
 	}
 	arguments := state.pendingArguments
 	state.pendingArguments = ""
 	o.tools[delta.Index] = state
-	return corechat.ToolCall{
+	return corechat.ToolCallDelta{
 		ID:        state.id,
 		Name:      state.name,
 		Arguments: arguments,

@@ -9,19 +9,13 @@ completely:
 1. [`doc/ARCHITECTURE.md`](doc/ARCHITECTURE.md) — accepted architecture and boundaries.
 2. [`doc/ENGINEERING_STANDARDS.md`](doc/ENGINEERING_STANDARDS.md) — mandatory implementation and quality standard.
 
-Read the remaining documents when the change crosses their owner boundary:
+Use Git history when historical migration evidence is needed. Completed plans,
+decision ledgers, release baselines, and dated comparison snapshots do not live
+in the current contract set.
 
-- [`doc/API_BASELINE.md`](doc/API_BASELINE.md) before changing exported API,
-  GoDoc, derived schema, snapshot/state/protocol, or observation wire;
-- the relevant accepted or superseding entries in
-  [`doc/DECISIONS.md`](doc/DECISIONS.md) before changing an architectural
-  decision, and append a new ADR rather than rewriting history;
-- use Git history when historical migration evidence is needed; completed plans,
-  ledgers, and dated comparison snapshots do not live in the current contract set.
-
-The documents have distinct owners. Do not copy progress into architecture,
-copy architecture into the execution log, copy architecture into the capability
-ledger, or rewrite accepted decisions without a superseding ADR.
+The documents have distinct owners. Keep architecture facts in architecture and
+implementation rules in engineering standards; do not add progress logs or
+historical ledgers to either document.
 
 Framework work follows these module rules:
 

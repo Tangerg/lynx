@@ -17,9 +17,9 @@ var (
 )
 
 // DeploymentConflictError identifies the active and requested exact bindings
-// that collided in one Definition-name and semantic-version slot.
+// that collided in one Definition-name slot.
 type DeploymentConflictError struct {
-	// Active is the exact binding currently occupying the version slot.
+	// Active is the exact binding currently occupying the name slot.
 	Active agent.DeploymentRef
 
 	// Requested is the exact binding the caller attempted to deploy or undeploy.
@@ -42,8 +42,8 @@ func newDeploymentConflict(active, requested agent.DeploymentRef) error {
 	return &DeploymentConflictError{Active: active, Requested: requested}
 }
 
-// Deploy activates deployment in its Definition-name and semantic-version
-// slot. Reapplying the exact active binding leaves the Platform unchanged; a
+// Deploy activates deployment in its Definition-name slot. Reapplying the
+// exact active binding leaves the Platform unchanged; a
 // different exact binding in the same slot returns ErrDeploymentConflict and
 // requires Replace.
 func (p *Platform) Deploy(deployment agent.Deployment) error {
@@ -80,9 +80,8 @@ func (p *Platform) Deploy(deployment agent.Deployment) error {
 	return nil
 }
 
-// Replace changes the active exact binding in deployment's existing name and
-// version slot. The previous binding remains in Catalog for exact restoration.
-// A new semantic version must be introduced with Deploy, not Replace.
+// Replace changes the active exact binding in deployment's existing name slot.
+// The previous binding remains in Catalog for exact restoration.
 func (p *Platform) Replace(deployment agent.Deployment) error {
 	if p == nil {
 		return ErrNilPlatform
@@ -116,7 +115,7 @@ func (p *Platform) Replace(deployment agent.Deployment) error {
 }
 
 // Undeploy removes reference only when it is the exact active binding in its
-// name/version slot. A stale reference returns ErrDeploymentConflict instead
+// name slot. A stale reference returns ErrDeploymentConflict instead
 // of deactivating a replacement. The exact binding remains in Catalog.
 func (p *Platform) Undeploy(reference agent.DeploymentRef) error {
 	if p == nil {

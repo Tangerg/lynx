@@ -180,7 +180,6 @@ func NewToolInputResponseSignal(
 		return agent.SignalRequest{}, fmt.Errorf("%w: response: %w", ErrInvalidToolInputRequest, err)
 	}
 	payload, err := encodeProtocol(signalEnvelope{
-		SchemaVersion: protocolSchemaVersion,
 		Operation:     operationInputResponse,
 		InputResponse: response,
 	})

@@ -23,13 +23,13 @@ func TestResponseAccumulatorAggregatesResultDeltas(t *testing.T) {
 			Output: responseResult(
 				chat.NewReasoningPart("one", []byte("nature")),
 				chat.NewTextPart("hel"),
-				chat.NewToolCallPart(chat.ToolCall{ID: "call-1", Name: "search", Arguments: `{"q":"`}),
+				chat.NewToolCallDeltaPart(chat.ToolCallDelta{ID: "call-1", Name: "search", Arguments: `{"q":"`}),
 			),
 		},
 		{
 			Output: &chat.Output{
 				Message: assistant(
-					chat.NewToolCallPart(chat.ToolCall{ID: "call-1", Name: "search", Arguments: `scope"}`}),
+					chat.NewToolCallDeltaPart(chat.ToolCallDelta{ID: "call-1", Name: "search", Arguments: `scope"}`}),
 					chat.NewTextPart("lo"),
 				),
 				FinishReason: chat.FinishReasonToolCalls,
@@ -99,12 +99,12 @@ func TestResponseAccumulatorAggregatesResultDeltas(t *testing.T) {
 func TestResponseAccumulatorMergesInterleavedParallelToolCalls(t *testing.T) {
 	chunks := []*chat.Response{
 		responseWithParts(
-			chat.NewToolCallPart(chat.ToolCall{ID: "call-a", Name: "a", Arguments: `{"a":`}),
-			chat.NewToolCallPart(chat.ToolCall{ID: "call-b", Name: "b", Arguments: `{"b":`}),
+			chat.NewToolCallDeltaPart(chat.ToolCallDelta{ID: "call-a", Name: "a", Arguments: `{"a":`}),
+			chat.NewToolCallDeltaPart(chat.ToolCallDelta{ID: "call-b", Name: "b", Arguments: `{"b":`}),
 		),
 		responseWithParts(
-			chat.NewToolCallPart(chat.ToolCall{ID: "call-a", Name: "a", Arguments: `1}`}),
-			chat.NewToolCallPart(chat.ToolCall{ID: "call-b", Name: "b", Arguments: `2}`}),
+			chat.NewToolCallDeltaPart(chat.ToolCallDelta{ID: "call-a", Name: "a", Arguments: `1}`}),
+			chat.NewToolCallDeltaPart(chat.ToolCallDelta{ID: "call-b", Name: "b", Arguments: `2}`}),
 		),
 	}
 	var accumulator chat.ResponseAccumulator
@@ -197,12 +197,12 @@ func TestResponseAccumulatorClonesMediaAndMessageMetadata(t *testing.T) {
 
 func TestResponseAccumulatorRejectsConflictingToolIdentityAtomically(t *testing.T) {
 	var accumulator chat.ResponseAccumulator
-	if err := accumulator.Add(responseWithParts(chat.NewToolCallPart(chat.ToolCall{
+	if err := accumulator.Add(responseWithParts(chat.NewToolCallDeltaPart(chat.ToolCallDelta{
 		ID: "call-1", Name: "search", Arguments: "{",
 	}))); err != nil {
 		t.Fatal(err)
 	}
-	err := accumulator.Add(responseWithParts(chat.NewToolCallPart(chat.ToolCall{
+	err := accumulator.Add(responseWithParts(chat.NewToolCallDeltaPart(chat.ToolCallDelta{
 		ID: "call-1", Name: "lookup", Arguments: "}",
 	})))
 	if err == nil {

@@ -181,7 +181,7 @@ func newEvaluatorOptimizer(
 				return optimizationState{}, err
 			}
 			revision := uint32(len(state.History) + 1)
-			content := fmt.Sprintf("draft-v%d", revision)
+			content := fmt.Sprintf("draft %d", revision)
 			if len(state.History) > 0 {
 				content += "; addressed: " + state.History[len(state.History)-1].Assessment.Feedback
 			}
@@ -247,14 +247,14 @@ func newEvaluatorOptimizer(
 	iterationDefinition, err := workflow.NewDefinition(workflow.DefinitionConfig{
 		Name:        "example.evaluator_optimizer.iteration",
 		Description: "Run one exact optimizer child followed by one exact evaluator child.",
-		Version:     "1.0.0", Stages: []workflow.Stage{optimize, evaluate},
+		Stages:      []workflow.Stage{optimize, evaluate},
 	})
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
 	iteration, err := newWorkflowDeployment(
 		iterationDefinition,
-		"evaluator-optimizer-iteration-v1",
+		"evaluator-optimizer-iteration",
 		struct {
 			Optimizer    string       `json:"optimizer"`
 			Evaluator    string       `json:"evaluator"`
@@ -320,14 +320,14 @@ func newEvaluatorOptimizer(
 	rootDefinition, err := workflow.NewDefinition(workflow.DefinitionConfig{
 		Name:        "example.evaluator_optimizer",
 		Description: "Refine candidates through bounded exact optimizer and evaluator child Processes.",
-		Version:     "1.0.0", Stages: []workflow.Stage{initialize, refine, finalize},
+		Stages:      []workflow.Stage{initialize, refine, finalize},
 	})
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
 	root, err := newWorkflowDeployment(
 		rootDefinition,
-		"evaluator-optimizer-root-v1",
+		"evaluator-optimizer-root",
 		struct {
 			Iteration       string       `json:"iteration"`
 			IterationBudget agent.Budget `json:"iteration_budget"`
@@ -426,7 +426,7 @@ func transformDeployment[I, O any](
 		return agent.Deployment{}, err
 	}
 	definition, err := workflow.NewDefinition(workflow.DefinitionConfig{
-		Name: name, Description: description, Version: "1.0.0", Stages: []workflow.Stage{stage},
+		Name: name, Description: description, Stages: []workflow.Stage{stage},
 	})
 	if err != nil {
 		return agent.Deployment{}, err
@@ -437,7 +437,7 @@ func transformDeployment[I, O any](
 	}
 	return agent.NewDeployment(agent.DeploymentConfig{
 		Definition: definition, Dispatcher: workflow.Dispatcher{},
-		ImplementationDigest: agent.ComputeDigest([]byte(name + "-transform-v1")),
+		ImplementationDigest: agent.ComputeDigest([]byte(name + "-transform")),
 		ConfigurationDigest:  agent.ComputeDigest(configurationJSON),
 	})
 }

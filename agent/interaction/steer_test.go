@@ -196,11 +196,11 @@ func (*steeredTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (s *steeredTool) Call(context.Context, string) (string, error) {
+func (s *steeredTool) Call(context.Context, tool.Invocation) (chat.ToolOutput, error) {
 	s.calls.Add(1)
 	s.startedOnce.Do(func() { close(s.started) })
 	<-s.release
-	return "settled", nil
+	return chat.NewTextToolOutput("settled"), nil
 }
 
 func (s *steeredTool) Release() {

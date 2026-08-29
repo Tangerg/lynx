@@ -30,7 +30,9 @@ func TestChatBuildConverseInput(t *testing.T) {
 				reasoning,
 				corechat.NewToolCallPart(corechat.ToolCall{ID: "call-1", Name: "weather", Arguments: `{"city":"Paris"}`}),
 			),
-			corechat.NewToolMessage(corechat.ToolResult{ID: "call-1", Name: "weather", Result: "rain", IsError: true}),
+			corechat.NewToolMessage(corechat.ToolResult{
+				ID: "call-1", Name: "weather", Output: corechat.NewTextToolOutput("rain"), IsError: true,
+			}),
 		},
 		Tools: []corechat.ToolDefinition{{
 			Name: "weather", Description: "Get weather", InputSchema: json.RawMessage(`{"type":"object"}`),
@@ -121,7 +123,7 @@ func TestProtocolChunkAccumulatorRetainsToolIdentity(t *testing.T) {
 		}},
 	}}
 	response, include, err := accumulator.add(start)
-	if err != nil || !include || response.Output.Message.Parts[0].ToolCall.Name != "weather" {
+	if err != nil || !include || response.Output.Message.Parts[0].ToolCallDelta.Name != "weather" {
 		t.Fatalf("start = %#v, %v, %v", response, include, err)
 	}
 
@@ -134,7 +136,7 @@ func TestProtocolChunkAccumulatorRetainsToolIdentity(t *testing.T) {
 	if err != nil || !include {
 		t.Fatalf("delta = %#v, %v, %v", response, include, err)
 	}
-	call := response.Output.Message.Parts[0].ToolCall
+	call := response.Output.Message.Parts[0].ToolCallDelta
 	if call.ID != "call-1" || call.Name != "weather" || call.Arguments != arguments {
 		t.Fatalf("tool call = %#v", call)
 	}

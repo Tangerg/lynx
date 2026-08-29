@@ -12,11 +12,13 @@ import (
 
 type stubTool struct {
 	definition chat.ToolDefinition
-	result     string
+	result     chat.ToolOutput
 }
 
-func (s *stubTool) Definition() chat.ToolDefinition              { return s.definition }
-func (s *stubTool) Call(context.Context, string) (string, error) { return s.result, nil }
+func (s *stubTool) Definition() chat.ToolDefinition { return s.definition }
+func (s *stubTool) Call(context.Context, tool.Invocation) (chat.ToolOutput, error) {
+	return s.result.Clone(), nil
+}
 
 func newStubTool(name string) *stubTool {
 	return &stubTool{
@@ -25,7 +27,7 @@ func newStubTool(name string) *stubTool {
 			Description: "test " + name,
 			InputSchema: json.RawMessage(`{"type":"object"}`),
 		},
-		result: name + " result",
+		result: chat.NewTextToolOutput(name + " result"),
 	}
 }
 
@@ -39,9 +41,13 @@ func TestRegistryResolveAndDefinitions(t *testing.T) {
 	if !ok {
 		t.Fatal("Resolve(alpha) did not find registered tool")
 	}
-	result, err := value.Call(t.Context(), `{}`)
-	if err != nil || result != "alpha result" {
-		t.Fatalf("Call = %q, %v", result, err)
+	invocation, err := value.Prepare(chat.ToolCall{ID: "call", Name: "alpha", Arguments: `{}`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := value.Call(t.Context(), invocation)
+	if err != nil || mustText(t, result) != "alpha result" {
+		t.Fatalf("Call = %#v, %v", result, err)
 	}
 	if _, ok := registry.Resolve("missing"); ok {
 		t.Fatal("Resolve(missing) unexpectedly succeeded")
@@ -102,7 +108,7 @@ func TestRegistryRejectsInvalidTools(t *testing.T) {
 	if err := nilRegistry.Register(newStubTool("tool")); !errors.Is(err, tool.ErrInvalidRegistry) {
 		t.Fatalf("nil Registry.Register error = %v", err)
 	}
-	if value, ok := nilRegistry.Resolve("tool"); ok || value != nil {
+	if value, ok := nilRegistry.Resolve("tool"); ok || value.Definition().Name != "" {
 		t.Fatalf("nil Registry.Resolve = %#v, %v", value, ok)
 	}
 }

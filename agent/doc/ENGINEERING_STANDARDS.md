@@ -207,9 +207,9 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - Event 是已发生事实，区分 attempt 与 committed。
 - Delta 是非权威临时输出，允许有界、显式可观察的丢弃；最终 Output 必须独立完整。
 
-共同 Process 可以保存这些协议的不透明信封、顺序、游标和 settlement，但不能 import Strategy 类型或解析 payload。Signal 共同信封不含 Strategy kind/schema；所有 wire bytes 必须 defensive copy 并受大小限制，严格解码与 payload 版本校验由 schema owner 完成。
+共同 Process 可以保存这些协议的不透明信封、顺序、游标和 settlement，但不能 import Strategy 类型或解析 payload。Signal 共同信封不含 Strategy kind/schema；所有 wire bytes 必须 defensive copy 并受大小限制，严格解码与 payload 语义校验由 schema owner 完成。
 
-每个 schema owner 还必须独立冻结自己的完整 wire：Kernel baseline 只覆盖共同 snapshot/protocol/Event，Strategy baseline 只覆盖自己的 ExecutionState 与 Effect/Signal/Delta payload。共同 baseline 不递归解释 opaque Strategy bytes；Strategy 也不能把自己的 phase/cursor 提升进共同 Process。baseline 必须同时检测已登记 shape 漂移和新增 production wire 未登记，任何 breaking revision 都要在同一提交升级 owner schema version、增加 prior-version rejection，并禁止 dual-read/dual-write。
+每个 schema owner 还必须独立守卫自己的完整当前 wire shape：Kernel 只覆盖共同 snapshot/protocol/Event，Strategy 只覆盖自己的 ExecutionState 与 Effect/Signal/Delta payload。共同合同不递归解释 opaque Strategy bytes；Strategy 也不能把自己的 phase/cursor 提升进共同 Process。覆盖测试必须同时检测已登记 shape 漂移和新增 production wire 未登记；breaking revision 在同一批次迁移全部 workspace 消费方，不保留 dual-read/dual-write 或旧格式拒绝分支。
 
 ### 3.9 Step 提交纪律
 
@@ -346,7 +346,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 小型不可变值优先按值返回；有身份、可变或较大的对象按指针返回。
 - `context.Context` 是可能阻塞/I/O 操作的首参数，不存入 struct 或 snapshot。
 - 流式拉取优先 `iter.Seq2`；不要用 channel 伪装普通迭代。
-- Framework 窄腰保持非泛型：Definition/Execution 的输入、输出和 snapshot wire 使用受大小限制的 `json.RawMessage`，Descriptor 提供权威 schema、版本和 digest；Go 1.27 方法泛型只用于 `Descriptor`、`Input`、`Output` 等类型擦除边缘，不把 Kernel 或 Strategy runtime 泛型化。
+- Framework 窄腰保持非泛型：Definition/Execution 的输入、输出和 snapshot wire 使用受大小限制的 `json.RawMessage`，Descriptor 提供权威 schema 和 digest；Go 方法泛型只用于 `Descriptor`、`Input`、`Output` 等类型擦除边缘，不把 Kernel 或 Strategy runtime 泛型化。
 - Engine 依据目标 Definition 的 Descriptor 校验输入、输出和 child result，不用 Go 类型断言、反射或 `map[string]any` 代替 wire 合同。
 - raw JSON 的解释权必须唯一：共同层只复制、限长、校验 envelope/schema digest，不窥探 Strategy payload。
 - 不使用 fluent builder、全局注册表、隐式默认 Strategy 或 package-global Engine。
@@ -373,7 +373,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 不存储能可靠即时计算的派生状态。
 - 不让多个 owner 修改同一 Execution state。
 - 一个 Process snapshot 只包含一个顶层 ExecutionState；跨 Strategy 状态只能属于 child Process，不能塞入联合状态或旁路字段。
-- snapshot 必须严格、版本化、可判别，并拒绝未知或非法状态。
+- snapshot 必须严格、可判别，并拒绝未知或非法状态。
 - 时间字段语义准确：`StartedAt`、`FinishedAt` 来自对应生命周期边界，`Duration` 与二者一致。
 - 不把 transient 连接、闭包、context、mutex、goroutine 或 provider client 放入 snapshot。
 - 不把产品 metadata 塞入通用 `map[string]any` 绕过层次边界。
@@ -399,7 +399,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - 注释只写 why、外部约束、并发/安全合同和非显然算法，不复述 what。
 - exported API 的 GoDoc 是合同，必须与实现同步。
 - 不保留迁移注释、review 说明、过期 TODO 或指向已删除符号的文字。
-- 代码变更只更新真正受影响的现行 owner：架构事实、ADR、工程标准或 API baseline；阶段流水和迁移台账由 Git 历史承担，避免重新建立第二真相源。
+- 代码变更只更新真正受影响的现行 owner：架构事实、工程标准或当前合同测试；阶段流水和迁移台账由 Git 历史承担，避免重新建立第二真相源。
 
 ---
 
@@ -462,7 +462,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - [ ] 相关 contract、race、fuzz、golden 和 architecture tests。
 - [ ] `go mod tidy` 后无非预期 diff。
 - [ ] `git diff --check` 通过。
-- [ ] 现行架构、ADR 或 API baseline 只在其合同确实变化时同步更新；不为普通批次续写历史执行归档。
+- [ ] 现行架构与工程标准只在其合同确实变化时同步更新；不为普通批次续写历史执行归档。
 
 ### 6.4 提交
 

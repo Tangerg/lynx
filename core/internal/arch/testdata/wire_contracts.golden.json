@@ -64,7 +64,14 @@
             "tool_result": {
               "id": "call-1",
               "name": "inspect",
-              "result": "failed",
+              "output": {
+                "content": [
+                  {
+                    "kind": "text",
+                    "text": "failed"
+                  }
+                ]
+              },
               "is_error": true
             }
           }
@@ -147,6 +154,11 @@
         "provider/response": "fixture"
       }
     }
+  },
+  "chat_tool_call_delta": {
+    "id": "call-stream",
+    "name": "inspect",
+    "arguments": "{\"detail\":"
   },
   "document": {
     "id": "doc-1",

@@ -44,7 +44,7 @@ func (r *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion
 			return nil, false, errors.New("openai responses: stream function call lacks ID or name")
 		}
 		r.tools[call.ID] = responsesToolIdentity{id: id, name: call.Name}
-		return r.deltaResponse(corechat.NewToolCallPart(corechat.ToolCall{ID: id, Name: call.Name}))
+		return r.deltaResponse(corechat.NewToolCallDeltaPart(corechat.ToolCallDelta{ID: id, Name: call.Name}))
 	case responses.ResponseTextDeltaEvent:
 		if typed.Delta == "" {
 			return nil, false, nil
@@ -58,7 +58,7 @@ func (r *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion
 		if !ok {
 			return nil, false, fmt.Errorf("openai responses: arguments delta for unknown item %q", typed.ItemID)
 		}
-		return r.deltaResponse(corechat.NewToolCallPart(corechat.ToolCall{ID: identity.id, Name: identity.name, Arguments: typed.Delta}))
+		return r.deltaResponse(corechat.NewToolCallDeltaPart(corechat.ToolCallDelta{ID: identity.id, Name: identity.name, Arguments: typed.Delta}))
 	case responses.ResponseReasoningTextDeltaEvent:
 		if typed.Delta == "" {
 			return nil, false, nil

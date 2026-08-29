@@ -39,7 +39,7 @@ func TestDefinitionRequiresUniqueConnectedStages(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			_, err := workflow.NewDefinition(workflow.DefinitionConfig{
 				Name: "test.invalid", Description: "Reject an invalid Workflow Definition.",
-				Version: "1.0.0", Stages: stages,
+				Stages: stages,
 			})
 			if !errors.Is(err, workflow.ErrInvalidDefinitionConfig) {
 				t.Fatalf("NewDefinition error = %v", err)
@@ -70,7 +70,7 @@ func mustDefinition(t *testing.T, name string, stages ...workflow.Stage) *workfl
 	t.Helper()
 	definition, err := workflow.NewDefinition(workflow.DefinitionConfig{
 		Name: name, Description: "Execute a deterministic managed Workflow.",
-		Version: "1.0.0", Stages: stages,
+		Stages: stages,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -64,7 +64,7 @@ func TestDispatcherRejectsTypedNilModelContextReducer(t *testing.T) {
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "interaction.context-reducer.typed-nil", Description: "Reject a typed nil reducer.",
-		Version: "1.0.0", MaxModelCalls: 1,
+		MaxModelCalls: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -193,7 +193,7 @@ func runContextReductionInteraction(
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "interaction.context-reducer", Description: "Exercise model-context reduction.",
-		Version: "1.0.0", MaxModelCalls: 3,
+		MaxModelCalls: 3,
 	})
 	if err != nil {
 		t.Fatal(err)

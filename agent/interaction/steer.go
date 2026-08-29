@@ -67,9 +67,8 @@ func NewSteerSignal(id agent.SignalID, messages ...chat.Message) (agent.SignalRe
 		return agent.SignalRequest{}, err
 	}
 	payload, err := encodeProtocol(signalEnvelope{
-		SchemaVersion: protocolSchemaVersion,
-		Operation:     operationSteer,
-		Steer:         &steerInput{Messages: cloneMessages(messages)},
+		Operation: operationSteer,
+		Steer:     &steerInput{Messages: cloneMessages(messages)},
 	})
 	if err != nil {
 		return agent.SignalRequest{}, err

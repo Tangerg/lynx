@@ -3,8 +3,6 @@ package mcp
 import (
 	"context"
 	"encoding/json"
-	"encoding/json/jsontext"
-	"errors"
 	"fmt"
 	"maps"
 
@@ -67,11 +65,11 @@ func (r remoteTool) MCPToolIdentity() (sourceName, remoteName string) {
 // parallel calls without coupling this protocol adapter to a particular agent
 // runtime. Unknown remote tools remain exclusive unless the caller supplied a
 // policy through [ToolDiscoveryConfig.ConcurrencyPolicy].
-func (r remoteTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+func (r remoteTool) ConcurrencyKey(invocation toolcontract.Invocation) (key string, concurrent bool) {
 	if r.concurrencyPolicy == nil {
 		return "", false
 	}
-	return r.concurrencyPolicy(r.sourceName, r.descriptor.name(), r.descriptor.annotations(), arguments)
+	return r.concurrencyPolicy(r.sourceName, r.descriptor.name(), r.descriptor.annotations(), invocation)
 }
 
 // A remote IsError result becomes [*ToolCallError] so callers can distinguish
@@ -81,7 +79,7 @@ func (r remoteTool) ConcurrencyKey(arguments string) (key string, concurrent boo
 // `gen_ai.tool.name`; a failed call records the error and sets the span
 // status to Error (no separate bool attribute). No-op overhead when no
 // TracerProvider is configured.
-func (r remoteTool) Call(ctx context.Context, arguments string) (out string, err error) {
+func (r remoteTool) Call(ctx context.Context, invocation toolcontract.Invocation) (out corechat.ToolOutput, err error) {
 	remoteName := r.descriptor.name()
 	ctx, span := mcpTracer.Start(ctx, "mcp.tool.call "+remoteName,
 		trace.WithSpanKind(trace.SpanKindClient),
@@ -95,14 +93,9 @@ func (r remoteTool) Call(ctx context.Context, arguments string) (out string, err
 		span.End()
 	}()
 
-	args, err := parseArguments(arguments)
-	if err != nil {
-		return "", fmt.Errorf("mcp: decode arguments for tool %q: %w", remoteName, err)
-	}
-
 	params := &sdkmcp.CallToolParams{
 		Name:      remoteName,
-		Arguments: args,
+		Arguments: json.RawMessage(invocation.Arguments()),
 	}
 	if r.requestMeta != nil {
 		if meta := r.requestMeta(ctx); len(meta) > 0 {
@@ -112,21 +105,7 @@ func (r remoteTool) Call(ctx context.Context, arguments string) (out string, err
 
 	res, err := r.session.CallTool(ctx, params)
 	if err != nil {
-		return "", fmt.Errorf("mcp: call tool %q: %w", remoteName, err)
+		return corechat.ToolOutput{}, fmt.Errorf("mcp: call tool %q: %w", remoteName, err)
 	}
 	return remoteResult{remoteName: remoteName, value: res}.unwrap()
-}
-
-func parseArguments(arguments string) (json.RawMessage, error) {
-	if arguments == "" {
-		return json.RawMessage("{}"), nil
-	}
-	value := jsontext.Value(arguments)
-	if !value.IsValid() {
-		return nil, errors.New("invalid JSON")
-	}
-	if value.Kind() != '{' {
-		return nil, errors.New("arguments must be a JSON object")
-	}
-	return json.RawMessage(value.Clone()), nil
 }

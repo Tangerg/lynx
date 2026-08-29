@@ -38,7 +38,7 @@ func run(ctx context.Context) (err error) {
 	}
 
 	server := sdkmcp.NewServer(
-		&sdkmcp.Implementation{Name: "scope-bridge", Version: "v0.1.0"},
+		&sdkmcp.Implementation{Name: "scope-bridge", Version: "dev"},
 		nil,
 	)
 	if registerErr := scopemcp.Register(server, echo); registerErr != nil {
@@ -60,7 +60,7 @@ func run(ctx context.Context) (err error) {
 		}
 	}()
 
-	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "demo-host", Version: "v0.1.0"}, nil)
+	client := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "demo-host", Version: "dev"}, nil)
 	clientSession, err := client.Connect(ctx, clientTransport, nil)
 	if err != nil {
 		return fmt.Errorf("connect MCP client: %w", err)

@@ -53,7 +53,7 @@ type DispatcherConfig struct {
 }
 
 type boundTool struct {
-	executable tool.Tool
+	executable tool.Binding
 	definition chat.ToolDefinition
 	deferred   bool
 	direct     bool
@@ -134,13 +134,11 @@ func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher
 }
 
 func (d *Dispatcher) bindTool(executable tool.Tool, deferred bool) error {
-	if lo.IsNil(executable) {
-		return errors.New("tool is nil")
-	}
-	definition, err := toolDefinition(executable)
+	binding, err := tool.Bind(executable)
 	if err != nil {
 		return err
 	}
+	definition := binding.Definition()
 	if _, duplicate := d.tools[definition.Name]; duplicate {
 		return fmt.Errorf("duplicate tool name %q", definition.Name)
 	}
@@ -154,7 +152,7 @@ func (d *Dispatcher) bindTool(executable tool.Tool, deferred bool) error {
 	}
 	definition = definition.Clone()
 	d.tools[definition.Name] = boundTool{
-		executable: executable, definition: definition.Clone(), deferred: deferred,
+		executable: binding, definition: definition.Clone(), deferred: deferred,
 		direct: direct, concurrent: concurrent,
 	}
 	if deferred {
@@ -252,8 +250,7 @@ func (d *Dispatcher) dispatchModel(
 	}
 	d.observeModel(ctx, invocation, response)
 	payload, err := encodeProtocol(signalEnvelope{
-		SchemaVersion: protocolSchemaVersion,
-		Operation:     operationModelCall,
+		Operation: operationModelCall,
 		ModelResult: &modelCallResult{
 			Response:          response.Clone(),
 			EffectiveMessages: cloneMessages(modelRequest.Messages),
@@ -282,9 +279,8 @@ func (d *Dispatcher) modelDefinitions(advertisedToolNames []string) ([]chat.Tool
 
 func modelFailureSettlement(effectID agent.EffectID, cause error) (agent.Settlement, error) {
 	payload, err := encodeProtocol(signalEnvelope{
-		SchemaVersion: protocolSchemaVersion,
-		Operation:     operationModelCall,
-		ModelResult:   &modelCallResult{Error: boundedDiagnostic(cause.Error())},
+		Operation:   operationModelCall,
+		ModelResult: &modelCallResult{Error: boundedDiagnostic(cause.Error())},
 	})
 	if err != nil {
 		return agent.Settlement{}, err
@@ -294,9 +290,8 @@ func modelFailureSettlement(effectID agent.EffectID, cause error) (agent.Settlem
 
 func modelHostFailureSettlement(effectID agent.EffectID, cause error) (agent.Settlement, error) {
 	payload, err := encodeProtocol(signalEnvelope{
-		SchemaVersion: protocolSchemaVersion,
-		Operation:     operationModelCall,
-		ModelResult:   &modelCallResult{HostError: boundedDiagnostic(cause.Error())},
+		Operation:   operationModelCall,
+		ModelResult: &modelCallResult{HostError: boundedDiagnostic(cause.Error())},
 	})
 	if err != nil {
 		return agent.Settlement{}, err
@@ -321,6 +316,7 @@ type toolBatchDispatch struct {
 	ctx                 context.Context
 	request             agent.EffectRequest
 	batch               *toolBatchCall
+	prepared            []preparedToolCall
 	results             []chat.ToolResult
 	advertisedToolNames []string
 	start               int
@@ -348,12 +344,14 @@ func newToolBatchDispatch(
 		ctx:        ctx,
 		request:    request,
 		batch:      batch,
+		prepared:   dispatcher.prepareToolCalls(batch.Calls),
 		results:    make([]chat.ToolResult, 0, len(batch.Calls)),
-		allDirect:  dispatcher.allCallsDirect(batch.Calls),
+		allDirect:  false,
 	}
+	dispatch.allDirect = dispatcher.allCallsDirect(dispatch.prepared)
 	if batch.Checkpoint != nil {
 		checkpoint := batch.Checkpoint
-		dispatch.results = append(dispatch.results, checkpoint.CompletedResults...)
+		dispatch.results = append(dispatch.results, cloneToolResults(checkpoint.CompletedResults)...)
 		dispatch.advertisedToolNames = append(dispatch.advertisedToolNames, checkpoint.AdvertisedToolNames...)
 		dispatch.start = int(checkpoint.NextToolCallIndex)
 		dispatch.pauseCount = checkpoint.PauseCount
@@ -386,9 +384,8 @@ func (t *toolBatchDispatch) run() (agent.Settlement, error) {
 
 func toolHostFailureSettlement(effectID agent.EffectID, cause error) (agent.Settlement, error) {
 	payload, err := encodeProtocol(signalEnvelope{
-		SchemaVersion: protocolSchemaVersion,
-		Operation:     operationToolBatch,
-		ToolResult:    &toolBatchResult{HostError: boundedDiagnostic(cause.Error())},
+		Operation:  operationToolBatch,
+		ToolResult: &toolBatchResult{HostError: boundedDiagnostic(cause.Error())},
 	})
 	if err != nil {
 		return agent.Settlement{}, err
@@ -406,7 +403,7 @@ func (t *toolBatchDispatch) resume() (agent.Settlement, bool, error) {
 		t.request,
 		t.batch.ModelCallSequence,
 		t.batch.FirstToolCallIndex+uint32(t.start),
-		t.batch.Calls[t.start],
+		t.prepared[t.start],
 	)
 	if err != nil {
 		return agent.Settlement{}, false, fmt.Errorf(
@@ -429,7 +426,7 @@ func (t *toolBatchDispatch) resume() (agent.Settlement, bool, error) {
 }
 
 func (t *toolBatchDispatch) dispatchRemaining() (agent.Settlement, bool, error) {
-	plans, err := t.dispatcher.planToolCalls(t.batch.Calls[t.start:])
+	plans, err := t.dispatcher.planToolCalls(t.prepared[t.start:])
 	if err != nil {
 		return agent.Settlement{}, false, err
 	}
@@ -443,10 +440,10 @@ func (t *toolBatchDispatch) dispatchRemaining() (agent.Settlement, bool, error) 
 			t.request,
 			t.batch.ModelCallSequence,
 			t.batch.FirstToolCallIndex+uint32(t.start+offset),
-			t.batch.Calls[t.start+offset:t.start+end],
+			t.prepared[t.start+offset:t.start+end],
 		)
 		for index, outcome := range outcomes {
-			call := t.batch.Calls[t.start+offset+index]
+			call := t.prepared[t.start+offset+index].call
 			if outcome.err != nil {
 				return agent.Settlement{}, false, fmt.Errorf("interaction: tool call %q: %w", call.ID, outcome.err)
 			}
@@ -481,7 +478,7 @@ func (t *toolBatchDispatch) pause(index uint32, request ToolInputRequest) (agent
 		return agent.Settlement{}, errors.New("interaction: Tool input pause count is exhausted")
 	}
 	checkpoint := &toolCheckpoint{
-		CompletedResults:    slices.Clone(t.results),
+		CompletedResults:    cloneToolResults(t.results),
 		AdvertisedToolNames: slices.Clone(t.advertisedToolNames),
 		NextToolCallIndex:   index,
 		PauseCount:          t.pauseCount + 1,
@@ -492,8 +489,7 @@ func (t *toolBatchDispatch) pause(index uint32, request ToolInputRequest) (agent
 
 func (t *toolBatchDispatch) complete() (agent.Settlement, error) {
 	payload, err := encodeProtocol(signalEnvelope{
-		SchemaVersion: protocolSchemaVersion,
-		Operation:     operationToolBatch,
+		Operation: operationToolBatch,
 		ToolResult: &toolBatchResult{
 			Results: t.results, Direct: t.allDirect,
 			AdvertisedToolNames: t.advertisedToolNames,
@@ -510,9 +506,8 @@ func toolCheckpointSettlement(
 	checkpoint *toolCheckpoint,
 ) (agent.Settlement, error) {
 	payload, err := encodeProtocol(signalEnvelope{
-		SchemaVersion: protocolSchemaVersion,
-		Operation:     operationToolBatch,
-		ToolResult:    &toolBatchResult{Checkpoint: checkpoint},
+		Operation:  operationToolBatch,
+		ToolResult: &toolBatchResult{Checkpoint: checkpoint},
 	})
 	if err != nil {
 		return agent.Settlement{}, err
@@ -525,13 +520,17 @@ func (d *Dispatcher) callTool(
 	request agent.EffectRequest,
 	modelCallSequence uint32,
 	toolCallIndex uint32,
-	call chat.ToolCall,
+	prepared preparedToolCall,
 ) (
 	result chat.ToolResult,
 	advertisedToolNames []string,
 	required *ToolInputRequest,
 	err error,
 ) {
+	call := prepared.call
+	if prepared.rejection != nil {
+		return prepared.rejection.Clone(), nil, nil, nil
+	}
 	invocation := toolInvocationFromRequest(
 		request, modelCallSequence, toolCallIndex, call,
 	)
@@ -549,13 +548,7 @@ func (d *Dispatcher) callTool(
 		}
 		d.observeToolSettled(ctx, invocation, settlement)
 	}()
-	hosted, found := d.tools[call.Name]
-	if !found {
-		return chat.ToolResult{
-			ID: call.ID, Name: call.Name,
-			Result: fmt.Sprintf("error: tool %q is not available", call.Name), IsError: true,
-		}, nil, nil, nil
-	}
+	hosted := prepared.hosted
 	advertiser := newToolAdvertiser(d.deferredToolNames)
 	ctx = withToolInvocation(ctx, invocation)
 	ctx = withToolAdvertiser(ctx, advertiser)
@@ -567,7 +560,12 @@ func (d *Dispatcher) callTool(
 			err = fmt.Errorf("tool panicked: %v", recovered)
 		}
 	}()
-	output, err := hosted.executable.Call(ctx, call.Arguments)
+	output, err := hosted.executable.Call(ctx, prepared.invocation)
+	if err == nil {
+		if outputErr := output.Validate(); outputErr != nil {
+			err = fmt.Errorf("tool returned invalid output: %w", outputErr)
+		}
+	}
 	if err != nil {
 		if inputRequired, ok := errors.AsType[*ToolInputRequiredError](err); ok {
 			request, valid := inputRequired.inputRequest()
@@ -587,17 +585,46 @@ func (d *Dispatcher) callTool(
 	return result, advertiser.advertisedNames(), nil, nil
 }
 
-func (d *Dispatcher) allCallsDirect(calls []chat.ToolCall) bool {
+func (d *Dispatcher) allCallsDirect(calls []preparedToolCall) bool {
 	if len(calls) == 0 {
 		return false
 	}
 	for _, call := range calls {
-		hosted, found := d.tools[call.Name]
-		if !found || !hosted.direct {
+		if call.hosted == nil || call.rejection != nil || !call.hosted.direct {
 			return false
 		}
 	}
 	return true
+}
+
+func (d *Dispatcher) prepareToolCalls(calls []chat.ToolCall) []preparedToolCall {
+	prepared := make([]preparedToolCall, len(calls))
+	for index := range calls {
+		call := calls[index]
+		prepared[index].call = call
+		hosted, found := d.tools[call.Name]
+		if !found {
+			result := rejectedToolResult(call, fmt.Sprintf("tool %q is not available", call.Name))
+			prepared[index].rejection = &result
+			continue
+		}
+		prepared[index].hosted = &hosted
+		invocation, err := hosted.executable.Prepare(call)
+		if err != nil {
+			result := rejectedToolResult(call, "invalid arguments: "+boundedDiagnostic(err.Error()))
+			prepared[index].rejection = &result
+			continue
+		}
+		prepared[index].invocation = invocation
+	}
+	return prepared
+}
+
+func rejectedToolResult(call chat.ToolCall, diagnostic string) chat.ToolResult {
+	return chat.ToolResult{
+		ID: call.ID, Name: call.Name, IsError: true,
+		Output: chat.NewTextToolOutput("error: " + diagnostic),
+	}
 }
 
 func directResultCapability(executable tool.Tool) (direct bool, err error) {
@@ -626,20 +653,6 @@ func concurrentToolCapability(executable tool.Tool) (declared ConcurrentTool, er
 		return nil, nil
 	}
 	return capability, nil
-}
-
-func toolDefinition(executable tool.Tool) (definition chat.ToolDefinition, err error) {
-	defer func() {
-		if recovered := recover(); recovered != nil {
-			definition = chat.ToolDefinition{}
-			err = fmt.Errorf("tool definition panicked: %v", recovered)
-		}
-	}()
-	definition = executable.Definition()
-	if err := definition.Validate(); err != nil {
-		return chat.ToolDefinition{}, err
-	}
-	return definition, nil
 }
 
 func cloneDefinitions(definitions []chat.ToolDefinition) []chat.ToolDefinition {

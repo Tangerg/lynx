@@ -10,8 +10,7 @@ import (
 )
 
 const (
-	processSnapshotSchemaVersion = 9
-	maxSnapshotBytes             = 128 << 20
+	maxSnapshotBytes = 128 << 20
 )
 
 var ErrInvalidSnapshot = errors.New("agent: invalid process snapshot")
@@ -172,7 +171,6 @@ type pendingControlWire struct {
 }
 
 type processSnapshotWire struct {
-	SchemaVersion        uint16              `json:"schema_version"`
 	ProcessID            ProcessID           `json:"process_id"`
 	Relation             processRelationWire `json:"relation"`
 	ChildRequestDigest   *Digest             `json:"child_request_digest,omitempty"`
@@ -236,9 +234,6 @@ func validateProcessSnapshot(wire processSnapshotWire) error {
 }
 
 func (p processSnapshotWire) validateContract() error {
-	if p.SchemaVersion != processSnapshotSchemaVersion {
-		return fmt.Errorf("%w: unsupported schema version %d", ErrInvalidSnapshot, p.SchemaVersion)
-	}
 	if !p.ProcessID.Valid() || !p.DeploymentRef.Valid() || p.StartedAt.IsZero() ||
 		!p.Status.Valid() || p.Status == StatusNotStarted || !p.LastStableState.Valid() ||
 		!p.Limits.Valid() || !p.TreeLimits.Valid() || !p.Budget.Valid() ||

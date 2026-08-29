@@ -6,8 +6,6 @@ import (
 	"fmt"
 )
 
-const childProtocolSchemaVersion uint16 = 2
-
 var ErrInvalidChildStart = errors.New("agent: invalid child process start")
 
 // DeploymentResolver performs one bounded, deterministic, context-free lookup
@@ -18,7 +16,7 @@ var ErrInvalidChildStart = errors.New("agent: invalid child process start")
 // DeploymentRef reaches this contract.
 type DeploymentResolver interface {
 	// Resolve returns the immutable binding for exactly reference. It must not
-	// fall back by name or version, perform routing or remote discovery, or retain
+	// fall back by name, perform routing or remote discovery, or retain
 	// caller state. Missing and mismatched bindings are errors; concurrent calls
 	// must be safe.
 	Resolve(reference DeploymentRef) (Deployment, error)
@@ -52,8 +50,8 @@ func StartChild(spec ChildSpec) (Effect, error) {
 		return Effect{}, ErrInvalidChildStart
 	}
 	payload, err := json.Marshal(childStartEffectWire{
-		Operation: frameworkEffectStartChild, SchemaVersion: frameworkEffectSchemaVersion,
-		Spec: spec,
+		Operation: frameworkEffectStartChild,
+		Spec:      spec,
 	})
 	if err != nil {
 		return Effect{}, fmt.Errorf("%w: encode start request: %w", ErrInvalidChildStart, err)
@@ -106,13 +104,11 @@ func ParseChildStartResult(signal Signal) (ChildStartResult, error) {
 }
 
 type childStartEffectWire struct {
-	Operation     frameworkEffectOperation `json:"operation"`
-	SchemaVersion uint16                   `json:"schema_version"`
-	Spec          ChildSpec                `json:"spec"`
+	Operation frameworkEffectOperation `json:"operation"`
+	Spec      ChildSpec                `json:"spec"`
 }
 
 type childStartResultWire struct {
-	SchemaVersion uint16                   `json:"schema_version"`
 	Operation     frameworkEffectOperation `json:"operation"`
 	Key           ChildKey                 `json:"key"`
 	ProcessID     *ProcessID               `json:"process_id,omitempty"`
@@ -125,8 +121,7 @@ func decodeChildStartEffect(payload json.RawMessage) (ChildSpec, error) {
 	if err != nil {
 		return ChildSpec{}, fmt.Errorf("%w: decode start request: %w", ErrInvalidChildStart, err)
 	}
-	if wire.Operation != frameworkEffectStartChild ||
-		wire.SchemaVersion != frameworkEffectSchemaVersion || !wire.Spec.Valid() {
+	if wire.Operation != frameworkEffectStartChild || !wire.Spec.Valid() {
 		return ChildSpec{}, ErrInvalidChildStart
 	}
 	return wire.Spec, nil
@@ -137,7 +132,6 @@ func encodeChildStartResult(result ChildStartResult) (json.RawMessage, error) {
 		return nil, ErrInvalidChildStart
 	}
 	wire := childStartResultWire{
-		SchemaVersion: childProtocolSchemaVersion,
 		Operation:     frameworkEffectStartChild,
 		Key:           result.key,
 		DeploymentRef: result.deploymentRef,
@@ -172,8 +166,7 @@ func decodeChildStartResult(payload json.RawMessage) (ChildStartResult, error) {
 	result := ChildStartResult{
 		key: wire.Key, processID: processID, deploymentRef: wire.DeploymentRef, failure: failure,
 	}
-	if wire.SchemaVersion != childProtocolSchemaVersion ||
-		wire.Operation != frameworkEffectStartChild || !result.Valid() {
+	if wire.Operation != frameworkEffectStartChild || !result.Valid() {
 		return ChildStartResult{}, ErrInvalidChildStart
 	}
 	return result, nil

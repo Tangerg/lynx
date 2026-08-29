@@ -11,7 +11,7 @@ import (
 func TestAdvertisedToolNamesSurviveExecutionStateRestore(t *testing.T) {
 	definition, err := NewDefinition(DefinitionConfig{
 		Name: "interaction.advertisement_restore", Description: "Verify deferred Tool manifest recovery.",
-		Version: "1.0.0", MaxModelCalls: 2,
+		MaxModelCalls: 2,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -55,7 +55,7 @@ func TestAdvertisedToolNamesSurviveExecutionStateRestore(t *testing.T) {
 func TestExecutionStateRejectsDuplicateAdvertisedToolNames(t *testing.T) {
 	definition, err := NewDefinition(DefinitionConfig{
 		Name: "interaction.advertisement_validation", Description: "Reject malformed deferred Tool manifests.",
-		Version: "1.0.0", MaxModelCalls: 2,
+		MaxModelCalls: 2,
 	})
 	if err != nil {
 		t.Fatal(err)

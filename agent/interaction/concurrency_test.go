@@ -246,7 +246,7 @@ func TestDispatcherRejectsNegativeToolConcurrencyLimit(t *testing.T) {
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "interaction.invalid_concurrency", Description: "Reject an invalid Tool concurrency limit.",
-		Version: "1.0.0", MaxModelCalls: 1,
+		MaxModelCalls: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -315,11 +315,12 @@ func (s *scheduledTool) Definition() chat.ToolDefinition {
 	return concurrencyToolDefinition(s.name)
 }
 
-func (s *scheduledTool) Call(ctx context.Context, arguments string) (string, error) {
-	return s.call(ctx, arguments)
+func (s *scheduledTool) Call(ctx context.Context, invocation tool.Invocation) (chat.ToolOutput, error) {
+	result, err := s.call(ctx, string(invocation.Arguments()))
+	return chat.NewTextToolOutput(result), err
 }
 
-func (s *scheduledTool) ConcurrencyKey(string) (string, bool) { return s.key, true }
+func (s *scheduledTool) ConcurrencyKey(tool.Invocation) (string, bool) { return s.key, true }
 
 type exclusiveTool struct {
 	name string
@@ -330,8 +331,9 @@ func (e *exclusiveTool) Definition() chat.ToolDefinition {
 	return concurrencyToolDefinition(e.name)
 }
 
-func (e *exclusiveTool) Call(ctx context.Context, arguments string) (string, error) {
-	return e.call(ctx, arguments)
+func (e *exclusiveTool) Call(ctx context.Context, invocation tool.Invocation) (chat.ToolOutput, error) {
+	result, err := e.call(ctx, string(invocation.Arguments()))
+	return chat.NewTextToolOutput(result), err
 }
 
 type toolRelease struct {
@@ -366,7 +368,8 @@ func (o *orderedBatchModel) Call(_ context.Context, request *chat.Request) (*cha
 	}
 	for index, name := range o.names {
 		result := last.Parts[index].ToolResult
-		if result == nil || result.ID != "call_"+name || result.Name != name || result.Result != name+" result" {
+		resultText, textOK := toolResultText(result)
+		if result == nil || !textOK || result.ID != "call_"+name || result.Name != name || resultText != name+" result" {
 			return nil, errors.New("Tool results did not preserve model call order")
 		}
 	}
@@ -386,7 +389,7 @@ func startConcurrentInteraction(
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "interaction.concurrent", Description: "Verify bounded Tool concurrency.",
-		Version: "1.0.0", MaxModelCalls: 3,
+		MaxModelCalls: 3,
 	})
 	if err != nil {
 		t.Fatal(err)

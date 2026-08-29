@@ -182,6 +182,9 @@ func (e *execution) acceptModel(signals []agent.Signal) (agent.Transition, error
 			ModelCalls:    e.state.ModelCallCount,
 		}, []chat.Message{modelOutput.Message.Clone()})
 	}
+	if response.Output.FinishReason == chat.FinishReasonLength {
+		return e.rejectTruncatedToolCalls(consumedSignals, response, calls)
+	}
 
 	e.state.PendingModelResponse = response
 	e.state.NextToolCallIndex = 0
@@ -189,6 +192,43 @@ func (e *execution) acceptModel(signals []agent.Signal) (agent.Transition, error
 	e.state.SettledToolResults = nil
 	e.state.DirectToolResultEligible = true
 	return e.advanceToolCallBatch(consumedSignals)
+}
+
+func (e *execution) rejectTruncatedToolCalls(
+	consumedSignals uint32,
+	response *chat.Response,
+	calls []chat.ToolCall,
+) (agent.Transition, error) {
+	if response == nil || response.Output == nil || response.Output.Message == nil || len(calls) == 0 {
+		return agent.Transition{}, fmt.Errorf("%w: invalid truncated ToolCall response", ErrInvalidExecutionState)
+	}
+	results := make([]chat.ToolResult, len(calls))
+	for index := range calls {
+		call := calls[index]
+		results[index] = chat.ToolResult{
+			ID: call.ID, Name: call.Name, IsError: true,
+			Output: chat.NewTextToolOutput(fmt.Sprintf(
+				"error: tool %q was not executed because model output reached its token limit; emit the complete call again",
+				call.Name,
+			)),
+		}
+	}
+	request := e.state.WorkingContext.Clone()
+	request.Messages = append(
+		request.Messages,
+		response.Output.Message.Clone(),
+		chat.NewToolMessage(results...),
+	)
+	e.state.WorkingContext = request
+	appliedSteerSignalIDs, err := e.applyPendingSteer()
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	if err := e.state.WorkingContext.Validate(); err != nil {
+		return agent.Transition{}, fmt.Errorf("%w: truncated ToolCall continuation: %w", ErrInvalidExecutionState, err)
+	}
+	e.state.Phase = phaseReadyModel
+	return e.requestModel(consumedSignals, appliedSteerSignalIDs)
 }
 
 func (e *execution) acceptTools(signals []agent.Signal) (agent.Transition, error) {
@@ -254,9 +294,8 @@ func (e *execution) requestInputWait(
 	}
 	waitOpened := checkpoint.InputRequest
 	payload, err := encodeProtocol(signalEnvelope{
-		SchemaVersion: protocolSchemaVersion,
-		Operation:     operationWaitOpened,
-		WaitOpened:    &waitOpened,
+		Operation:  operationWaitOpened,
+		WaitOpened: &waitOpened,
 	})
 	if err != nil {
 		return agent.Transition{}, err
@@ -456,7 +495,7 @@ func (e *execution) finishToolCallBatch(
 	consumedSignals uint32,
 	assistant *chat.Message,
 ) (agent.Transition, error) {
-	results := slices.Clone(e.state.SettledToolResults)
+	results := cloneToolResults(e.state.SettledToolResults)
 	completionContext := []chat.Message{assistant.Clone(), chat.NewToolMessage(results...)}
 	if e.state.DirectToolResultEligible && e.state.PendingSteer == nil {
 		return e.finishOrRetry(consumedSignals, Output{

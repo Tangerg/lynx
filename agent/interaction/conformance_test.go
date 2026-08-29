@@ -13,7 +13,6 @@ func TestDefinitionConformance(t *testing.T) {
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name:          "interaction.conformance",
 		Description:   "Verify the Interaction Definition and Execution contract.",
-		Version:       "1.0.0",
 		MaxModelCalls: 2,
 	})
 	if err != nil {

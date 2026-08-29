@@ -50,15 +50,15 @@ func (w *WriteTool) Definition() chat.ToolDefinition {
 // (the tool loop's optional concurrency contract): distinct-file writes run in
 // parallel, same-file writes serialize. An unparseable / empty path yields no
 // key (no known conflict).
-func (w *WriteTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+func (w *WriteTool) ConcurrencyKey(invocation toolcontract.Invocation) (key string, concurrent bool) {
 	var req WriteRequest
-	_ = json.Unmarshal([]byte(arguments), &req)
+	_ = json.Unmarshal(invocation.Arguments(), &req)
 	return req.Path, true
 }
 
-func (*WriteTool) MutationPaths(arguments string) ([]string, error) {
+func (*WriteTool) MutationPaths(invocation toolcontract.Invocation) ([]string, error) {
 	var req WriteRequest
-	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
+	if err := json.Unmarshal(invocation.Arguments(), &req); err != nil {
 		return nil, err
 	}
 	if req.Path == "" {
@@ -67,8 +67,8 @@ func (*WriteTool) MutationPaths(arguments string) ([]string, error) {
 	return []string{req.Path}, nil
 }
 
-func (w *WriteTool) Call(ctx context.Context, arguments string) (string, error) {
-	return w.typed.Call(ctx, arguments)
+func (w *WriteTool) Call(ctx context.Context, invocation toolcontract.Invocation) (chat.ToolOutput, error) {
+	return w.typed.Call(ctx, invocation)
 }
 
 func (w *WriteTool) write(ctx context.Context, req WriteRequest) (WriteResponse, error) {

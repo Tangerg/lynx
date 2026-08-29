@@ -11,13 +11,14 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	corechat "github.com/Tangerg/scope/core/chat"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 	scopemcp "github.com/Tangerg/scope/mcp"
 )
 
 const echoSchema = `{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`
 
 type concurrencyKeyer interface {
-	ConcurrencyKey(arguments string) (key string, concurrent bool)
+	ConcurrencyKey(invocation toolcontract.Invocation) (key string, concurrent bool)
 }
 
 // startServerWithEcho boots an in-memory MCP server that exposes a single
@@ -28,7 +29,7 @@ func startServerWithEcho(t *testing.T, ctx context.Context) (*sdkmcp.ClientSessi
 	t.Helper()
 	srvT, cliT := sdkmcp.NewInMemoryTransports()
 
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "v0.1.0"}, nil)
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "dev"}, nil)
 	srv.AddTool(
 		&sdkmcp.Tool{
 			Name:        "echo",
@@ -54,7 +55,7 @@ func startServerWithEcho(t *testing.T, ctx context.Context) (*sdkmcp.ClientSessi
 	ss, err := srv.Connect(ctx, srvT, nil)
 	require.NoError(t, err)
 
-	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "v0.1.0"}, nil)
+	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "dev"}, nil)
 	cs, err := cli.Connect(ctx, cliT, nil)
 	require.NoError(t, err)
 
@@ -83,7 +84,7 @@ func TestToolsDefaultNamingSanitizesForProviderCharset(t *testing.T) {
 	}
 	for _, c := range cases {
 		srvT, cliT := sdkmcp.NewInMemoryTransports()
-		srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "v0.1.0"}, nil)
+		srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "dev"}, nil)
 		srv.AddTool(&sdkmcp.Tool{Name: c.tool, InputSchema: json.RawMessage(`{"type":"object"}`)}, func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
 			return &sdkmcp.CallToolResult{}, nil
 		})
@@ -91,7 +92,7 @@ func TestToolsDefaultNamingSanitizesForProviderCharset(t *testing.T) {
 		require.NoError(t, err)
 		defer ss.Close()
 
-		cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "v0.1.0"}, nil)
+		cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "dev"}, nil)
 		cs, err := cli.Connect(t.Context(), cliT, nil)
 		require.NoError(t, err)
 		defer cs.Close()
@@ -123,9 +124,9 @@ func TestToolsDiscoversAndCallsTool(t *testing.T) {
 	assert.Equal(t, byte('{'), tools[0].Definition().InputSchema[0])
 
 	callable := tools[0]
-	out, err := callable.Call(ctx, `{"text":"hello world"}`)
+	out, err := invokeTestTool(ctx, callable, `{"text":"hello world"}`)
 	require.NoError(t, err)
-	assert.Equal(t, "hello world", out)
+	assert.Equal(t, "hello world", testOutputText(out))
 }
 
 func TestToolsTwoSourcesAreNamespaced(t *testing.T) {
@@ -183,10 +184,10 @@ func TestToolsConcurrencyPolicyReceivesRemoteIdentity(t *testing.T) {
 
 	var gotSource, gotTool, gotArguments string
 	wrapped, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolDiscoveryConfig{
-		ConcurrencyPolicy: func(sourceName, toolName string, annotations sdkmcp.ToolAnnotations, arguments string) (string, bool) {
+		ConcurrencyPolicy: func(sourceName, toolName string, annotations sdkmcp.ToolAnnotations, invocation toolcontract.Invocation) (string, bool) {
 			gotSource = sourceName
 			gotTool = toolName
-			gotArguments = arguments
+			gotArguments = string(invocation.Arguments())
 			return "tenant:acme", true
 		},
 	})
@@ -195,12 +196,14 @@ func TestToolsConcurrencyPolicyReceivesRemoteIdentity(t *testing.T) {
 
 	scheduled, ok := wrapped[0].(concurrencyKeyer)
 	require.True(t, ok)
-	key, concurrent := scheduled.ConcurrencyKey(`{"tenant":"acme"}`)
+	_, invocation, err := prepareTestTool(wrapped[0], `{"text":"acme"}`)
+	require.NoError(t, err)
+	key, concurrent := scheduled.ConcurrencyKey(invocation)
 	assert.True(t, concurrent)
 	assert.Equal(t, "tenant:acme", key)
 	assert.Equal(t, "primary", gotSource)
 	assert.Equal(t, "echo", gotTool)
-	assert.Equal(t, `{"tenant":"acme"}`, gotArguments)
+	assert.Equal(t, `{"text":"acme"}`, gotArguments)
 }
 
 func TestToolsConcurrencyPolicyCannotMutateDescriptor(t *testing.T) {
@@ -210,7 +213,7 @@ func TestToolsConcurrencyPolicyCannotMutateDescriptor(t *testing.T) {
 
 	var destructive []bool
 	wrapped, err := scopemcp.DiscoverTools(ctx, []scopemcp.ToolSource{{Name: "primary", Session: cs}}, scopemcp.ToolDiscoveryConfig{
-		ConcurrencyPolicy: func(_, _ string, annotations sdkmcp.ToolAnnotations, _ string) (string, bool) {
+		ConcurrencyPolicy: func(_, _ string, annotations sdkmcp.ToolAnnotations, _ toolcontract.Invocation) (string, bool) {
 			destructive = append(destructive, annotations.DestructiveHint != nil && *annotations.DestructiveHint)
 			annotations.DestructiveHint = new(true)
 			return "", true
@@ -224,15 +227,17 @@ func TestToolsConcurrencyPolicyCannotMutateDescriptor(t *testing.T) {
 	assert.Equal(t, "echo the input", definition.Description)
 
 	scheduled := wrapped[0].(concurrencyKeyer)
+	_, invocation, err := prepareTestTool(wrapped[0], `{"text":"stable"}`)
+	require.NoError(t, err)
 	for range 2 {
-		_, concurrent := scheduled.ConcurrencyKey(`{}`)
+		_, concurrent := scheduled.ConcurrencyKey(invocation)
 		assert.True(t, concurrent)
 	}
 	assert.Equal(t, []bool{false, false}, destructive)
 
-	out, err := wrapped[0].Call(ctx, `{"text":"stable"}`)
+	out, err := invokeTestTool(ctx, wrapped[0], `{"text":"stable"}`)
 	require.NoError(t, err)
-	assert.Equal(t, "stable", out)
+	assert.Equal(t, "stable", testOutputText(out))
 }
 
 func TestToolsDefaultConcurrencyIsExclusive(t *testing.T) {
@@ -246,7 +251,9 @@ func TestToolsDefaultConcurrencyIsExclusive(t *testing.T) {
 
 	scheduled, ok := wrapped[0].(concurrencyKeyer)
 	require.True(t, ok)
-	key, concurrent := scheduled.ConcurrencyKey(`{}`)
+	_, invocation, err := prepareTestTool(wrapped[0], `{"text":"stable"}`)
+	require.NoError(t, err)
+	key, concurrent := scheduled.ConcurrencyKey(invocation)
 	assert.False(t, concurrent)
 	assert.Empty(t, key)
 }

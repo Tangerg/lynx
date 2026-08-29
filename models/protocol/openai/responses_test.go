@@ -297,7 +297,9 @@ func TestResponsesChatReplaysProviderIssuedReasoningItem(t *testing.T) {
 	if _, err := model.Call(t.Context(), &chat.Request{Messages: []chat.Message{
 		userMessage,
 		response.Output.Message.Clone(),
-		chat.NewToolMessage(chat.ToolResult{ID: "call_w", Name: "weather", Result: "sunny"}),
+		chat.NewToolMessage(chat.ToolResult{
+			ID: "call_w", Name: "weather", Output: chat.NewTextToolOutput("sunny"),
+		}),
 	}}); err != nil {
 		t.Fatalf("second Call: %v", err)
 	}

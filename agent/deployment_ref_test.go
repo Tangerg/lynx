@@ -8,8 +8,8 @@ import (
 
 func TestDeploymentRefBindsContractImplementationAndConfiguration(t *testing.T) {
 	descriptor := testDescriptor(t)
-	implementation := digestBytes([]byte("interaction implementation v1"))
-	configuration := digestBytes([]byte("model and dispatcher configuration v1"))
+	implementation := digestBytes([]byte("interaction implementation"))
+	configuration := digestBytes([]byte("model and dispatcher configuration"))
 	reference, err := NewDeploymentRef(descriptor, implementation, configuration)
 	if err != nil {
 		t.Fatal(err)
@@ -17,16 +17,16 @@ func TestDeploymentRefBindsContractImplementationAndConfiguration(t *testing.T) 
 	if !reference.Valid() || reference.ContractDigest() != descriptor.Digest() || reference.ImplementationDigest() != implementation || reference.ConfigurationDigest() != configuration {
 		t.Fatalf("DeploymentRef = %+v", reference)
 	}
-	wantText := descriptor.Name() + "@" + descriptor.Version() + "+" + reference.Digest().String()
+	wantText := descriptor.Name() + "+" + reference.Digest().String()
 	if reference.String() != wantText || (DeploymentRef{}).String() != invalidDeploymentRefText {
 		t.Fatalf("DeploymentRef text = %q, invalid = %q", reference.String(), (DeploymentRef{}).String())
 	}
 
-	changedImplementation, err := NewDeploymentRef(descriptor, digestBytes([]byte("interaction implementation v2")), configuration)
+	changedImplementation, err := NewDeploymentRef(descriptor, digestBytes([]byte("changed interaction implementation")), configuration)
 	if err != nil {
 		t.Fatal(err)
 	}
-	changedConfiguration, err := NewDeploymentRef(descriptor, implementation, digestBytes([]byte("model and dispatcher configuration v2")))
+	changedConfiguration, err := NewDeploymentRef(descriptor, implementation, digestBytes([]byte("changed model and dispatcher configuration")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -56,7 +56,7 @@ func TestDeploymentRefStrictJSONRejectsTampering(t *testing.T) {
 	if unmarshalErr := json.Unmarshal(data, &wire); unmarshalErr != nil {
 		t.Fatal(unmarshalErr)
 	}
-	wire["version"] = "9.9.9"
+	wire["name"] = "deployment.tampered"
 	tampered, err := json.Marshal(wire)
 	if err != nil {
 		t.Fatal(err)
@@ -104,7 +104,6 @@ func testDescriptorForFuzz(f *testing.F) Descriptor {
 	descriptor, err := NewDescriptor(DescriptorConfig{
 		Name:         "deployment.fuzz",
 		Description:  "Validates DeploymentRef codec fuzz behavior.",
-		Version:      "0.1.0",
 		InputSchema:  schema,
 		OutputSchema: schema,
 	})

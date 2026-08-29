@@ -23,7 +23,7 @@ func TestEvaluatorSupportsNonTextSubjectsAndMedianSampling(t *testing.T) {
 		"{\"score\":0.9,\"feedback\":\"high\"}",
 		"{\"score\":0.7,\"feedback\":\"middle\"}",
 	}}
-	metric, err := evaluation.NewMetric("agent", "tool_selection", nil)
+	metric, err := evaluation.NewMetric(evaluation.MetricConfig{Namespace: "agent", Name: "tool_selection"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestEvaluatorSupportsNonTextSubjectsAndMedianSampling(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !report.Passed || report.Score != 0.7 || report.Feedback != "middle" {
+	if report.Verdict != evaluation.VerdictPass || report.Score == nil || *report.Score != 0.7 || report.Feedback != "middle" {
 		t.Fatalf("report = %#v", report)
 	}
 	scores, found, err := report.Metadata.Decode[[]evaluation.Score]("sample_scores")

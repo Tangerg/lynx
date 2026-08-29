@@ -1,17 +1,24 @@
 package tool
 
 import (
+	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"reflect"
 
 	"github.com/Tangerg/scope/core/chat"
+	corejsonschema "github.com/Tangerg/scope/core/jsonschema"
 )
 
-var ErrInvalidTool = errors.New("tool: invalid tool")
+var (
+	ErrInvalidTool       = errors.New("tool: invalid tool")
+	ErrInvalidInvocation = errors.New("tool: invalid invocation")
+)
 
 // Tool is the minimal executable capability used by model-driven runtimes.
 // Definition returns an independent snapshot safe to expose to a model. Call
-// owns argument decoding and returns the text sent back as a tool result.
+// receives only an Invocation promoted by the exact frozen [Binding].
 //
 // Tool assigns no control-flow meaning to errors. Retry, pause, abort, and
 // ordinary error feedback belong to the runtime driving the tool.
@@ -19,9 +26,134 @@ type Tool interface {
 	// Definition returns a detached, valid schema snapshot. Callers may expose or
 	// mutate the returned value without changing subsequent calls or execution.
 	Definition() chat.ToolDefinition
-	// Call executes one model-supplied JSON argument document. The implementation
-	// owns strict decoding and capability-specific validation; ordinary tool
-	// failure is returned as error without assigning retry or control-flow
-	// meaning. Implementations must honor ctx and must not retain arguments.
-	Call(ctx context.Context, arguments string) (string, error)
+	// Call executes one schema-validated invocation. Implementations still own
+	// capability-specific semantic validation. Ordinary failure is returned as
+	// error without assigning retry or control-flow meaning. Implementations must
+	// honor ctx and must not retain the invocation or its arguments.
+	Call(ctx context.Context, invocation Invocation) (chat.ToolOutput, error)
 }
+
+type boundContract struct {
+	executable Tool
+	definition chat.ToolDefinition
+	input      corejsonschema.Schema
+}
+
+// Binding freezes one Tool definition and compiles its input schema. It is the
+// canonical trust boundary between an untrusted [chat.ToolCall] and execution.
+// A successfully constructed Binding and every Invocation it creates are safe
+// for concurrent use when the underlying Tool is safe for concurrent calls.
+type Binding struct {
+	contract *boundContract
+}
+
+// Bind freezes and validates executable. Definition is read exactly once.
+func Bind(executable Tool) (Binding, error) {
+	if isNilTool(executable) {
+		return Binding{}, fmt.Errorf("%w: tool is nil", ErrInvalidTool)
+	}
+	definition, err := safeDefinition(executable)
+	if err != nil {
+		return Binding{}, err
+	}
+	input, err := corejsonschema.Parse(definition.InputSchema)
+	if err != nil {
+		return Binding{}, fmt.Errorf("%w: input schema: %w", ErrInvalidTool, err)
+	}
+	return Binding{contract: &boundContract{
+		executable: executable,
+		definition: definition.Clone(),
+		input:      input,
+	}}, nil
+}
+
+func isNilTool(executable Tool) bool {
+	if executable == nil {
+		return true
+	}
+	value := reflect.ValueOf(executable)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
+	}
+}
+
+func safeDefinition(executable Tool) (definition chat.ToolDefinition, err error) {
+	defer func() {
+		if recovered := recover(); recovered != nil {
+			definition = chat.ToolDefinition{}
+			err = fmt.Errorf("%w: definition panicked: %v", ErrInvalidTool, recovered)
+		}
+	}()
+	definition = executable.Definition()
+	if err := definition.Validate(); err != nil {
+		return chat.ToolDefinition{}, fmt.Errorf("%w: definition: %w", ErrInvalidTool, err)
+	}
+	return definition.Clone(), nil
+}
+
+// Definition returns an independent snapshot of the frozen definition.
+func (b Binding) Definition() chat.ToolDefinition {
+	if b.contract == nil {
+		return chat.ToolDefinition{}
+	}
+	return b.contract.definition.Clone()
+}
+
+// Invocation is a complete JSON object validated against one exact frozen Tool
+// definition. Its fields are intentionally private: only Binding.Prepare can
+// promote an untrusted model proposal into an executable invocation.
+type Invocation struct {
+	contract  *boundContract
+	call      chat.ToolCall
+	arguments []byte
+}
+
+// Prepare validates identity, RFC 7493 JSON syntax, and the frozen input schema
+// without invoking the Tool or any optional Tool capability. Blank arguments
+// are normalized to the empty object.
+func (b Binding) Prepare(call chat.ToolCall) (Invocation, error) {
+	if b.contract == nil {
+		return Invocation{}, fmt.Errorf("%w: binding is zero", ErrInvalidInvocation)
+	}
+	if err := call.Validate(); err != nil {
+		return Invocation{}, fmt.Errorf("%w: %w", ErrInvalidInvocation, err)
+	}
+	if call.Name != b.contract.definition.Name {
+		return Invocation{}, fmt.Errorf(
+			"%w: call name %q does not match bound tool %q",
+			ErrInvalidInvocation, call.Name, b.contract.definition.Name,
+		)
+	}
+	arguments := []byte(call.Arguments)
+	if len(bytes.TrimSpace(arguments)) == 0 {
+		arguments = []byte("{}")
+	}
+	if err := b.contract.input.Validate(arguments); err != nil {
+		return Invocation{}, fmt.Errorf("%w: arguments: %w", ErrInvalidInvocation, err)
+	}
+	owned := append([]byte(nil), arguments...)
+	call.Arguments = string(owned)
+	return Invocation{contract: b.contract, call: call, arguments: owned}, nil
+}
+
+// Call executes an Invocation created by this exact Binding. It rejects values
+// promoted by another binding even when the public Tool name happens to match.
+func (b Binding) Call(ctx context.Context, invocation Invocation) (chat.ToolOutput, error) {
+	if b.contract == nil || invocation.contract == nil || b.contract != invocation.contract {
+		return chat.ToolOutput{}, fmt.Errorf("%w: invocation does not belong to binding", ErrInvalidInvocation)
+	}
+	return b.contract.executable.Call(ctx, invocation)
+}
+
+// ToolCall returns an owned copy of the model proposal after argument
+// normalization and validation.
+func (i Invocation) ToolCall() chat.ToolCall { return i.call }
+
+// Arguments returns an owned copy of the validated JSON object.
+func (i Invocation) Arguments() []byte { return append([]byte(nil), i.arguments...) }
+
+// Valid reports whether the Invocation was produced by a Binding.
+func (i Invocation) Valid() bool { return i.contract != nil && len(i.arguments) != 0 }

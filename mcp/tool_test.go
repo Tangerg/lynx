@@ -19,7 +19,7 @@ func startServerWithFailing(t *testing.T, ctx context.Context) (*sdkmcp.ClientSe
 	t.Helper()
 	srvT, cliT := sdkmcp.NewInMemoryTransports()
 
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "fail-srv", Version: "v0.1.0"}, nil)
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "fail-srv", Version: "dev"}, nil)
 	srv.AddTool(
 		&sdkmcp.Tool{Name: "boom", Description: "always fails", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
@@ -32,7 +32,7 @@ func startServerWithFailing(t *testing.T, ctx context.Context) (*sdkmcp.ClientSe
 	ss, err := srv.Connect(ctx, srvT, nil)
 	require.NoError(t, err)
 
-	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "fail-cli", Version: "v0.1.0"}, nil)
+	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "fail-cli", Version: "dev"}, nil)
 	cs, err := cli.Connect(ctx, cliT, nil)
 	require.NoError(t, err)
 
@@ -52,7 +52,7 @@ func TestTool_IsErrorBecomesToolCallError(t *testing.T) {
 	require.Len(t, tools, 1)
 
 	callable := tools[0]
-	out, err := callable.Call(ctx, "{}")
+	out, err := invokeTestTool(ctx, callable, "{}")
 	require.Error(t, err)
 	assert.Empty(t, out)
 
@@ -73,13 +73,13 @@ func TestTool_RPCErrorIsNotToolCallError(t *testing.T) {
 	require.Len(t, tools, 1)
 	cleanup() // close immediately
 
-	_, callErr := tools[0].Call(ctx, "{}")
+	_, callErr := invokeTestTool(ctx, tools[0], "{}")
 	require.Error(t, callErr)
 	_, ok := errors.AsType[*scopemcp.ToolCallError](callErr)
 	assert.False(t, ok, "transport errors must not unwrap into *ToolCallError")
 }
 
-func TestTool_EmptyArgumentsTreatedAsEmptyObject(t *testing.T) {
+func TestTool_EmptyArgumentsAreValidatedAsEmptyObject(t *testing.T) {
 	ctx := t.Context()
 	cs, _, cleanup := startServerWithEcho(t, ctx)
 	defer cleanup()
@@ -89,10 +89,10 @@ func TestTool_EmptyArgumentsTreatedAsEmptyObject(t *testing.T) {
 
 	callable := tools[0]
 
-	// echo without arguments — server returns empty string, no protocol error.
-	out, err := callable.Call(ctx, "")
-	require.NoError(t, err)
-	assert.Equal(t, "", out)
+	// Blank arguments normalize to an empty object and fail the advertised
+	// required-property contract before any remote call.
+	_, err = invokeTestTool(ctx, callable, "")
+	require.Error(t, err)
 }
 
 func TestTool_MetaForwardedToServer(t *testing.T) {
@@ -100,7 +100,7 @@ func TestTool_MetaForwardedToServer(t *testing.T) {
 	srvT, cliT := sdkmcp.NewInMemoryTransports()
 
 	receivedMeta := make(chan map[string]any, 1)
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "meta-srv", Version: "v0.1.0"}, nil)
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "meta-srv", Version: "dev"}, nil)
 	srv.AddTool(
 		&sdkmcp.Tool{Name: "snitch", Description: "reports meta", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
@@ -112,7 +112,7 @@ func TestTool_MetaForwardedToServer(t *testing.T) {
 	require.NoError(t, err)
 	defer ss.Close()
 
-	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "meta-cli", Version: "v0.1.0"}, nil)
+	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "meta-cli", Version: "dev"}, nil)
 	cs, err := cli.Connect(ctx, cliT, nil)
 	require.NoError(t, err)
 	defer cs.Close()
@@ -123,9 +123,9 @@ func TestTool_MetaForwardedToServer(t *testing.T) {
 	require.NoError(t, err)
 
 	callCtx := scopemcp.WithRequestMeta(ctx, sdkmcp.Meta{"userId": "u-42", "trace": "tx-99"})
-	out, err := tools[0].Call(callCtx, "{}")
+	out, err := invokeTestTool(callCtx, tools[0], "{}")
 	require.NoError(t, err)
-	assert.Equal(t, "ok", out)
+	assert.Equal(t, "ok", testOutputText(out))
 
 	got := <-receivedMeta
 	assert.Equal(t, "u-42", got["userId"])

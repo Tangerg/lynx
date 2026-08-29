@@ -153,22 +153,31 @@ func (a *accumulatedOutput) mergePart(delta Part) error {
 			last.Signature = append(last.Signature, delta.Signature...)
 			return nil
 		}
-	case PartToolCall:
-		if position, exists := a.toolParts[delta.ToolCall.ID]; exists {
+	case PartToolCallDelta:
+		callDelta := delta.ToolCallDelta
+		if position, exists := a.toolParts[callDelta.ID]; exists {
 			part := &(*parts)[position]
 			call := part.ToolCall
-			if call.Name != delta.ToolCall.Name {
-				return fmt.Errorf("tool call %q changed name from %q to %q", call.ID, call.Name, delta.ToolCall.Name)
+			if call.Name != callDelta.Name {
+				return fmt.Errorf("tool call %q changed name from %q to %q", call.ID, call.Name, callDelta.Name)
 			}
-			call.Arguments += delta.ToolCall.Arguments
+			call.Arguments += callDelta.Arguments
 			if err := part.Metadata.Merge(delta.Metadata); err != nil {
 				return fmt.Errorf("tool call %q metadata: %w", call.ID, err)
 			}
 			return nil
 		}
-		cloned := delta.Clone()
+		assembled := NewToolCallPart(ToolCall{ID: callDelta.ID, Name: callDelta.Name, Arguments: callDelta.Arguments})
+		assembled.Metadata = delta.Metadata.Clone()
+		a.toolParts[callDelta.ID] = len(*parts)
+		*parts = append(*parts, assembled)
+		return nil
+	case PartToolCall:
+		if _, exists := a.toolParts[delta.ToolCall.ID]; exists {
+			return fmt.Errorf("tool call %q was emitted more than once or mixed with deltas", delta.ToolCall.ID)
+		}
 		a.toolParts[delta.ToolCall.ID] = len(*parts)
-		*parts = append(*parts, cloned)
+		*parts = append(*parts, delta.Clone())
 		return nil
 	}
 	*parts = append(*parts, delta.Clone())

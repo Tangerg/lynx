@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"reflect"
 	"slices"
 	"strings"
 	"sync"
@@ -95,19 +96,24 @@ func TestInvocationAttributionAndDeferredToolAdvertisement(t *testing.T) {
 func assertModelToolResultPolicy(t *testing.T, invocation interaction.ToolInvocation) {
 	t.Helper()
 	call := invocation.ToolCall()
-	success, present := invocation.ModelResult(`{"value":42}`, nil)
-	if !present || success != (chat.ToolResult{ID: call.ID, Name: call.Name, Result: `{"value":42}`}) {
+	structured, err := chat.NewJSONToolOutput(json.RawMessage(`{"value":42}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	success, present := invocation.ModelResult(structured, nil)
+	wantSuccess := chat.ToolResult{ID: call.ID, Name: call.Name, Output: structured}
+	if !present || !reflect.DeepEqual(success, wantSuccess) {
 		t.Fatalf("success = %#v, present = %t", success, present)
 	}
 
 	diagnostic := strings.Repeat("x", 3_000)
-	failure, present := invocation.ModelResult("ignored", errors.New(diagnostic))
+	failure, present := invocation.ModelResult(chat.NewTextToolOutput("ignored"), errors.New(diagnostic))
 	wantFailure := chat.ToolResult{
 		ID: call.ID, Name: call.Name,
-		Result:  "error: tool \"" + call.Name + "\" failed: " + diagnostic[:2_048],
+		Output:  chat.NewTextToolOutput("error: tool \"" + call.Name + "\" failed: " + diagnostic[:2_048]),
 		IsError: true,
 	}
-	if !present || failure != wantFailure {
+	if !present || !reflect.DeepEqual(failure, wantFailure) {
 		t.Fatalf("failure = %#v, present = %t", failure, present)
 	}
 
@@ -122,11 +128,11 @@ func assertModelToolResultPolicy(t *testing.T, invocation interaction.ToolInvoca
 		),
 	}
 	for _, cause := range controlCauses {
-		if result, present := invocation.ModelResult("ignored", cause); present || result != (chat.ToolResult{}) {
+		if result, present := invocation.ModelResult(chat.NewTextToolOutput("ignored"), cause); present || !reflect.DeepEqual(result, chat.ToolResult{}) {
 			t.Fatalf("control cause %v produced %#v, present = %t", cause, result, present)
 		}
 	}
-	if result, present := (interaction.ToolInvocation{}).ModelResult("ignored", nil); present || result != (chat.ToolResult{}) {
+	if result, present := (interaction.ToolInvocation{}).ModelResult(chat.NewTextToolOutput("ignored"), nil); present || !reflect.DeepEqual(result, chat.ToolResult{}) {
 		t.Fatalf("invalid invocation produced %#v, present = %t", result, present)
 	}
 }
@@ -408,7 +414,7 @@ func TestDispatcherRejectsDuplicateAndTypedNilDeferredTools(t *testing.T) {
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "interaction.deferred_validation", Description: "Validate deferred Tool bindings.",
-		Version: "1.0.0", MaxModelCalls: 1,
+		MaxModelCalls: 1,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -529,8 +535,9 @@ func (c *callbackTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (c *callbackTool) Call(ctx context.Context, arguments string) (string, error) {
-	return c.call(ctx, arguments)
+func (c *callbackTool) Call(ctx context.Context, invocation tool.Invocation) (chat.ToolOutput, error) {
+	result, err := c.call(ctx, string(invocation.Arguments()))
+	return chat.NewTextToolOutput(result), err
 }
 
 func successfulCallback(context.Context, string) (string, error) { return "done", nil }
@@ -549,7 +556,7 @@ func newDeferredDeployment(
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "interaction.deferred", Description: "Verify recoverable deferred Tool advertisement.",
-		Version: "1.0.0", MaxModelCalls: 4,
+		MaxModelCalls: 4,
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -117,7 +117,9 @@ func TestOpenAIChatReplaysStructuredReasoningDetails(t *testing.T) {
 	if _, err := model.Call(t.Context(), &corechat.Request{Messages: []corechat.Message{
 		userMessage,
 		assistantMessage.Clone(),
-		corechat.NewToolMessage(corechat.ToolResult{ID: "call-1", Name: "lookup", Result: "found"}),
+		corechat.NewToolMessage(corechat.ToolResult{
+			ID: "call-1", Name: "lookup", Output: corechat.NewTextToolOutput("found"),
+		}),
 	}}); err != nil {
 		t.Fatalf("second Call: %v", err)
 	}

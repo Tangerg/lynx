@@ -17,17 +17,17 @@ func TestToolUsesOnePreciseContract(t *testing.T) {
 		`{"location":"Beijing","unknown":true}`,
 		`{"location":"Beijing"} {}`,
 	} {
-		if _, err := tool.Call(t.Context(), arguments); err == nil {
+		if _, err := invokeTestTool(t.Context(), tool, arguments); err == nil {
 			t.Fatalf("synthetic weather accepted arguments outside its contract: %s", arguments)
 		}
 	}
 
-	body, err := tool.Call(t.Context(), `{"location":"Beijing","date":"2026-08-04"}`)
+	output, err := invokeTestTool(t.Context(), tool, `{"location":"Beijing","date":"2026-08-04"}`)
 	if err != nil {
 		t.Fatalf("Call(valid): %v", err)
 	}
 	var response Response
-	if err := json.Unmarshal([]byte(body), &response); err != nil {
+	if err := json.Unmarshal(output.Details, &response); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
 	if response.Location != "Beijing" {

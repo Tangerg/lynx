@@ -50,30 +50,6 @@ func TestManagedPlanningReobservesAndReplansAfterEveryAction(t *testing.T) {
 	}
 }
 
-func TestPlanningDefinitionRejectsPriorExecutionStateSchema(t *testing.T) {
-	done := mustCondition(t, "world.done", planning.True)
-	definition := newManagedDefinition(t, managedDeploymentConfig{goal: mustGoal(t, done)})
-	input, err := agent.EncodeInput(struct{}{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	execution, err := definition.Start(input)
-	if err != nil {
-		t.Fatal(err)
-	}
-	state, err := execution.Snapshot()
-	if err != nil {
-		t.Fatal(err)
-	}
-	prior, err := agent.NewExecutionState(state.Kind(), state.SchemaVersion()-1, state.Payload())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := definition.Restore(prior); !errors.Is(err, planning.ErrInvalidExecutionState) {
-		t.Fatalf("prior schema error = %v, want ErrInvalidExecutionState", err)
-	}
-}
-
 func TestManagedPlanningExcludesUnconfirmedActionAndReplans(t *testing.T) {
 	done := mustCondition(t, "world.done", planning.True)
 	optimistic := mustAction(t, planning.ActionConfig{
@@ -291,8 +267,7 @@ func TestManagedPlanningRestoresExactBoundaryState(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if before.Kind() != after.Kind() || before.SchemaVersion() != after.SchemaVersion() ||
-		!bytes.Equal(before.Payload(), after.Payload()) {
+	if before.Kind() != after.Kind() || !bytes.Equal(before.Payload(), after.Payload()) {
 		t.Fatalf("restored state differs\nbefore: %s\nafter:  %s", before.Payload(), after.Payload())
 	}
 }
@@ -560,7 +535,7 @@ func newManagedDefinition(t testing.TB, config managedDeploymentConfig) *plannin
 		name = "planning.test"
 	}
 	definition, err := planning.NewDefinition(planning.DefinitionConfig{
-		Name: name, Description: "Exercise managed goal-directed execution.", Version: "1.0.0",
+		Name: name, Description: "Exercise managed goal-directed execution.",
 		InputSchema: inputSchema, Goal: config.goal, Actions: config.bindings,
 		Planner: planner, MaxActionAttempts: maxActionAttempts,
 	})

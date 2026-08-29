@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
-	"golang.org/x/sync/errgroup"
 
 	"github.com/Tangerg/scope/core/metadata"
 )
@@ -98,7 +97,7 @@ func NewCompositeEvaluator[T any](config CompositeConfig[T]) (*CompositeEvaluato
 	if err := parameters.Set("weights", weights); err != nil {
 		return nil, fmt.Errorf("%w: composite metric: %w", ErrInvalidEvaluatorConfig, err)
 	}
-	metric, err := NewMetric("", MetricNameComposite, parameters)
+	metric, err := NewMetric(MetricConfig{Name: MetricNameComposite, Parameters: parameters})
 	if err != nil {
 		return nil, fmt.Errorf("%w: composite metric: %w", ErrInvalidEvaluatorConfig, err)
 	}
@@ -117,48 +116,46 @@ func NewCompositeEvaluator[T any](config CompositeConfig[T]) (*CompositeEvaluato
 }
 
 func (composite *CompositeEvaluator[T]) Evaluate(ctx context.Context, subject T) (Report, error) {
-	reports := make([]Report, len(composite.components))
-	group, groupContext := errgroup.WithContext(ctx)
-	group.SetLimit(composite.maxConcurrency)
+	evaluators := make([]Evaluator[T], len(composite.components))
 	for index, component := range composite.components {
-		group.Go(func() error {
-			report, err := component.Evaluator.Evaluate(groupContext, subject)
-			if err != nil {
-				return fmt.Errorf("evaluation: component %d: %w", index, err)
-			}
-			if err := report.Validate(); err != nil {
-				return fmt.Errorf("evaluation: component %d: %w", index, err)
-			}
-			reports[index] = report.Clone()
-			return nil
-		})
+		evaluators[index] = component.Evaluator
 	}
-	if err := group.Wait(); err != nil {
+	reports, err := evaluateAll(ctx, evaluators, composite.maxConcurrency, subject)
+	if err != nil {
 		return Report{}, err
+	}
+	for index, report := range reports {
+		if report.Score == nil || !report.Verdict.Decided() {
+			return Report{}, fmt.Errorf("evaluation: component %d: %w: composite components require a score and verdict", index, ErrInvalidReport)
+		}
 	}
 	return composite.combine(reports)
 }
 
 func (composite *CompositeEvaluator[T]) combine(reports []Report) (Report, error) {
-	combined := Report{Metric: composite.metric.Clone(), Passed: true, Details: reports}
+	combined := Report{Metric: composite.metric.Clone(), Verdict: VerdictPass, Details: reports}
 	feedback := make([]string, 0, len(reports))
 	passed := 0
 	totalWeight := 0.0
+	weightedScore := 0.0
 	for index, report := range reports {
 		component := composite.components[index]
-		if report.Passed {
+		if report.Verdict == VerdictPass {
 			passed++
 		} else if component.Required {
-			combined.Passed = false
+			combined.Verdict = VerdictFail
 		}
-		combined.Score += Score(float64(report.Score) * component.Weight)
+		weightedScore += report.Score.Float64() * component.Weight
 		totalWeight += component.Weight
 		if report.Feedback != "" {
 			feedback = append(feedback, report.Feedback)
 		}
 	}
-	combined.Passed = combined.Passed && passed >= composite.minimumPassed
-	combined.Score = Score(float64(combined.Score) / totalWeight)
+	if passed < composite.minimumPassed {
+		combined.Verdict = VerdictFail
+	}
+	score := Score(weightedScore / totalWeight)
+	combined.Score = &score
 	combined.Feedback = strings.Join(feedback, "\n\n")
 	if err := combined.Validate(); err != nil {
 		return Report{}, err

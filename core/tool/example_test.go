@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/Tangerg/scope/core/chat"
 	"github.com/Tangerg/scope/core/tool"
 )
 
@@ -27,11 +28,20 @@ func Example() {
 	}
 
 	fmt.Println(registry.Definitions()[0].Name)
-	result, err := add.Call(context.Background(), `{"a":2,"b":3}`)
+	binding, ok := registry.Resolve("add")
+	if !ok {
+		panic("missing add")
+	}
+	invocation, err := binding.Prepare(chat.ToolCall{ID: "call-1", Name: "add", Arguments: `{"a":2,"b":3}`})
 	if err != nil {
 		panic(err)
 	}
-	fmt.Println(result)
+	result, err := binding.Call(context.Background(), invocation)
+	if err != nil {
+		panic(err)
+	}
+	text, _ := result.Text()
+	fmt.Println(text)
 	// Output:
 	// add
 	// 5

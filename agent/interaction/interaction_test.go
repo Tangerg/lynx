@@ -165,7 +165,7 @@ func assertInteractionHostFailure(t *testing.T, result agent.Result) {
 
 func TestDefinitionRejectsZeroModelCallLimit(t *testing.T) {
 	_, err := interaction.NewDefinition(interaction.DefinitionConfig{
-		Name: "interaction.test", Description: "Run a test interaction.", Version: "1.0.0",
+		Name: "interaction.test", Description: "Run a test interaction.",
 	})
 	if !errors.Is(err, interaction.ErrInvalidDefinitionConfig) {
 		t.Fatalf("error = %v, want ErrInvalidDefinitionConfig", err)
@@ -176,7 +176,6 @@ func TestDefinitionRestoresCompleteWorkingContext(t *testing.T) {
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name:          "interaction.restore",
 		Description:   "Verify exact Interaction state restoration.",
-		Version:       "1.0.0",
 		MaxModelCalls: 2,
 	})
 	if err != nil {
@@ -251,7 +250,11 @@ func TestDirectResultToolCompletesWithoutAnotherModelCall(t *testing.T) {
 		t.Fatal(err)
 	}
 	if output.Source != interaction.CompletionSourceDirectToolResults || output.ModelResponse != nil ||
-		len(output.DirectToolResults) != 1 || output.DirectToolResults[0].Result != "direct" {
+		len(output.DirectToolResults) != 1 {
+		t.Fatalf("output = %#v", output)
+	}
+	directText, directOK := output.DirectToolResults[0].Output.Text()
+	if !directOK || directText != "direct" {
 		t.Fatalf("output = %#v", output)
 	}
 }
@@ -336,7 +339,8 @@ func (s *scriptedModel) Call(_ context.Context, request *chat.Request) (*chat.Re
 		return nil, errors.New("tool continuation does not preserve model order")
 	}
 	result := request.Messages[2].Parts[0].ToolResult
-	if result == nil || result.ID != "call_1" || result.Name != "add" || result.Result != "5" {
+	resultText, textOK := toolResultText(result)
+	if result == nil || !textOK || result.ID != "call_1" || result.Name != "add" || resultText != "5" {
 		return nil, errors.New("tool continuation contains the wrong result")
 	}
 	return textResponse("5"), nil
@@ -357,7 +361,6 @@ func newDeployment(t *testing.T, model chat.Model, tools []tool.Tool, maxModelCa
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name:          "interaction.test",
 		Description:   "Run a model-directed interaction for contract testing.",
-		Version:       "1.0.0",
 		MaxModelCalls: maxModelCalls,
 	})
 	if err != nil {

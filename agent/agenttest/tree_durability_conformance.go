@@ -408,8 +408,6 @@ const (
 	conformancePhaseFinished
 )
 
-const conformanceExecutionStateSchemaVersion uint16 = 1
-
 const (
 	conformanceStatusTimeout = 5 * time.Second
 	conformancePollInterval  = time.Millisecond
@@ -446,7 +444,7 @@ func conformanceDeployment(t *testing.T, mode conformanceMode) agent.Deployment 
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
 		Name:        "agenttest.durability_conformance",
 		Description: "Exercises the complete durable tree commit contract.",
-		Version:     "1.0.0", InputSchema: inputSchema, OutputSchema: outputSchema,
+		InputSchema: inputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -456,7 +454,7 @@ func conformanceDeployment(t *testing.T, mode conformanceMode) agent.Deployment 
 	deployment, err := agent.NewDeployment(agent.DeploymentConfig{
 		Definition:           definition,
 		Dispatcher:           dispatcher,
-		ImplementationDigest: agent.ComputeDigest([]byte("agenttest durability implementation v1")),
+		ImplementationDigest: agent.ComputeDigest([]byte("agenttest durability implementation")),
 		ConfigurationDigest:  agent.ComputeDigest([]byte{byte(mode)}),
 	})
 	if err != nil {
@@ -479,8 +477,7 @@ func (d *conformanceDefinition) Start(input agent.Input) (agent.Execution, error
 }
 
 func (d *conformanceDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
-	if state.Kind() != d.descriptor.Name() ||
-		state.SchemaVersion() != conformanceExecutionStateSchemaVersion {
+	if state.Kind() != d.descriptor.Name() {
 		return nil, agent.ErrInvalidExecutionState
 	}
 	var value conformanceState
@@ -556,9 +553,7 @@ func (e *conformanceExecution) Snapshot() (agent.ExecutionState, error) {
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
-	return agent.NewExecutionState(
-		e.definition.descriptor.Name(), conformanceExecutionStateSchemaVersion, payload,
-	)
+	return agent.NewExecutionState(e.definition.descriptor.Name(), payload)
 }
 
 func (p conformancePhase) valid() bool {

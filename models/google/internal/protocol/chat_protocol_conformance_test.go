@@ -153,7 +153,9 @@ func newProtocolChatRequest(t *testing.T) *corechat.Request {
 			corechat.NewTextPart("Calculating."),
 			corechat.NewToolCallPart(corechat.ToolCall{ID: "google/0/2", Name: "calculate", Arguments: `{"x":2}`}),
 		),
-		corechat.NewToolMessage(corechat.ToolResult{ID: "google/0/2", Name: "calculate", Result: `{"value":4}`}),
+		corechat.NewToolMessage(corechat.ToolResult{
+			ID: "google/0/2", Name: "calculate", Output: corechat.NewTextToolOutput(`{"value":4}`),
+		}),
 	)
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)

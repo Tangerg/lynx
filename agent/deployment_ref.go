@@ -15,7 +15,6 @@ const invalidDeploymentRefText = "<invalid-deployment-ref>"
 // pointer and is sufficient to reject restore against a different Deployment.
 type DeploymentRef struct {
 	name                 string
-	version              string
 	contractDigest       Digest
 	implementationDigest Digest
 	configurationDigest  Digest
@@ -34,7 +33,6 @@ func NewDeploymentRef(descriptor Descriptor, implementationDigest, configuration
 	}
 	reference := DeploymentRef{
 		name:                 descriptor.Name(),
-		version:              descriptor.Version(),
 		contractDigest:       descriptor.Digest(),
 		implementationDigest: implementationDigest,
 		configurationDigest:  configurationDigest,
@@ -49,9 +47,6 @@ func NewDeploymentRef(descriptor Descriptor, implementationDigest, configuration
 
 // Name returns the stable Definition name.
 func (d DeploymentRef) Name() string { return d.name }
-
-// Version returns the canonical semantic Definition version.
-func (d DeploymentRef) Version() string { return d.version }
 
 // ContractDigest returns the exact Descriptor contract identity.
 func (d DeploymentRef) ContractDigest() Digest { return d.contractDigest }
@@ -70,12 +65,11 @@ func (d DeploymentRef) String() string {
 	if !d.Valid() {
 		return invalidDeploymentRefText
 	}
-	return d.name + "@" + d.version + "+" + d.digest.String()
+	return d.name + "+" + d.digest.String()
 }
 
 func (d DeploymentRef) Valid() bool {
-	if !validQualifiedName(d.name) || !validSemanticVersion(d.version) ||
-		!d.contractDigest.Valid() || !d.implementationDigest.Valid() ||
+	if !validQualifiedName(d.name) || !d.contractDigest.Valid() || !d.implementationDigest.Valid() ||
 		!d.configurationDigest.Valid() || !d.digest.Valid() {
 		return false
 	}
@@ -103,7 +97,6 @@ func (d *DeploymentRef) UnmarshalJSON(data []byte) error {
 	}
 	value := DeploymentRef{
 		name:                 wire.Name,
-		version:              wire.Version,
 		contractDigest:       wire.ContractDigest,
 		implementationDigest: wire.ImplementationDigest,
 		configurationDigest:  wire.ConfigurationDigest,
@@ -118,7 +111,6 @@ func (d *DeploymentRef) UnmarshalJSON(data []byte) error {
 
 type deploymentIdentityWire struct {
 	Name                 string `json:"name"`
-	Version              string `json:"version"`
 	ContractDigest       Digest `json:"contract_digest"`
 	ImplementationDigest Digest `json:"implementation_digest"`
 	ConfigurationDigest  Digest `json:"configuration_digest"`
@@ -132,7 +124,6 @@ type deploymentRefWire struct {
 func (d DeploymentRef) identityWire() deploymentIdentityWire {
 	return deploymentIdentityWire{
 		Name:                 d.name,
-		Version:              d.version,
 		ContractDigest:       d.contractDigest,
 		ImplementationDigest: d.implementationDigest,
 		ConfigurationDigest:  d.configurationDigest,

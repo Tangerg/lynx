@@ -281,16 +281,59 @@ func mapProtocolPart(part corechat.Part) (types.ContentBlock, bool, error) {
 		if part.ToolResult.IsError {
 			status = types.ToolResultStatusError
 		}
+		content, err := mapToolResultContent(part.ToolResult.Output)
+		if err != nil {
+			return nil, false, fmt.Errorf("tool result output: %w", err)
+		}
 		return &types.ContentBlockMemberToolResult{Value: types.ToolResultBlock{
 			ToolUseId: aws.String(part.ToolResult.ID),
 			Status:    status,
-			Content: []types.ToolResultContentBlock{
-				&types.ToolResultContentBlockMemberText{Value: part.ToolResult.Result},
-			},
+			Content:   content,
 		}}, true, nil
 	default:
 		return nil, false, fmt.Errorf("unsupported part kind %q", part.Kind)
 	}
+}
+
+func mapToolResultContent(output corechat.ToolOutput) ([]types.ToolResultContentBlock, error) {
+	if len(output.Content) == 0 {
+		if len(output.Details) == 0 {
+			return []types.ToolResultContentBlock{&types.ToolResultContentBlockMemberText{}}, nil
+		}
+		var value any
+		if err := json.Unmarshal(output.Details, &value); err != nil {
+			return nil, err
+		}
+		return []types.ToolResultContentBlock{
+			&types.ToolResultContentBlockMemberJson{Value: toBedrockDocument(value)},
+		}, nil
+	}
+	content := make([]types.ToolResultContentBlock, 0, len(output.Content))
+	for index := range output.Content {
+		part := output.Content[index]
+		switch part.Kind {
+		case corechat.PartText:
+			content = append(content, &types.ToolResultContentBlockMemberText{Value: part.Text})
+		case corechat.PartMedia:
+			mapped, err := mediaToBlock(part.Media)
+			if err != nil {
+				return nil, fmt.Errorf("content[%d]: %w", index, err)
+			}
+			switch block := mapped.(type) {
+			case *types.ContentBlockMemberImage:
+				content = append(content, &types.ToolResultContentBlockMemberImage{Value: block.Value})
+			case *types.ContentBlockMemberDocument:
+				content = append(content, &types.ToolResultContentBlockMemberDocument{Value: block.Value})
+			case *types.ContentBlockMemberVideo:
+				content = append(content, &types.ToolResultContentBlockMemberVideo{Value: block.Value})
+			default:
+				return nil, fmt.Errorf("content[%d]: Bedrock Tool results do not support media type %q", index, part.Media.MIME)
+			}
+		default:
+			return nil, fmt.Errorf("content[%d]: unsupported part %q", index, part.Kind)
+		}
+	}
+	return content, nil
 }
 
 func mapProtocolTools(definitions []corechat.ToolDefinition) (*types.ToolConfiguration, error) {

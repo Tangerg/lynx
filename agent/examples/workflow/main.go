@@ -148,7 +148,7 @@ func newManagedWorkflow() (agent.Deployment, deploymentResolver, error) {
 	}
 	definition, err := workflow.NewDefinition(workflow.DefinitionConfig{
 		Name: "example.workflow.review", Description: "Normalize and review one request with managed child Processes.",
-		Version: "1.0.0", Stages: []workflow.Stage{normalize, reviewers},
+		Stages: []workflow.Stage{normalize, reviewers},
 	})
 	if err != nil {
 		return agent.Deployment{}, nil, err
@@ -191,7 +191,7 @@ func transformDeployment[I, O any](
 		return agent.Deployment{}, err
 	}
 	definition, err := workflow.NewDefinition(workflow.DefinitionConfig{
-		Name: name, Description: description, Version: "1.0.0", Stages: []workflow.Stage{stage},
+		Name: name, Description: description, Stages: []workflow.Stage{stage},
 	})
 	if err != nil {
 		return agent.Deployment{}, err

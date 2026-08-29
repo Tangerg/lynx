@@ -11,10 +11,7 @@ import (
 	agent "github.com/Tangerg/scope/agent"
 )
 
-const (
-	executionStateKind          = "planning"
-	executionStateSchemaVersion = 3
-)
+const executionStateKind = "planning"
 
 // DefinitionConfig contains one immutable managed Planning behavior. Goal,
 // Planner, and Action bindings are fixed for the exact Deployment; only Input
@@ -25,9 +22,6 @@ type DefinitionConfig struct {
 
 	// Description states the managed goal-directed behavior for discovery.
 	Description string
-
-	// Version is the semantic version of the Definition contract.
-	Version string
 
 	// InputSchema is the authoritative schema for opaque task input passed to
 	// Observer, ActionExecutor, and child input functions.
@@ -79,7 +73,7 @@ func NewDefinition(config DefinitionConfig) (*Definition, error) {
 		return nil, fmt.Errorf("%w: output schema: %w", ErrInvalidDefinitionConfig, err)
 	}
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
-		Name: config.Name, Description: config.Description, Version: config.Version,
+		Name: config.Name, Description: config.Description,
 		InputSchema: config.InputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {
@@ -111,14 +105,14 @@ func (d *Definition) Start(input agent.Input) (agent.Execution, error) {
 	return &execution{definition: d, state: state}, nil
 }
 
-// Restore recreates a Planning Execution solely from its opaque, versioned
-// state and this exact Definition.
+// Restore recreates a Planning Execution solely from its opaque state and this
+// exact Definition.
 func (d *Definition) Restore(state agent.ExecutionState) (agent.Execution, error) {
 	if !d.valid() {
 		return nil, ErrInvalidDefinitionConfig
 	}
-	if state.Kind() != executionStateKind || state.SchemaVersion() != executionStateSchemaVersion {
-		return nil, fmt.Errorf("%w: unsupported kind or schema version", ErrInvalidExecutionState)
+	if state.Kind() != executionStateKind {
+		return nil, fmt.Errorf("%w: unsupported kind", ErrInvalidExecutionState)
 	}
 	var decoded executionState
 	if err := jsonv2.Unmarshal(state.Payload(), &decoded, jsonv2.RejectUnknownMembers(true)); err != nil {
@@ -163,5 +157,5 @@ func encodeExecutionState(state executionState) (agent.ExecutionState, error) {
 	if err != nil {
 		return agent.ExecutionState{}, fmt.Errorf("planning: encode execution state: %w", err)
 	}
-	return agent.NewExecutionState(executionStateKind, executionStateSchemaVersion, payload)
+	return agent.NewExecutionState(executionStateKind, payload)
 }

@@ -24,9 +24,9 @@
 ## 演进纪律
 
 - 已删除的旧 package、alias、bridge 和 generic framework 不得重新引入。
-- v1 前的 breaking change 必须在同一批次迁完全部 workspace 消费方；不保留 deprecated wrapper、双读写或旧 wire 解码。
-- 任何 exported API 变更先运行 `go test ./internal/arch -run TestExportedAPIMatchesBaseline`，评估 provider/backend 爆炸半径，并同步 package docs、examples、serialization fixtures 和 release notes。只有完成评审与版本裁决后才用 `-update-api` 更新基线。
-- 任何 JSON DTO/tag/省略规则变更先运行 `go test ./internal/arch -run '^TestWire'`；只有完成兼容性评审与版本裁决后才用 `-update-wire-fixtures` 更新聚合 wire baseline。新增 JSON struct 未登记 fixture coverage 会直接失败。
+- breaking change 必须在同一批次迁完全部 workspace 消费方；不保留 deprecated wrapper、双读写或旧 wire 解码。
+- exported API 变更必须评估 provider/backend 爆炸半径，并同步 package docs、examples 与当前 serialization fixtures；开发期不维护发布基线、旧 API 快照或 release notes。
+- JSON DTO/tag/省略规则变更先运行 `go test ./internal/arch -run '^TestWire'`；审阅当前 wire 合同后才用 `-update-wire-fixtures` 更新 fixture。新增 JSON struct 未登记 fixture coverage 会直接失败。
 
 ## 模块特有反向不变量
 

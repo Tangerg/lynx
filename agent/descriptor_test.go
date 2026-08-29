@@ -18,7 +18,6 @@ func TestDescriptorOwnsContractAndValidatesValues(t *testing.T) {
 	descriptor, err := NewDescriptor(DescriptorConfig{
 		Name:         "interaction.chat",
 		Description:  "Runs one model and tool interaction.",
-		Version:      "1.2.3",
 		InputSchema:  inputSchema,
 		OutputSchema: outputSchema,
 	})
@@ -56,7 +55,6 @@ func TestDescriptorDigestChangesWithContract(t *testing.T) {
 	base := DescriptorConfig{
 		Name:         "interaction.chat",
 		Description:  "Runs one model and tool interaction.",
-		Version:      "1.0.0",
 		InputSchema:  inputSchema,
 		OutputSchema: outputSchema,
 	}
@@ -64,13 +62,13 @@ func TestDescriptorDigestChangesWithContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	base.Version = "1.0.1"
+	base.Description = "Runs one changed model and tool interaction."
 	second, err := NewDescriptor(base)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if first.Digest() == second.Digest() {
-		t.Fatal("descriptor digest did not change with version")
+		t.Fatal("descriptor digest did not change with description")
 	}
 	countSchema, err := SchemaFor[struct {
 		Count int `json:"count"`
@@ -78,7 +76,6 @@ func TestDescriptorDigestChangesWithContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	base.Version = "1.0.0"
 	base.OutputSchema = countSchema
 	third, err := NewDescriptor(base)
 	if err != nil {
@@ -107,7 +104,7 @@ func TestDescriptorJSONRejectsDrift(t *testing.T) {
 	if unmarshalErr := json.Unmarshal(data, &wire); unmarshalErr != nil {
 		t.Fatal(unmarshalErr)
 	}
-	wire["version"] = "1.0.1"
+	wire["description"] = "Tampered descriptor."
 	tampered, err := json.Marshal(wire)
 	if err != nil {
 		t.Fatal(err)
@@ -123,9 +120,6 @@ func TestDescriptorRejectsInvalidIdentity(t *testing.T) {
 		"empty name":        func(config *DescriptorConfig) { config.Name = "" },
 		"uppercase name":    func(config *DescriptorConfig) { config.Name = "Chat" },
 		"empty description": func(config *DescriptorConfig) { config.Description = "" },
-		"noncanonical semver": func(config *DescriptorConfig) {
-			config.Version = "v1.0.0"
-		},
 	} {
 		t.Run(name, func(t *testing.T) {
 			config := valid
@@ -159,7 +153,6 @@ func descriptorConfig(t *testing.T) DescriptorConfig {
 	return DescriptorConfig{
 		Name:         "interaction.chat",
 		Description:  "Runs one model and tool interaction.",
-		Version:      "1.0.0",
 		InputSchema:  inputSchema,
 		OutputSchema: outputSchema,
 	}

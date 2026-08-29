@@ -69,10 +69,10 @@ func TestInteractionCanDelegateExactPlanningWorkers(t *testing.T) {
 		t.Fatal(err)
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
-		Name:        "example.orchestrator_workers.planning_delegate",
-		Description: "Delegate model-selected tasks to exact Planning workers.",
-		Version:     "1.0.0", MaxModelCalls: 2,
-		Delegates: []interaction.Delegate{delegate}, CompletionValidator: validator,
+		Name:          "example.orchestrator_workers.planning_delegate",
+		Description:   "Delegate model-selected tasks to exact Planning workers.",
+		MaxModelCalls: 2,
+		Delegates:     []interaction.Delegate{delegate}, CompletionValidator: validator,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -187,7 +187,7 @@ func newPlanningWorker(t *testing.T) (agent.Deployment, *planningTaskState) {
 	definition, err := planning.NewDefinition(planning.DefinitionConfig{
 		Name:        "example.orchestrator_workers.planning_worker",
 		Description: "Use GOAP to complete one model-selected review task.",
-		Version:     "1.0.0", InputSchema: inputSchema, Goal: goal,
+		InputSchema: inputSchema, Goal: goal,
 		Actions: []planning.ActionBinding{binding}, Planner: goap.New(goap.Config{}),
 		MaxActionAttempts: 1,
 	})
@@ -291,7 +291,7 @@ func (p *planningDelegateModel) Call(_ context.Context, request *chat.Request) (
 			return nil, fmt.Errorf("planning tool result %d=%#v", index, part.ToolResult)
 		}
 		var output planning.Output
-		if err := json.Unmarshal([]byte(part.ToolResult.Result), &output); err != nil ||
+		if err := json.Unmarshal(part.ToolResult.Output.Details, &output); err != nil ||
 			output.Outcome != planning.OutcomeAchieved {
 			return nil, fmt.Errorf("planning tool result %d did not achieve goal: %#v, %v", index, output, err)
 		}

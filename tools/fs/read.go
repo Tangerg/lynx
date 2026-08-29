@@ -58,10 +58,12 @@ func (r *ReadTool) Definition() chat.ToolDefinition {
 // ConcurrencyKey opts read into parallel execution — a pure read has no
 // resource conflict (the tool loop's optional concurrency contract), so the
 // loop runs several reads (and reads alongside other parallel tools) at once.
-func (r *ReadTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
+func (r *ReadTool) ConcurrencyKey(toolcontract.Invocation) (key string, concurrent bool) {
+	return "", true
+}
 
-func (r *ReadTool) Call(ctx context.Context, arguments string) (string, error) {
-	return r.typed.Call(ctx, arguments)
+func (r *ReadTool) Call(ctx context.Context, invocation toolcontract.Invocation) (chat.ToolOutput, error) {
+	return r.typed.Call(ctx, invocation)
 }
 
 func (r *ReadTool) read(ctx context.Context, req ReadRequest) (ReadResponse, error) {

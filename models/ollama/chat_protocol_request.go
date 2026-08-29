@@ -150,13 +150,17 @@ func mapProtocolMessages(messages []corechat.Message) ([]nativeMessage, error) {
 		case corechat.RoleTool:
 			for j := range message.Parts {
 				result := message.Parts[j].ToolResult
+				content, ok := result.Output.Text()
+				if !ok {
+					return nil, fmt.Errorf("ollama: messages[%d].parts[%d]: media Tool output is unsupported", i, j)
+				}
 				id := result.ID
 				if strings.HasPrefix(id, protocolGeneratedToolPrefix) {
 					id = ""
 				}
 				mapped = append(mapped, nativeMessage{
 					Role:       "tool",
-					Content:    result.Result,
+					Content:    content,
 					ToolName:   result.Name,
 					ToolCallID: id,
 				})

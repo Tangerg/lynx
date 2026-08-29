@@ -26,7 +26,11 @@ func validToolCall() chat.ToolCall {
 }
 
 func validToolResult() chat.ToolResult {
-	return chat.ToolResult{ID: "call-1", Name: "weather", Result: `{"temperature":20}`}
+	output, err := chat.NewJSONToolOutput(json.RawMessage(`{"temperature":20}`))
+	if err != nil {
+		panic(err)
+	}
+	return chat.ToolResult{ID: "call-1", Name: "weather", Output: output}
 }
 
 func TestMessageConstructors(t *testing.T) {
@@ -72,6 +76,7 @@ func TestMessageValidateRolePartMatrix(t *testing.T) {
 			chat.NewReasoningPart("thinking", []byte("signature")),
 			chat.NewTextPart("answer"),
 			chat.NewToolCallPart(validToolCall()),
+			chat.NewToolCallDeltaPart(chat.ToolCallDelta{ID: "stream-call", Name: "weather", Arguments: "{"}),
 			chat.NewMediaPart(image),
 		),
 		chat.NewToolMessage(validToolResult()),

@@ -8,8 +8,6 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/samber/lo"
-
 	"github.com/Tangerg/scope/core/chat"
 )
 
@@ -19,7 +17,7 @@ var (
 )
 
 type entry struct {
-	tool       Tool
+	binding    Binding
 	definition chat.ToolDefinition
 }
 
@@ -51,17 +49,15 @@ func (r *Registry) Register(values ...Tool) error {
 
 	pending := make(map[string]entry, len(values))
 	for index, value := range values {
-		if lo.IsNil(value) {
-			return fmt.Errorf("%w: tools[%d] is nil", ErrInvalidTool, index)
+		binding, err := Bind(value)
+		if err != nil {
+			return fmt.Errorf("tools[%d]: %w", index, err)
 		}
-		definition := value.Definition().Clone()
-		if err := definition.Validate(); err != nil {
-			return fmt.Errorf("%w: tools[%d] definition: %w", ErrInvalidTool, index, err)
-		}
+		definition := binding.Definition()
 		if _, duplicate := pending[definition.Name]; duplicate {
 			return fmt.Errorf("%w: %q appears more than once in batch", ErrDuplicateTool, definition.Name)
 		}
-		pending[definition.Name] = entry{tool: value, definition: definition}
+		pending[definition.Name] = entry{binding: binding, definition: definition}
 	}
 
 	r.mu.Lock()
@@ -78,14 +74,14 @@ func (r *Registry) Register(values ...Tool) error {
 	return nil
 }
 
-func (r *Registry) Resolve(name string) (Tool, bool) {
+func (r *Registry) Resolve(name string) (Binding, bool) {
 	if r == nil {
-		return nil, false
+		return Binding{}, false
 	}
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 	value, ok := r.entries[name]
-	return value.tool, ok
+	return value.binding, ok
 }
 
 func (r *Registry) Definitions() []chat.ToolDefinition {

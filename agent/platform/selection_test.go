@@ -11,8 +11,8 @@ import (
 )
 
 func TestSelectDeploymentUsesOnlyStableActiveCandidateSnapshot(t *testing.T) {
-	first := catalogDeployment(t, "test.selector", "1.0.0", "first")
-	second := catalogDeployment(t, "test.selector", "2.0.0", "second")
+	first := catalogDeployment(t, "test.selector.first", "first")
+	second := catalogDeployment(t, "test.selector.second", "second")
 	instance, err := platform.New(second, first)
 	if err != nil {
 		t.Fatal(err)
@@ -40,8 +40,8 @@ func TestSelectDeploymentUsesOnlyStableActiveCandidateSnapshot(t *testing.T) {
 }
 
 func TestSelectDeploymentDoesNotFollowConcurrentReplacement(t *testing.T) {
-	first := catalogDeployment(t, "test.snapshot_selection", "1.0.0", "first")
-	replacement := catalogDeployment(t, "test.snapshot_selection", "1.0.0", "replacement")
+	first := catalogDeployment(t, "test.snapshot_selection", "first")
+	replacement := catalogDeployment(t, "test.snapshot_selection", "replacement")
 	instance, err := platform.New(first)
 	if err != nil {
 		t.Fatal(err)
@@ -75,8 +75,8 @@ func TestSelectDeploymentDoesNotFollowConcurrentReplacement(t *testing.T) {
 }
 
 func TestSelectDeploymentRejectsHistoricalOrMalformedSelection(t *testing.T) {
-	first := catalogDeployment(t, "test.selection_contract", "1.0.0", "first")
-	replacement := catalogDeployment(t, "test.selection_contract", "1.0.0", "replacement")
+	first := catalogDeployment(t, "test.selection_contract", "first")
+	replacement := catalogDeployment(t, "test.selection_contract", "replacement")
 	instance, err := platform.New(first)
 	if err != nil {
 		t.Fatal(err)
@@ -106,7 +106,7 @@ func TestSelectDeploymentRejectsHistoricalOrMalformedSelection(t *testing.T) {
 }
 
 func TestSelectDeploymentContainsSelectorFailureAndPanic(t *testing.T) {
-	deployment := catalogDeployment(t, "test.selection_failure", "1.0.0", "only")
+	deployment := catalogDeployment(t, "test.selection_failure", "only")
 	instance, err := platform.New(deployment)
 	if err != nil {
 		t.Fatal(err)
@@ -164,8 +164,8 @@ func TestSelectDeploymentRejectsNilAndEmptyCandidateSet(t *testing.T) {
 }
 
 func TestDeploymentCandidatesExcludeUndeployedHistory(t *testing.T) {
-	first := catalogDeployment(t, "test.candidate_history", "1.0.0", "first")
-	second := catalogDeployment(t, "test.candidate_history", "2.0.0", "second")
+	first := catalogDeployment(t, "test.candidate_history.first", "first")
+	second := catalogDeployment(t, "test.candidate_history.second", "second")
 	instance, err := platform.New(first, second)
 	if err != nil {
 		t.Fatal(err)

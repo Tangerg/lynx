@@ -45,7 +45,9 @@ func TestOpenAIChat_ReasoningReplay(t *testing.T) {
 					toolReasoning,
 					corechat.NewToolCallPart(corechat.ToolCall{ID: "call-1", Name: "search", Arguments: `{"q":"scope"}`}),
 				),
-				corechat.NewToolMessage(corechat.ToolResult{ID: "call-1", Name: "search", Result: "found"}),
+				corechat.NewToolMessage(corechat.ToolResult{
+					ID: "call-1", Name: "search", Output: corechat.NewTextToolOutput("found"),
+				}),
 			},
 			wantReasoningWire: true,
 		},

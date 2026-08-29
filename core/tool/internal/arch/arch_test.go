@@ -23,7 +23,7 @@ func TestToolContractStaysMinimal(t *testing.T) {
 		t.Fatalf("Tool shape = %v with %d methods, want two-method interface", typeOf, typeOf.NumMethod())
 	}
 	want := map[string]reflect.Type{
-		"Call":       reflect.TypeFor[func(context.Context, string) (string, error)](),
+		"Call":       reflect.TypeFor[func(context.Context, tool.Invocation) (chat.ToolOutput, error)](),
 		"Definition": reflect.TypeFor[func() chat.ToolDefinition](),
 	}
 	for name, signature := range want {

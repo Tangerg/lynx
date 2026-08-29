@@ -60,7 +60,7 @@ func TestArtifactStateRestoreRejectsInvalidProvenanceAndValue(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			envelope, err := agent.NewExecutionState(executionStateKind, executionStateSchemaVersion, payload)
+			envelope, err := agent.NewExecutionState(executionStateKind, payload)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -68,27 +68,5 @@ func TestArtifactStateRestoreRejectsInvalidProvenanceAndValue(t *testing.T) {
 				t.Fatalf("Restore error=%v, want ErrInvalidExecutionState", err)
 			}
 		})
-	}
-}
-
-func TestInteractionDoesNotReadPriorExecutionState(t *testing.T) {
-	definition := fuzzInteractionDefinition(t)
-	state := executionState{
-		Phase: phaseAwaitingModel,
-		WorkingContext: &chat.Request{Messages: []chat.Message{
-			chat.NewUserMessage(chat.NewTextPart("old state")),
-		}},
-		ModelCallCount: 1,
-	}
-	payload, err := json.Marshal(state)
-	if err != nil {
-		t.Fatal(err)
-	}
-	old, err := agent.NewExecutionState(executionStateKind, executionStateSchemaVersion-1, payload)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := definition.Restore(old); !errors.Is(err, ErrInvalidExecutionState) {
-		t.Fatalf("Restore(prior version) error=%v, want ErrInvalidExecutionState", err)
 	}
 }

@@ -27,26 +27,6 @@ func TestTreeSnapshotStrictlyRejectsUnknownFields(t *testing.T) {
 	}
 }
 
-func TestTreeSnapshotRejectsPriorSchemaVersion(t *testing.T) {
-	tree := completedTreeSnapshot(t)
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(tree.JSON(), &fields); err != nil {
-		t.Fatal(err)
-	}
-	version, err := json.Marshal(treeSnapshotSchemaVersion - 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fields["schema_version"] = version
-	data, err := json.Marshal(fields)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := ParseTreeSnapshot(data); !errors.Is(err, ErrInvalidTreeSnapshot) {
-		t.Fatalf("prior schema error = %v, want ErrInvalidTreeSnapshot", err)
-	}
-}
-
 func TestTreeSnapshotDigestIsCanonicalAndStable(t *testing.T) {
 	tree := completedTreeSnapshot(t)
 	parsed, err := ParseTreeSnapshot(tree.JSON())
@@ -435,8 +415,7 @@ func TestTreeRestoreValidatesTerminalOutputAgainstExactDeployment(t *testing.T) 
 		t.Fatal(err)
 	}
 	tree, err := newTreeSnapshot(treeSnapshotWire{
-		SchemaVersion: treeSnapshotSchemaVersion,
-		RootID:        forged.ProcessID(), ProcessSnapshots: []ProcessSnapshot{forged},
+		RootID: forged.ProcessID(), ProcessSnapshots: []ProcessSnapshot{forged},
 	})
 	if err != nil {
 		t.Fatal(err)

@@ -14,6 +14,8 @@ import (
 	"github.com/a2aproject/a2a-go/v2/a2asrv"
 
 	"github.com/Tangerg/scope/a2a"
+	"github.com/Tangerg/scope/core/chat"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
 // echoAgent is a stub scope Agent that streams a fixed reply, echoing the
@@ -193,12 +195,13 @@ func TestRoundTrip(t *testing.T) {
 		t.Fatalf("mutating returned definition changed A2A tool schema prefix to %q", got)
 	}
 
-	out, err := tool.Call(ctx, `{"message":"hello"}`)
+	out, err := invokeTestTool(ctx, tool, `{"message":"hello"}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
-	if !strings.Contains(out, "scope received: hello") {
-		t.Errorf("reply = %q, want it to contain the echoed request", out)
+	text, ok := out.Text()
+	if !ok || !strings.Contains(text, "scope received: hello") {
+		t.Errorf("reply = %q, want it to contain the echoed request", text)
 	}
 
 	for name, arguments := range map[string]string{
@@ -211,7 +214,7 @@ func TestRoundTrip(t *testing.T) {
 		"malformed argument": `{"message":`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			if _, err := tool.Call(ctx, arguments); err == nil {
+			if _, err := invokeTestTool(ctx, tool, arguments); err == nil {
 				t.Fatal("Call succeeded for arguments outside the declared object schema")
 			}
 		})
@@ -222,4 +225,18 @@ func TestRoundTrip(t *testing.T) {
 	if err := toolSet.Close(); err != nil {
 		t.Fatalf("close ToolSet again: %v", err)
 	}
+}
+
+func invokeTestTool(ctx context.Context, executable toolcontract.Tool, arguments string) (chat.ToolOutput, error) {
+	binding, err := toolcontract.Bind(executable)
+	if err != nil {
+		return chat.ToolOutput{}, err
+	}
+	invocation, err := binding.Prepare(chat.ToolCall{
+		ID: "test-call", Name: binding.Definition().Name, Arguments: arguments,
+	})
+	if err != nil {
+		return chat.ToolOutput{}, err
+	}
+	return binding.Call(ctx, invocation)
 }

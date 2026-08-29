@@ -16,7 +16,7 @@ import (
 func TestWorkflowWireBaseline(t *testing.T) {
 	shape := workflowWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "2d4d33d0c9996077abb594f3d2aab47d37059c6e126ad5e971ee8d484bb4442d"
+	const want = "da2c52af94b36da00db307ff403ef6205da8737c6f28aeb2a07c7284043f74b7"
 	if got != want {
 		t.Fatalf("Workflow wire changed: got %s, want %s\n%s", got, want, shape)
 	}
@@ -32,7 +32,6 @@ func workflowWireShape() string {
 		return strings.Compare(left.Name(), right.Name())
 	})
 	var shape strings.Builder
-	fmt.Fprintf(&shape, "execution_state=%d\n", executionStateSchemaVersion)
 	for _, wireType := range types {
 		fmt.Fprintf(&shape, "%s\n", wireType.Name())
 		for field := range wireType.Fields() {

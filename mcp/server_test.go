@@ -29,12 +29,12 @@ func newEchoTool() tool.Tool {
 			Description: "echo the input",
 			InputSchema: json.RawMessage(`{"type":"object","properties":{"text":{"type":"string"}},"required":["text"]}`),
 		},
-		call: func(_ context.Context, arguments string) (string, error) {
+		call: func(_ context.Context, invocation tool.Invocation) (corechat.ToolOutput, error) {
 			var input echoInput
-			if err := json.Unmarshal([]byte(arguments), &input); err != nil {
-				return "", err
+			if err := json.Unmarshal(invocation.Arguments(), &input); err != nil {
+				return corechat.ToolOutput{}, err
 			}
-			return input.Text, nil
+			return corechat.NewTextToolOutput(input.Text), nil
 		},
 	}
 }
@@ -46,19 +46,21 @@ func newConstantTool(name string) tool.Tool {
 			Description: "return " + name,
 			InputSchema: json.RawMessage(`{"type":"object"}`),
 		},
-		call: func(context.Context, string) (string, error) { return name, nil },
+		call: func(context.Context, tool.Invocation) (corechat.ToolOutput, error) {
+			return corechat.NewTextToolOutput(name), nil
+		},
 	}
 }
 
 type testTool struct {
 	definition corechat.ToolDefinition
-	call       func(context.Context, string) (string, error)
+	call       func(context.Context, tool.Invocation) (corechat.ToolOutput, error)
 }
 
 func (t testTool) Definition() corechat.ToolDefinition { return t.definition.Clone() }
 
-func (t testTool) Call(ctx context.Context, arguments string) (string, error) {
-	return t.call(ctx, arguments)
+func (t testTool) Call(ctx context.Context, invocation tool.Invocation) (corechat.ToolOutput, error) {
+	return t.call(ctx, invocation)
 }
 
 // connectPair wires an in-memory MCP server (with the supplied scope tools
@@ -66,7 +68,7 @@ func (t testTool) Call(ctx context.Context, arguments string) (string, error) {
 // and a cleanup func.
 func connectPair(t *testing.T, ctx context.Context, registered ...tool.Tool) (*sdkmcp.ClientSession, func()) {
 	t.Helper()
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "scope-srv", Version: "v0.1.0"}, nil)
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "scope-srv", Version: "dev"}, nil)
 	require.NoError(t, scopemcp.Register(srv, registered...))
 	return connectServer(t, ctx, srv)
 }
@@ -78,7 +80,7 @@ func connectServer(t *testing.T, ctx context.Context, srv *sdkmcp.Server) (*sdkm
 	ss, err := srv.Connect(ctx, srvT, nil)
 	require.NoError(t, err)
 
-	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-cli", Version: "v0.1.0"}, nil)
+	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-cli", Version: "dev"}, nil)
 	cs, err := cli.Connect(ctx, cliT, nil)
 	require.NoError(t, err)
 
@@ -125,8 +127,8 @@ func TestRegister_ErrorBecomesIsError(t *testing.T) {
 			Description: "always fails",
 			InputSchema: json.RawMessage(`{"type":"object"}`),
 		},
-		call: func(context.Context, string) (string, error) {
-			return "", errors.New("kaboom from scope tool")
+		call: func(context.Context, tool.Invocation) (corechat.ToolOutput, error) {
+			return corechat.ToolOutput{}, errors.New("kaboom from scope tool")
 		},
 	}
 
@@ -144,7 +146,7 @@ func TestRegister_ErrorBecomesIsError(t *testing.T) {
 }
 
 func TestRegister_RejectsNilArgs(t *testing.T) {
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "dev"}, nil)
 	require.ErrorIs(t, scopemcp.Register(nil, newEchoTool()), scopemcp.ErrNilServer)
 
 	for _, test := range []struct {
@@ -162,7 +164,7 @@ func TestRegister_RejectsNilArgs(t *testing.T) {
 }
 
 func TestRegister_RejectsInvalidSchema(t *testing.T) {
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "dev"}, nil)
 	// NewTool always derives a valid schema, so an invalid one can only reach
 	// Register via a hand-rolled Tool — which is exactly what Register must reject.
 	require.Error(t, scopemcp.Register(srv, badSchemaTool{}))
@@ -190,7 +192,7 @@ func TestRegister_RefusesEverySchemaShapeTheServerCannotHold(t *testing.T) {
 		{name: "type is not a string", schema: `{"type":123}`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
+			srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "dev"}, nil)
 			err := scopemcp.Register(srv, testTool{definition: corechat.ToolDefinition{
 				Name:        "shape",
 				InputSchema: json.RawMessage(test.schema),
@@ -203,7 +205,7 @@ func TestRegister_RefusesEverySchemaShapeTheServerCannotHold(t *testing.T) {
 }
 
 func TestRegister_RejectsDuplicateBatchAtomically(t *testing.T) {
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "dev"}, nil)
 	err := scopemcp.Register(srv, newConstantTool("duplicate"), newConstantTool("duplicate"))
 	require.ErrorIs(t, err, tool.ErrDuplicateTool)
 
@@ -217,7 +219,7 @@ func TestRegister_RejectsDuplicateBatchAtomically(t *testing.T) {
 }
 
 func TestRegister_SnapshotsDefinitionOnce(t *testing.T) {
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "v0"}, nil)
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "dev"}, nil)
 	tool := &definitionOnceTool{}
 	require.NoError(t, scopemcp.Register(srv, tool))
 
@@ -240,7 +242,9 @@ func (badSchemaTool) Definition() corechat.ToolDefinition {
 	return corechat.ToolDefinition{Name: "bad", InputSchema: json.RawMessage("{not-json")}
 }
 
-func (badSchemaTool) Call(context.Context, string) (string, error) { return "", nil }
+func (badSchemaTool) Call(context.Context, tool.Invocation) (corechat.ToolOutput, error) {
+	return corechat.ToolOutput{}, nil
+}
 
 type missingSchemaTypeTool struct{}
 
@@ -248,7 +252,9 @@ func (missingSchemaTypeTool) Definition() corechat.ToolDefinition {
 	return corechat.ToolDefinition{Name: "missing-schema-type", InputSchema: json.RawMessage(`{}`)}
 }
 
-func (missingSchemaTypeTool) Call(context.Context, string) (string, error) { return "", nil }
+func (missingSchemaTypeTool) Call(context.Context, tool.Invocation) (corechat.ToolOutput, error) {
+	return corechat.ToolOutput{}, nil
+}
 
 type definitionOnceTool struct {
 	definitionCalls atomic.Int32
@@ -265,4 +271,6 @@ func (d *definitionOnceTool) Definition() corechat.ToolDefinition {
 	}
 }
 
-func (*definitionOnceTool) Call(context.Context, string) (string, error) { return "ok", nil }
+func (*definitionOnceTool) Call(context.Context, tool.Invocation) (corechat.ToolOutput, error) {
+	return corechat.NewTextToolOutput("ok"), nil
+}

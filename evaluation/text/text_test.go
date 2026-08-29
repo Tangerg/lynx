@@ -68,7 +68,7 @@ func TestGroundednessBuildsStructuredRequestAndDecodesResult(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !result.Passed || result.Score != 0.95 || result.Feedback != "Fully supported." {
+	if result.Verdict != evaluation.VerdictPass || result.Score == nil || *result.Score != 0.95 || result.Feedback != "Fully supported." {
 		t.Fatalf("result = %#v", result)
 	}
 	request := model.lastRequest()
@@ -105,7 +105,7 @@ func TestAnswerRelevanceSupportsCustomPromptAndThreshold(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if result.Passed || result.Score != 0.6 || result.Feedback != "Partly relevant." {
+	if result.Verdict != evaluation.VerdictFail || result.Score == nil || *result.Score != 0.6 || result.Feedback != "Partly relevant." {
 		t.Fatalf("result = %#v", result)
 	}
 	if got := model.lastRequest().Messages[0].Text(); got != "Q=question A=answer" {
@@ -154,7 +154,7 @@ func TestCorrectnessUsesReferenceAndSupportsSelfConsistency(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !report.Passed || report.Score != 0.9 || model.callCount() != 3 {
+	if report.Verdict != evaluation.VerdictPass || report.Score == nil || *report.Score != 0.9 || model.callCount() != 3 {
 		t.Fatalf("report = %#v, calls = %d", report, model.callCount())
 	}
 	prompt := model.lastRequest().Messages[0].Text()

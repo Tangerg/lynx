@@ -4,8 +4,8 @@ import "context"
 
 // Definition is an immutable Agent behavior definition. Its methods may be
 // called concurrently for different Processes. Implementations create
-// a fresh Execution from validated Input or restore one from their own opaque,
-// versioned ExecutionState. Definition methods must not depend on Host product
+// a fresh Execution from validated Input or restore one from their own opaque
+// ExecutionState. Definition methods must not depend on Host product
 // identities, storage protocols, or mutable global registration.
 type Definition interface {
 	// Descriptor returns the immutable, portable contract shared by every
@@ -18,8 +18,8 @@ type Definition interface {
 	// executed a Step and must not share mutable state with another Process.
 	Start(input Input) (Execution, error)
 	// Restore reconstructs one Execution from a state previously produced by
-	// Snapshot for this exact definition. It must reject unknown versions,
-	// malformed state, and state belonging to another contract; restoration must
+	// Snapshot for this exact definition. It must reject malformed state and
+	// state belonging to another contract; restoration must
 	// not replay external work.
 	Restore(state ExecutionState) (Execution, error)
 }
@@ -39,7 +39,7 @@ type Execution interface {
 	// work, perform no I/O, consume no hidden input, and never retain signals.
 	// The Engine serializes calls for one Execution.
 	Step(ctx context.Context, signals []Signal) (Transition, error)
-	// Snapshot returns a complete, independently owned, versioned state from
+	// Snapshot returns a complete, independently owned state from
 	// which Definition.Restore can reproduce the current Execution exactly. It
 	// must fail rather than omit state required for deterministic continuation.
 	Snapshot() (ExecutionState, error)

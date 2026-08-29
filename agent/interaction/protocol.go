@@ -12,8 +12,6 @@ import (
 	"github.com/Tangerg/scope/core/chat"
 )
 
-const protocolSchemaVersion uint16 = 8
-
 type operation string
 
 const (
@@ -30,10 +28,9 @@ func (o operation) valid() bool {
 }
 
 type effectEnvelope struct {
-	SchemaVersion uint16         `json:"schema_version"`
-	Operation     operation      `json:"operation"`
-	ModelCall     *modelCall     `json:"model_call,omitempty"`
-	ToolBatch     *toolBatchCall `json:"tool_batch,omitempty"`
+	Operation operation      `json:"operation"`
+	ModelCall *modelCall     `json:"model_call,omitempty"`
+	ToolBatch *toolBatchCall `json:"tool_batch,omitempty"`
 }
 
 type modelCall struct {
@@ -52,7 +49,6 @@ type toolBatchCall struct {
 }
 
 type signalEnvelope struct {
-	SchemaVersion uint16            `json:"schema_version"`
 	Operation     operation         `json:"operation"`
 	ModelResult   *modelCallResult  `json:"model_result,omitempty"`
 	ToolResult    *toolBatchResult  `json:"tool_result,omitempty"`
@@ -130,8 +126,7 @@ func newModelEffect(
 		return effectEnvelope{}, fmt.Errorf("interaction: model request: %w", err)
 	}
 	return effectEnvelope{
-		SchemaVersion: protocolSchemaVersion,
-		Operation:     operationModelCall,
+		Operation: operationModelCall,
 		ModelCall: &modelCall{
 			ModelCallSequence:     modelCallSequence,
 			Request:               *cloned,
@@ -187,15 +182,13 @@ func newToolBatchEffect(
 		return effectEnvelope{}, errors.New("interaction: input response requires a tool checkpoint")
 	}
 	return effectEnvelope{
-		SchemaVersion: protocolSchemaVersion,
-		Operation:     operationToolBatch,
-		ToolBatch:     batch,
+		Operation: operationToolBatch,
+		ToolBatch: batch,
 	}, nil
 }
 
 func (e effectEnvelope) validate() error {
-	if e.SchemaVersion != protocolSchemaVersion ||
-		(e.Operation != operationModelCall && e.Operation != operationToolBatch) {
+	if e.Operation != operationModelCall && e.Operation != operationToolBatch {
 		return errors.New("interaction: unsupported effect protocol")
 	}
 	switch e.Operation {
@@ -254,7 +247,7 @@ func (e effectEnvelope) validateToolBatch() error {
 }
 
 func (s signalEnvelope) validate() error {
-	if s.SchemaVersion != protocolSchemaVersion || !s.Operation.valid() {
+	if !s.Operation.valid() {
 		return errors.New("interaction: unsupported signal protocol")
 	}
 	switch s.Operation {
@@ -378,7 +371,7 @@ func (s signalEnvelope) validateSteer() error {
 
 func (t toolCheckpoint) clone() toolCheckpoint {
 	cloned := t
-	cloned.CompletedResults = slices.Clone(t.CompletedResults)
+	cloned.CompletedResults = cloneToolResults(t.CompletedResults)
 	cloned.AdvertisedToolNames = slices.Clone(t.AdvertisedToolNames)
 	cloned.InputRequest.Prompt = bytes.Clone(t.InputRequest.Prompt)
 	cloned.InputRequest.ResponseSchema = bytes.Clone(t.InputRequest.ResponseSchema)

@@ -237,9 +237,8 @@ type crashAwaitResult struct {
 const (
 	crashDeploymentName        = "agenttest.durability_crash"
 	crashDeploymentDescription = "Exercises exact durable crash prefixes."
-	crashDeploymentVersion     = "1.0.0"
-	crashImplementationSeed    = "agenttest durability crash implementation v1"
-	crashConfigurationSeed     = "agenttest durability crash configuration v1"
+	crashImplementationSeed    = "agenttest durability crash implementation"
+	crashConfigurationSeed     = "agenttest durability crash configuration"
 	crashInputValue            = "crash-prefix"
 	crashCleanupReason         = "durability crash matrix cleanup"
 )
@@ -546,7 +545,7 @@ func newCrashDeployment(
 	}
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
 		Name: crashDeploymentName, Description: crashDeploymentDescription,
-		Version: crashDeploymentVersion, InputSchema: inputSchema, OutputSchema: outputSchema,
+		InputSchema: inputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {
 		t.Fatal(err)

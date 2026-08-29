@@ -34,7 +34,7 @@ func (p *protocolChunkAccumulator) add(event types.ConverseStreamOutput) (*corec
 		}
 		identity := protocolToolIdentity{id: *tool.Value.ToolUseId, name: *tool.Value.Name}
 		p.tools[*typed.Value.ContentBlockIndex] = identity
-		part := corechat.NewToolCallPart(corechat.ToolCall{ID: identity.id, Name: identity.name})
+		part := corechat.NewToolCallDeltaPart(corechat.ToolCallDelta{ID: identity.id, Name: identity.name})
 		message := corechat.NewAssistantMessage(part)
 		output = &corechat.Output{Message: &message}
 	case *types.ConverseStreamOutputMemberContentBlockDelta:
@@ -115,7 +115,7 @@ func (p *protocolChunkAccumulator) mapDelta(delta types.ContentBlockDeltaEvent) 
 		if !ok {
 			return corechat.Part{}, false, fmt.Errorf("bedrock: tool delta for unknown content block %d", *delta.ContentBlockIndex)
 		}
-		return corechat.NewToolCallPart(corechat.ToolCall{
+		return corechat.NewToolCallDeltaPart(corechat.ToolCallDelta{
 			ID: identity.id, Name: identity.name, Arguments: *value.Value.Input,
 		}), true, nil
 	}

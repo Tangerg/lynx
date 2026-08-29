@@ -60,16 +60,16 @@ func (a *ApplyPatchTool) Definition() chat.ToolDefinition {
 	return a.typed.Definition()
 }
 
-func (*ApplyPatchTool) MutationPaths(arguments string) ([]string, error) {
+func (*ApplyPatchTool) MutationPaths(invocation toolcontract.Invocation) ([]string, error) {
 	var req ApplyPatchRequest
-	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
+	if err := json.Unmarshal(invocation.Arguments(), &req); err != nil {
 		return nil, err
 	}
 	return patchPaths(req.Patch)
 }
 
-func (a *ApplyPatchTool) Call(ctx context.Context, arguments string) (string, error) {
-	return a.typed.Call(ctx, arguments)
+func (a *ApplyPatchTool) Call(ctx context.Context, invocation toolcontract.Invocation) (chat.ToolOutput, error) {
+	return a.typed.Call(ctx, invocation)
 }
 
 func (a *ApplyPatchTool) apply(ctx context.Context, req ApplyPatchRequest) (ApplyPatchResponse, error) {

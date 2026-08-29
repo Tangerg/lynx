@@ -200,7 +200,7 @@ func mapResponsesMessage(messageIndex int, message corechat.Message) ([]response
 	case corechat.RoleAssistant:
 		return mapResponsesAssistantItems(message.Parts)
 	case corechat.RoleTool:
-		return mapResponsesToolResults(message.Parts), nil
+		return mapResponsesToolResults(message.Parts)
 	default:
 		return nil, fmt.Errorf("unsupported role %q", message.Role)
 	}
@@ -313,14 +313,90 @@ func mapResponsesAssistantItems(parts []corechat.Part) ([]responses.ResponseInpu
 	return items, nil
 }
 
-func mapResponsesToolResults(parts []corechat.Part) []responses.ResponseInputItemUnionParam {
+func mapResponsesToolResults(parts []corechat.Part) ([]responses.ResponseInputItemUnionParam, error) {
 	items := make([]responses.ResponseInputItemUnionParam, 0, len(parts))
 	for index := range parts {
 		result := parts[index].ToolResult
+		output, err := mapResponsesToolOutput(result.Output)
+		if err != nil {
+			return nil, fmt.Errorf("parts[%d].tool_result.output: %w", index, err)
+		}
 		items = append(items, responses.ResponseInputItemUnionParam{OfFunctionCallOutput: &responses.ResponseInputItemFunctionCallOutputParam{
 			CallID: openaisdk.String(result.ID),
-			Output: responses.ResponseInputItemFunctionCallOutputOutputUnionParam{OfString: openaisdk.String(result.Result)},
+			Output: output,
 		}})
 	}
-	return items
+	return items, nil
+}
+
+func mapResponsesToolOutput(output corechat.ToolOutput) (responses.ResponseInputItemFunctionCallOutputOutputUnionParam, error) {
+	if len(output.Content) == 0 {
+		return responses.ResponseInputItemFunctionCallOutputOutputUnionParam{OfString: openaisdk.String(string(output.Details))}, nil
+	}
+	content := make(responses.ResponseFunctionCallOutputItemListParam, 0, len(output.Content))
+	for index := range output.Content {
+		part := output.Content[index]
+		switch part.Kind {
+		case corechat.PartText:
+			content = append(content, responses.ResponseFunctionCallOutputItemParamOfInputText(part.Text))
+		case corechat.PartMedia:
+			mapped, err := mapResponsesToolMedia(part.Media)
+			if err != nil {
+				return responses.ResponseInputItemFunctionCallOutputOutputUnionParam{}, fmt.Errorf("content[%d]: %w", index, err)
+			}
+			content = append(content, mapped)
+		default:
+			return responses.ResponseInputItemFunctionCallOutputOutputUnionParam{}, fmt.Errorf("content[%d]: unsupported part %q", index, part.Kind)
+		}
+	}
+	return responses.ResponseInputItemFunctionCallOutputOutputUnionParam{OfResponseFunctionCallOutputItemArray: content}, nil
+}
+
+func mapResponsesToolMedia(value *media.Media) (responses.ResponseFunctionCallOutputItemUnionParam, error) {
+	mediaType, _, err := mime.ParseMediaType(value.MIME)
+	if err != nil {
+		return responses.ResponseFunctionCallOutputItemUnionParam{}, err
+	}
+	if strings.HasPrefix(mediaType, "image/") {
+		image := &responses.ResponseInputImageContentParam{Detail: responses.ResponseInputImageContentDetailAuto}
+		if value.Source.Kind == media.SourceReference {
+			reference, referenceErr := value.Reference()
+			if referenceErr != nil {
+				return responses.ResponseFunctionCallOutputItemUnionParam{}, referenceErr
+			}
+			image.FileID = openaisdk.String(reference)
+		} else {
+			location, locationErr := mediaLocation(value)
+			if locationErr != nil {
+				return responses.ResponseFunctionCallOutputItemUnionParam{}, locationErr
+			}
+			image.ImageURL = openaisdk.String(location)
+		}
+		return responses.ResponseFunctionCallOutputItemUnionParam{OfInputImage: image}, nil
+	}
+
+	file := &responses.ResponseInputFileContentParam{Filename: openaisdk.String(value.Name)}
+	switch value.Source.Kind {
+	case media.SourceReference:
+		reference, referenceErr := value.Reference()
+		if referenceErr != nil {
+			return responses.ResponseFunctionCallOutputItemUnionParam{}, referenceErr
+		}
+		file.FileID = openaisdk.String(reference)
+	case media.SourceURI:
+		uri, uriErr := value.URI()
+		if uriErr != nil {
+			return responses.ResponseFunctionCallOutputItemUnionParam{}, uriErr
+		}
+		file.FileURL = openaisdk.String(uri)
+	case media.SourceBytes:
+		data, dataErr := value.Bytes()
+		if dataErr != nil {
+			return responses.ResponseFunctionCallOutputItemUnionParam{}, dataErr
+		}
+		file.FileData = openaisdk.String(base64.StdEncoding.EncodeToString(data))
+	default:
+		return responses.ResponseFunctionCallOutputItemUnionParam{}, media.ErrInvalidSource
+	}
+	return responses.ResponseFunctionCallOutputItemUnionParam{OfInputFile: file}, nil
 }

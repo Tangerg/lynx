@@ -110,10 +110,8 @@ func (p crashTreePhase) valid() bool {
 const (
 	crashTreeDeploymentName        = "agenttest.durability_crash_tree"
 	crashTreeDeploymentDescription = "Creates a waiting child tree for administrative crash recovery."
-	crashTreeDeploymentVersion     = "1.0.0"
-	crashTreeImplementationSeed    = "agenttest durability crash tree implementation v1"
-	crashTreeConfigurationSeed     = "agenttest durability crash tree configuration v1"
-	crashTreeStateSchemaVersion    = 1
+	crashTreeImplementationSeed    = "agenttest durability crash tree implementation"
+	crashTreeConfigurationSeed     = "agenttest durability crash tree configuration"
 	crashTreeChildKey              = "worker"
 	crashTreeRootWaitKey           = "child_completion"
 	crashTreeChildWaitKey          = "external_input"
@@ -194,8 +192,7 @@ func (d *crashTreeDefinition) Start(input agent.Input) (agent.Execution, error) 
 }
 
 func (d *crashTreeDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
-	if state.Kind() != d.descriptor.Name() ||
-		state.SchemaVersion() != crashTreeStateSchemaVersion {
+	if state.Kind() != d.descriptor.Name() {
 		return nil, agent.ErrInvalidExecutionState
 	}
 	var decoded crashTreeState
@@ -361,9 +358,7 @@ func (e *crashTreeExecution) Snapshot() (agent.ExecutionState, error) {
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
-	return agent.NewExecutionState(
-		e.definition.descriptor.Name(), crashTreeStateSchemaVersion, payload,
-	)
+	return agent.NewExecutionState(e.definition.descriptor.Name(), payload)
 }
 
 type crashTreeDispatcher struct{}
@@ -461,7 +456,7 @@ func newCrashTreeDeployment(t *testing.T) agent.Deployment {
 	}
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
 		Name: crashTreeDeploymentName, Description: crashTreeDeploymentDescription,
-		Version: crashTreeDeploymentVersion, InputSchema: inputSchema, OutputSchema: outputSchema,
+		InputSchema: inputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {
 		t.Fatal(err)

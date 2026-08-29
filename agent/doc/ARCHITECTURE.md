@@ -228,7 +228,7 @@ Engine
   └─ 在满足等待条件时恢复父 Process
 ```
 
-冻结后的执行窄腰如下；精确参数名、GoDoc 和完整公开面由 `API_BASELINE.md` 与自动 digest 守卫：
+当前执行窄腰如下；精确参数名、GoDoc 和完整公开面由代码、测试与调用方共同守卫：
 
 ```go
 type Definition interface {
@@ -345,9 +345,8 @@ Effect 自己的取消或 deadline 先作为 settlement Signal 交给 Strategy�
 
 ```go
 type ExecutionState struct {
-	Kind          string
-	SchemaVersion uint16
-	Payload       json.RawMessage
+	Kind    string
+	Payload json.RawMessage
 }
 ```
 
@@ -358,7 +357,7 @@ type ExecutionState struct {
 - Host 可以持久化 envelope，但不得依据 `Kind` 解析 payload 并参与策略控制流。
 - 恢复必须通过精确 `DeploymentRef` 找回 Definition；禁止全局 `kind → factory` 巨型 switch。
 
-共同 snapshot 只冻结 envelope，不递归解释 payload。每个 Strategy schema owner 在自己的 package 独立冻结 ExecutionState 与 Effect/Signal/Delta wire，并以覆盖守卫阻止新增私有 JSON shape 漏登记；Kernel 对这些 baseline 没有导入或解释权。
+共同 snapshot 只约束 envelope，不递归解释 payload。每个 Strategy schema owner 在自己的 package 独立守卫 ExecutionState 与 Effect/Signal/Delta 的当前 wire shape，并以覆盖测试阻止新增私有 JSON shape 漏登记；Kernel 对这些私有 shape 没有导入或解释权。
 
 ### 6.6 Signal、等待与安全消费
 
@@ -386,7 +385,7 @@ Engine-owned Effect 必须用 EffectID 保证重复调度不重复创建 child�
 
 ### 6.8 输入、输出与 typed adapter
 
-Engine 必须同构保存并运行异构 Definition，因此根窄腰不泛型化。Input、Output、Signal、Effect 和 ExecutionState 的 wire value 均使用被 owner 防御性复制且受大小限制的 JSON 表示，不用 `any` 或共享可变 `json.RawMessage` 绕过合同；严格解码和 payload 版本校验由拥有其 schema 的 Definition、Execution 或 dispatcher 完成。
+Engine 必须同构保存并运行异构 Definition，因此根窄腰不泛型化。Input、Output、Signal、Effect 和 ExecutionState 的 wire value 均使用被 owner 防御性复制且受大小限制的 JSON 表示，不用 `any` 或共享可变 `json.RawMessage` 绕过合同；严格解码和 payload 语义校验由拥有其 schema 的 Definition、Execution 或 dispatcher 完成。
 
 Descriptor 携带权威 input/output schema；schema 及影响编码语义的配置进入 Deployment digest。Engine 在 start、complete 和 child settlement 边界执行结构校验，Definition 负责语义校验。常用 Go API 由边缘泛型 adapter 提供 `I ↔ raw input`、`raw output ↔ O` 的严格转换，但 Engine 和 catalog 永远只依赖非泛型 Definition。
 
@@ -456,11 +455,11 @@ optimizer/evaluator 的 exact child Deployment 必须满足该消费者声明的
 
 Tool 是提供给模型的可调用协议，强调模型可理解的名称、描述、参数 schema 和文本结果。Tool 可以直接来自 MCP、Host 或普通 Go adapter，不一定参与 Planning；权限、sandbox、once-only、产品审批、事务和业务幂等属于具体装配边界。
 
-当模型必须选择一个拥有独立生命周期的 worker 时，Interaction 使用 `Delegate`：它冻结模型友好的 Tool 名称/描述、一个 exact child Deployment、每次调用的 Budget 与衰减 Capabilities。模型参数只表达目标 child Descriptor 的业务 Input；ProcessID、DeploymentRef、递归深度、预算、权限、版本和父子关系都由 Definition 与 Engine 决定，不能让模型填写。Interaction Execution 识别 Delegate 调用并通过 Framework `StartChild`/`WaitForChildren` 推进；Dispatcher 和普通 Tool 不获得第二个 Process 创建入口。
+当模型必须选择一个拥有独立生命周期的 worker 时，Interaction 使用 `Delegate`：它冻结模型友好的 Tool 名称/描述、一个 exact child Deployment、每次调用的 Budget 与衰减 Capabilities。模型参数只表达目标 child Descriptor 的业务 Input；ProcessID、DeploymentRef、递归深度、预算、权限和父子关系都由 Definition 与 Engine 决定，不能让模型填写。Interaction Execution 识别 Delegate 调用并通过 Framework `StartChild`/`WaitForChildren` 推进；Dispatcher 和普通 Tool 不获得第二个 Process 创建入口。
 
 一个模型 ToolCall batch 可以同时包含普通 Tool 与 Delegate。Interaction 只按原始顺序切分连续区段：普通 Tool 区段继续由 Dispatcher 执行并保留有界并发/HITL，Delegate 区段声明一批 child start 并 wait-all；全部结算后只向 WorkingContext 追加原 assistant message 和一个严格按原 ToolCall 顺序排列的 ToolResult message。无效 Delegate 参数、确定的 child start failure 和 child 非 Completed 终态是模型可重新决策的错误 ToolResult；错配的 Framework Signal、身份或成功 Output schema 是执行合同违约，不能伪装成普通 worker 失败。
 
-Platform 只在 Process 启动前选择 active root Deployment，不把 Interaction 的 exact Delegate 偷换成字符串 registry lookup。若未来需要模型在一次 Interaction 中从动态 catalog 选择 worker，必须另行证明选择、版本和权限合同，不能绕过 exact child Deployment 与 Engine 准入。
+Platform 只在 Process 启动前选择 active root Deployment，不把 Interaction 的 exact Delegate 偷换成字符串 registry lookup。若未来需要模型在一次 Interaction 中从动态 catalog 选择 worker，必须另行证明选择和权限合同，不能绕过 exact child Deployment 与 Engine 准入。
 
 ---
 
@@ -531,7 +530,7 @@ Process tree 是执行、取消、预算和恢复的共同单位。如果未来�
 | 模型/Tool 循环需要暂停、恢复、steer、limit 或事件 | 单个 Interaction Process | Workflow、worker catalog |
 | 分支/迭代必须各自拥有身份、预算、取消和 tree recovery | Workflow + exact child Process | 第二 scheduler、共享 Store/Blackboard |
 | 模型动态选择 worker | Interaction Delegate；需要确定任务调度时再组合 Workflow | Supervisor Strategy、字符串 registry |
-| 多 Deployment 的版本选择和统一治理 | Platform | 反向扩张 Engine 或 Strategy state |
+| 多 Deployment 的选择和统一治理 | Platform | 反向扩张 Engine 或 Strategy state |
 
 managed 复杂度按真实树线性显现：最小 Workflow 示例是四个 Process；orchestrator-worker 是六个；三轮 evaluator-optimizer 与完整 workflow-patterns 各十个。Process 数本身不是价值，只有这些身份真实承担独立恢复、资源、取消或观察边界时才合理。纯 Transform 在示例中作为 topology fixture 创建 child，不代表业务代码应把普通函数默认升级为 Process。
 
@@ -555,17 +554,17 @@ EngineConfig 为每棵 root tree 冻结 Limits、TreeLimits 与最大 Capability
 
 ### 11.2 Platform
 
-Platform 是建立在 Engine 上的可选完整形态，拥有 Deployment catalog、版本/digest、Definition 路由、多 Agent 组合发现和面向 Host 的治理入口。
+Platform 是建立在 Engine 上的可选完整形态，拥有 Deployment catalog、digest、Definition 路由、多 Agent 组合发现和面向 Host 的治理入口。
 
 本地嵌入式使用可以只创建 Engine 并运行显式 Definition；完整应用可以使用 Platform。二者共享 Process 和 Execution 语义，不建立两个 runtime。
 
 Platform 不包装、不创建也不代理 Engine。完整形态由 Host 把同一个 `platform.Platform` 作为 exact DeploymentResolver，与原有 ProcessAdmitter、EventListener 和 EngineConfig 显式装配；根 Deployment 仍由 Host 在 active Candidate snapshot 上完成选择后交给 `Engine.Start/Run`。因此 Platform 没有第二套 Start/Run、Process handle、scheduler 或 observation bus。
 
-Platform 的 Catalog 是 exact Deployment binding 的不可变内存快照：零值为空，同一 name/version 可以保留多个不同 digest 的历史定义，重复 exact DeploymentRef 必须拒绝而不能覆盖。枚举顺序固定为 Definition name、语义版本、完整 Deployment digest；返回集合与内部 slice 隔离。Catalog 直接实现 Engine 消费的 DeploymentResolver，但不包含 active route、变更命令、远程发现、Process 引用计数或 Host persistence。
+Platform 的 Catalog 是 exact Deployment binding 的不可变内存快照：零值为空，同一 name 可以保留多个不同 digest 的定义，重复 exact DeploymentRef 必须拒绝而不能覆盖。枚举顺序固定为 Definition name、完整 Deployment digest；返回集合与内部 slice 隔离。Catalog 直接实现 Engine 消费的 DeploymentResolver，但不包含 active route、变更命令、远程发现、Process 引用计数或 Host persistence。
 
 Deploy/Replace/Undeploy 只更新 Platform owner 持有的 catalog/route snapshot；Definition 路由只从一个已提交快照选择 exact DeploymentRef。二者不能把 Catalog 退化为 package-global mutable registry，也不能让 Engine 反向依赖 Platform。
 
-活跃 Deployment 的槽位键固定为 `(Definition name, semantic version)`：不同版本可以同时 active；同槽位的不同 complete digest 是冲突，必须显式 Replace。Replace 只改变同一槽位且保留旧 exact binding；新 SemVer 必须 Deploy 到新槽位。Undeploy 必须提交当前 exact DeploymentRef，陈旧引用不能下线已被替换的新 binding。所有本地变化一次性发布完整 immutable state；它们不声明外部持久化事务、分布式 CAS 或请求幂等。
+活跃 Deployment 的槽位键固定为 Definition name：一个名称只有一个 active binding；同槽位的不同 complete digest 是冲突，必须显式 Replace。Replace 只改变同一槽位且保留旧 exact binding。Undeploy 必须提交当前 exact DeploymentRef，陈旧引用不能下线已被替换的新 binding。所有本地变化一次性发布完整 immutable state；它们不声明外部持久化事务、分布式 CAS 或请求幂等。
 
 Definition discovery/selection 只暴露一次 active snapshot 的 `DeploymentCandidate{exact ref, Descriptor}`；Candidate 没有 Dispatcher、Engine 或 Process capability。调用方提供的 DeploymentSelector 拥有 request-specific input 与选择政策，可使用 context 执行模型或网络 I/O，返回一个 exact DeploymentRef。Platform 校验该 ref 必须属于同一次候选快照，并返回快照中原始 Deployment；并发 Replace/Undeploy 不能把已完成选择重定向到另一个 binding。historical Catalog 只用于 exact restore，不自动进入路由候选。
 
@@ -580,11 +579,11 @@ Platform 的零值是可用的空部署聚合；`New(deployments...)` 只为一�
 - Engine 只依赖由自身消费位置定义的最小 DeploymentResolver，或在 restore 时显式接收已经解析的 Deployment。该 resolver 是无 context、同步、有界、确定且无远程 I/O 的 exact binding lookup；同一精确引用不能随调用方或调用时机改变结果。
 - 路由、租户/调用方选择和远程发布发现必须先产生精确 DeploymentRef，再进入 resolver；resolver 不承担这些职责。
 - same-reference child 直接复用当前 Deployment，不调用 resolver；tree restore 对每个 distinct DeploymentRef 至多解析一次，并在全部 Deployment 与 snapshot 校验成功后才注册整棵树。
-- Platform 是唯一的进程内 executable catalog、版本路由和治理实现，不在 Engine 内再建立第二份权威目录；Host 的 durable publication 负责在进程启动时重建它。
+- Platform 是唯一的进程内 executable catalog、路由和治理实现，不在 Engine 内再建立第二份权威目录；Host 的 durable publication 负责在进程启动时重建它。
 - Catalog 保存 executable Deployment value，不能冒充可跨进程序列化的发布仓库；Host/adapter 负责从持久发布事实构造本地不可变快照。
 - 不使用 package-global registry。
 - 不通过 execution kind 猜测 concrete factory。
-- Go 函数地址不能作为可靠实现身份；需要发布或 Host 提供稳定版本身份。
+- Go 函数地址不能作为可靠实现身份；Deployment digest 必须来自稳定的显式配置与 schema。
 
 ---
 
@@ -625,7 +624,7 @@ Host 对自身事实执行销毁、回滚、替换或恢复时，必须在自己
 
 横切替换点按真实消费位置定义一个准确的小接口，不建立通用 Extension marker、capability registry 或按运行时类型分派的 god scope。`ProcessAdmitter` 只负责启动准入；`ProcessStartOutcomeAcknowledger` 只负责 ephemeral admission lifecycle 闭合；完整 durable Host 实现闭合 `TreeDurability`；`EventListener`/`DeltaListener` 只负责观察。它们语义不同，不合并成 Policy/Guard/Middleware 或万能 Commit 近义层。只有一个实现且没有外部替换需求的内部依赖直接使用 concrete type。
 
-Event 描述已经发生的框架事实，不承担 Signal、命令、Transition 或产品协议。每个 Event 都携带 Process-local sequence、ProcessID、exact DeploymentRef、ProcessRelation、可选 Step/Effect identity、稳定名称、phase、OccurredAt 与独立 payload，因此 child、版本和恢复归因不依赖 Host 查询。Event 分为 attempt facts 与 committed facts：前者证明一次 Step 或 Effect 确实尝试过，后者证明 Process/Signal/Step 状态已由 Engine 提交。Framework Event 词汇是封闭的；构造与反序列化同时校验 name、phase、Step/Effect identity 和对应 payload，未知名称、错配身份、缺失必填字段与非法枚举不能成为一个 `Valid` Event。常用 payload 通过 immutable typed fact 读取，observer 不复制私有 JSON struct 或按 tag 猜协议。
+Event 描述已经发生的框架事实，不承担 Signal、命令、Transition 或产品协议。每个 Event 都携带 Process-local sequence、ProcessID、exact DeploymentRef、ProcessRelation、可选 Step/Effect identity、稳定名称、phase、OccurredAt 与独立 payload，因此 child、deployment 和恢复归因不依赖 Host 查询。Event 分为 attempt facts 与 committed facts：前者证明一次 Step 或 Effect 确实尝试过，后者证明 Process/Signal/Step 状态已由 Engine 提交。Framework Event 词汇是封闭的；构造与反序列化同时校验 name、phase、Step/Effect identity 和对应 payload，未知名称、错配身份、缺失必填字段与非法枚举不能成为一个 `Valid` Event。常用 payload 通过 immutable typed fact 读取，observer 不复制私有 JSON struct 或按 tag 猜协议。
 
 当前 Framework 事实集合固定为：
 
@@ -702,7 +701,7 @@ OpenTelemetry adapter 位于独立 sibling module `otel/agent`，从集成层依
 - 接口定义在消费方并保持最小；accept interfaces，return concrete structs。
 - config 使用 options struct，不使用 builder 链和大量 variadic `WithXxx`。
 - 不用 `any` 掩盖尚未想清楚的领域类型。
-- 公共 wire value 使用严格、版本化、owner-copy 的 JSON；泛型只放在类型安全的边缘 adapter，不泛型化 Engine 根合同。
+- 公共 wire value 使用严格、可判别、owner-copy 的 JSON；泛型只放在类型安全的边缘 adapter，不泛型化 Engine 根合同。
 - 构造时校验并取得 slice/map/config 所有权。
 - error 是合同；包装保留 `%w` cause，不按字符串分支。
 - `context.Context` 只传取消、deadline 和请求范围值，不进入 snapshot。

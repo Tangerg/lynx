@@ -1,6 +1,7 @@
 package interaction
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 
@@ -300,7 +301,7 @@ func (e executionState) validateCurrentBatchArtifacts(definition *Definition) er
 		}
 		result := e.SettledToolResults[artifact.ToolCallIndex]
 		if result.IsError || result.ID != call.ID || result.Name != call.Name ||
-			result.Result != string(artifact.Output.JSON()) {
+			!bytes.Equal(result.Output.Details, artifact.Output.JSON()) || len(result.Output.Content) != 0 {
 			return fmt.Errorf("%w: current-round artifact does not match settled result", ErrInvalidExecutionState)
 		}
 	}
@@ -452,7 +453,10 @@ func responseToolCalls(response *chat.Response) ([]chat.ToolCall, *chat.Message,
 		return nil, nil, nil
 	}
 	for _, part := range response.Output.Message.Parts {
-		if part.Kind == chat.PartToolCall {
+		switch part.Kind {
+		case chat.PartToolCallDelta:
+			return nil, nil, errors.New("interaction: finalized model response contains a tool call delta")
+		case chat.PartToolCall:
 			if _, duplicate := seenCallIDs[part.ToolCall.ID]; duplicate {
 				return nil, nil, fmt.Errorf("interaction: duplicate tool call ID %q", part.ToolCall.ID)
 			}

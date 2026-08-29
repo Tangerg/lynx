@@ -12,8 +12,7 @@ import (
 )
 
 const (
-	treeSnapshotSchemaVersion = 7
-	maxTreeSnapshotBytes      = 512 << 20
+	maxTreeSnapshotBytes = 512 << 20
 )
 
 var (
@@ -142,7 +141,6 @@ type childWaitSnapshotWire struct {
 }
 
 type treeSnapshotWire struct {
-	SchemaVersion    uint16                  `json:"schema_version"`
 	RootID           ProcessID               `json:"root_id"`
 	IncarnationID    *TreeIncarnationID      `json:"incarnation_id,omitempty"`
 	ProcessSnapshots []ProcessSnapshot       `json:"process_snapshots"`
@@ -195,7 +193,7 @@ type treeSnapshotValidation struct {
 }
 
 func newTreeSnapshotValidation(wire treeSnapshotWire) (*treeSnapshotValidation, error) {
-	if wire.SchemaVersion != treeSnapshotSchemaVersion || !wire.RootID.Valid() ||
+	if !wire.RootID.Valid() ||
 		wire.IncarnationID != nil && !wire.IncarnationID.Valid() || len(wire.ProcessSnapshots) == 0 {
 		return nil, fmt.Errorf("%w: incomplete tree identity", ErrInvalidTreeSnapshot)
 	}

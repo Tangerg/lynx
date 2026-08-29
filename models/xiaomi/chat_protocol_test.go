@@ -46,7 +46,9 @@ func TestOpenAIChatUsesMiMoThinkingAndToolReasoningContract(t *testing.T) {
 			toolReasoning,
 			corechat.NewToolCallPart(corechat.ToolCall{ID: "call-1", Name: "lookup", Arguments: `{}`}),
 		),
-		corechat.NewToolMessage(corechat.ToolResult{ID: "call-1", Name: "lookup", Result: "found"}),
+		corechat.NewToolMessage(corechat.ToolResult{
+			ID: "call-1", Name: "lookup", Output: corechat.NewTextToolOutput("found"),
+		}),
 	}}
 	if setExtensionErr := request.Options.SetExtension(xiaomi.RequestExtensionKey, xiaomi.ChatRequestOptions{Thinking: xiaomi.ThinkingEnabled}); setExtensionErr != nil {
 		t.Fatalf("SetExtension: %v", setExtensionErr)

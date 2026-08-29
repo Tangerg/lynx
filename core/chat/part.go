@@ -21,13 +21,16 @@ const (
 	PartReasoning PartKind = "reasoning"
 	// PartToolCall carries one tool invocation request.
 	PartToolCall PartKind = "tool_call"
+	// PartToolCallDelta carries one streaming tool-call fragment. It is response-
+	// only and [ResponseAccumulator] promotes it into PartToolCall.
+	PartToolCallDelta PartKind = "tool_call_delta"
 	// PartToolResult carries one tool execution result.
 	PartToolResult PartKind = "tool_result"
 )
 
 func (p PartKind) Valid() bool {
 	switch p {
-	case PartText, PartMedia, PartReasoning, PartToolCall, PartToolResult:
+	case PartText, PartMedia, PartReasoning, PartToolCall, PartToolCallDelta, PartToolResult:
 		return true
 	default:
 		return false
@@ -39,13 +42,14 @@ func (p PartKind) Valid() bool {
 // retains JSON-safe, part-scoped provider state without weakening the common
 // semantic payload.
 type Part struct {
-	Kind       PartKind     `json:"kind"`
-	Text       string       `json:"text,omitempty"`
-	Media      *media.Media `json:"media,omitempty"`
-	Signature  []byte       `json:"signature,omitempty"`
-	ToolCall   *ToolCall    `json:"tool_call,omitempty"`
-	ToolResult *ToolResult  `json:"tool_result,omitempty"`
-	Metadata   metadata.Map `json:"metadata,omitzero"`
+	Kind          PartKind       `json:"kind"`
+	Text          string         `json:"text,omitempty"`
+	Media         *media.Media   `json:"media,omitempty"`
+	Signature     []byte         `json:"signature,omitempty"`
+	ToolCall      *ToolCall      `json:"tool_call,omitempty"`
+	ToolCallDelta *ToolCallDelta `json:"tool_call_delta,omitempty"`
+	ToolResult    *ToolResult    `json:"tool_result,omitempty"`
+	Metadata      metadata.Map   `json:"metadata,omitzero"`
 }
 
 func (p Part) Clone() Part {
@@ -56,8 +60,12 @@ func (p Part) Clone() Part {
 	if p.ToolCall != nil {
 		clone.ToolCall = new(*p.ToolCall)
 	}
+	if p.ToolCallDelta != nil {
+		clone.ToolCallDelta = new(*p.ToolCallDelta)
+	}
 	if p.ToolResult != nil {
-		clone.ToolResult = new(*p.ToolResult)
+		result := p.ToolResult.Clone()
+		clone.ToolResult = &result
 	}
 	return clone
 }
@@ -78,6 +86,10 @@ func NewToolCallPart(call ToolCall) Part {
 	return Part{Kind: PartToolCall, ToolCall: new(call)}
 }
 
+func NewToolCallDeltaPart(delta ToolCallDelta) Part {
+	return Part{Kind: PartToolCallDelta, ToolCallDelta: new(delta)}
+}
+
 func NewToolResultPart(result ToolResult) Part {
 	return Part{Kind: PartToolResult, ToolResult: new(result)}
 }
@@ -92,29 +104,36 @@ func (p Part) Validate() error {
 
 	switch p.Kind {
 	case PartText:
-		if (p.Text == "" && len(p.Metadata) == 0) || p.Media != nil || len(p.Signature) != 0 || p.ToolCall != nil || p.ToolResult != nil {
+		if (p.Text == "" && len(p.Metadata) == 0) || p.Media != nil || len(p.Signature) != 0 || p.ToolCall != nil || p.ToolCallDelta != nil || p.ToolResult != nil {
 			return fmt.Errorf("%w: kind %q requires text or metadata and no other payload", ErrInvalidPart, p.Kind)
 		}
 	case PartMedia:
-		if p.Text != "" || p.Media == nil || len(p.Signature) != 0 || p.ToolCall != nil || p.ToolResult != nil {
+		if p.Text != "" || p.Media == nil || len(p.Signature) != 0 || p.ToolCall != nil || p.ToolCallDelta != nil || p.ToolResult != nil {
 			return fmt.Errorf("%w: kind %q requires media and no other payload", ErrInvalidPart, p.Kind)
 		}
 		if err := p.Media.Validate(); err != nil {
 			return fmt.Errorf("%w: media: %w", ErrInvalidPart, err)
 		}
 	case PartReasoning:
-		if (p.Text == "" && len(p.Signature) == 0) || p.Media != nil || p.ToolCall != nil || p.ToolResult != nil {
+		if (p.Text == "" && len(p.Signature) == 0) || p.Media != nil || p.ToolCall != nil || p.ToolCallDelta != nil || p.ToolResult != nil {
 			return fmt.Errorf("%w: kind %q requires text or signature and no other payload", ErrInvalidPart, p.Kind)
 		}
 	case PartToolCall:
-		if p.Text != "" || p.Media != nil || len(p.Signature) != 0 || p.ToolCall == nil || p.ToolResult != nil {
+		if p.Text != "" || p.Media != nil || len(p.Signature) != 0 || p.ToolCall == nil || p.ToolCallDelta != nil || p.ToolResult != nil {
 			return fmt.Errorf("%w: kind %q requires a tool call and no other payload", ErrInvalidPart, p.Kind)
 		}
 		if err := p.ToolCall.Validate(); err != nil {
 			return fmt.Errorf("%w: %w", ErrInvalidPart, err)
 		}
+	case PartToolCallDelta:
+		if p.Text != "" || p.Media != nil || len(p.Signature) != 0 || p.ToolCall != nil || p.ToolCallDelta == nil || p.ToolResult != nil {
+			return fmt.Errorf("%w: kind %q requires a tool call delta and no other payload", ErrInvalidPart, p.Kind)
+		}
+		if err := p.ToolCallDelta.Validate(); err != nil {
+			return fmt.Errorf("%w: %w", ErrInvalidPart, err)
+		}
 	case PartToolResult:
-		if p.Text != "" || p.Media != nil || len(p.Signature) != 0 || p.ToolCall != nil || p.ToolResult == nil {
+		if p.Text != "" || p.Media != nil || len(p.Signature) != 0 || p.ToolCall != nil || p.ToolCallDelta != nil || p.ToolResult == nil {
 			return fmt.Errorf("%w: kind %q requires a tool result and no other payload", ErrInvalidPart, p.Kind)
 		}
 		if err := p.ToolResult.Validate(); err != nil {

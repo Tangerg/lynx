@@ -18,12 +18,12 @@ import (
 var updateWireFixtures = flag.Bool(
 	"update-wire-fixtures",
 	false,
-	"replace the reviewed Core wire compatibility fixture",
+	"replace the reviewed current Core wire contract fixture",
 )
 
 // wireFixtureCoverage maps every exported JSON struct to the representative
 // root that exercises it in wire_contracts.golden.json. Adding a JSON DTO is a
-// compatibility decision and must update both this inventory and the fixture.
+// contract decision and must update both this inventory and the fixture.
 var wireFixtureCoverage = map[string]string{
 	"chat.Message":                   "chat_request",
 	"chat.Options":                   "chat_request",
@@ -35,7 +35,9 @@ var wireFixtureCoverage = map[string]string{
 	"chat.Output":                    "chat_response",
 	"chat.OutputMetadata":            "chat_response",
 	"chat.ToolCall":                  "chat_request",
+	"chat.ToolCallDelta":             "chat_tool_call_delta",
 	"chat.ToolDefinition":            "chat_request",
+	"chat.ToolOutput":                "chat_request",
 	"chat.ToolResult":                "chat_request",
 	"chat.Usage":                     "chat_response",
 	"document.Document":              "document",

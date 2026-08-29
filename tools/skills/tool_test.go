@@ -76,37 +76,40 @@ func TestNewToolsBuildsOneStrictContractPerAction(t *testing.T) {
 		t.Fatalf("tool names = %v, want exactly three", tools)
 	}
 	for name, candidate := range tools {
-		if _, err := candidate.Call(t.Context(), `{"op":"list"}`); err == nil {
+		if _, err := invokeTestTool(t.Context(), candidate, `{"op":"list"}`); err == nil {
 			t.Errorf("%s accepted removed op argument", name)
 		}
 	}
 }
 
 func TestListSkills(t *testing.T) {
-	out, err := newTools(t)["list_skills"].Call(t.Context(), `{}`)
+	output, err := invokeTestTool(t.Context(), newTools(t)["list_skills"], `{}`)
 	if err != nil {
 		t.Fatalf("list_skills: %v", err)
 	}
+	out := testOutputText(output)
 	if !strings.Contains(out, "<name>pdf-processing</name>") || !strings.Contains(out, "<name>data-analysis</name>") {
 		t.Errorf("list output missing skills:\n%s", out)
 	}
 }
 
 func TestLoadSkill(t *testing.T) {
-	out, err := newTools(t)["load_skill"].Call(t.Context(), `{"name":"pdf-processing"}`)
+	output, err := invokeTestTool(t.Context(), newTools(t)["load_skill"], `{"name":"pdf-processing"}`)
 	if err != nil {
 		t.Fatalf("load_skill: %v", err)
 	}
+	out := testOutputText(output)
 	if !strings.Contains(out, "Do the thing") {
 		t.Errorf("load output missing instruction body:\n%s", out)
 	}
 }
 
 func TestReadSkillResource(t *testing.T) {
-	out, err := newTools(t)["read_skill_resource"].Call(t.Context(), `{"name":"pdf-processing","path":"references/REFERENCE.md"}`)
+	output, err := invokeTestTool(t.Context(), newTools(t)["read_skill_resource"], `{"name":"pdf-processing","path":"references/REFERENCE.md"}`)
 	if err != nil {
 		t.Fatalf("read_skill_resource: %v", err)
 	}
+	out := testOutputText(output)
 	if out != "detailed reference" {
 		t.Errorf("resource content = %q", out)
 	}
@@ -116,26 +119,29 @@ func TestSkillToolsBoundModelFacingContent(t *testing.T) {
 	const maxOutputBytes = int64(68)
 	tools := newToolsWithConfig(t, Config{MaxOutputBytes: maxOutputBytes})
 
-	loaded, err := tools["load_skill"].Call(t.Context(), `{"name":"pdf-processing"}`)
+	loadedOutput, err := invokeTestTool(t.Context(), tools["load_skill"], `{"name":"pdf-processing"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
+	loaded := testOutputText(loadedOutput)
 	if int64(len(loaded)) > maxOutputBytes || !strings.HasSuffix(loaded, "[output truncated]") || !strings.HasPrefix(loaded, "# PDF") {
 		t.Fatalf("bounded skill output = %q", loaded)
 	}
 
-	resource, err := tools["read_skill_resource"].Call(t.Context(), `{"name":"pdf-processing","path":"references/LONG.md"}`)
+	resourceOutput, err := invokeTestTool(t.Context(), tools["read_skill_resource"], `{"name":"pdf-processing","path":"references/LONG.md"}`)
 	if err != nil {
 		t.Fatal(err)
 	}
+	resource := testOutputText(resourceOutput)
 	if int64(len(resource)) > maxOutputBytes || !strings.HasSuffix(resource, "[output truncated]") {
 		t.Fatalf("bounded resource output = %q", resource)
 	}
 
-	listed, err := tools["list_skills"].Call(t.Context(), `{}`)
+	listedOutput, err := invokeTestTool(t.Context(), tools["list_skills"], `{}`)
 	if err != nil {
 		t.Fatal(err)
 	}
+	listed := testOutputText(listedOutput)
 	if !strings.Contains(listed, "<truncated>true</truncated>") {
 		t.Fatalf("bounded list output = %q", listed)
 	}
@@ -163,7 +169,7 @@ func TestSkillToolsRejectMissingArguments(t *testing.T) {
 		{"read_skill_resource", `{"name":"pdf-processing"}`},
 		{"read_skill_resource", `{"name":"pdf-processing","path":""}`},
 	} {
-		if _, err := tools[test.name].Call(t.Context(), test.arguments); err == nil {
+		if _, err := invokeTestTool(t.Context(), tools[test.name], test.arguments); err == nil {
 			t.Errorf("%s accepted %s", test.name, test.arguments)
 		}
 	}

@@ -67,7 +67,7 @@ func newCapabilityTestDefinition(t *testing.T, required Capability) *capabilityT
 	outputSchema, _ := SchemaFor[struct{}]()
 	descriptor, err := NewDescriptor(DescriptorConfig{
 		Name: "test.capability", Description: "Verify Effect capability enforcement.",
-		Version: "1.0.0", InputSchema: inputSchema, OutputSchema: outputSchema,
+		InputSchema: inputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -110,7 +110,7 @@ func (c *capabilityTestExecution) Step(context.Context, []Signal) (Transition, e
 
 func (c *capabilityTestExecution) Snapshot() (ExecutionState, error) {
 	payload, _ := json.Marshal(c.phase)
-	return NewExecutionState("test.capability", 1, payload)
+	return NewExecutionState("test.capability", payload)
 }
 
 type capabilityTestDispatcher struct{ calls atomic.Int32 }

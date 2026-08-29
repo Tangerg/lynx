@@ -217,7 +217,7 @@ func newManagedBranchDeployment(t *testing.T, branch string, tracker *branchTrac
 	outputSchema, _ := agent.SchemaFor[branchOutput]()
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
 		Name:        "test.workflow.branch_" + branch,
-		Description: "Execute one controlled managed Fork branch.", Version: "1.0.0",
+		Description: "Execute one controlled managed Fork branch.",
 		InputSchema: inputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {
@@ -248,7 +248,7 @@ func (m *managedBranchDefinition) Start(input agent.Input) (agent.Execution, err
 }
 
 func (m *managedBranchDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
-	if state.Kind() != "test.workflow.branch" || state.SchemaVersion() != 1 {
+	if state.Kind() != "test.workflow.branch" {
 		return nil, agent.ErrInvalidExecutionState
 	}
 	var execution managedBranchExecution
@@ -300,7 +300,7 @@ func (m *managedBranchExecution) Snapshot() (agent.ExecutionState, error) {
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
-	return agent.NewExecutionState("test.workflow.branch", 1, payload)
+	return agent.NewExecutionState("test.workflow.branch", payload)
 }
 
 type managedBranchDispatcher struct{ tracker *branchTracker }

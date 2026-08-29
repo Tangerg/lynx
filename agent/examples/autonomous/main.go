@@ -37,7 +37,6 @@ func run(ctx context.Context, output io.Writer) error {
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name:          "example.autonomous_calculator",
 		Description:   "Use available Tools until the requested calculation is complete.",
-		Version:       "1.0.0",
 		MaxModelCalls: calculatorFinalAnswerCall,
 	})
 	if err != nil {
@@ -101,15 +100,15 @@ func (additionTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (additionTool) Call(_ context.Context, arguments string) (string, error) {
+func (additionTool) Call(_ context.Context, invocation tool.Invocation) (chat.ToolOutput, error) {
 	var input struct {
 		Left  float64 `json:"left"`
 		Right float64 `json:"right"`
 	}
-	if err := json.Unmarshal([]byte(arguments), &input); err != nil {
-		return "", err
+	if err := json.Unmarshal(invocation.Arguments(), &input); err != nil {
+		return chat.ToolOutput{}, err
 	}
-	return fmt.Sprintf("%g", input.Left+input.Right), nil
+	return chat.NewTextToolOutput(fmt.Sprintf("%g", input.Left+input.Right)), nil
 }
 
 type calculatorModel struct{ calls int }
@@ -126,8 +125,11 @@ func (c *calculatorModel) Call(_ context.Context, request *chat.Request) (*chat.
 		}}, nil
 	case calculatorFinalAnswerCall:
 		last := request.Messages[len(request.Messages)-1]
-		if last.Role != chat.RoleTool || len(last.Parts) != 1 ||
-			last.Parts[0].ToolResult == nil || last.Parts[0].ToolResult.Result != "42" {
+		if last.Role != chat.RoleTool || len(last.Parts) != 1 || last.Parts[0].ToolResult == nil {
+			return nil, errors.New("model did not receive the addition result")
+		}
+		result, ok := last.Parts[0].ToolResult.Output.Text()
+		if !ok || result != "42" {
 			return nil, errors.New("model did not receive the addition result")
 		}
 		message := chat.NewAssistantMessage(chat.NewTextPart("20 + 22 = 42"))

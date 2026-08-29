@@ -28,6 +28,7 @@ func TestPartValidate(t *testing.T) {
 		chat.NewReasoningPart("thinking", nil),
 		chat.NewReasoningPart("", []byte("opaque")),
 		chat.NewToolCallPart(validToolCall()),
+		chat.NewToolCallDeltaPart(chat.ToolCallDelta{ID: "call-1", Name: "weather", Arguments: "{"}),
 		chat.NewToolResultPart(validToolResult()),
 	}
 	for _, part := range valid {
@@ -47,6 +48,8 @@ func TestPartValidateRejectsInvalidAndAmbiguousValues(t *testing.T) {
 		{Kind: chat.PartReasoning},
 		{Kind: chat.PartToolCall},
 		{Kind: chat.PartToolCall, ToolCall: &chat.ToolCall{Name: "tool", Arguments: `[]`}},
+		{Kind: chat.PartToolCallDelta},
+		{Kind: chat.PartToolCallDelta, ToolCallDelta: &chat.ToolCallDelta{Name: "tool"}},
 		{Kind: chat.PartToolResult},
 		{Kind: chat.PartToolResult, ToolResult: &chat.ToolResult{ID: "call"}},
 	}
@@ -70,6 +73,7 @@ func TestPartJSONRoundTrip(t *testing.T) {
 		chat.NewMediaPart(mustImage(t)),
 		chat.NewReasoningPart("thinking", []byte("signature")),
 		chat.NewToolCallPart(validToolCall()),
+		chat.NewToolCallDeltaPart(chat.ToolCallDelta{ID: "call-1", Name: "weather", Arguments: "{"}),
 		chat.NewToolResultPart(validToolResult()),
 	}
 	for _, part := range parts {
@@ -112,7 +116,7 @@ func TestPartNilUnmarshalReceiver(t *testing.T) {
 }
 
 func TestPartKindValid(t *testing.T) {
-	for _, kind := range []chat.PartKind{chat.PartText, chat.PartMedia, chat.PartReasoning, chat.PartToolCall, chat.PartToolResult} {
+	for _, kind := range []chat.PartKind{chat.PartText, chat.PartMedia, chat.PartReasoning, chat.PartToolCall, chat.PartToolCallDelta, chat.PartToolResult} {
 		if !kind.Valid() {
 			t.Errorf("%q must be valid", kind)
 		}

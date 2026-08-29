@@ -540,7 +540,7 @@ func (testDefinition) Start(input agent.Input) (agent.Execution, error) {
 }
 
 func (testDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
-	if state.Kind() != "test.otel" || state.SchemaVersion() != 1 {
+	if state.Kind() != "test.otel" {
 		return nil, agent.ErrInvalidExecutionState
 	}
 	var execution testExecution
@@ -607,7 +607,7 @@ func (t *testExecution) Snapshot() (agent.ExecutionState, error) {
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
-	return agent.NewExecutionState("test.otel", 1, payload)
+	return agent.NewExecutionState("test.otel", payload)
 }
 
 type testDispatcher struct{}
@@ -648,7 +648,7 @@ func testDeployment(t *testing.T) agent.Deployment {
 	}
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
 		Name: "test.otel", Description: "Exercises the OpenTelemetry Event adapter.",
-		Version: "1.0.0", InputSchema: inputSchema, OutputSchema: outputSchema,
+		InputSchema: inputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {
 		t.Fatal(err)

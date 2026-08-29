@@ -164,7 +164,11 @@ func mapRequestMessage(message corechat.Message, provider string) ([]openaisdk.C
 			if result == nil {
 				return nil, fmt.Errorf("parts[%d]: missing tool result", i)
 			}
-			mapped = append(mapped, openaisdk.ToolMessage(result.Result, result.ID))
+			text, ok := result.Output.Text()
+			if !ok {
+				return nil, fmt.Errorf("parts[%d]: OpenAI Chat Completions does not support media Tool output", i)
+			}
+			mapped = append(mapped, openaisdk.ToolMessage(text, result.ID))
 		}
 		return mapped, nil
 	default:

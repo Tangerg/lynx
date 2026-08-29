@@ -55,8 +55,7 @@ func ActiveDelegateChildrenFromSnapshot(
 		return nil, false, fmt.Errorf("%w: invalid Process snapshot", ErrInvalidExecutionState)
 	}
 	stateEnvelope := snapshot.CommittedExecutionState()
-	if stateEnvelope.Kind() != executionStateKind ||
-		stateEnvelope.SchemaVersion() != executionStateSchemaVersion {
+	if stateEnvelope.Kind() != executionStateKind {
 		return nil, false, nil
 	}
 	var state executionState

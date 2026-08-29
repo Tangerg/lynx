@@ -59,13 +59,13 @@ func TestSearchTool_Call_HappyPath(t *testing.T) {
 	}
 	tool, _ := NewSearchTool(searcher)
 
-	body, err := tool.Call(t.Context(), `{"query":"kittens","max_results":3,"recency":"week"}`)
+	output, err := invokeTestTool(t.Context(), tool, `{"query":"kittens","max_results":3,"recency":"week"}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
 	var resp SearchResponse
-	if err := json.Unmarshal([]byte(body), &resp); err != nil {
-		t.Fatalf("Unmarshal: %v\nbody=%s", err, body)
+	if err := json.Unmarshal(output.Details, &resp); err != nil {
+		t.Fatalf("Unmarshal: %v\nbody=%s", err, output.Details)
 	}
 	if resp.Query != "kittens" {
 		t.Errorf("SearchResponse.Query = %q", resp.Query)
@@ -90,11 +90,11 @@ func TestSearchTool_Call_HappyPath(t *testing.T) {
 
 func TestSearchTool_Call_EmptyQuery(t *testing.T) {
 	tool, _ := NewSearchTool(&fakeSearcher{})
-	_, err := tool.Call(t.Context(), `{"query":""}`)
+	_, err := invokeTestTool(t.Context(), tool, `{"query":""}`)
 	if err == nil {
 		t.Fatal("Call empty query: want schema error")
 	}
-	_, err = tool.Call(t.Context(), `{"query":"   "}`)
+	_, err = invokeTestTool(t.Context(), tool, `{"query":"   "}`)
 	if !errors.Is(err, ErrEmptyQuery) {
 		t.Errorf("Call blank query: err = %v, want ErrEmptyQuery", err)
 	}
@@ -102,7 +102,7 @@ func TestSearchTool_Call_EmptyQuery(t *testing.T) {
 
 func TestSearchTool_Call_BadJSON(t *testing.T) {
 	tool, _ := NewSearchTool(&fakeSearcher{})
-	if _, err := tool.Call(t.Context(), `{bad json`); err == nil {
+	if _, err := invokeTestTool(t.Context(), tool, `{bad json`); err == nil {
 		t.Fatal("want error on bad JSON")
 	}
 }
@@ -116,7 +116,7 @@ func TestSearchTool_Call_EnforcesAdvertisedContract(t *testing.T) {
 		`{"query":"runtime","recency":"recent"}`,
 	} {
 		searcher.last = nil
-		if _, err := tool.Call(t.Context(), arguments); err == nil {
+		if _, err := invokeTestTool(t.Context(), tool, arguments); err == nil {
 			t.Errorf("Call(%s): want contract error", arguments)
 		}
 		if searcher.last != nil {
@@ -127,7 +127,7 @@ func TestSearchTool_Call_EnforcesAdvertisedContract(t *testing.T) {
 
 func TestSearchTool_Call_DomainsMutuallyExclusive(t *testing.T) {
 	tool, _ := NewSearchTool(&fakeSearcher{})
-	_, err := tool.Call(t.Context(),
+	_, err := invokeTestTool(t.Context(), tool,
 		`{"query":"x","allowed_domains":["a.com"],"blocked_domains":["b.com"]}`)
 	if !errors.Is(err, ErrDomainsBothSides) {
 		t.Errorf("err = %v, want ErrDomainsBothSides", err)
@@ -137,7 +137,7 @@ func TestSearchTool_Call_DomainsMutuallyExclusive(t *testing.T) {
 func TestSearchTool_Call_SearcherError(t *testing.T) {
 	searcher := &fakeSearcher{err: errors.New("upstream boom")}
 	tool, _ := NewSearchTool(searcher)
-	_, err := tool.Call(t.Context(), `{"query":"hello"}`)
+	_, err := invokeTestTool(t.Context(), tool, `{"query":"hello"}`)
 	if err == nil {
 		t.Fatal("want error when searcher fails")
 	}
@@ -206,7 +206,7 @@ func TestSearchRecency_Validate(t *testing.T) {
 func TestSearchTool_Call_DomainsForwarded(t *testing.T) {
 	searcher := &fakeSearcher{resp: &SearchResponse{Query: "q", Results: nil}}
 	tool, _ := NewSearchTool(searcher)
-	if _, err := tool.Call(t.Context(),
+	if _, err := invokeTestTool(t.Context(), tool,
 		`{"query":"x","allowed_domains":["github.com","stackoverflow.com"]}`); err != nil {
 		t.Fatalf("Call: %v", err)
 	}

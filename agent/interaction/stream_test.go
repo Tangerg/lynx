@@ -176,7 +176,6 @@ func newStreamingDeployment(t *testing.T, streamer chat.Streamer) agent.Deployme
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name:          "interaction.stream",
 		Description:   "Verify managed streaming Interaction behavior.",
-		Version:       "1.0.0",
 		MaxModelCalls: 2,
 	})
 	if err != nil {

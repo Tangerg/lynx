@@ -152,7 +152,7 @@ func newTreeRuntimeTestDeployment(t testing.TB) (Deployment, *treeRuntimeTestPro
 	}
 	descriptor, err := NewDescriptor(DescriptorConfig{
 		Name: "test.tree_runtime", Description: "Verify tree owner scheduling isolation.",
-		Version: "1.0.0", InputSchema: inputSchema, OutputSchema: outputSchema,
+		InputSchema: inputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -190,7 +190,7 @@ func (d *treeRuntimeTestDefinition) Start(input Input) (Execution, error) {
 }
 
 func (d *treeRuntimeTestDefinition) Restore(state ExecutionState) (Execution, error) {
-	if state.Kind() != treeRuntimeStateKind || state.SchemaVersion() != 1 {
+	if state.Kind() != treeRuntimeStateKind {
 		return nil, ErrInvalidExecutionState
 	}
 	var decoded treeRuntimeTestState
@@ -281,5 +281,5 @@ func (e *treeRuntimeTestExecution) Snapshot() (ExecutionState, error) {
 	if err != nil {
 		return ExecutionState{}, err
 	}
-	return NewExecutionState(treeRuntimeStateKind, 1, payload)
+	return NewExecutionState(treeRuntimeStateKind, payload)
 }

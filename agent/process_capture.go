@@ -116,7 +116,7 @@ func restoreProcessLoop(
 
 func (p *processState) capture() (ProcessSnapshot, error) {
 	wire := processSnapshotWire{
-		SchemaVersion: processSnapshotSchemaVersion, ProcessID: p.controller.processID,
+		ProcessID:     p.controller.processID,
 		Relation:      p.controller.relation.wire(),
 		DeploymentRef: p.deployment.DeploymentRef(), StartedAt: p.startedAt,
 		Status: p.status, CommittedSteps: p.committedSteps, ProcessEventSequence: p.processEventSequence,

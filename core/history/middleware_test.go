@@ -154,7 +154,7 @@ func TestCallDefersToolCallUntilCompleteToolExchange(t *testing.T) {
 	call := chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{
 		ID: "call-1", Name: "weather", Arguments: `{}`,
 	}))
-	tool := chat.NewToolMessage(chat.ToolResult{ID: "call-1", Name: "weather", Result: "sunny"})
+	tool := chat.NewToolMessage(chat.ToolResult{ID: "call-1", Name: "weather", Output: chat.NewTextToolOutput("sunny")})
 
 	if _, err := middleware.Call(chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
 		return response(call), nil

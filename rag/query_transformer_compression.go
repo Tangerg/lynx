@@ -123,8 +123,14 @@ func (c *CompressionTransformer) formatHistory(messages []chat.Message) (string,
 				output.WriteString("[reasoning omitted]")
 			case chat.PartToolCall:
 				fmt.Fprintf(&output, "[tool call %s %s]", part.ToolCall.Name, part.ToolCall.Arguments)
+			case chat.PartToolCallDelta:
+				fmt.Fprintf(&output, "[tool call delta %s %s]", part.ToolCallDelta.Name, part.ToolCallDelta.Arguments)
 			case chat.PartToolResult:
-				fmt.Fprintf(&output, "[tool result %s %s]", part.ToolResult.Name, part.ToolResult.Result)
+				if text, ok := part.ToolResult.Output.Text(); ok {
+					fmt.Fprintf(&output, "[tool result %s %s]", part.ToolResult.Name, text)
+				} else {
+					fmt.Fprintf(&output, "[tool result %s contains media]", part.ToolResult.Name)
+				}
 			}
 		}
 	}

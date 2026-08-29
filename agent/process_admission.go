@@ -39,7 +39,6 @@ func (p ProcessAdmission) Valid() bool {
 		p.descriptor.Valid() && p.budget.Valid() &&
 		p.capabilities.Valid() &&
 		p.deploymentRef.Name() == p.descriptor.Name() &&
-		p.deploymentRef.Version() == p.descriptor.Version() &&
 		p.deploymentRef.ContractDigest() == p.descriptor.Digest()
 }
 

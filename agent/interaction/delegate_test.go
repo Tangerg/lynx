@@ -135,14 +135,14 @@ func TestDelegateRejectsNonObjectInputAndToolNameCollision(t *testing.T) {
 	}
 	if _, newDefinitionErr := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "interaction.duplicate_delegates", Description: "Reject duplicate managed Delegate names.",
-		Version: "1.0.0", MaxModelCalls: 2,
-		Delegates: []interaction.Delegate{delegate, delegate},
+		MaxModelCalls: 2,
+		Delegates:     []interaction.Delegate{delegate, delegate},
 	}); !errors.Is(newDefinitionErr, interaction.ErrInvalidDefinitionConfig) {
 		t.Fatalf("duplicate Delegate error = %v", newDefinitionErr)
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "interaction.delegate_collision", Description: "Reject an ambiguous model capability manifest.",
-		Version: "1.0.0", MaxModelCalls: 2, Delegates: []interaction.Delegate{delegate},
+		MaxModelCalls: 2, Delegates: []interaction.Delegate{delegate},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -322,7 +322,8 @@ func (r *restorableDelegateModel) Call(_ context.Context, request *chat.Request)
 		return nil, errors.New("restored Delegate result is absent from WorkingContext")
 	}
 	result := request.Messages[2].Parts[0].ToolResult
-	if result == nil || result.IsError || result.Result != `{"value":"restored"}` {
+	resultText, textOK := toolResultText(result)
+	if result == nil || !textOK || result.IsError || resultText != `{"value":"restored"}` {
 		return nil, fmt.Errorf("restored Delegate result = %#v", result)
 	}
 	return textResponse("restored child settled"), nil
@@ -356,8 +357,10 @@ func (d *delegateFailureModel) Call(_ context.Context, request *chat.Request) (*
 	}
 	first := request.Messages[2].Parts[0].ToolResult
 	second := request.Messages[2].Parts[1].ToolResult
-	if first == nil || !first.IsError || !strings.Contains(first.Result, "input contract") ||
-		second == nil || !second.IsError || !strings.Contains(second.Result, "engine.child.deployment_unavailable") {
+	firstText, firstOK := toolResultText(first)
+	secondText, secondOK := toolResultText(second)
+	if first == nil || !firstOK || !first.IsError || !strings.Contains(firstText, "input contract") ||
+		second == nil || !secondOK || !second.IsError || !strings.Contains(secondText, "engine.child.deployment_unavailable") {
 		return nil, fmt.Errorf("Delegate failure results = %#v, %#v", first, second)
 	}
 	return textResponse("failures observed"), nil
@@ -402,8 +405,9 @@ func (m *mixedDelegateModel) Call(_ context.Context, request *chat.Request) (*ch
 	}
 	for index, expected := range want {
 		result := request.Messages[2].Parts[index].ToolResult
+		resultText, textOK := toolResultText(result)
 		if result == nil || result.ID != expected.id || result.Name != expected.name ||
-			result.Result != expected.result || result.IsError {
+			!textOK || resultText != expected.result || result.IsError {
 			return nil, fmt.Errorf("Tool result %d = %#v", index, result)
 		}
 	}
@@ -440,7 +444,7 @@ func delegateInteractionWithValidator(
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name: "interaction.delegate_root", Description: "Exercise exact managed worker delegation.",
-		Version: "1.0.0", MaxModelCalls: maxModelCalls, Delegates: delegates,
+		MaxModelCalls: maxModelCalls, Delegates: delegates,
 		CompletionValidator: validator,
 	})
 	if err != nil {
@@ -471,7 +475,7 @@ func delegateWorkflow[I, O any](t *testing.T, name string, transform workflow.Tr
 	}
 	definition, err := workflow.NewDefinition(workflow.DefinitionConfig{
 		Name: name, Description: "Run one deterministic delegated worker operation.",
-		Version: "1.0.0", Stages: []workflow.Stage{stage},
+		Stages: []workflow.Stage{stage},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -512,7 +516,7 @@ func pausingDelegateDeployment(t *testing.T) agent.Deployment {
 	outputSchema, _ := agent.SchemaFor[delegateResponse]()
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
 		Name: "interaction.pausing_delegate_worker", Description: "Pause once and then return the delegated value.",
-		Version: "1.0.0", InputSchema: inputSchema, OutputSchema: outputSchema,
+		InputSchema: inputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -542,7 +546,7 @@ func (*pausingDelegateDefinition) Start(input agent.Input) (agent.Execution, err
 }
 
 func (*pausingDelegateDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
-	if state.Kind() != "test.pausing_delegate" || state.SchemaVersion() != 1 {
+	if state.Kind() != "test.pausing_delegate" {
 		return nil, errors.New("invalid pausing Delegate state")
 	}
 	var execution pausingDelegateExecution
@@ -569,7 +573,7 @@ func (p *pausingDelegateExecution) Snapshot() (agent.ExecutionState, error) {
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
-	return agent.NewExecutionState("test.pausing_delegate", 1, payload)
+	return agent.NewExecutionState("test.pausing_delegate", payload)
 }
 
 type pausingDelegateDispatcher struct{}

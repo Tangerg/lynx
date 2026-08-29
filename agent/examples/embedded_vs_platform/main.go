@@ -108,7 +108,6 @@ func newDeployments() (agent.Deployment, agent.Deployment, error) {
 	workerDefinition, err := workflow.NewDefinition(workflow.DefinitionConfig{
 		Name:        "example.platform_worker",
 		Description: "Normalize and uppercase one request.",
-		Version:     "1.0.0",
 		Stages:      []workflow.Stage{workerStage},
 	})
 	if err != nil {
@@ -136,7 +135,6 @@ func newDeployments() (agent.Deployment, agent.Deployment, error) {
 	rootDefinition, err := workflow.NewDefinition(workflow.DefinitionConfig{
 		Name:        "example.platform_root",
 		Description: "Run one exact managed worker through the shared Engine.",
-		Version:     "1.0.0",
 		Stages:      []workflow.Stage{call},
 	})
 	if err != nil {

@@ -40,7 +40,7 @@ func (t *typedFixtureExecution) Step(context.Context, []Signal) (Transition, err
 }
 
 func (t *typedFixtureExecution) Snapshot() (ExecutionState, error) {
-	return NewExecutionState("fixture", 1, t.state)
+	return NewExecutionState("fixture", t.state)
 }
 
 func TestDescriptorOwnsTypedEdges(t *testing.T) {
@@ -101,7 +101,7 @@ func newTypedFixtureDefinition[T any](t *testing.T, name string) *typedFixtureDe
 		t.Fatal(err)
 	}
 	descriptor, err := NewDescriptor(DescriptorConfig{
-		Name: name, Description: "A typed edge contract test fixture.", Version: "1.0.0",
+		Name: name, Description: "A typed edge contract test fixture.",
 		InputSchema: schema, OutputSchema: schema,
 	})
 	if err != nil {

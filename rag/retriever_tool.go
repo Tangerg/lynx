@@ -66,6 +66,6 @@ func NewRetrievalTool(config RetrievalToolConfig) (RetrievalTool, error) {
 
 func (r RetrievalTool) Definition() chat.ToolDefinition { return r.function.Definition() }
 
-func (r RetrievalTool) Call(ctx context.Context, arguments string) (string, error) {
-	return r.function.Call(ctx, arguments)
+func (r RetrievalTool) Call(ctx context.Context, invocation tool.Invocation) (chat.ToolOutput, error) {
+	return r.function.Call(ctx, invocation)
 }

@@ -16,7 +16,7 @@ import (
 func TestPlanningWireBaseline(t *testing.T) {
 	shape := planningWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "dc6f02ca28f1fbb9e14899bd3103a781b4f5341a397cd8d8bbef279d198a784e"
+	const want = "aa6dc54ede1bc93e4c532377127c962f008729b25bcb7945857a54f12c34c0ff"
 	if got != want {
 		t.Fatalf("Planning wire changed: got %s, want %s\n%s", got, want, shape)
 	}
@@ -32,10 +32,6 @@ func planningWireShape() string {
 		return strings.Compare(left.Name(), right.Name())
 	})
 	var shape strings.Builder
-	fmt.Fprintf(
-		&shape, "execution_state=%d protocol=%d\n",
-		executionStateSchemaVersion, protocolSchemaVersion,
-	)
 	for _, wireType := range types {
 		fmt.Fprintf(&shape, "%s\n", wireType.Name())
 		for field := range wireType.Fields() {

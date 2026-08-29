@@ -183,11 +183,11 @@ func (*inputRequestTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (i *inputRequestTool) Call(ctx context.Context, _ string) (string, error) {
+func (i *inputRequestTool) Call(ctx context.Context, _ tool.Invocation) (chat.ToolOutput, error) {
 	continuation, resumed := interaction.ToolInputContinuationFromContext(ctx)
 	if !resumed {
 		i.initialCalls.Add(1)
-		return "", interaction.RequireToolInput(
+		return chat.ToolOutput{}, interaction.RequireToolInput(
 			json.RawMessage(`{"question":"What is your name?"}`),
 			json.RawMessage(`{"type":"string","minLength":1}`),
 			json.RawMessage(`{"stage":"awaiting_name"}`),
@@ -200,13 +200,13 @@ func (i *inputRequestTool) Call(ctx context.Context, _ string) (string, error) {
 		Stage string `json:"stage"`
 	}
 	if err := json.Unmarshal(continuation.State(), &state); err != nil || state.Stage != "awaiting_name" {
-		return "", errors.New("invalid continuation state")
+		return chat.ToolOutput{}, errors.New("invalid continuation state")
 	}
 	var name string
 	if err := json.Unmarshal(continuation.Response(), &name); err != nil {
-		return "", err
+		return chat.ToolOutput{}, err
 	}
-	return "hello " + name, nil
+	return chat.NewTextToolOutput("hello " + name), nil
 }
 
 func (i *inputRequestTool) Release() {
@@ -233,7 +233,9 @@ func (c *checkpointModel) Call(_ context.Context, request *chat.Request) (*chat.
 	}
 	first := request.Messages[2].Parts[0].ToolResult
 	second := request.Messages[2].Parts[1].ToolResult
-	if first == nil || second == nil || first.Result != "prefix-complete" || second.Result != "hello Ada" {
+	firstText, firstOK := toolResultText(first)
+	secondText, secondOK := toolResultText(second)
+	if !firstOK || !secondOK || firstText != "prefix-complete" || secondText != "hello Ada" {
 		return nil, errors.New("restored continuation contains incorrect ToolResults")
 	}
 	return textResponse("prefix-complete; hello Ada"), nil

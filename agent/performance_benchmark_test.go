@@ -123,7 +123,6 @@ func newExecutionReplayBenchmarkDefinition(b *testing.B) executionReplayBenchmar
 	descriptor, err := NewDescriptor(DescriptorConfig{
 		Name:         "benchmark.execution_replay",
 		Description:  "Measure the pure Execution replay boundary.",
-		Version:      "1.0.0",
 		InputSchema:  schema,
 		OutputSchema: schema,
 	})
@@ -144,7 +143,7 @@ func (executionReplayBenchmarkDefinition) Start(input Input) (Execution, error) 
 }
 
 func (executionReplayBenchmarkDefinition) Restore(state ExecutionState) (Execution, error) {
-	if state.Kind() != "benchmark.execution_replay" || state.SchemaVersion() != 1 {
+	if state.Kind() != "benchmark.execution_replay" {
 		return nil, ErrInvalidExecutionState
 	}
 	var decoded executionReplayBenchmarkState
@@ -168,7 +167,7 @@ func (e *executionReplayBenchmarkExecution) Snapshot() (ExecutionState, error) {
 	if err != nil {
 		return ExecutionState{}, err
 	}
-	return NewExecutionState("benchmark.execution_replay", 1, payload)
+	return NewExecutionState("benchmark.execution_replay", payload)
 }
 
 func BenchmarkExecutionReplayBoundary(b *testing.B) {
@@ -180,7 +179,7 @@ func BenchmarkExecutionReplayBoundary(b *testing.B) {
 			if err != nil {
 				b.Fatal(err)
 			}
-			state, err := NewExecutionState("benchmark.execution_replay", 1, payload)
+			state, err := NewExecutionState("benchmark.execution_replay", payload)
 			if err != nil {
 				b.Fatal(err)
 			}

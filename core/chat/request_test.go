@@ -72,7 +72,7 @@ func TestRequestClone(t *testing.T) {
 	clone.Messages[0].Parts[0].Media.Metadata["origin"][1] = 'X'
 	clone.Messages[1].Parts[0].Signature[0] = 'X'
 	clone.Messages[1].Parts[1].ToolCall.Name = "mutated"
-	clone.Messages[2].Parts[0].ToolResult.Result = "mutated"
+	clone.Messages[2].Parts[0].ToolResult.Output.Details[0] = '['
 	clone.Tools[0].InputSchema[0] = '['
 	*clone.Options.MaxTokens = 20
 	clone.Options.Stop[0] = "MUTATED"
@@ -84,7 +84,7 @@ func TestRequestClone(t *testing.T) {
 		string(request.Messages[0].Parts[0].Media.Metadata["origin"]) != `"caller"` ||
 		string(request.Messages[1].Parts[0].Signature) != "signature" ||
 		request.Messages[1].Parts[1].ToolCall.Name != "weather" ||
-		request.Messages[2].Parts[0].ToolResult.Result != `{"temperature":20}` ||
+		string(request.Messages[2].Parts[0].ToolResult.Output.Details) != `{"temperature":20}` ||
 		request.Tools[0].InputSchema[0] != '{' ||
 		*request.Options.MaxTokens != 10 ||
 		request.Options.Stop[0] != "END" ||
@@ -115,6 +115,15 @@ func TestRequestValidate(t *testing.T) {
 	}
 	if err := request.Validate(); err != nil {
 		t.Fatalf("Validate: %v", err)
+	}
+}
+
+func TestRequestRejectsResponseOnlyToolCallDelta(t *testing.T) {
+	request := &chat.Request{Messages: []chat.Message{chat.NewAssistantMessage(
+		chat.NewToolCallDeltaPart(chat.ToolCallDelta{ID: "call", Name: "tool", Arguments: "{"}),
+	)}}
+	if err := request.Validate(); !errors.Is(err, chat.ErrInvalidRequest) {
+		t.Fatalf("Validate error = %v, want ErrInvalidRequest", err)
 	}
 }
 

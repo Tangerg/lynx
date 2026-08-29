@@ -286,7 +286,7 @@ func newPausingBranchDeployment(t *testing.T, branch string) agent.Deployment {
 	outputSchema, _ := agent.SchemaFor[branchOutput]()
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
 		Name:        "test.workflow.pausing_" + branch,
-		Description: "Pause one managed branch before producing its result.", Version: "1.0.0",
+		Description: "Pause one managed branch before producing its result.",
 		InputSchema: inputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {
@@ -317,7 +317,7 @@ func (p *pausingBranchDefinition) Start(input agent.Input) (agent.Execution, err
 }
 
 func (p *pausingBranchDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
-	if state.Kind() != "test.workflow.pausing_branch" || state.SchemaVersion() != 1 {
+	if state.Kind() != "test.workflow.pausing_branch" {
 		return nil, agent.ErrInvalidExecutionState
 	}
 	var execution pausingBranchExecution
@@ -358,5 +358,5 @@ func (p *pausingBranchExecution) Snapshot() (agent.ExecutionState, error) {
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
-	return agent.NewExecutionState("test.workflow.pausing_branch", 1, payload)
+	return agent.NewExecutionState("test.workflow.pausing_branch", payload)
 }

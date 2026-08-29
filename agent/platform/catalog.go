@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/Masterminds/semver/v3"
-
 	agent "github.com/Tangerg/scope/agent"
 )
 
@@ -53,7 +51,7 @@ func NewCatalog(deployments ...agent.Deployment) (Catalog, error) {
 }
 
 // Resolve returns the Deployment bound to one exact reference. It performs no
-// routing or version fallback and satisfies agent.DeploymentResolver.
+// routing or name fallback and satisfies agent.DeploymentResolver.
 func (c Catalog) Resolve(reference agent.DeploymentRef) (agent.Deployment, error) {
 	if !reference.Valid() {
 		return agent.Deployment{}, agent.ErrInvalidDeploymentRef
@@ -65,9 +63,9 @@ func (c Catalog) Resolve(reference agent.DeploymentRef) (agent.Deployment, error
 	return deployment, nil
 }
 
-// Deployments returns all exact bindings in stable Definition-name, semantic-
-// version, and Deployment-digest order. The returned slice is independently
-// owned and may be modified by the caller.
+// Deployments returns all exact bindings in stable Definition-name and
+// Deployment-digest order. The returned slice is independently owned and may
+// be modified by the caller.
 func (c Catalog) Deployments() []agent.Deployment {
 	return slices.Clone(c.ordered)
 }
@@ -76,11 +74,6 @@ func compareDeployment(left, right agent.Deployment) int {
 	leftReference := left.DeploymentRef()
 	rightReference := right.DeploymentRef()
 	if order := cmp.Compare(leftReference.Name(), rightReference.Name()); order != 0 {
-		return order
-	}
-	leftVersion, _ := semver.StrictNewVersion(leftReference.Version())
-	rightVersion, _ := semver.StrictNewVersion(rightReference.Version())
-	if order := leftVersion.Compare(rightVersion); order != 0 {
 		return order
 	}
 	return cmp.Compare(leftReference.Digest().String(), rightReference.Digest().String())

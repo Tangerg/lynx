@@ -91,8 +91,8 @@ func TestChat_CoreConformance(t *testing.T) {
 						}
 						reasoning.WriteString(part.Text)
 						signature.Write(part.Signature)
-					case corechat.PartToolCall:
-						toolIDs = append(toolIDs, part.ToolCall.ID)
+					case corechat.PartToolCallDelta:
+						toolIDs = append(toolIDs, part.ToolCallDelta.ID)
 					}
 				}
 			}
@@ -168,7 +168,9 @@ func newProtocolChatRequest(t *testing.T) *corechat.Request {
 		corechat.NewSystemMessage("Follow policy."),
 		corechat.NewUserMessage(corechat.NewTextPart("Read the image and PDF."), corechat.NewMediaPart(image), corechat.NewMediaPart(pdf)),
 		assistant,
-		corechat.NewToolMessage(corechat.ToolResult{ID: "toolu-1", Name: "lookup", Result: "not found", IsError: true}),
+		corechat.NewToolMessage(corechat.ToolResult{
+			ID: "toolu-1", Name: "lookup", Output: corechat.NewTextToolOutput("not found"), IsError: true,
+		}),
 	)
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)

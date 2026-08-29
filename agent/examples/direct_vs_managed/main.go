@@ -41,7 +41,6 @@ func run(ctx context.Context, output io.Writer) error {
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name:          "example.managed_echo",
 		Description:   "Return one deterministic model response through an Engine Process.",
-		Version:       "1.0.0",
 		MaxModelCalls: 1,
 	})
 	if err != nil {

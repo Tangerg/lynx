@@ -7,7 +7,15 @@ import (
 
 	agent "github.com/Tangerg/scope/agent"
 	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/tool"
 )
+
+type preparedToolCall struct {
+	call       chat.ToolCall
+	hosted     *boundTool
+	invocation tool.Invocation
+	rejection  *chat.ToolResult
+}
 
 type toolCallPlan struct {
 	concurrent bool
@@ -21,16 +29,16 @@ type toolCallOutcome struct {
 	err                 error
 }
 
-func (d *Dispatcher) planToolCalls(calls []chat.ToolCall) ([]toolCallPlan, error) {
+func (d *Dispatcher) planToolCalls(calls []preparedToolCall) ([]toolCallPlan, error) {
 	plans := make([]toolCallPlan, len(calls))
-	for index, call := range calls {
-		hosted, found := d.tools[call.Name]
-		if !found || hosted.concurrent == nil {
+	for index := range calls {
+		call := calls[index]
+		if call.hosted == nil || call.rejection != nil || call.hosted.concurrent == nil {
 			continue
 		}
-		key, concurrent, err := concurrencyDeclaration(hosted.concurrent, call.Arguments)
+		key, concurrent, err := concurrencyDeclaration(call.hosted.concurrent, call.invocation)
 		if err != nil {
-			return nil, fmt.Errorf("interaction: tool call %q concurrency: %w", call.ID, err)
+			return nil, fmt.Errorf("interaction: tool call %q concurrency: %w", call.call.ID, err)
 		}
 		plans[index] = toolCallPlan{concurrent: concurrent, key: key}
 	}
@@ -39,7 +47,7 @@ func (d *Dispatcher) planToolCalls(calls []chat.ToolCall) ([]toolCallPlan, error
 
 func concurrencyDeclaration(
 	capability ConcurrentTool,
-	arguments string,
+	invocation tool.Invocation,
 ) (key string, concurrent bool, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
@@ -48,7 +56,7 @@ func concurrencyDeclaration(
 			err = fmt.Errorf("capability panicked: %v", recovered)
 		}
 	}()
-	key, concurrent = capability.ConcurrencyKey(arguments)
+	key, concurrent = capability.ConcurrencyKey(invocation)
 	return key, concurrent, nil
 }
 
@@ -82,7 +90,7 @@ func (d *Dispatcher) callToolBatch(
 	request agent.EffectRequest,
 	modelCallSequence uint32,
 	firstToolCallIndex uint32,
-	calls []chat.ToolCall,
+	calls []preparedToolCall,
 ) []toolCallOutcome {
 	outcomes := make([]toolCallOutcome, len(calls))
 	if len(calls) == 1 {

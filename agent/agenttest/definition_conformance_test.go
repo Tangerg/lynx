@@ -29,7 +29,6 @@ func newDefinitionConformanceFixture(t *testing.T) *definitionConformanceDefinit
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
 		Name:         "agenttest.definition_conformance",
 		Description:  "Exercise Definition and Execution conformance checks.",
-		Version:      "1.0.0",
 		InputSchema:  schema,
 		OutputSchema: schema,
 	})
@@ -88,7 +87,7 @@ func (e *definitionConformanceExecution) Snapshot() (agent.ExecutionState, error
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
-	return agent.NewExecutionState("agenttest.definition_conformance", 1, payload)
+	return agent.NewExecutionState("agenttest.definition_conformance", payload)
 }
 
 func TestRunDefinitionConformanceAcceptsIsolatedDeterministicDefinition(t *testing.T) {

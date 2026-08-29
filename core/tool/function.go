@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 
 	"github.com/Tangerg/scope/core/chat"
 	corejsonschema "github.com/Tangerg/scope/core/jsonschema"
@@ -83,49 +82,49 @@ func (f Func[In, Out]) Definition() chat.ToolDefinition {
 	}
 }
 
-// Call strictly decodes arguments, invokes the wrapped function, and encodes
-// its result for a model-facing tool response.
-func (f Func[In, Out]) Call(ctx context.Context, arguments string) (string, error) {
+// Call strictly decodes a promoted invocation, invokes the wrapped function,
+// and returns a provider-neutral result.
+func (f Func[In, Out]) Call(ctx context.Context, invocation Invocation) (chat.ToolOutput, error) {
 	if f.function == nil {
-		return "", fmt.Errorf("%w: function tool is nil", ErrInvalidTool)
+		return chat.ToolOutput{}, fmt.Errorf("%w: function tool is nil", ErrInvalidTool)
 	}
-	input, err := f.decodeInput(arguments)
+	if !invocation.Valid() || invocation.ToolCall().Name != f.config.Name {
+		return chat.ToolOutput{}, fmt.Errorf("%w: function tool %q", ErrInvalidInvocation, f.config.Name)
+	}
+	input, err := f.decodeInput(invocation.Arguments())
 	if err != nil {
-		return "", fmt.Errorf("tool: decode function arguments: %w", err)
+		return chat.ToolOutput{}, fmt.Errorf("tool: decode function arguments: %w", err)
 	}
 	output, err := f.function(ctx, input)
 	if err != nil {
-		return "", err
+		return chat.ToolOutput{}, err
 	}
 	result, err := f.encodeResult(output)
 	if err != nil {
-		return "", fmt.Errorf("tool: encode function result: %w", err)
+		return chat.ToolOutput{}, fmt.Errorf("tool: encode function result: %w", err)
 	}
 	return result, nil
 }
 
-func (f Func[In, Out]) decodeInput(arguments string) (In, error) {
+func (f Func[In, Out]) decodeInput(arguments []byte) (In, error) {
 	var input In
-	if strings.TrimSpace(arguments) == "" {
-		arguments = "{}"
-	}
-	if err := f.input.Validate([]byte(arguments)); err != nil {
+	if err := f.input.Validate(arguments); err != nil {
 		return input, fmt.Errorf("arguments violate input schema: %w", err)
 	}
-	if err := jsonv2.Unmarshal([]byte(arguments), &input, jsonv2.RejectUnknownMembers(true)); err != nil {
+	if err := jsonv2.Unmarshal(arguments, &input, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return input, err
 	}
 	return input, nil
 }
 
-func (Func[In, Out]) encodeResult(output Out) (string, error) {
+func (Func[In, Out]) encodeResult(output Out) (chat.ToolOutput, error) {
 	value := reflect.ValueOf(output)
 	if value.IsValid() && value.Kind() == reflect.String {
-		return value.String(), nil
+		return chat.NewTextToolOutput(value.String()), nil
 	}
 	encoded, err := json.Marshal(output)
 	if err != nil {
-		return "", err
+		return chat.ToolOutput{}, err
 	}
-	return string(encoded), nil
+	return chat.NewJSONToolOutput(encoded)
 }

@@ -34,7 +34,7 @@ type correctnessVariables struct {
 }
 
 func NewCorrectnessEvaluator(config ModelEvaluatorConfig) (*CorrectnessEvaluator, error) {
-	metric, err := evaluation.NewMetric("text", MetricCorrectness, nil)
+	metric, err := evaluation.NewMetric(evaluation.MetricConfig{Namespace: "text", Name: MetricCorrectness})
 	if err != nil {
 		return nil, err
 	}

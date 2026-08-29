@@ -64,7 +64,7 @@ func run(ctx context.Context) (err error) {
 	}()
 
 	mcpClient := sdkmcp.NewClient(
-		&sdkmcp.Implementation{Name: "scope-mcp-agent", Version: "v0.1.0"},
+		&sdkmcp.Implementation{Name: "scope-mcp-agent", Version: "dev"},
 		nil,
 	)
 	clientSession, err := mcpClient.Connect(ctx, clientTransport, nil)
@@ -107,7 +107,6 @@ func run(ctx context.Context) (err error) {
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
 		Name:          "example.mcp_briefing",
 		Description:   "Ask the model for a topic brief using a remote MCP search tool.",
-		Version:       "1.0.0",
 		MaxModelCalls: briefingModelCallLimit,
 	})
 	if err != nil {
@@ -184,7 +183,7 @@ func buildMCPServer() (*sdkmcp.Server, error) {
 		return nil, fmt.Errorf("derive search tool input schema: %w", err)
 	}
 	server := sdkmcp.NewServer(
-		&sdkmcp.Implementation{Name: "research-server", Version: "v0.1.0"},
+		&sdkmcp.Implementation{Name: "research-server", Version: "dev"},
 		nil,
 	)
 

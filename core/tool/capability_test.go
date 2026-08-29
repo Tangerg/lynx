@@ -18,16 +18,18 @@ type capabilityMarker interface {
 type markedTool struct{}
 
 func (markedTool) Definition() chat.ToolDefinition {
-	return chat.ToolDefinition{Name: "marked", InputSchema: json.RawMessage(`{}`)}
+	return chat.ToolDefinition{Name: "marked", InputSchema: json.RawMessage(`{"type":"object"}`)}
 }
 
-func (markedTool) Call(context.Context, string) (string, error) { return "", nil }
-func (markedTool) Marker() string                               { return "inner" }
+func (markedTool) Call(context.Context, tool.Invocation) (chat.ToolOutput, error) {
+	return chat.ToolOutput{}, nil
+}
+func (markedTool) Marker() string { return "inner" }
 
 type wrappingTool struct{ inner tool.Tool }
 
 func (w *wrappingTool) Definition() chat.ToolDefinition { return w.inner.Definition() }
-func (w *wrappingTool) Call(ctx context.Context, input string) (string, error) {
+func (w *wrappingTool) Call(ctx context.Context, input tool.Invocation) (chat.ToolOutput, error) {
 	return w.inner.Call(ctx, input)
 }
 func (w *wrappingTool) Unwrap() tool.Tool { return w.inner }

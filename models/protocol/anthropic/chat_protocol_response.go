@@ -330,7 +330,7 @@ func (p *protocolStreamState) mapBlockStart(event anthropicsdk.ContentBlockStart
 		arguments := tool.pendingArguments
 		tool.pendingArguments = ""
 		p.tools[event.Index] = tool
-		return corechat.NewToolCallPart(corechat.ToolCall{ID: tool.id, Name: tool.name, Arguments: arguments}), true, nil
+		return corechat.NewToolCallDeltaPart(corechat.ToolCallDelta{ID: tool.id, Name: tool.name, Arguments: arguments}), true, nil
 	default:
 		return corechat.Part{}, false, nil
 	}
@@ -371,7 +371,7 @@ func (p *protocolStreamState) mapBlockDelta(event anthropicsdk.ContentBlockDelta
 		arguments := tool.pendingArguments
 		tool.pendingArguments = ""
 		p.tools[event.Index] = tool
-		return corechat.NewToolCallPart(corechat.ToolCall{ID: tool.id, Name: tool.name, Arguments: arguments}), true, nil, nil
+		return corechat.NewToolCallDeltaPart(corechat.ToolCallDelta{ID: tool.id, Name: tool.name, Arguments: arguments}), true, nil, nil
 	case anthropicsdk.CitationsDelta:
 		return corechat.Part{}, false, delta, nil
 	default:

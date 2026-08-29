@@ -73,7 +73,7 @@ func newEngineTestDefinition(t testing.TB, name, mode string) *engineTestDefinit
 		t.Fatal(err)
 	}
 	descriptor, err := NewDescriptor(DescriptorConfig{
-		Name: name, Description: "Exercises the Engine lifecycle contract.", Version: "0.1.0",
+		Name: name, Description: "Exercises the Engine lifecycle contract.",
 		InputSchema: inputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {
@@ -93,7 +93,7 @@ func (e *engineTestDefinition) Start(input Input) (Execution, error) {
 }
 
 func (e *engineTestDefinition) Restore(state ExecutionState) (Execution, error) {
-	if state.Kind() != e.descriptor.Name() || state.SchemaVersion() != 1 {
+	if state.Kind() != e.descriptor.Name() {
 		return nil, ErrInvalidExecutionState
 	}
 	value, err := wireJSON.decode[engineTestState](state.Payload())
@@ -243,7 +243,7 @@ func (e *engineTestExecution) Snapshot() (ExecutionState, error) {
 	case "batch":
 		name = "engine.batch"
 	}
-	return NewExecutionState(name, 1, payload)
+	return NewExecutionState(name, payload)
 }
 
 type engineTestDispatcher struct {
@@ -1189,7 +1189,6 @@ func waitForUnknownSettlement(t *testing.T, process *Process) ProcessSnapshot {
 func singleProcessTreeSnapshot(t *testing.T, snapshot ProcessSnapshot) TreeSnapshot {
 	t.Helper()
 	tree, err := newTreeSnapshot(treeSnapshotWire{
-		SchemaVersion:    treeSnapshotSchemaVersion,
 		RootID:           snapshot.ProcessID(),
 		ProcessSnapshots: []ProcessSnapshot{snapshot},
 	})

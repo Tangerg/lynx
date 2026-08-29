@@ -54,7 +54,14 @@
           "tool_result": {
             "id": "call-1",
             "name": "inspect_image",
-            "result": "A scope."
+            "output": {
+              "content": [
+                {
+                  "kind": "text",
+                  "text": "A scope."
+                }
+              ]
+            }
           }
         }
       ]

@@ -9,8 +9,6 @@ import (
 	agent "github.com/Tangerg/scope/agent"
 )
 
-const protocolSchemaVersion uint16 = 1
-
 type operation string
 
 const (
@@ -21,10 +19,9 @@ const (
 func (o operation) valid() bool { return o == operationObserve || o == operationAction }
 
 type effectEnvelope struct {
-	SchemaVersion uint16      `json:"schema_version"`
-	Operation     operation   `json:"operation"`
-	Input         agent.Input `json:"input"`
-	Action        *actionCall `json:"action,omitempty"`
+	Operation operation   `json:"operation"`
+	Input     agent.Input `json:"input"`
+	Action    *actionCall `json:"action,omitempty"`
 }
 
 type actionCall struct {
@@ -34,10 +31,9 @@ type actionCall struct {
 }
 
 type signalEnvelope struct {
-	SchemaVersion uint16             `json:"schema_version"`
-	Operation     operation          `json:"operation"`
-	Observation   *observationResult `json:"observation,omitempty"`
-	Action        *actionResultWire  `json:"action,omitempty"`
+	Operation   operation          `json:"operation"`
+	Observation *observationResult `json:"observation,omitempty"`
+	Action      *actionResultWire  `json:"action,omitempty"`
 }
 
 type observationResult struct {
@@ -55,7 +51,7 @@ func newObservationEffect(input agent.Input) (agent.Effect, error) {
 		return agent.Effect{}, ErrInvalidProtocol
 	}
 	payload, err := encodeProtocol(effectEnvelope{
-		SchemaVersion: protocolSchemaVersion, Operation: operationObserve, Input: input,
+		Operation: operationObserve, Input: input,
 	})
 	if err != nil {
 		return agent.Effect{}, err
@@ -69,9 +65,8 @@ func newActionEffect(input agent.Input, binding ActionBinding, state WorldState)
 		return agent.Effect{}, ErrInvalidProtocol
 	}
 	payload, err := encodeProtocol(effectEnvelope{
-		SchemaVersion: protocolSchemaVersion,
-		Operation:     operationAction,
-		Input:         input,
+		Operation: operationAction,
+		Input:     input,
 		Action: &actionCall{
 			Name: binding.action.name, Description: binding.action.description, WorldState: state,
 		},
@@ -87,7 +82,7 @@ func decodeEffect(payload json.RawMessage) (effectEnvelope, error) {
 	if err := jsonv2.Unmarshal(payload, &envelope, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return effectEnvelope{}, fmt.Errorf("%w: decode Effect: %w", ErrInvalidProtocol, err)
 	}
-	if envelope.SchemaVersion != protocolSchemaVersion || !envelope.Operation.valid() || !envelope.Input.Valid() {
+	if !envelope.Operation.valid() || !envelope.Input.Valid() {
 		return effectEnvelope{}, ErrInvalidProtocol
 	}
 	switch envelope.Operation {
@@ -116,7 +111,7 @@ func observationSignal(state WorldState, cause error) (json.RawMessage, error) {
 		result.WorldState = &cloned
 	}
 	return encodeProtocol(signalEnvelope{
-		SchemaVersion: protocolSchemaVersion, Operation: operationObserve, Observation: result,
+		Operation: operationObserve, Observation: result,
 	})
 }
 
@@ -125,8 +120,7 @@ func actionSignal(result ActionResult) (json.RawMessage, error) {
 		return nil, ErrInvalidProtocol
 	}
 	return encodeProtocol(signalEnvelope{
-		SchemaVersion: protocolSchemaVersion,
-		Operation:     operationAction,
+		Operation: operationAction,
 		Action: &actionResultWire{
 			Succeeded: result.Succeeded(), Diagnostic: result.Diagnostic(),
 		},
@@ -138,7 +132,7 @@ func decodeSignal(payload json.RawMessage) (signalEnvelope, error) {
 	if err := jsonv2.Unmarshal(payload, &envelope, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return signalEnvelope{}, fmt.Errorf("%w: decode Signal: %w", ErrInvalidProtocol, err)
 	}
-	if envelope.SchemaVersion != protocolSchemaVersion || !envelope.Operation.valid() {
+	if !envelope.Operation.valid() {
 		return signalEnvelope{}, ErrInvalidProtocol
 	}
 	switch envelope.Operation {

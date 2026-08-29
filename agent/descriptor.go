@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/Masterminds/semver/v3"
 )
 
 const (
@@ -26,9 +24,6 @@ type DescriptorConfig struct {
 	// discovery without execution-specific state.
 	Description string
 
-	// Version is a canonical MAJOR.MINOR.PATCH semantic version.
-	Version string
-
 	// InputSchema is the authoritative structural contract for Process input.
 	InputSchema Schema
 
@@ -42,9 +37,6 @@ func (c DescriptorConfig) validate() error {
 	}
 	if c.Description == "" || strings.TrimSpace(c.Description) != c.Description || len(c.Description) > maxDescriptionBytes {
 		return fmt.Errorf("%w: description must be non-empty, trimmed, and at most %d bytes", ErrInvalidDescriptor, maxDescriptionBytes)
-	}
-	if !validSemanticVersion(c.Version) {
-		return fmt.Errorf("%w: version must be a canonical MAJOR.MINOR.PATCH semantic version", ErrInvalidDescriptor)
 	}
 	if !c.InputSchema.Valid() {
 		return fmt.Errorf("%w: input schema: %w", ErrInvalidDescriptor, ErrInvalidSchema)
@@ -60,7 +52,6 @@ func (c DescriptorConfig) validate() error {
 type Descriptor struct {
 	name         string
 	description  string
-	version      string
 	inputSchema  Schema
 	outputSchema Schema
 	digest       Digest
@@ -73,7 +64,6 @@ func NewDescriptor(config DescriptorConfig) (Descriptor, error) {
 	descriptor := Descriptor{
 		name:         config.Name,
 		description:  config.Description,
-		version:      config.Version,
 		inputSchema:  config.InputSchema.clone(),
 		outputSchema: config.OutputSchema.clone(),
 	}
@@ -91,9 +81,6 @@ func (d Descriptor) Name() string { return d.name }
 // Description returns the human-readable purpose of the Definition.
 func (d Descriptor) Description() string { return d.description }
 
-// Version returns the canonical semantic version.
-func (d Descriptor) Version() string { return d.version }
-
 // InputSchema returns an independently owned schema value.
 func (d Descriptor) InputSchema() Schema { return d.inputSchema.clone() }
 
@@ -104,8 +91,7 @@ func (d Descriptor) OutputSchema() Schema { return d.outputSchema.clone() }
 func (d Descriptor) Digest() Digest { return d.digest }
 
 func (d Descriptor) Valid() bool {
-	return d.name != "" && d.version != "" &&
-		d.inputSchema.Valid() && d.outputSchema.Valid() && d.digest.Valid()
+	return d.name != "" && d.inputSchema.Valid() && d.outputSchema.Valid() && d.digest.Valid()
 }
 
 func (d Descriptor) ValidateInput(input Input) error {
@@ -180,7 +166,6 @@ func (d *Descriptor) UnmarshalJSON(data []byte) error {
 	value, err := NewDescriptor(DescriptorConfig{
 		Name:         wire.Name,
 		Description:  wire.Description,
-		Version:      wire.Version,
 		InputSchema:  inputSchema,
 		OutputSchema: outputSchema,
 	})
@@ -197,7 +182,6 @@ func (d *Descriptor) UnmarshalJSON(data []byte) error {
 type descriptorContractWire struct {
 	Name         string          `json:"name"`
 	Description  string          `json:"description"`
-	Version      string          `json:"version"`
 	InputSchema  json.RawMessage `json:"input_schema"`
 	OutputSchema json.RawMessage `json:"output_schema"`
 }
@@ -205,11 +189,6 @@ type descriptorContractWire struct {
 type descriptorWire struct {
 	descriptorContractWire
 	Digest Digest `json:"digest"`
-}
-
-func validSemanticVersion(value string) bool {
-	version, err := semver.StrictNewVersion(value)
-	return err == nil && version.String() == value
 }
 
 func descriptorDigest(descriptor Descriptor) (Digest, error) {
@@ -224,7 +203,6 @@ func (d Descriptor) contractWire() descriptorContractWire {
 	return descriptorContractWire{
 		Name:         d.name,
 		Description:  d.description,
-		Version:      d.version,
 		InputSchema:  d.inputSchema.JSON(),
 		OutputSchema: d.outputSchema.JSON(),
 	}

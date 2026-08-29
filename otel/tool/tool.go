@@ -96,7 +96,7 @@ func (i *instrumentedTool) Definition() chat.ToolDefinition {
 
 func (i *instrumentedTool) Unwrap() coretool.Tool { return i.next }
 
-func (i *instrumentedTool) Call(ctx context.Context, arguments string) (string, error) {
+func (i *instrumentedTool) Call(ctx context.Context, invocation coretool.Invocation) (chat.ToolOutput, error) {
 	attributes := []attribute.KeyValue{
 		semconv.GenAIOperationNameExecuteTool,
 		semconv.GenAIToolName(i.definition.Name),
@@ -109,7 +109,7 @@ func (i *instrumentedTool) Call(ctx context.Context, arguments string) (string, 
 		trace.WithSpanKind(trace.SpanKindInternal),
 		trace.WithAttributes(attributes...),
 	)
-	result, err := i.next.Call(ctx, arguments)
+	result, err := i.next.Call(ctx, invocation)
 	if err != nil {
 		errorType := errorTypeAttribute(err)
 		span.RecordError(err)

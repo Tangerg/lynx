@@ -126,7 +126,7 @@ func (r Role) allowsPart(kind PartKind) bool {
 	case RoleUser:
 		return kind == PartText || kind == PartMedia
 	case RoleAssistant:
-		return kind == PartText || kind == PartMedia || kind == PartReasoning || kind == PartToolCall
+		return kind == PartText || kind == PartMedia || kind == PartReasoning || kind == PartToolCall || kind == PartToolCallDelta
 	case RoleTool:
 		return kind == PartToolResult
 	default:

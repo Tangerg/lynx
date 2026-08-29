@@ -59,7 +59,6 @@ const (
 	effectStatusAttribute         attribute.Key = "agent.effect.status"
 	eventPhaseAttribute           attribute.Key = "agent.event.phase"
 	deploymentNameAttribute       attribute.Key = "agent.deployment.name"
-	deploymentVersionAttribute    attribute.Key = "agent.deployment.version"
 	deploymentDigestAttribute     attribute.Key = "agent.deployment.digest"
 	treeIncarnationIDAttribute    attribute.Key = "agent.tree.incarnation_id"
 )
@@ -631,7 +630,6 @@ func processAttributes(event agent.Event) []attribute.KeyValue {
 		processRootIDAttribute.String(relation.RootID().String()),
 		processDepthAttribute.Int64(int64(relation.Depth())),
 		deploymentNameAttribute.String(reference.Name()),
-		deploymentVersionAttribute.String(reference.Version()),
 		deploymentDigestAttribute.String(reference.Digest().String()),
 	}
 	if parentID, child := relation.ParentID(); child {
@@ -647,7 +645,6 @@ func deploymentMetricAttributes(event agent.Event) []attribute.KeyValue {
 	reference := event.DeploymentRef()
 	return []attribute.KeyValue{
 		deploymentNameAttribute.String(reference.Name()),
-		deploymentVersionAttribute.String(reference.Version()),
 	}
 }
 

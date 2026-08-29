@@ -48,7 +48,7 @@ func serverCallFromContext(ctx context.Context) serverCall {
 //
 // Example:
 //
-//	func (t *longTool) Call(ctx context.Context, args string) (string, error) {
+//	func (t *longTool) Call(ctx context.Context, invocation tool.Invocation) (chat.ToolOutput, error) {
 //	    for i := range 100 {
 //	        // ... work ...
 //	        _ = mcp.ReportProgress(ctx, float64(i+1), new(100.0),

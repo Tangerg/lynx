@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/Tangerg/scope/core/chat"
+	toolcontract "github.com/Tangerg/scope/core/tool"
 	"github.com/Tangerg/scope/mcp"
 )
 
@@ -25,15 +26,15 @@ func (progressTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (progressTool) Call(ctx context.Context, _ string) (string, error) {
+func (progressTool) Call(ctx context.Context, _ toolcontract.Invocation) (chat.ToolOutput, error) {
 	total := 3.0
 	for i := range 3 {
 		if err := mcp.ReportProgress(ctx, float64(i+1), &total, "step"); err != nil &&
 			!errors.Is(err, mcp.ErrNoServerSession) {
-			return "", err
+			return chat.ToolOutput{}, err
 		}
 	}
-	return "ok", nil
+	return chat.NewTextToolOutput("ok"), nil
 }
 
 func TestNotifyHelpers_Progress(t *testing.T) {
@@ -42,11 +43,11 @@ func TestNotifyHelpers_Progress(t *testing.T) {
 	var mu sync.Mutex
 	var progress []sdkmcp.ProgressNotificationParams
 
-	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-srv", Version: "v0.1.0"}, nil)
+	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-srv", Version: "dev"}, nil)
 	require.NoError(t, mcp.Register(server, progressTool{}))
 
 	cli := sdkmcp.NewClient(
-		&sdkmcp.Implementation{Name: "test-cli", Version: "v0.1.0"},
+		&sdkmcp.Implementation{Name: "test-cli", Version: "dev"},
 		&sdkmcp.ClientOptions{
 			ProgressNotificationHandler: func(_ context.Context, req *sdkmcp.ProgressNotificationClientRequest) {
 				mu.Lock()

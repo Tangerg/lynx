@@ -59,8 +59,8 @@ func (t *Tool) Definition() chat.ToolDefinition {
 	return t.typed.Definition()
 }
 
-func (t *Tool) Call(ctx context.Context, arguments string) (string, error) {
-	return t.typed.Call(ctx, arguments)
+func (t *Tool) Call(ctx context.Context, invocation toolcontract.Invocation) (chat.ToolOutput, error) {
+	return t.typed.Call(ctx, invocation)
 }
 
 func (t *Tool) run(ctx context.Context, req Request) (Response, error) {

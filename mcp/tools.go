@@ -28,14 +28,14 @@ type ToolSource struct {
 // keys serialize.
 //
 // The callback receives the source and remote tool names, an isolated copy of
-// the remote annotations, and the raw call arguments. It must be deterministic,
+// the remote annotations, and a schema-validated invocation. It must be deterministic,
 // side-effect-free, and safe for concurrent use because a durable resume may
 // plan queued calls again and callers may inspect the capability from multiple
 // goroutines.
 type ToolConcurrencyPolicy func(
 	sourceName, remoteName string,
 	annotations sdkmcp.ToolAnnotations,
-	arguments string,
+	invocation toolcontract.Invocation,
 ) (key string, concurrent bool)
 
 type PublicToolNameFunc func(sourceName, remoteName string) string

@@ -1,5 +1,3 @@
-github.com/Masterminds/semver/v3 v3.5.0 h1:kQceYJfbupGfZOKZQg0kou0DgAKhzDg2NZPAwZ/2OOE=
-github.com/Masterminds/semver/v3 v3.5.0/go.mod h1:4V+yj/TJE1HU9XfppCwVMZq3I84lprf4nC11bSS5beM=
 github.com/Tangerg/scope/core v0.0.1 h1:fs347LjoXriZ6gKpfY/AJAt7L21mrxXbB1Be2DOi6Yk=
 github.com/Tangerg/scope/core v0.0.1/go.mod h1:GmtH7T7+Tk3KdWFxg8F/gA7pP7R2BieSoWJrY4qybYY=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=

@@ -34,9 +34,9 @@ func (*testTool) Definition() chat.ToolDefinition {
 	}
 }
 
-func (t *testTool) Call(ctx context.Context, arguments string) (string, error) {
-	t.called = trace.SpanFromContext(ctx).SpanContext().IsValid() && arguments == `{"key":"secret"}`
-	return t.result, t.err
+func (t *testTool) Call(ctx context.Context, invocation coretool.Invocation) (chat.ToolOutput, error) {
+	t.called = trace.SpanFromContext(ctx).SpanContext().IsValid() && string(invocation.Arguments()) == `{"key":"secret"}`
+	return chat.NewTextToolOutput(t.result), t.err
 }
 
 func (*testTool) Marked() {}
@@ -72,9 +72,18 @@ func TestMiddlewareTracesAndMeasuresExactToolBoundary(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	result, err := wrapped.Call(t.Context(), `{"key":"secret"}`)
-	if err != nil || result != inner.result || !inner.called {
-		t.Fatalf("Call = (%q, %v), context observed = %t", result, err, inner.called)
+	binding, err := coretool.Bind(wrapped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invocation, err := binding.Prepare(chat.ToolCall{ID: "test", Name: "lookup", Arguments: `{"key":"secret"}`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	result, err := binding.Call(t.Context(), invocation)
+	text, textOK := result.Text()
+	if err != nil || !textOK || text != inner.result || !inner.called {
+		t.Fatalf("Call = (%q, %v), context observed = %t", text, err, inner.called)
 	}
 	if _, found, err := coretool.Capability[marked](wrapped); err != nil || !found {
 		t.Fatalf("wrapped capability = found:%t error:%v", found, err)
@@ -103,7 +112,15 @@ func TestMiddlewareClassifiesWrappedCancellationWithoutChangingError(t *testing.
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, gotErr := wrapped.Call(t.Context(), `{}`); !errors.Is(gotErr, context.Canceled) {
+	binding, err := coretool.Bind(wrapped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invocation, err := binding.Prepare(chat.ToolCall{ID: "test", Name: "lookup", Arguments: `{}`})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, gotErr := binding.Call(t.Context(), invocation); !errors.Is(gotErr, context.Canceled) {
 		t.Fatalf("Call error = %v", gotErr)
 	}
 	span := rig.spans.Ended()[0]

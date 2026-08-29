@@ -211,10 +211,15 @@ func mapProtocolMessages(provider string, messages []corechat.Message) (*genai.C
 				if strings.HasPrefix(id, protocolGeneratedToolPrefixFor(provider)) {
 					id = ""
 				}
+				response, responseParts, err := protocolToolResult(result.Output, result.IsError)
+				if err != nil {
+					return nil, nil, fmt.Errorf("google: messages[%d].parts[%d].tool_result.output: %w", i, j, err)
+				}
 				parts = append(parts, &genai.Part{FunctionResponse: &genai.FunctionResponse{
 					ID:       id,
 					Name:     result.Name,
-					Response: protocolToolResult(result.Result, result.IsError),
+					Response: response,
+					Parts:    responseParts,
 				}})
 			}
 			contents = append(contents, genai.NewContentFromParts(parts, genai.RoleUser))
@@ -318,9 +323,56 @@ func mapProtocolMedia(value *media.Media) (*genai.Part, error) {
 	}
 }
 
-func protocolToolResult(result string, isError bool) map[string]any {
+func protocolToolResult(output corechat.ToolOutput, isError bool) (map[string]any, []*genai.FunctionResponsePart, error) {
+	if len(output.Content) == 0 {
+		return protocolToolResultJSON(output.Details, isError), nil, nil
+	}
+	var text strings.Builder
+	parts := make([]*genai.FunctionResponsePart, 0, len(output.Content))
+	for index := range output.Content {
+		part := output.Content[index]
+		switch part.Kind {
+		case corechat.PartText:
+			text.WriteString(part.Text)
+		case corechat.PartMedia:
+			mapped, err := mapProtocolToolMedia(part.Media)
+			if err != nil {
+				return nil, nil, fmt.Errorf("content[%d]: %w", index, err)
+			}
+			parts = append(parts, mapped)
+		default:
+			return nil, nil, fmt.Errorf("content[%d]: unsupported part %q", index, part.Kind)
+		}
+	}
+	return protocolToolResultJSON([]byte(text.String()), isError), parts, nil
+}
+
+func mapProtocolToolMedia(value *media.Media) (*genai.FunctionResponsePart, error) {
+	switch value.Source.Kind {
+	case media.SourceBytes:
+		data, err := value.Bytes()
+		if err != nil {
+			return nil, err
+		}
+		part := genai.NewFunctionResponsePartFromBytes(data, value.MIME)
+		part.InlineData.DisplayName = value.Name
+		return part, nil
+	case media.SourceURI:
+		uri, err := value.URI()
+		if err != nil {
+			return nil, err
+		}
+		part := genai.NewFunctionResponsePartFromURI(uri, value.MIME)
+		part.FileData.DisplayName = value.Name
+		return part, nil
+	default:
+		return nil, fmt.Errorf("media source %q is unsupported", value.Source.Kind)
+	}
+}
+
+func protocolToolResultJSON(result []byte, isError bool) map[string]any {
 	var decoded any
-	if result != "" && json.Unmarshal([]byte(result), &decoded) == nil {
+	if len(result) != 0 && json.Unmarshal(result, &decoded) == nil {
 		if !isError {
 			if object, ok := decoded.(map[string]any); ok {
 				return object
@@ -330,9 +382,9 @@ func protocolToolResult(result string, isError bool) map[string]any {
 		return map[string]any{"error": decoded}
 	}
 	if isError {
-		return map[string]any{"error": result}
+		return map[string]any{"error": string(result)}
 	}
-	return map[string]any{"output": result}
+	return map[string]any{"output": string(result)}
 }
 
 func mapProtocolTools(definitions []corechat.ToolDefinition) ([]*genai.Tool, error) {

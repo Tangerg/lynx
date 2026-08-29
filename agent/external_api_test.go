@@ -38,7 +38,7 @@ func (externalDefinition) Start(input agent.Input) (agent.Execution, error) {
 }
 
 func (externalDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
-	if state.Kind() != "external.direct" || state.SchemaVersion() != 1 {
+	if state.Kind() != "external.direct" {
 		return nil, agent.ErrInvalidExecutionState
 	}
 	var value externalState
@@ -89,7 +89,7 @@ func (e *externalExecution) Snapshot() (agent.ExecutionState, error) {
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
-	return agent.NewExecutionState("external.direct", 1, payload)
+	return agent.NewExecutionState("external.direct", payload)
 }
 
 func TestExternalPackageCanComposeAndRunDefinition(t *testing.T) {
@@ -102,7 +102,7 @@ func TestExternalPackageCanComposeAndRunDefinition(t *testing.T) {
 		t.Fatal(err)
 	}
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
-		Name: "external.direct", Description: "Completes a direct external API example.", Version: "0.1.0",
+		Name: "external.direct", Description: "Completes a direct external API example.",
 		InputSchema: inputSchema, OutputSchema: outputSchema,
 	})
 	if err != nil {

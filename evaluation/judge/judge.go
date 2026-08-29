@@ -136,8 +136,12 @@ func (evaluator *Evaluator[T]) aggregate(outputs []modelReport) (evaluation.Repo
 			return evaluation.Report{}, fmt.Errorf("evaluation/judge: sample metadata: %w", err)
 		}
 	}
+	verdict, err := score.Verdict(evaluator.threshold)
+	if err != nil {
+		return evaluation.Report{}, fmt.Errorf("evaluation/judge: verdict: %w", err)
+	}
 	report := evaluation.Report{
-		Metric: evaluator.metric.Clone(), Passed: score.Passes(evaluator.threshold), Score: score,
+		Metric: evaluator.metric.Clone(), Verdict: verdict, Score: &score,
 		Feedback: feedback, Metadata: reportMetadata,
 	}
 	if err := report.Validate(); err != nil {

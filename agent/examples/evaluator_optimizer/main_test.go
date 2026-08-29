@@ -15,7 +15,7 @@ func TestRun(t *testing.T) {
 		t.Fatal(err)
 	}
 	const want = "objective: improve the release draft\n" +
-		"best: draft-v3; addressed: raise quality after revision 2\n" +
+		"best: draft 3; addressed: raise quality after revision 2\n" +
 		"score: 0.95\n" +
 		"attempts: 3\n" +
 		"accepted: true\n" +

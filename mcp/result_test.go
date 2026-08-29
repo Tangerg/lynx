@@ -1,7 +1,6 @@
 package mcp
 
 import (
-	"encoding/json"
 	"testing"
 
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
@@ -14,16 +13,19 @@ func TestRemoteResultContent(t *testing.T) {
 		name       string
 		content    []sdkmcp.Content
 		structured any
-		want       string
+		wantText   string
+		wantParts  int
+		wantMedia  bool
 	}{
 		{name: "empty"},
-		{name: "single text", content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "hi"}}, want: "hi"},
-		{name: "structured fallback", structured: map[string]any{"answer": 42}, want: `{"answer":42}`},
+		{name: "single text", content: []sdkmcp.Content{&sdkmcp.TextContent{Text: "hi"}}, wantText: "hi", wantParts: 1},
+		{name: "structured fallback", structured: map[string]any{"answer": 42}, wantText: `{"answer":42}`},
 		{
 			name:       "content precedes structured fallback",
 			content:    []sdkmcp.Content{&sdkmcp.TextContent{Text: "visible"}},
 			structured: map[string]any{"answer": 42},
-			want:       "visible",
+			wantText:   "visible",
+			wantParts:  1,
 		},
 		{
 			name: "multiple",
@@ -31,10 +33,14 @@ func TestRemoteResultContent(t *testing.T) {
 				&sdkmcp.TextContent{Text: "a"},
 				&sdkmcp.TextContent{Text: "b"},
 			},
+			wantText:  "ab",
+			wantParts: 2,
 		},
 		{
-			name:    "single non-text",
-			content: []sdkmcp.Content{&sdkmcp.ImageContent{MIMEType: "image/png", Data: []byte{1, 2, 3}}},
+			name:      "single non-text",
+			content:   []sdkmcp.Content{&sdkmcp.ImageContent{MIMEType: "image/png", Data: []byte{1, 2, 3}}},
+			wantParts: 1,
+			wantMedia: true,
 		},
 	}
 	for _, test := range tests {
@@ -44,14 +50,15 @@ func TestRemoteResultContent(t *testing.T) {
 				StructuredContent: test.structured,
 			}}).content()
 			require.NoError(t, err)
-			if test.want != "" || len(test.content) == 0 {
-				assert.Equal(t, test.want, got)
+			assert.Len(t, got.Content, test.wantParts)
+			text, textOK := got.Text()
+			if test.wantMedia {
+				assert.False(t, textOK)
+				assert.Equal(t, "media", string(got.Content[0].Kind))
 				return
 			}
-			var decoded []map[string]any
-			require.NoError(t, json.Unmarshal([]byte(got), &decoded))
-			require.Len(t, decoded, len(test.content))
-			assert.NotEmpty(t, decoded[0]["type"])
+			assert.True(t, textOK)
+			assert.Equal(t, test.wantText, text)
 		})
 	}
 }

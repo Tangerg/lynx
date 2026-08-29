@@ -122,6 +122,6 @@ type CompletionValidator func(candidate CompletionCandidate) (CompletionDecision
 func (o Output) clone() Output {
 	cloned := o
 	cloned.ModelResponse = o.ModelResponse.Clone()
-	cloned.DirectToolResults = slices.Clone(o.DirectToolResults)
+	cloned.DirectToolResults = cloneToolResults(o.DirectToolResults)
 	return cloned
 }

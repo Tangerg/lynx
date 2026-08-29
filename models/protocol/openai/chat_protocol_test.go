@@ -93,8 +93,8 @@ func TestCompatibleChat_CoreConformance(t *testing.T) {
 						text.WriteString(part.Text)
 					case corechat.PartReasoning:
 						reasoning.WriteString(part.Text)
-					case corechat.PartToolCall:
-						toolIDs = append(toolIDs, part.ToolCall.ID)
+					case corechat.PartToolCallDelta:
+						toolIDs = append(toolIDs, part.ToolCallDelta.ID)
 					}
 				}
 			}
@@ -206,7 +206,9 @@ func newCoreChatRequest(t *testing.T) *corechat.Request {
 		corechat.NewSystemMessage("You are precise."),
 		corechat.NewUserMessage(corechat.NewTextPart("Inspect these inputs."), corechat.NewMediaPart(image), corechat.NewMediaPart(file)),
 		assistant,
-		corechat.NewToolMessage(corechat.ToolResult{ID: "call-1", Name: "search", Result: `{"hits":2}`}),
+		corechat.NewToolMessage(corechat.ToolResult{
+			ID: "call-1", Name: "search", Output: corechat.NewTextToolOutput(`{"hits":2}`),
+		}),
 	)
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)

@@ -296,7 +296,7 @@ func newWorkflowPatterns() (agent.Deployment, deploymentResolver, error) {
 	definition, err := workflow.NewDefinition(workflow.DefinitionConfig{
 		Name:        "example.workflow_patterns",
 		Description: "Chain, route, section, and vote through exact managed child Processes.",
-		Version:     "1.0.0", Stages: []workflow.Stage{normalize, summarize, route, section, vote},
+		Stages:      []workflow.Stage{normalize, summarize, route, section, vote},
 	})
 	if err != nil {
 		return agent.Deployment{}, nil, err
@@ -322,7 +322,7 @@ func newWorkflowPatterns() (agent.Deployment, deploymentResolver, error) {
 	}
 	root, err := agent.NewDeployment(agent.DeploymentConfig{
 		Definition: definition, Dispatcher: workflow.Dispatcher{},
-		ImplementationDigest: agent.ComputeDigest([]byte("workflow-patterns-root-v1")),
+		ImplementationDigest: agent.ComputeDigest([]byte("workflow-patterns-root")),
 		ConfigurationDigest:  agent.ComputeDigest(configurationJSON),
 	})
 	if err != nil {
@@ -439,7 +439,7 @@ func transformDeployment[I, O any](
 		return agent.Deployment{}, err
 	}
 	definition, err := workflow.NewDefinition(workflow.DefinitionConfig{
-		Name: name, Description: description, Version: "1.0.0", Stages: []workflow.Stage{stage},
+		Name: name, Description: description, Stages: []workflow.Stage{stage},
 	})
 	if err != nil {
 		return agent.Deployment{}, err
@@ -450,7 +450,7 @@ func transformDeployment[I, O any](
 	}
 	return agent.NewDeployment(agent.DeploymentConfig{
 		Definition: definition, Dispatcher: workflow.Dispatcher{},
-		ImplementationDigest: agent.ComputeDigest([]byte(name + "-transform-v1")),
+		ImplementationDigest: agent.ComputeDigest([]byte(name + "-transform")),
 		ConfigurationDigest:  agent.ComputeDigest(configurationJSON),
 	})
 }

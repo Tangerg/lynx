@@ -8,6 +8,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/Tangerg/scope/core/chat"
 	"github.com/Tangerg/scope/core/tool"
 )
 
@@ -44,11 +45,11 @@ func TestNewFuncBuildsImmutableTypedTool(t *testing.T) {
 	}
 
 	ctx := context.WithValue(t.Context(), contextKey{}, "value")
-	result, err := function.Call(ctx, `{"a":2,"b":3}`)
-	if err != nil || result != "5" {
-		t.Fatalf("Call = %q, %v", result, err)
+	result, err := call(t, ctx, function, `{"a":2,"b":3}`)
+	if text, ok := result.Text(); err != nil || !ok || text != "5" {
+		t.Fatalf("Call = %#v, %v", result, err)
 	}
-	if _, err := function.Call(t.Context(), `{"extra":true}`); err == nil {
+	if _, err := call(t, t.Context(), function, `{"extra":true}`); err == nil {
 		t.Fatal("Call accepted an unknown field")
 	}
 }
@@ -98,7 +99,7 @@ func TestFuncZeroValueIsInvalidWithoutNilState(t *testing.T) {
 	if definition := function.Definition(); definition.Name != "" || definition.InputSchema != nil {
 		t.Fatalf("zero Definition = %#v", definition)
 	}
-	if _, err := function.Call(t.Context(), `{}`); !errors.Is(err, tool.ErrInvalidTool) {
+	if _, err := function.Call(t.Context(), tool.Invocation{}); !errors.Is(err, tool.ErrInvalidTool) {
 		t.Fatalf("zero Call error = %v, want ErrInvalidTool", err)
 	}
 }
@@ -120,13 +121,13 @@ func TestFuncDecodesStrictObjectArguments(t *testing.T) {
 	}
 
 	for _, arguments := range []string{"", "  ", "{}"} {
-		result, err := function.Call(t.Context(), arguments)
-		if err != nil || result != "" {
-			t.Fatalf("Call(%q) = %q, %v", arguments, result, err)
+		result, err := call(t, t.Context(), function, arguments)
+		if text, ok := result.Text(); err != nil || !ok || text != "" {
+			t.Fatalf("Call(%q) = %#v, %v", arguments, result, err)
 		}
 	}
 	for _, arguments := range []string{`null`, `[]`, `"text"`, `{"unknown":true}`, `{"value":"first","value":"second"}`, `{} {}`, `{`} {
-		if _, err := function.Call(t.Context(), arguments); err == nil {
+		if _, err := call(t, t.Context(), function, arguments); err == nil {
 			t.Errorf("Call(%q) succeeded, want decode error", arguments)
 		}
 	}
@@ -143,8 +144,8 @@ func TestFuncValidatesArgumentsAgainstDerivedSchema(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got, err := function.Call(t.Context(), `{"query":"valid","limit":3}`); err != nil || got != "valid" {
-		t.Fatalf("valid Call = %q, %v", got, err)
+	if got, err := call(t, t.Context(), function, `{"query":"valid","limit":3}`); err != nil || mustText(t, got) != "valid" {
+		t.Fatalf("valid Call = %#v, %v", got, err)
 	}
 	for _, arguments := range []string{
 		`{}`,
@@ -152,7 +153,7 @@ func TestFuncValidatesArgumentsAgainstDerivedSchema(t *testing.T) {
 		`{"query":"TOO"}`,
 		`{"query":"valid","limit":4}`,
 	} {
-		if _, err := function.Call(t.Context(), arguments); err == nil || !strings.Contains(err.Error(), "arguments violate input schema") {
+		if _, err := call(t, t.Context(), function, arguments); err == nil || !errors.Is(err, tool.ErrInvalidInvocation) {
 			t.Errorf("Call(%s) error = %v, want schema violation", arguments, err)
 		}
 	}
@@ -167,8 +168,8 @@ func TestFuncResultEncodingAndErrorIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got, err := function.Call(t.Context(), `{}`); err != nil || got != "plain" {
-			t.Fatalf("Call = %q, %v", got, err)
+		if got, err := call(t, t.Context(), function, `{}`); err != nil || mustText(t, got) != "plain" {
+			t.Fatalf("Call = %#v, %v", got, err)
 		}
 	})
 
@@ -182,8 +183,8 @@ func TestFuncResultEncodingAndErrorIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got, callErr := composite.Call(t.Context(), `{}`); callErr != nil || got != `{"ok":true}` {
-			t.Fatalf("composite Call = %q, %v", got, callErr)
+		if got, callErr := call(t, t.Context(), composite, `{}`); callErr != nil || string(got.Details) != `{"ok":true}` || len(got.Content) != 0 {
+			t.Fatalf("composite Call = %#v, %v", got, callErr)
 		}
 
 		raw, err := tool.NewFunc(tool.FuncConfig{Name: "raw"}, func(context.Context, struct{}) (json.RawMessage, error) {
@@ -192,8 +193,8 @@ func TestFuncResultEncodingAndErrorIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got, err := raw.Call(t.Context(), `{}`); err != nil || got != `{"ok":true}` {
-			t.Fatalf("raw Call = %q, %v", got, err)
+		if got, err := call(t, t.Context(), raw, `{}`); err != nil || string(got.Details) != `{"ok":true}` {
+			t.Fatalf("raw Call = %#v, %v", got, err)
 		}
 	})
 
@@ -204,8 +205,8 @@ func TestFuncResultEncodingAndErrorIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got, err := function.Call(t.Context(), `{}`); err != nil || got != "" {
-			t.Fatalf("Call = %q, %v", got, err)
+		if got, err := call(t, t.Context(), function, `{}`); err != nil || mustText(t, got) != "" {
+			t.Fatalf("Call = %#v, %v", got, err)
 		}
 	})
 
@@ -217,8 +218,8 @@ func TestFuncResultEncodingAndErrorIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if got, err := function.Call(t.Context(), `{}`); got != "" || !errors.Is(err, want) {
-			t.Fatalf("Call = %q, %v", got, err)
+		if got, err := call(t, t.Context(), function, `{}`); len(got.Content) != 0 || len(got.Details) != 0 || !errors.Is(err, want) {
+			t.Fatalf("Call = %#v, %v", got, err)
 		}
 	})
 
@@ -229,7 +230,7 @@ func TestFuncResultEncodingAndErrorIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if _, err := function.Call(t.Context(), `{}`); err == nil || !strings.Contains(err.Error(), "encode function result") {
+		if _, err := call(t, t.Context(), function, `{}`); err == nil || !strings.Contains(err.Error(), "encode function result") {
 			t.Fatalf("Call error = %v", err)
 		}
 	})
@@ -246,10 +247,34 @@ func TestFuncConcurrentCalls(t *testing.T) {
 	var wait sync.WaitGroup
 	for range 32 {
 		wait.Go(func() {
-			if got, err := function.Call(t.Context(), `{"a":1,"b":2}`); err != nil || got != "3" {
-				t.Errorf("Call = %q, %v", got, err)
+			if got, err := call(t, t.Context(), function, `{"a":1,"b":2}`); err != nil || mustText(t, got) != "3" {
+				t.Errorf("Call = %#v, %v", got, err)
 			}
 		})
 	}
 	wait.Wait()
+}
+
+func call(t *testing.T, ctx context.Context, executable tool.Tool, arguments string) (chat.ToolOutput, error) {
+	t.Helper()
+	binding, err := tool.Bind(executable)
+	if err != nil {
+		return chat.ToolOutput{}, err
+	}
+	invocation, err := binding.Prepare(chat.ToolCall{
+		ID: "call", Name: binding.Definition().Name, Arguments: arguments,
+	})
+	if err != nil {
+		return chat.ToolOutput{}, err
+	}
+	return binding.Call(ctx, invocation)
+}
+
+func mustText(t *testing.T, output chat.ToolOutput) string {
+	t.Helper()
+	text, ok := output.Text()
+	if !ok {
+		t.Fatalf("output %#v is not text-only", output)
+	}
+	return text
 }

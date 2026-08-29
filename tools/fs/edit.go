@@ -60,15 +60,15 @@ func (e *EditTool) Definition() chat.ToolDefinition {
 // parallelizes edits to DISTINCT files and serializes edits to the SAME file.
 // An unparseable / empty path yields no key (no known conflict); the call still
 // fails its own validation in Call.
-func (e *EditTool) ConcurrencyKey(arguments string) (key string, concurrent bool) {
+func (e *EditTool) ConcurrencyKey(invocation toolcontract.Invocation) (key string, concurrent bool) {
 	var req EditRequest
-	_ = json.Unmarshal([]byte(arguments), &req)
+	_ = json.Unmarshal(invocation.Arguments(), &req)
 	return req.Path, true
 }
 
-func (*EditTool) MutationPaths(arguments string) ([]string, error) {
+func (*EditTool) MutationPaths(invocation toolcontract.Invocation) ([]string, error) {
 	var req EditRequest
-	if err := json.Unmarshal([]byte(arguments), &req); err != nil {
+	if err := json.Unmarshal(invocation.Arguments(), &req); err != nil {
 		return nil, err
 	}
 	if req.Path == "" {
@@ -77,8 +77,8 @@ func (*EditTool) MutationPaths(arguments string) ([]string, error) {
 	return []string{req.Path}, nil
 }
 
-func (e *EditTool) Call(ctx context.Context, arguments string) (string, error) {
-	return e.typed.Call(ctx, arguments)
+func (e *EditTool) Call(ctx context.Context, invocation toolcontract.Invocation) (chat.ToolOutput, error) {
+	return e.typed.Call(ctx, invocation)
 }
 
 func (e *EditTool) edit(ctx context.Context, req EditRequest) (EditResponse, error) {

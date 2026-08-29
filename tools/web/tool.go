@@ -22,10 +22,12 @@ func (t *readOnlyTool) bind[I, O any](config toolcontract.FuncConfig, call func(
 
 func (t readOnlyTool) Definition() chat.ToolDefinition { return t.inner.Definition() }
 
-func (t readOnlyTool) Call(ctx context.Context, arguments string) (string, error) {
-	return t.inner.Call(ctx, arguments)
+func (t readOnlyTool) Call(ctx context.Context, invocation toolcontract.Invocation) (chat.ToolOutput, error) {
+	return t.inner.Call(ctx, invocation)
 }
 
 // Network reads have no local resource conflict, so independent calls may run
 // concurrently under the tool executor's optional scheduling contract.
-func (readOnlyTool) ConcurrencyKey(string) (key string, concurrent bool) { return "", true }
+func (readOnlyTool) ConcurrencyKey(toolcontract.Invocation) (key string, concurrent bool) {
+	return "", true
+}

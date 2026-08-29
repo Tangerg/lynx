@@ -41,7 +41,7 @@ func TestToolUsesStrictTypedContract(t *testing.T) {
 		`{"url":"https://example.com","method":"get"}`,
 		`{"url":"https://example.com","timeout_ms":120001}`,
 	} {
-		if _, err := tool.Call(t.Context(), arguments); err == nil {
+		if _, err := invokeTestTool(t.Context(), tool, arguments); err == nil {
 			t.Errorf("Call(%s): want contract error", arguments)
 		}
 	}

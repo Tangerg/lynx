@@ -8,7 +8,7 @@ import (
 	agent "github.com/Tangerg/scope/agent"
 )
 
-// Platform owns atomic deployment changes, active version slots, and an exact
+// Platform owns atomic deployment changes, active name slots, and an exact
 // historical Catalog above Engine. It does not own Process lifecycle or Host
 // persistence. Its zero value is an empty usable Platform. A Platform must not
 // be copied after first use.
@@ -24,14 +24,13 @@ type deploymentState struct {
 }
 
 type deploymentSlot struct {
-	name    string
-	version string
+	name string
 }
 
-func (d deploymentSlot) String() string { return d.name + "@" + d.version }
+func (d deploymentSlot) String() string { return d.name }
 
 func slotFor(reference agent.DeploymentRef) deploymentSlot {
-	return deploymentSlot{name: reference.Name(), version: reference.Version()}
+	return deploymentSlot{name: reference.Name()}
 }
 
 func New(deployments ...agent.Deployment) (*Platform, error) {

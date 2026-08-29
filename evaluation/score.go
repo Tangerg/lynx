@@ -29,8 +29,16 @@ func (score Score) Validate() error {
 	return nil
 }
 
-// Passes rejects an invalid score or threshold instead of allowing NaN
-// comparison semantics to leak into verdicts.
-func (score Score) Passes(threshold Score) bool {
-	return score.Validate() == nil && threshold.Validate() == nil && score >= threshold
+// Verdict returns the categorical judgment for a valid threshold.
+func (score Score) Verdict(threshold Score) (Verdict, error) {
+	if err := score.Validate(); err != nil {
+		return VerdictUnspecified, err
+	}
+	if err := threshold.Validate(); err != nil {
+		return VerdictUnspecified, fmt.Errorf("evaluation: threshold: %w", err)
+	}
+	if score >= threshold {
+		return VerdictPass, nil
+	}
+	return VerdictFail, nil
 }

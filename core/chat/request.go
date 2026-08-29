@@ -57,6 +57,11 @@ func (r *Request) Validate() error {
 		if err := r.Messages[i].Validate(); err != nil {
 			return fmt.Errorf("%w: messages[%d]: %w", ErrInvalidRequest, i, err)
 		}
+		for partIndex := range r.Messages[i].Parts {
+			if r.Messages[i].Parts[partIndex].Kind == PartToolCallDelta {
+				return fmt.Errorf("%w: messages[%d].parts[%d]: tool call deltas are response-only", ErrInvalidRequest, i, partIndex)
+			}
+		}
 	}
 
 	toolNames := make(map[string]struct{}, len(r.Tools))

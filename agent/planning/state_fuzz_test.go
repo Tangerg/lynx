@@ -34,7 +34,7 @@ func FuzzExecutionStateRestore(f *testing.F) {
 		f.Fatal(err)
 	}
 	definition, err := NewDefinition(DefinitionConfig{
-		Name: "planning.fuzz", Description: "Validate restored Planning state.", Version: "1.0.0",
+		Name: "planning.fuzz", Description: "Validate restored Planning state.",
 		InputSchema: inputSchema, Goal: goal, Actions: []ActionBinding{binding},
 		Planner: PlannerFunc(func(context.Context, Problem) (Plan, bool, error) {
 			return Plan{}, false, nil
@@ -68,7 +68,7 @@ func FuzzExecutionStateRestore(f *testing.F) {
 	f.Add([]byte(`{"phase":"completed","input":{},"world_state":{"conditions":[]},"planning_passes":1}`))
 	f.Add([]byte(`{"phase":"ready_observation","input":{},"world_state":{"conditions":[]},"planning_passes":0,"excluded_action_names":["action.finish"]}`))
 	f.Fuzz(func(t *testing.T, payload []byte) {
-		state, err := agent.NewExecutionState(executionStateKind, executionStateSchemaVersion, payload)
+		state, err := agent.NewExecutionState(executionStateKind, payload)
 		if err != nil {
 			return
 		}
@@ -95,10 +95,10 @@ func FuzzExecutionStateRestore(f *testing.F) {
 }
 
 func FuzzPlanningProtocol(f *testing.F) {
-	f.Add([]byte(`{"schema_version":1,"operation":"observe","input":{}}`))
-	f.Add([]byte(`{"schema_version":1,"operation":"action","input":{},"action":{"name":"action.finish","description":"Finish work.","world_state":{"conditions":[]}}}`))
-	f.Add([]byte(`{"schema_version":1,"operation":"observe","observation":{"world_state":{"conditions":[]}}}`))
-	f.Add([]byte(`{"schema_version":1,"operation":"action","action":{"succeeded":true}}`))
+	f.Add([]byte(`{"operation":"observe","input":{}}`))
+	f.Add([]byte(`{"operation":"action","input":{},"action":{"name":"action.finish","description":"Finish work.","world_state":{"conditions":[]}}}`))
+	f.Add([]byte(`{"operation":"observe","observation":{"world_state":{"conditions":[]}}}`))
+	f.Add([]byte(`{"operation":"action","action":{"succeeded":true}}`))
 	f.Fuzz(func(t *testing.T, payload []byte) {
 		if effect, err := decodeEffect(payload); err == nil {
 			encoded, err := encodeProtocol(effect)

@@ -223,7 +223,11 @@ func mapProtocolMessages(messages []corechat.Message, provider string) ([]anthro
 			blocks := make([]anthropicsdk.ContentBlockParamUnion, 0, len(message.Parts))
 			for j := range message.Parts {
 				result := message.Parts[j].ToolResult
-				blocks = append(blocks, anthropicsdk.NewToolResultBlock(result.ID, result.Result, result.IsError))
+				block, err := mapProtocolToolResult(*result)
+				if err != nil {
+					return nil, nil, fmt.Errorf("anthropic: messages[%d].parts[%d]: %w", i, j, err)
+				}
+				blocks = append(blocks, block)
 			}
 			conversation = append(conversation, anthropicsdk.NewUserMessage(blocks...))
 		default:
@@ -231,6 +235,45 @@ func mapProtocolMessages(messages []corechat.Message, provider string) ([]anthro
 		}
 	}
 	return system, conversation, nil
+}
+
+func mapProtocolToolResult(result corechat.ToolResult) (anthropicsdk.ContentBlockParamUnion, error) {
+	content := make([]anthropicsdk.ToolResultBlockParamContentUnion, 0, max(1, len(result.Output.Content)))
+	if len(result.Output.Content) == 0 {
+		content = append(content, anthropicsdk.ToolResultBlockParamContentUnion{
+			OfText: &anthropicsdk.TextBlockParam{Text: string(result.Output.Details)},
+		})
+	} else {
+		for index := range result.Output.Content {
+			part := result.Output.Content[index]
+			switch part.Kind {
+			case corechat.PartText:
+				content = append(content, anthropicsdk.ToolResultBlockParamContentUnion{
+					OfText: &anthropicsdk.TextBlockParam{Text: part.Text},
+				})
+			case corechat.PartMedia:
+				mapped, err := mapProtocolMedia(part.Media)
+				if err != nil {
+					return anthropicsdk.ContentBlockParamUnion{}, fmt.Errorf("tool output content[%d]: %w", index, err)
+				}
+				switch {
+				case mapped.OfImage != nil:
+					content = append(content, anthropicsdk.ToolResultBlockParamContentUnion{OfImage: mapped.OfImage})
+				case mapped.OfDocument != nil:
+					content = append(content, anthropicsdk.ToolResultBlockParamContentUnion{OfDocument: mapped.OfDocument})
+				default:
+					return anthropicsdk.ContentBlockParamUnion{}, fmt.Errorf("tool output content[%d]: unsupported mapped media", index)
+				}
+			default:
+				return anthropicsdk.ContentBlockParamUnion{}, fmt.Errorf("tool output content[%d]: unsupported part %q", index, part.Kind)
+			}
+		}
+	}
+	return anthropicsdk.ContentBlockParamUnion{OfToolResult: &anthropicsdk.ToolResultBlockParam{
+		ToolUseID: result.ID,
+		IsError:   anthropicsdk.Bool(result.IsError),
+		Content:   content,
+	}}, nil
 }
 
 func mapProtocolUserParts(parts []corechat.Part) ([]anthropicsdk.ContentBlockParamUnion, error) {

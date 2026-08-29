@@ -49,7 +49,8 @@ func FuzzPartJSON(f *testing.F) {
 		`{"kind":"media","media":{"mime":"image/png","source":{"kind":"bytes","bytes":"AQID"}}}`,
 		`{"kind":"reasoning","text":"thinking","signature":"c2ln"}`,
 		`{"kind":"tool_call","tool_call":{"id":"call","name":"tool","arguments":"{\"x\":1}"}}`,
-		`{"kind":"tool_result","tool_result":{"id":"call","name":"tool","result":"ok"}}`,
+		`{"kind":"tool_call_delta","tool_call_delta":{"id":"call","name":"tool","arguments":"{"}}`,
+		`{"kind":"tool_result","tool_result":{"id":"call","name":"tool","output":{"content":[{"kind":"text","text":"ok"}]}}}`,
 		`{"kind":"future","text":"unknown"}`,
 		`{}`,
 	} {
@@ -63,7 +64,7 @@ func FuzzMessageJSON(f *testing.F) {
 		`{"role":"system","parts":[{"kind":"text","text":"rules"}]}`,
 		`{"role":"user","parts":[{"kind":"text","text":"hello"}]}`,
 		`{"role":"assistant","parts":[{"kind":"reasoning","text":"thinking"},{"kind":"text","text":"answer"}]}`,
-		`{"role":"tool","parts":[{"kind":"tool_result","tool_result":{"id":"call","name":"tool","result":"ok"}}]}`,
+		`{"role":"tool","parts":[{"kind":"tool_result","tool_result":{"id":"call","name":"tool","output":{"content":[{"kind":"text","text":"ok"}]}}}]}`,
 		`{"role":"future","parts":[{"kind":"text","text":"unknown"}]}`,
 		`{"role":"user","parts":[]}`,
 	} {

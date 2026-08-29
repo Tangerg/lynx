@@ -7,7 +7,6 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"regexp"
@@ -15,26 +14,6 @@ import (
 	"strings"
 	"testing"
 )
-
-const (
-	currentAPIBaseline         = 40
-	currentAPIBaselineFrozenOn = "2026-08-30"
-)
-
-var exportedAPIBaselines = []struct {
-	name      string
-	label     string
-	directory string
-	want      string
-}{
-	{name: "kernel", label: "root kernel", directory: ".", want: "551e88461ec0841f4befeae04c9019c37de835454f8af5182df0b803eb969839"},
-	{name: "agenttest", label: "agenttest", directory: "agenttest", want: "fe8e96dbe07c11a24e1731d589083f339c0b3b9a942c669257ccde3a6d4e2b86"},
-	{name: "interaction", label: "interaction", directory: "interaction", want: "8b39cc9e28e0bdd00579c4563dbc3d9b8237f3b932b30740f85941f2911fdf54"},
-	{name: "planning", label: "planning", directory: "planning", want: "4ca18318b81c7fc646ee7121c9f2e303df2cc2d28fcd8357e2c3b07cebd1a014"},
-	{name: "goap", label: "planning/goap", directory: "planning/goap", want: "0f7376bbf8b1815315005984540bdc5d5aabb7bccea5147f957c2911a55e04e7"},
-	{name: "workflow", label: "workflow", directory: "workflow", want: "f0f995aa9a543e0985d650ca9815d6baac1aa6367f6d75483b958489113fda16"},
-	{name: "platform", label: "platform", directory: "platform", want: "f55a3f35ae808a709284bc828e0bd8dcdc8d258bf2a8185ebe2a88da39a97d1e"},
-}
 
 var frameworkPackageDirectories = []string{
 	".", "agenttest", "interaction", "planning", "planning/goap", "workflow", "platform",
@@ -48,9 +27,7 @@ func TestPublicInterfacesAreDocumentedAndParametersNamed(t *testing.T) {
 
 func TestManagedExecutionVocabularyIsUnambiguous(t *testing.T) {
 	paths := append(frameworkProductionGoFiles(t),
-		"doc/API_BASELINE.md",
 		"doc/ARCHITECTURE.md",
-		"doc/DECISIONS.md",
 		"doc/ENGINEERING_STANDARDS.md",
 	)
 	forbidden := []*regexp.Regexp{
@@ -178,53 +155,6 @@ func assertGoDocStartsWithName(t *testing.T, path, name string, doc *ast.Comment
 	}
 }
 
-func TestExportedAPIBaseline(t *testing.T) {
-	for _, test := range exportedAPIBaselines {
-		t.Run(test.name, func(t *testing.T) {
-			command := exec.CommandContext(t.Context(), "go", "doc", "-all", ".")
-			command.Dir = test.directory
-			command.Env = append(os.Environ(), "GOWORK=off")
-			output, err := command.Output()
-			if err != nil {
-				t.Fatal(err)
-			}
-			got := fmt.Sprintf("%x", sha256.Sum256(output))
-			if got != test.want {
-				t.Fatalf(
-					"exported API/GoDoc changed: got %s, want %s; audit the change and update the accepted baseline",
-					got, test.want,
-				)
-			}
-		})
-	}
-}
-
-func TestAPIBaselineDocumentMatchesFrozenPublicContracts(t *testing.T) {
-	document, err := os.ReadFile("doc/API_BASELINE.md")
-	if err != nil {
-		t.Fatal(err)
-	}
-	text := string(document)
-	required := []string{
-		fmt.Sprintf("> 状态：Baseline %d 已冻结", currentAPIBaseline),
-		fmt.Sprintf("> 冻结日期：%s", currentAPIBaselineFrozenOn),
-		fmt.Sprintf("Baseline %d 不是兼容承诺或发布版本。", currentAPIBaseline),
-		fmt.Sprintf("Baseline %d public digest：", currentAPIBaseline),
-		fmt.Sprintf("Baseline %d wire digest：", currentAPIBaseline),
-		"`json.RawMessage` 使用任意合法 JSON value 合同",
-		"`[]byte` 使用 null/base64 string 合同",
-		"package DAG 继续禁止任何 `app/runtime` production import",
-	}
-	for _, baseline := range exportedAPIBaselines {
-		required = append(required, fmt.Sprintf("- %s：`%s`", baseline.label, baseline.want))
-	}
-	for _, contract := range required {
-		if !strings.Contains(text, contract) {
-			t.Errorf("API baseline document is missing current contract %q", contract)
-		}
-	}
-}
-
 func TestErrorCausesAreWrapped(t *testing.T) {
 	for _, path := range frameworkProductionGoFiles(t) {
 		assertErrorCausesWrappedInFile(t, path)
@@ -289,7 +219,7 @@ func isErrorCauseName(name string) bool {
 func TestSnapshotWireBaseline(t *testing.T) {
 	shape := snapshotWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "791221b7d2c2f059bb0985801d69233eebae83f38f8dcf68661fd08535ef164d"
+	const want = "aaead4816a992175f51894951be22aa59a61792139f72bd0bd9daad74325935d"
 	if got != want {
 		t.Fatalf("snapshot wire changed: got %s, want %s\n%s", got, want, shape)
 	}
@@ -384,11 +314,6 @@ func snapshotWireShape() string {
 		return strings.Compare(left.Name(), right.Name())
 	})
 	var shape strings.Builder
-	fmt.Fprintf(
-		&shape, "process=%d tree=%d child=%d framework_effect=%d\n",
-		processSnapshotSchemaVersion, treeSnapshotSchemaVersion,
-		childProtocolSchemaVersion, frameworkEffectSchemaVersion,
-	)
 	for _, wireType := range types {
 		fmt.Fprintf(&shape, "%s\n", wireType.Name())
 		for field := range wireType.Fields() {

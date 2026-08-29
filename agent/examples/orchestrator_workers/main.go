@@ -195,7 +195,6 @@ func newOrchestratorWorkers() (agent.Deployment, deploymentResolver, error) {
 	}
 	definition, err := workflow.NewDefinition(workflow.DefinitionConfig{
 		Name: "example.orchestrator_workers", Description: "Decompose, execute, and synthesize with managed child Processes.",
-		Version: "1.0.0",
 		Stages: []workflow.Stage{
 			renderGoal, decompose, parsePlan, execute, renderResults, synthesize, parseReport,
 		},
@@ -227,7 +226,7 @@ func interactionDeployment(name, description string, model chat.Model) (agent.De
 		return agent.Deployment{}, err
 	}
 	definition, err := interaction.NewDefinition(interaction.DefinitionConfig{
-		Name: name, Description: description, Version: "1.0.0", MaxModelCalls: 1,
+		Name: name, Description: description, MaxModelCalls: 1,
 	})
 	if err != nil {
 		return agent.Deployment{}, err
@@ -253,7 +252,7 @@ func transformDeployment[I, O any](
 		return agent.Deployment{}, err
 	}
 	definition, err := workflow.NewDefinition(workflow.DefinitionConfig{
-		Name: name, Description: description, Version: "1.0.0", Stages: []workflow.Stage{stage},
+		Name: name, Description: description, Stages: []workflow.Stage{stage},
 	})
 	if err != nil {
 		return agent.Deployment{}, err

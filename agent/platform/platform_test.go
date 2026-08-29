@@ -13,50 +13,50 @@ import (
 var _ agent.DeploymentResolver = (*platform.Platform)(nil)
 
 func TestPlatformDeployReplaceUndeployKeepsExactHistory(t *testing.T) {
-	firstV1 := catalogDeployment(t, "test.writer", "1.0.0", "v1-first")
-	v2 := catalogDeployment(t, "test.writer", "2.0.0", "v2")
-	platformInstance, err := platform.New(v2, firstV1)
+	firstWriter := catalogDeployment(t, "test.writer", "first")
+	reader := catalogDeployment(t, "test.reader", "reader")
+	platformInstance, err := platform.New(reader, firstWriter)
 	if err != nil {
 		t.Fatal(err)
 	}
-	assertActiveReferences(t, platformInstance, firstV1.DeploymentRef(), v2.DeploymentRef())
+	assertActiveReferences(t, platformInstance, reader.DeploymentRef(), firstWriter.DeploymentRef())
 
-	if err := platformInstance.Deploy(firstV1); err != nil {
+	if err := platformInstance.Deploy(firstWriter); err != nil {
 		t.Fatalf("reapply exact Deployment: %v", err)
 	}
-	replacementV1 := catalogDeployment(t, "test.writer", "1.0.0", "v1-replacement")
-	if err := platformInstance.Deploy(replacementV1); !errors.Is(err, platform.ErrDeploymentConflict) {
+	replacementWriter := catalogDeployment(t, "test.writer", "replacement")
+	if err := platformInstance.Deploy(replacementWriter); !errors.Is(err, platform.ErrDeploymentConflict) {
 		t.Fatalf("conflicting Deploy error = %v", err)
 	} else {
 		var conflict *platform.DeploymentConflictError
-		if !errors.As(err, &conflict) || conflict.Active != firstV1.DeploymentRef() ||
-			conflict.Requested != replacementV1.DeploymentRef() {
+		if !errors.As(err, &conflict) || conflict.Active != firstWriter.DeploymentRef() ||
+			conflict.Requested != replacementWriter.DeploymentRef() {
 			t.Fatalf("Deploy conflict = %#v", conflict)
 		}
 	}
-	if err := platformInstance.Replace(replacementV1); err != nil {
+	if err := platformInstance.Replace(replacementWriter); err != nil {
 		t.Fatal(err)
 	}
-	assertActiveReferences(t, platformInstance, replacementV1.DeploymentRef(), v2.DeploymentRef())
-	if _, err := platformInstance.Resolve(firstV1.DeploymentRef()); err != nil {
+	assertActiveReferences(t, platformInstance, reader.DeploymentRef(), replacementWriter.DeploymentRef())
+	if _, err := platformInstance.Resolve(firstWriter.DeploymentRef()); err != nil {
 		t.Fatalf("replaced historical Deployment is not exact-resolvable: %v", err)
 	}
 
-	v3 := catalogDeployment(t, "test.writer", "3.0.0", "v3")
-	if err := platformInstance.Replace(v3); !errors.Is(err, platform.ErrDeploymentNotActive) {
-		t.Fatalf("Replace into new version error = %v", err)
+	unseen := catalogDeployment(t, "test.unseen", "unseen")
+	if err := platformInstance.Replace(unseen); !errors.Is(err, platform.ErrDeploymentNotActive) {
+		t.Fatalf("Replace into inactive name error = %v", err)
 	}
-	if err := platformInstance.Undeploy(firstV1.DeploymentRef()); !errors.Is(err, platform.ErrDeploymentConflict) {
+	if err := platformInstance.Undeploy(firstWriter.DeploymentRef()); !errors.Is(err, platform.ErrDeploymentConflict) {
 		t.Fatalf("stale Undeploy error = %v", err)
 	}
-	if err := platformInstance.Undeploy(replacementV1.DeploymentRef()); err != nil {
+	if err := platformInstance.Undeploy(replacementWriter.DeploymentRef()); err != nil {
 		t.Fatal(err)
 	}
-	assertActiveReferences(t, platformInstance, v2.DeploymentRef())
-	if _, err := platformInstance.Resolve(replacementV1.DeploymentRef()); err != nil {
+	assertActiveReferences(t, platformInstance, reader.DeploymentRef())
+	if _, err := platformInstance.Resolve(replacementWriter.DeploymentRef()); err != nil {
 		t.Fatalf("undeployed historical Deployment is not exact-resolvable: %v", err)
 	}
-	if err := platformInstance.Undeploy(replacementV1.DeploymentRef()); !errors.Is(err, platform.ErrDeploymentNotActive) {
+	if err := platformInstance.Undeploy(replacementWriter.DeploymentRef()); !errors.Is(err, platform.ErrDeploymentNotActive) {
 		t.Fatalf("repeated Undeploy error = %v", err)
 	}
 	if got := len(platformInstance.Catalog().Deployments()); got != 3 {
@@ -64,9 +64,9 @@ func TestPlatformDeployReplaceUndeployKeepsExactHistory(t *testing.T) {
 	}
 }
 
-func TestPlatformInitialConfigurationRejectsConflictingVersionSlot(t *testing.T) {
-	first := catalogDeployment(t, "test.conflict", "1.0.0", "first")
-	second := catalogDeployment(t, "test.conflict", "1.0.0", "second")
+func TestPlatformInitialConfigurationRejectsConflictingNameSlot(t *testing.T) {
+	first := catalogDeployment(t, "test.conflict", "first")
+	second := catalogDeployment(t, "test.conflict", "second")
 	instance, err := platform.New(first, second)
 	if instance != nil || !errors.Is(err, platform.ErrDeploymentConflict) {
 		t.Fatalf("New conflicting Platform = %#v, %v", instance, err)
@@ -74,7 +74,7 @@ func TestPlatformInitialConfigurationRejectsConflictingVersionSlot(t *testing.T)
 }
 
 func TestPlatformInstancesDoNotShareDeploymentState(t *testing.T) {
-	deployment := catalogDeployment(t, "test.isolated", "1.0.0", "only-left")
+	deployment := catalogDeployment(t, "test.isolated", "only-left")
 	left, err := platform.New()
 	if err != nil {
 		t.Fatal(err)
@@ -103,9 +103,9 @@ func TestPlatformSerializesConcurrentChangesAndPublishesConsistentSnapshots(t *t
 	initial := make([]agent.Deployment, count)
 	replacements := make([]agent.Deployment, count)
 	for index := range count {
-		version := fmt.Sprintf("1.0.%d", index)
-		initial[index] = catalogDeployment(t, "test.concurrent_platform", version, "initial:"+version)
-		replacements[index] = catalogDeployment(t, "test.concurrent_platform", version, "replacement:"+version)
+		name := fmt.Sprintf("test.concurrent_platform.slot_%d", index)
+		initial[index] = catalogDeployment(t, name, "initial:"+name)
+		replacements[index] = catalogDeployment(t, name, "replacement:"+name)
 	}
 	var group sync.WaitGroup
 	for index := range count {
@@ -154,7 +154,7 @@ func TestPlatformZeroValueIsUsableAndNilReceiverIsRejected(t *testing.T) {
 	if _, err := nilPlatform.Resolve(agent.DeploymentRef{}); !errors.Is(err, platform.ErrNilPlatform) {
 		t.Fatalf("nil Resolve error = %v", err)
 	}
-	deployment := catalogDeployment(t, "test.zero_platform", "1.0.0", "zero")
+	deployment := catalogDeployment(t, "test.zero_platform", "zero")
 	if err := zeroPlatform.Deploy(deployment); err != nil {
 		t.Fatalf("zero-value Deploy: %v", err)
 	}

@@ -49,13 +49,13 @@ func TestFetchTool_Call_HappyPath(t *testing.T) {
 		resp: &FetchResponse{Content: "# Hello", Format: FormatMarkdown},
 	}
 	tool, _ := NewFetchTool(fetcher)
-	body, err := tool.Call(t.Context(), `{"url":"https://example.com","format":"markdown"}`)
+	output, err := invokeTestTool(t.Context(), tool, `{"url":"https://example.com","format":"markdown"}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
 	var resp FetchResponse
-	if err := json.Unmarshal([]byte(body), &resp); err != nil {
-		t.Fatalf("Unmarshal: %v body=%s", err, body)
+	if err := json.Unmarshal(output.Details, &resp); err != nil {
+		t.Fatalf("Unmarshal: %v body=%s", err, output.Details)
 	}
 	if resp.Content != "# Hello" {
 		t.Errorf("Content = %q", resp.Content)
@@ -73,11 +73,11 @@ func TestFetchTool_Call_HappyPath(t *testing.T) {
 
 func TestFetchTool_Call_EmptyURL(t *testing.T) {
 	tool, _ := NewFetchTool(&fakeFetcher{})
-	_, err := tool.Call(t.Context(), `{"url":""}`)
+	_, err := invokeTestTool(t.Context(), tool, `{"url":""}`)
 	if err == nil {
 		t.Fatal("Call empty url: want schema error")
 	}
-	_, err = tool.Call(t.Context(), `{"url":"   "}`)
+	_, err = invokeTestTool(t.Context(), tool, `{"url":"   "}`)
 	if !errors.Is(err, ErrEmptyURL) {
 		t.Errorf("Call blank url: err = %v, want ErrEmptyURL", err)
 	}
@@ -85,7 +85,7 @@ func TestFetchTool_Call_EmptyURL(t *testing.T) {
 
 func TestFetchTool_Call_BadJSON(t *testing.T) {
 	tool, _ := NewFetchTool(&fakeFetcher{})
-	if _, err := tool.Call(t.Context(), `{bad json`); err == nil {
+	if _, err := invokeTestTool(t.Context(), tool, `{bad json`); err == nil {
 		t.Fatal("want error on bad JSON")
 	}
 }
@@ -99,7 +99,7 @@ func TestFetchTool_Call_EnforcesAdvertisedContract(t *testing.T) {
 		`{"url":"relative/path"}`,
 	} {
 		fetcher.last = nil
-		if _, err := tool.Call(t.Context(), arguments); err == nil {
+		if _, err := invokeTestTool(t.Context(), tool, arguments); err == nil {
 			t.Errorf("Call(%s): want contract error", arguments)
 		}
 		if fetcher.last != nil {
@@ -111,7 +111,7 @@ func TestFetchTool_Call_EnforcesAdvertisedContract(t *testing.T) {
 func TestFetchTool_Call_FetcherError(t *testing.T) {
 	fetcher := &fakeFetcher{err: errors.New("fetch boom")}
 	tool, _ := NewFetchTool(fetcher)
-	_, err := tool.Call(t.Context(), `{"url":"https://example.com"}`)
+	_, err := invokeTestTool(t.Context(), tool, `{"url":"https://example.com"}`)
 	if err == nil {
 		t.Fatal("want error when fetcher fails")
 	}

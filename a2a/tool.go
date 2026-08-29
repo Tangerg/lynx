@@ -76,14 +76,14 @@ func (r remoteTool) Definition() corechat.ToolDefinition { return r.definition.C
 // a distinct remote task, and the remote server retains authority over its own
 // execution limit. The scope Agent ToolLoop may therefore overlap calls while
 // still committing their observable results in request order.
-func (r remoteTool) ConcurrencyKey(string) (key string, concurrent bool) {
+func (r remoteTool) ConcurrencyKey(toolcontract.Invocation) (key string, concurrent bool) {
 	return "", true
 }
 
 // Each remote call owns a client span named `a2a.agent.call <name>` with
 // gen_ai.agent.name attribution; remote failure records the error and marks
 // the span failed rather than hiding transport state in the textual result.
-func (r remoteTool) Call(ctx context.Context, arguments string) (out string, err error) {
+func (r remoteTool) Call(ctx context.Context, invocation toolcontract.Invocation) (out corechat.ToolOutput, err error) {
 	ctx, span := a2aTracer.Start(ctx, "a2a.agent.call "+r.definition.Name,
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attribute.String(attrAgentName, r.definition.Name)),
@@ -96,28 +96,28 @@ func (r remoteTool) Call(ctx context.Context, arguments string) (out string, err
 		span.End()
 	}()
 
-	input, err := parseCallArguments(arguments)
+	input, err := parseCallArguments(invocation.Arguments())
 	if err != nil {
-		return "", fmt.Errorf("a2a: decode arguments for agent %q: %w", r.definition.Name, err)
+		return corechat.ToolOutput{}, fmt.Errorf("a2a: decode arguments for agent %q: %w", r.definition.Name, err)
 	}
 
 	projection := textProjection{}
 	req := &sdka2a.SendMessageRequest{Message: projection.userMessage(input.Message)}
 	result, err := r.client.SendMessage(ctx, req)
 	if err != nil {
-		return "", fmt.Errorf("a2a: call agent %q: %w", r.definition.Name, err)
+		return corechat.ToolOutput{}, fmt.Errorf("a2a: call agent %q: %w", r.definition.Name, err)
 	}
 
 	text, err := projection.result(result)
 	if err != nil {
-		return "", fmt.Errorf("a2a: decode result from agent %q: %w", r.definition.Name, err)
+		return corechat.ToolOutput{}, fmt.Errorf("a2a: decode result from agent %q: %w", r.definition.Name, err)
 	}
-	return text, nil
+	return corechat.NewTextToolOutput(text), nil
 }
 
-func parseCallArguments(arguments string) (callArguments, error) {
+func parseCallArguments(arguments []byte) (callArguments, error) {
 	var input callArguments
-	if err := jsonv2.Unmarshal([]byte(arguments), &input, jsonv2.RejectUnknownMembers(true)); err != nil {
+	if err := jsonv2.Unmarshal(arguments, &input, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return callArguments{}, err
 	}
 	if strings.TrimSpace(input.Message) == "" {

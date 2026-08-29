@@ -127,7 +127,7 @@ func newScriptedEffectDefinition(t *testing.T, effect agent.Effect) *scriptedEff
 	}
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
 		Name: "agenttest.scripted_effect", Description: "Exercises the public scripted dispatcher fixture.",
-		Version: "1.0.0", InputSchema: schema, OutputSchema: schema,
+		InputSchema: schema, OutputSchema: schema,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -147,7 +147,7 @@ func (s *scriptedEffectDefinition) Start(input agent.Input) (agent.Execution, er
 }
 
 func (s *scriptedEffectDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
-	if state.Kind() != "agenttest.scripted_effect" || state.SchemaVersion() != 1 {
+	if state.Kind() != "agenttest.scripted_effect" {
 		return nil, errors.New("unexpected scripted-effect state")
 	}
 	var restored scriptedEffectState
@@ -186,5 +186,5 @@ func (s *scriptedEffectExecution) Snapshot() (agent.ExecutionState, error) {
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
-	return agent.NewExecutionState("agenttest.scripted_effect", 1, payload)
+	return agent.NewExecutionState("agenttest.scripted_effect", payload)
 }

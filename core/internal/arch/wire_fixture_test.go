@@ -52,7 +52,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 			chat.NewReasoningPart("Inspect it.", []byte("signature")),
 			chat.NewToolCallPart(chat.ToolCall{ID: "call-1", Name: "inspect", Arguments: `{"detail":"high"}`}),
 		),
-		chat.NewToolMessage(chat.ToolResult{ID: "call-1", Name: "inspect", Result: "failed", IsError: true}),
+		chat.NewToolMessage(chat.ToolResult{ID: "call-1", Name: "inspect", Output: chat.NewTextToolOutput("failed"), IsError: true}),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -231,6 +231,7 @@ func representativeWireContracts(t *testing.T) map[string]any {
 	return map[string]any{
 		"chat_request":              chatRequest,
 		"chat_response":             chatResponse,
+		"chat_tool_call_delta":      chat.ToolCallDelta{ID: "call-stream", Name: "inspect", Arguments: `{"detail":`},
 		"document":                  doc,
 		"document_empty_metadata":   emptyMetadataDoc,
 		"embedding_request":         embeddingRequest,

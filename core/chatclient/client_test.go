@@ -112,7 +112,7 @@ func TestCallResolvesDefaultsAndProtectsCallerRequest(t *testing.T) {
 		chat.NewReasoningPart("thinking", []byte{4, 5}),
 		chat.NewToolCallPart(chat.ToolCall{ID: "call-1", Name: "weather", Arguments: `{}`}),
 	)
-	toolMessage := chat.NewToolMessage(chat.ToolResult{ID: "call-1", Name: "weather", Result: "sunny"})
+	toolMessage := chat.NewToolMessage(chat.ToolResult{ID: "call-1", Name: "weather", Output: chat.NewTextToolOutput("sunny")})
 
 	requestMaxTokens := int64(7)
 	request := &chat.Request{
@@ -167,7 +167,7 @@ func TestCallResolvesDefaultsAndProtectsCallerRequest(t *testing.T) {
 		received.Messages[0].Parts[0].Media.Metadata["origin"][1] = 'X'
 		received.Messages[1].Parts[0].Signature[0] = 9
 		received.Messages[1].Parts[1].ToolCall.Name = "mutated"
-		received.Messages[2].Parts[0].ToolResult.Result = "mutated"
+		received.Messages[2].Parts[0].ToolResult.Output.Content[0].Text = "mutated"
 		received.Tools[0].InputSchema[2] = 'X'
 		received.Options.Extensions["test/value"][1] = 'X'
 		*received.Options.MaxTokens = 8
@@ -205,7 +205,7 @@ func TestCallResolvesDefaultsAndProtectsCallerRequest(t *testing.T) {
 	if got := request.Messages[1].Parts[1].ToolCall.Name; got != "weather" {
 		t.Fatalf("caller tool call mutated: %s", got)
 	}
-	if got := request.Messages[2].Parts[0].ToolResult.Result; got != "sunny" {
+	if got, _ := request.Messages[2].Parts[0].ToolResult.Output.Text(); got != "sunny" {
 		t.Fatalf("caller tool result mutated: %s", got)
 	}
 	if got := string(request.Tools[0].InputSchema); got != `{"type":"object"}` {

@@ -178,7 +178,6 @@ func signalFromRequest(t testing.TB, request agent.SignalRequest) agent.Signal {
 func childWaitOpenedTestSignal(t testing.TB) agent.Signal {
 	t.Helper()
 	payload := json.RawMessage(`{
-		"schema_version":2,
 		"operation":"child_wait_opened",
 		"spec":{
 			"key":"interaction.delegate.wait.test",

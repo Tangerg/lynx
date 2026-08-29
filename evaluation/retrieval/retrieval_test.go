@@ -46,7 +46,7 @@ func TestEvaluatorCalculatesRankingMetricsAtCutoff(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if math.Abs(report.Score.Float64()-test.want) > 1e-12 {
+			if report.Score == nil || math.Abs(report.Score.Float64()-test.want) > 1e-12 {
 				t.Fatalf("score = %v, want %v", report.Score, test.want)
 			}
 			if report.Metric.Namespace != "retrieval" || report.Metric.Name != evaluation.MetricName(test.metric) {
@@ -56,8 +56,12 @@ func TestEvaluatorCalculatesRankingMetricsAtCutoff(t *testing.T) {
 			if err != nil || !found || cutoff != 4 {
 				t.Fatalf("metric cutoff = (%d, %v, %v)", cutoff, found, err)
 			}
-			if report.Passed != (test.want >= threshold.Float64()) {
-				t.Fatalf("passed = %v for score %v and threshold %v", report.Passed, report.Score, threshold)
+			wantVerdict := evaluation.VerdictFail
+			if test.want >= threshold.Float64() {
+				wantVerdict = evaluation.VerdictPass
+			}
+			if report.Verdict != wantVerdict {
+				t.Fatalf("verdict = %v for score %v and threshold %v", report.Verdict, report.Score, threshold)
 			}
 		})
 	}
@@ -79,7 +83,7 @@ func TestPrecisionUsesConfiguredCutoff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if report.Score != 0.25 {
+	if report.Score == nil || *report.Score != 0.25 {
 		t.Fatalf("precision@4 = %v, want 0.25", report.Score)
 	}
 }

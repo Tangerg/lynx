@@ -10,10 +10,7 @@ import (
 	"github.com/Tangerg/scope/core/chat"
 )
 
-const (
-	executionStateKind          = "interaction"
-	executionStateSchemaVersion = 8
-)
+const executionStateKind = "interaction"
 
 // DefinitionConfig describes immutable Interaction behavior. MaxModelCalls is
 // required because a model-directed loop must have an explicit local stop
@@ -24,9 +21,6 @@ type DefinitionConfig struct {
 
 	// Description states the managed behavior for discovery.
 	Description string
-
-	// Version is the semantic version of the Definition contract.
-	Version string
 
 	// MaxModelCalls bounds model Effects in one Interaction. It must be positive.
 	MaxModelCalls uint32
@@ -70,7 +64,6 @@ func NewDefinition(config DefinitionConfig) (*Definition, error) {
 	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
 		Name:         config.Name,
 		Description:  config.Description,
-		Version:      config.Version,
 		InputSchema:  inputSchema,
 		OutputSchema: outputSchema,
 	})
@@ -131,13 +124,13 @@ func (d *Definition) Start(input agent.Input) (agent.Execution, error) {
 	}, nil
 }
 
-// Restore recreates an Interaction solely from its opaque, versioned state.
+// Restore recreates an Interaction solely from its opaque state.
 func (d *Definition) Restore(state agent.ExecutionState) (agent.Execution, error) {
 	if !d.valid() {
 		return nil, ErrInvalidDefinitionConfig
 	}
-	if state.Kind() != executionStateKind || state.SchemaVersion() != executionStateSchemaVersion {
-		return nil, fmt.Errorf("%w: unsupported kind or schema version", ErrInvalidExecutionState)
+	if state.Kind() != executionStateKind {
+		return nil, fmt.Errorf("%w: unsupported kind", ErrInvalidExecutionState)
 	}
 	var decoded executionState
 	if err := jsonv2.Unmarshal(state.Payload(), &decoded, jsonv2.RejectUnknownMembers(true)); err != nil {
@@ -175,5 +168,5 @@ func encodeState(state executionState) (agent.ExecutionState, error) {
 	if err != nil {
 		return agent.ExecutionState{}, fmt.Errorf("interaction: encode execution state: %w", err)
 	}
-	return agent.NewExecutionState(executionStateKind, executionStateSchemaVersion, payload)
+	return agent.NewExecutionState(executionStateKind, payload)
 }

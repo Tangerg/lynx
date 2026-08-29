@@ -32,7 +32,7 @@ type answerRelevanceVariables struct {
 }
 
 func NewAnswerRelevanceEvaluator(config ModelEvaluatorConfig) (*AnswerRelevanceEvaluator, error) {
-	metric, err := evaluation.NewMetric("text", MetricAnswerRelevance, nil)
+	metric, err := evaluation.NewMetric(evaluation.MetricConfig{Namespace: "text", Name: MetricAnswerRelevance})
 	if err != nil {
 		return nil, err
 	}

@@ -64,7 +64,6 @@ func RequestWait(key WaitKey, signalPayload json.RawMessage) (Effect, error) {
 	}
 	payload, err := json.Marshal(waitRequestWire{
 		Operation:     frameworkEffectWait,
-		SchemaVersion: frameworkEffectSchemaVersion,
 		Key:           key,
 		SignalPayload: normalized,
 	})
@@ -158,8 +157,6 @@ type effectWire struct {
 	RequiredCapabilities []Capability    `json:"required_capabilities,omitempty"`
 }
 
-const frameworkEffectSchemaVersion uint16 = 2
-
 type frameworkEffectOperation string
 
 const (
@@ -179,7 +176,6 @@ func (f frameworkEffectOperation) valid() bool {
 
 type waitRequestWire struct {
 	Operation     frameworkEffectOperation `json:"operation"`
-	SchemaVersion uint16                   `json:"schema_version"`
 	Key           WaitKey                  `json:"key"`
 	SignalPayload json.RawMessage          `json:"signal_payload"`
 }
@@ -196,7 +192,7 @@ func decodeWaitRequestPayload(payload json.RawMessage) (WaitKey, json.RawMessage
 	if err != nil {
 		return WaitKey{}, nil, fmt.Errorf("%w: decode Framework Effect: %w", ErrInvalidEffect, err)
 	}
-	if wire.Operation != frameworkEffectWait || wire.SchemaVersion != frameworkEffectSchemaVersion || !wire.Key.Valid() {
+	if wire.Operation != frameworkEffectWait || !wire.Key.Valid() {
 		return WaitKey{}, nil, fmt.Errorf("%w: unsupported Framework Effect", ErrInvalidEffect)
 	}
 	normalized, err := wireJSON.normalize(wire.SignalPayload, maxWireBytes)
@@ -228,13 +224,12 @@ func validateFrameworkEffectPayload(payload json.RawMessage) error {
 
 func decodeFrameworkEffectOperation(payload json.RawMessage) (frameworkEffectOperation, error) {
 	var header struct {
-		Operation     frameworkEffectOperation `json:"operation"`
-		SchemaVersion uint16                   `json:"schema_version"`
+		Operation frameworkEffectOperation `json:"operation"`
 	}
 	if err := json.Unmarshal(payload, &header); err != nil {
 		return "", fmt.Errorf("%w: decode Framework Effect header: %w", ErrInvalidEffect, err)
 	}
-	if header.SchemaVersion != frameworkEffectSchemaVersion || !header.Operation.valid() {
+	if !header.Operation.valid() {
 		return "", fmt.Errorf("%w: unsupported Framework Effect", ErrInvalidEffect)
 	}
 	return header.Operation, nil

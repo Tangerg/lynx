@@ -70,8 +70,8 @@ func TestWindowStoreKeepsCompleteToolTurn(t *testing.T) {
 			chat.NewToolCallPart(chat.ToolCall{ID: "call-b", Name: "search", Arguments: `{}`}),
 		),
 		chat.NewToolMessage(
-			chat.ToolResult{ID: "call-a", Name: "read", Result: "a"},
-			chat.ToolResult{ID: "call-b", Name: "search", Result: "b"},
+			chat.ToolResult{ID: "call-a", Name: "read", Output: chat.NewTextToolOutput("a")},
+			chat.ToolResult{ID: "call-b", Name: "search", Output: chat.NewTextToolOutput("b")},
 		),
 		chat.NewAssistantMessage(chat.NewTextPart("new answer")),
 	}
@@ -102,7 +102,7 @@ func TestWindowStoreRejectsSplitNewestTurn(t *testing.T) {
 		chat.NewSystemMessage("system"),
 		chat.NewUserMessage(chat.NewTextPart("question")),
 		chat.NewAssistantMessage(chat.NewToolCallPart(chat.ToolCall{ID: "call", Name: "read", Arguments: `{}`})),
-		chat.NewToolMessage(chat.ToolResult{ID: "call", Name: "read", Result: "result"}),
+		chat.NewToolMessage(chat.ToolResult{ID: "call", Name: "read", Output: chat.NewTextToolOutput("result")}),
 	}
 	if err := base.Write(t.Context(), "c", messages...); err != nil {
 		t.Fatal(err)

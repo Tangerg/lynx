@@ -2,7 +2,6 @@ package interaction
 
 import (
 	"crypto/sha256"
-	"encoding/json"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -12,15 +11,12 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	agent "github.com/Tangerg/scope/agent"
-	"github.com/Tangerg/scope/core/chat"
 )
 
 func TestInteractionWireBaseline(t *testing.T) {
 	shape := interactionWireShape()
 	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "ef93719a0d98d6400c6696bc47e00b2308710b89cdb5dfd0d0ee19e2b3f8ca72"
+	const want = "3bd9278dd81f2c7d10aa0526db24c4e3ebcc7192ed2bb43a37b23e76b086fcee"
 	if got != want {
 		t.Fatalf("Interaction wire changed: got %s, want %s\n%s", got, want, shape)
 	}
@@ -30,74 +26,12 @@ func TestInteractionWireBaselineCoversEveryPrivateJSONStruct(t *testing.T) {
 	assertPrivateJSONStructsCovered(t, interactionWireTypes())
 }
 
-func TestInteractionRejectsPriorProtocolVersion(t *testing.T) {
-	effect, err := newModelEffect(&chat.Request{
-		Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("test prior protocol"))},
-	}, 1, nil, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	payload, err := encodeProtocol(effect)
-	if err != nil {
-		t.Fatal(err)
-	}
-	prior := interactionPriorProtocolPayload(t, payload)
-	if _, decodeEffectErr := decodeEffect(prior); decodeEffectErr == nil {
-		t.Fatal("decodeEffect accepted the prior Interaction protocol version")
-	}
-
-	signalID, err := agent.ParseSignalID("signal:prior-protocol")
-	if err != nil {
-		t.Fatal(err)
-	}
-	signalRequest, err := NewSteerSignal(
-		signalID,
-		chat.NewUserMessage(chat.NewTextPart("steer")),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, decodeSignalErr := decodeSignal(interactionPriorProtocolPayload(t, signalRequest.Payload())); decodeSignalErr == nil {
-		t.Fatal("decodeSignal accepted the prior Interaction protocol version")
-	}
-
-	delta, err := encodeModelResponseDelta(&chat.Response{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := ParseModelResponseDelta(interactionPriorProtocolPayload(t, delta)); err == nil {
-		t.Fatal("ParseModelResponseDelta accepted the prior Interaction protocol version")
-	}
-}
-
-func interactionPriorProtocolPayload(t *testing.T, payload json.RawMessage) json.RawMessage {
-	t.Helper()
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(payload, &fields); err != nil {
-		t.Fatal(err)
-	}
-	version, err := json.Marshal(protocolSchemaVersion - 1)
-	if err != nil {
-		t.Fatal(err)
-	}
-	fields["schema_version"] = version
-	prior, err := json.Marshal(fields)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return prior
-}
-
 func interactionWireShape() string {
 	types := interactionWireTypes()
 	slices.SortFunc(types, func(left, right reflect.Type) int {
 		return strings.Compare(left.Name(), right.Name())
 	})
 	var shape strings.Builder
-	fmt.Fprintf(
-		&shape, "execution_state=%d protocol=%d\n",
-		executionStateSchemaVersion, protocolSchemaVersion,
-	)
 	for _, wireType := range types {
 		fmt.Fprintf(&shape, "%s\n", wireType.Name())
 		for field := range wireType.Fields() {

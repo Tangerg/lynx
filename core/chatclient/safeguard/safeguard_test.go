@@ -166,7 +166,7 @@ func TestCallInputIgnoresPriorAssistantAndToolMessages(t *testing.T) {
 	middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.MiddlewareConfig{Scope: safeguard.ScopeInput})
 	request := mustRequest(t,
 		chat.NewAssistantMessage(chat.NewTextPart("secret")),
-		chat.NewToolMessage(chat.ToolResult{ID: "call-1", Name: "lookup", Result: "secret"}),
+		chat.NewToolMessage(chat.ToolResult{ID: "call-1", Name: "lookup", Output: chat.NewTextToolOutput("secret")}),
 		chat.NewUserMessage(chat.NewTextPart("clean")),
 	)
 	if got, err := middleware.Call(chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {

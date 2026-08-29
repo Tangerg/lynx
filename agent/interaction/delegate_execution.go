@@ -219,8 +219,12 @@ func (e *execution) acceptDelegates(signals []agent.Signal) (agent.Transition, e
 		if !present || !found || delegate.outputSchema.ValidateOutput(output) != nil {
 			return agent.Transition{}, fmt.Errorf("%w: Delegate child output violates its frozen contract", ErrInvalidExecutionState)
 		}
+		toolOutput, outputErr := chat.NewJSONToolOutput(output.JSON())
+		if outputErr != nil {
+			return agent.Transition{}, fmt.Errorf("%w: encode Delegate Tool output: %w", ErrInvalidExecutionState, outputErr)
+		}
 		results[index] = chat.ToolResult{
-			ID: calls[index].ID, Name: calls[index].Name, Result: string(output.JSON()),
+			ID: calls[index].ID, Name: calls[index].Name, Output: toolOutput,
 		}
 		artifacts = append(artifacts, artifactRecord{
 			ModelCallSequence: e.state.ModelCallCount,
@@ -375,7 +379,7 @@ func delegateSegmentResults(segment delegateSegmentState) ([]chat.ToolResult, er
 func delegateErrorResult(call chat.ToolCall, diagnostic string) chat.ToolResult {
 	return chat.ToolResult{
 		ID: call.ID, Name: call.Name,
-		Result: "error: delegated worker " + boundedDiagnostic(diagnostic), IsError: true,
+		Output: chat.NewTextToolOutput("error: delegated worker " + boundedDiagnostic(diagnostic)), IsError: true,
 	}
 }
 

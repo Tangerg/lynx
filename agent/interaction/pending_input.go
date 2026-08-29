@@ -83,7 +83,7 @@ func PendingToolInputFromSnapshot(snapshot agent.ProcessSnapshot) (PendingToolIn
 		return PendingToolInput{}, false, nil
 	}
 	stateEnvelope := snapshot.CommittedExecutionState()
-	if stateEnvelope.Kind() != executionStateKind || stateEnvelope.SchemaVersion() != executionStateSchemaVersion {
+	if stateEnvelope.Kind() != executionStateKind {
 		return PendingToolInput{}, false, nil
 	}
 	var state executionState
