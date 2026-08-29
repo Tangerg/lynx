@@ -451,9 +451,23 @@ func (b *blockingChildStartAcknowledger) release() { close(b.gate) }
 func assertNoChildWaitRegistrations(t *testing.T, engine *Engine) {
 	t.Helper()
 	engine.mu.RLock()
-	defer engine.mu.RUnlock()
-	if len(engine.childWaits) != 0 {
-		t.Fatalf("active child wait registrations = %d, want 0", len(engine.childWaits))
+	runtimes := make([]*treeRuntime, 0, len(engine.trees))
+	for _, runtime := range engine.trees {
+		runtimes = append(runtimes, runtime)
+	}
+	engine.mu.RUnlock()
+	for _, runtime := range runtimes {
+		select {
+		case <-runtime.done:
+		default:
+			t.Fatal("tree runtime is still active")
+		}
+		if len(runtime.childWaits) != 0 {
+			t.Fatalf(
+				"active child wait registrations = %d, want 0",
+				len(runtime.childWaits),
+			)
+		}
 	}
 }
 

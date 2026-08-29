@@ -19,8 +19,6 @@ type preparedProcessStateChange struct {
 	mailbox   signalMailbox
 	control   pendingControl
 	events    []preparedProcessEvent
-	applyGate <-chan struct{}
-	applied   chan struct{}
 }
 
 func newPreparedProcessStateChanges(
@@ -28,7 +26,6 @@ func newPreparedProcessStateChanges(
 	result TreeSnapshot,
 	canceledProcessIDs []ProcessID,
 	pausedProcessIDs []ProcessID,
-	applyGate <-chan struct{},
 ) ([]*preparedProcessStateChange, error) {
 	sourceByID := snapshotsByProcessID(source)
 	resultByID := snapshotsByProcessID(result)
@@ -44,7 +41,7 @@ func newPreparedProcessStateChanges(
 			return nil, ErrInvalidPreparedWaitingSubtreeCancellation
 		}
 		preparedChange, err := newPreparedProcessStateChange(
-			sourceSnapshot, resultSnapshot, change.canceled, applyGate,
+			sourceSnapshot, resultSnapshot, change.canceled,
 		)
 		if err != nil {
 			return nil, err
@@ -82,7 +79,6 @@ func newPreparedProcessStateChange(
 	source Snapshot,
 	result Snapshot,
 	canceled bool,
-	applyGate <-chan struct{},
 ) (*preparedProcessStateChange, error) {
 	sourceWire, err := source.wire()
 	if err != nil {
@@ -102,7 +98,7 @@ func newPreparedProcessStateChange(
 	}
 	prepared := &preparedProcessStateChange{
 		processID: result.ProcessID(), source: source, result: resultWire,
-		mailbox: mailbox, control: control, applyGate: applyGate, applied: make(chan struct{}),
+		mailbox: mailbox, control: control,
 	}
 	if canceled {
 		if resultWire.Status != StatusCanceled ||
@@ -144,53 +140,53 @@ func (p *preparedProcessStateChange) preparePauseEvents(
 	return nil
 }
 
-func (p *preparedProcessStateChange) validateSource(loop *processLoop) error {
-	if p == nil || loop == nil || p.processID != loop.controller.processID ||
-		loop.status.Terminal() {
+func (p *preparedProcessStateChange) validateSource(process *processState) error {
+	if p == nil || process == nil || p.processID != process.controller.processID ||
+		process.status.Terminal() {
 		return ErrInvalidPreparedWaitingSubtreeCancellation
 	}
-	current, err := loop.capture()
+	current, err := process.capture()
 	if err != nil || !bytes.Equal(current.JSON(), p.source.JSON()) {
 		return ErrInvalidPreparedWaitingSubtreeCancellation
 	}
 	return nil
 }
 
-func (p *preparedProcessStateChange) apply(ctx context.Context, loop *processLoop) {
+func (p *preparedProcessStateChange) apply(ctx context.Context, process *processState) {
 	result := p.result
-	loop.startedAt = result.StartedAt
-	loop.status = result.Status
-	loop.committedSteps = result.CommittedSteps
-	loop.lastStableState = result.LastStableState.clone()
-	loop.mailbox = p.mailbox
-	loop.prepared = nil
-	loop.currentWaitID = WaitID{}
+	process.startedAt = result.StartedAt
+	process.status = result.Status
+	process.committedSteps = result.CommittedSteps
+	process.lastStableState = result.LastStableState.clone()
+	process.mailbox = p.mailbox
+	process.prepared = nil
+	process.currentWaitID = WaitID{}
 	if result.CurrentWaitID != nil {
-		loop.currentWaitID = *result.CurrentWaitID
+		process.currentWaitID = *result.CurrentWaitID
 	}
-	loop.pauseReason = result.PauseReason
-	loop.pendingControl = p.control
-	loop.finalOutput = Output{}
+	process.pauseReason = result.PauseReason
+	process.pendingControl = p.control
+	process.finalOutput = Output{}
 	if result.Output != nil {
-		loop.finalOutput = *result.Output
+		process.finalOutput = *result.Output
 	}
-	loop.finishedAt = time.Time{}
+	process.finishedAt = time.Time{}
 	if result.FinishedAt != nil {
-		loop.finishedAt = *result.FinishedAt
+		process.finishedAt = *result.FinishedAt
 	}
-	loop.termination = Termination{}
+	process.termination = Termination{}
 	if result.Termination != nil {
-		loop.termination = *result.Termination
+		process.termination = *result.Termination
 	}
-	loop.reservedBudget = result.ReservedBudget
-	loop.usage = result.Usage
-	loop.processEventSequence = result.ProcessEventSequence - uint64(len(p.events))
+	process.reservedBudget = result.ReservedBudget
+	process.usage = result.Usage
+	process.processEventSequence = result.ProcessEventSequence - uint64(len(p.events))
 	if result.Status.Terminal() {
-		loop.processEventSequence--
+		process.processEventSequence--
 	}
-	loop.updateView()
+	process.updateView()
 	for _, event := range p.events {
-		loop.publishEvent(ctx, event.name, EventPhaseCommitted, 0, EffectID{}, event.payload)
+		process.publishEvent(ctx, event.name, EventPhaseCommitted, 0, EffectID{}, event.payload)
 	}
 }
 
@@ -222,30 +218,4 @@ func childWaitRegistrationsFromSnapshot(
 		})
 	}
 	return registrations, nil
-}
-
-func (e *Engine) replaceTreeChildWaits(
-	rootID ProcessID,
-	registrations []*childWaitRegistration,
-) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-	for waitID, registration := range e.childWaits {
-		parent := e.processes[registration.parent]
-		if parent != nil && parent.relation.RootID() == rootID {
-			delete(e.childWaits, waitID)
-		}
-	}
-	for _, registration := range registrations {
-		e.childWaits[registration.waitID] = registration
-	}
-}
-
-func controllerByID(controllers []*processController, id ProcessID) *processController {
-	for _, controller := range controllers {
-		if controller.processID == id {
-			return controller
-		}
-	}
-	return nil
 }

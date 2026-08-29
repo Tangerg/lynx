@@ -17,9 +17,9 @@ var (
 	errNilContext            = errors.New("agent: nil Context")
 )
 
-// A bounded buffer lets control-plane callers submit while the Process is
+// A bounded buffer lets control-plane callers submit while the tree owner is
 // completing a safe boundary without allowing an unbounded command backlog.
-const processCommandBufferCapacity = 32
+const treeCommandBufferCapacity = 32
 
 // Process is an Engine-issued handle to one managed execution. Its fields and
 // construction remain private so a caller cannot create a second lifecycle
@@ -141,8 +141,15 @@ func (p *Process) RequestCancellation(ctx context.Context, reason string) error 
 	if err := ctx.Err(); err != nil {
 		return err
 	}
+	runtime := p.controller.runtime
+	if runtime == nil {
+		return ErrProcessNotRunning
+	}
 	select {
-	case p.controller.commands <- processCommand{kind: commandCancel, cancellationIntent: intent}:
+	case runtime.commands <- newTreeProcessCommand(
+		p.controller.processID,
+		processCommand{kind: commandCancel, cancellationIntent: intent},
+	):
 		return nil
 	case <-p.controller.done:
 		return ErrProcessFinished
@@ -206,9 +213,13 @@ func (p *Process) request(ctx context.Context, command processCommand) (processR
 		return processResponse{}, ErrProcessNotRunning
 	}
 	ctx = requireContext(ctx)
+	runtime := p.controller.runtime
+	if runtime == nil {
+		return processResponse{}, ErrProcessNotRunning
+	}
 	command.response = make(chan processResponse, 1)
 	select {
-	case p.controller.commands <- command:
+	case runtime.commands <- newTreeProcessCommand(p.controller.processID, command):
 	case <-p.controller.done:
 		return processResponse{}, ErrProcessFinished
 	case <-ctx.Done():
@@ -278,7 +289,7 @@ type processController struct {
 	capabilities       CapabilitySet
 	treeLimits         TreeLimits
 	startedAt          time.Time
-	commands           chan processCommand
+	runtime            *treeRuntime
 	done               chan struct{}
 	treeSettled        chan struct{}
 
@@ -303,7 +314,7 @@ func newProcessController(
 	return &processController{
 		processID: relation.ProcessID(), deploymentRef: deploymentRef, relation: relation,
 		budget: budget, capabilities: capabilities, treeLimits: treeLimits, startedAt: startedAt,
-		commands: make(chan processCommand, processCommandBufferCapacity), done: make(chan struct{}),
+		done:        make(chan struct{}),
 		treeSettled: make(chan struct{}), viewStatus: status,
 	}
 }
@@ -394,24 +405,18 @@ const (
 	commandResolveEffect
 	commandQueryUnknownEffectIDs
 	commandCapture
-	commandChildrenCompleted
-	commandParentTerminated
-	commandQuiesce
-	commandStagePreparedProcessState
+	commandHostTerminated
 )
 
 type processCommand struct {
-	kind                commandKind
-	signalRequest       SignalRequest
-	signalRequests      []SignalRequest
-	settlement          Settlement
-	internalSignal      Signal
-	parentTermination   Termination
-	cancellationIntent  cancellationIntent
-	preparedStateChange *preparedProcessStateChange
-	release             <-chan struct{}
-	reason              string
-	response            chan processResponse
+	kind               commandKind
+	signalRequest      SignalRequest
+	signalRequests     []SignalRequest
+	settlement         Settlement
+	hostErr            error
+	cancellationIntent cancellationIntent
+	reason             string
+	response           chan processResponse
 }
 
 type processResponse struct {

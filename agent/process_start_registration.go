@@ -161,7 +161,17 @@ func (e *Engine) publishReservedProcess(controller *processController) {
 	delete(e.startReservations, controller.processID)
 	controller.childRequestDigest = reservation.childRequestDigest
 	e.processes[controller.processID] = controller
+	if controller.relation.IsRoot() {
+		if controller.runtime == nil || e.trees[controller.processID] != nil {
+			panic("agent: invalid root tree runtime")
+		}
+		e.trees[controller.processID] = controller.runtime
+	}
 	if isChild {
+		parent := e.processes[parentID]
+		if parent == nil || controller.runtime == nil || controller.runtime != parent.runtime {
+			panic("agent: invalid child tree runtime")
+		}
 		delete(e.childStartReservations, identity)
 		e.children[identity] = controller.processID
 	}

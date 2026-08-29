@@ -101,10 +101,10 @@ type Engine struct {
 
 	mu                     sync.RWMutex
 	processes              map[ProcessID]*processController
+	trees                  map[ProcessID]*treeRuntime
 	startReservations      map[ProcessID]processStartReservation
 	children               map[childIdentity]ProcessID
 	childStartReservations map[childIdentity]ProcessID
-	childWaits             map[WaitID]*childWaitRegistration
 	closed                 bool
 }
 
@@ -181,10 +181,10 @@ func NewEngine(config EngineConfig) (*Engine, error) {
 		capabilities:             config.Capabilities,
 		treeOperations:           make(map[ProcessID]*treeOperation),
 		processes:                make(map[ProcessID]*processController),
+		trees:                    make(map[ProcessID]*treeRuntime),
 		startReservations:        make(map[ProcessID]processStartReservation),
 		children:                 make(map[childIdentity]ProcessID),
 		childStartReservations:   make(map[childIdentity]ProcessID),
-		childWaits:               make(map[WaitID]*childWaitRegistration),
 	}, nil
 }
 
@@ -237,13 +237,14 @@ func (e *Engine) Start(ctx context.Context, deployment Deployment, input Input) 
 		e.treeLimits,
 		startedAt, StatusRunning,
 	)
-	loop := newProcessLoop(e, controller, deployment, execution, state, startedAt, e.limits)
+	loop := newProcessState(e, controller, deployment, execution, state, startedAt, e.limits)
+	runtime := newTreeRuntime(e, relation.RootID(), ctx, loop)
 	if err := e.acknowledgeStartedProcessOutcome(ctx, admission); err != nil {
 		e.discardProcessStartReservation(id)
 		return nil, err
 	}
 	e.publishReservedProcess(controller)
-	go loop.run(ctx)
+	go runtime.run(ctx)
 	return &Process{controller: controller}, nil
 }
 
@@ -275,15 +276,17 @@ func (e *Engine) Restore(ctx context.Context, deployment Deployment, snapshot Sn
 	if !controller.relation.IsRoot() || wire.ReservedBudget != (Budget{}) || hasOpenChildWait(wire.Mailbox) {
 		return nil, ErrTreeSnapshotRequired
 	}
-	if err := e.register(controller); err != nil {
+	runtime := newTreeRuntime(e, controller.relation.RootID(), ctx, loop)
+	if err := e.registerRestoredRoot(controller, runtime); err != nil {
 		return nil, err
 	}
 	if wire.Status.Terminal() {
 		controller.complete(loop.result(), snapshot, nil)
 		controller.markTreeSettled()
+		go runtime.run(ctx)
 		return &Process{controller: controller}, nil
 	}
-	go loop.run(ctx)
+	go runtime.run(ctx)
 	return &Process{controller: controller}, nil
 }
 
@@ -328,11 +331,18 @@ func (e *Engine) Close() error {
 	return nil
 }
 
-func (e *Engine) register(controller *processController) error {
+func (e *Engine) registerRestoredRoot(
+	controller *processController,
+	runtime *treeRuntime,
+) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.closed {
 		return ErrEngineClosed
+	}
+	if controller == nil || runtime == nil || !controller.relation.IsRoot() ||
+		controller.runtime != runtime || runtime.rootID != controller.processID {
+		return ErrInvalidProcessRelation
 	}
 	if _, exists := e.processes[controller.processID]; exists {
 		return ErrProcessAlreadyExists
@@ -340,7 +350,11 @@ func (e *Engine) register(controller *processController) error {
 	if _, exists := e.startReservations[controller.processID]; exists {
 		return ErrProcessAlreadyExists
 	}
+	if e.trees[controller.processID] != nil {
+		return ErrProcessAlreadyExists
+	}
 	e.processes[controller.processID] = controller
+	e.trees[controller.processID] = runtime
 	return nil
 }
 

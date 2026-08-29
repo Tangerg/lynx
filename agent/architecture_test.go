@@ -72,9 +72,7 @@ func TestPreparedWaitingSubtreeCancellationOwnsOnlyFrameworkState(t *testing.T) 
 		{name: "resultingSnapshot", typeOf: reflect.TypeFor[TreeSnapshot]()},
 		{name: "canceledProcessIDs", typeOf: reflect.TypeFor[[]ProcessID]()},
 		{name: "pausedProcessIDs", typeOf: reflect.TypeFor[[]ProcessID]()},
-		{name: "preparedStateChanges", typeOf: reflect.TypeFor[[]*preparedProcessStateChange]()},
-		{name: "childWaitRegistrations", typeOf: reflect.TypeFor[[]*childWaitRegistration]()},
-		{name: "applyGate", typeOf: reflect.TypeFor[chan struct{}]()},
+		{name: "projection", typeOf: reflect.TypeFor[*treeStateProjection]()},
 		{name: "resolution", typeOf: reflect.TypeFor[*waitingSubtreeCancellationResolution]()},
 	}
 	if typeOf.NumField() != len(want) {

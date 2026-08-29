@@ -1,12 +1,15 @@
 package agent
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 func prepareRestoredProcess(
 	engine *Engine,
 	deployment Deployment,
 	snapshot Snapshot,
-) (*processController, *processLoop, processSnapshotWire, error) {
+) (*processController, *processState, processSnapshotWire, error) {
 	wire, err := snapshot.wire()
 	if err != nil {
 		return nil, nil, processSnapshotWire{}, err
@@ -55,8 +58,8 @@ func restoreProcessLoop(
 	execution Execution,
 	mailbox signalMailbox,
 	wire processSnapshotWire,
-) (*processLoop, error) {
-	loop := &processLoop{
+) (*processState, error) {
+	loop := &processState{
 		engine: engine, controller: controller, deployment: deployment, execution: execution,
 		startedAt: wire.StartedAt, status: wire.Status, committedSteps: wire.CommittedSteps,
 		processEventSequence: wire.ProcessEventSequence, lastStableState: wire.LastStableState, mailbox: mailbox, restored: true,
@@ -86,13 +89,26 @@ func restoreProcessLoop(
 	loop.pendingControl = control
 	if wire.Prepared != nil {
 		preparedWire := clonePreparedStep(*wire.Prepared)
-		loop.prepared = &preparedStep{wire: preparedWire, acknowledged: true, fromSnapshot: true}
+		for index := range preparedWire.Effects {
+			record := &preparedWire.Effects[index]
+			if record.Settlement != nil || record.Effect.Target() != EffectTargetDispatcher {
+				continue
+			}
+			if dispatcherReplayPolicy(deployment.effectDispatcher(), record.Effect) == ReplayPolicySameIdentity {
+				continue
+			}
+			settlement, _ := NewSettlement(
+				record.ID, SettlementStatusUnknown, json.RawMessage(nullJSON),
+			)
+			record.Settlement = &settlement
+		}
+		loop.prepared = &preparedStep{wire: preparedWire, acknowledged: true}
 	}
 	controller.updateView(loop.status, loop.currentWaitID, loop.usage)
 	return loop, nil
 }
 
-func (p *processLoop) capture() (Snapshot, error) {
+func (p *processState) capture() (Snapshot, error) {
 	wire := processSnapshotWire{
 		SchemaVersion: processSnapshotSchemaVersion, ProcessID: p.controller.processID,
 		Relation:      p.controller.relation.wire(),
@@ -131,7 +147,7 @@ func (p *processLoop) capture() (Snapshot, error) {
 	return newSnapshot(wire)
 }
 
-func (p *processLoop) result() Result {
+func (p *processState) result() Result {
 	return Result{
 		processID: p.controller.processID, startedAt: p.startedAt,
 		finishedAt: p.finishedAt, output: p.finalOutput,

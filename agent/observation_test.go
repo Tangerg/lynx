@@ -159,7 +159,7 @@ func TestProcessEventSequenceAdvancesOnlyForConstructedEvents(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = engine.Close() })
-	loop := &processLoop{
+	loop := &processState{
 		engine: engine,
 		controller: &processController{
 			processID: processID, relation: relation, deploymentRef: deployment.DeploymentRef(),

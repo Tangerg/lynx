@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -19,7 +18,7 @@ func TestStepCannotConsumeBudgetReservedAtUint64Boundary(t *testing.T) {
 		Budget{Steps: maxUint64, Effects: maxUint64, Signals: maxUint64},
 		CapabilitySet{}, DefaultTreeLimits(), time.Now(), StatusRunning,
 	)
-	loop := &processLoop{
+	loop := &processState{
 		engine:         &Engine{},
 		controller:     controller,
 		status:         StatusRunning,
@@ -33,7 +32,11 @@ func TestStepCannotConsumeBudgetReservedAtUint64Boundary(t *testing.T) {
 		mailbox:        newSignalMailbox(),
 	}
 
-	loop.prepareNextStep(context.Background())
+	schedulingFailure := loop.stepSchedulingFailure()
+	if schedulingFailure == nil {
+		t.Fatal("step scheduling failure is nil")
+	}
+	loop.fail(schedulingFailure.kind, schedulingFailure.code, schedulingFailure.cause)
 
 	if loop.status != StatusFailed {
 		t.Fatalf("status = %s, want %s", loop.status, StatusFailed)
@@ -48,7 +51,7 @@ func TestPreparedStepFinalizationCountsEveryImmediateChildSignal(t *testing.T) {
 	limits := Limits{
 		MaxSteps: 10, MaxEffects: 10, MaxSignals: 3, MaxPendingSignals: 10,
 	}
-	loop := &processLoop{
+	loop := &processState{
 		limits: limits,
 		budget: budgetFromLimits(limits),
 	}

@@ -599,7 +599,7 @@ func TestEngineRejectsWaitingOnDescendantThatIsNotDirectChild(t *testing.T) {
 	grandchildID, _ := ParseProcessID(childOutput.ChildIDs[0])
 	waitID, _ := ParseWaitID("wait:ancestor-rejected")
 	waitKey, _ := ParseWaitKey("descendant")
-	_, _, err = engine.registerChildWait(root.ID(), waitID, ChildWaitSpec{
+	_, _, err = root.controller.runtime.registerChildWait(root.ID(), waitID, ChildWaitSpec{
 		Key: waitKey, Children: []ProcessID{grandchildID}, Condition: AllChildren(),
 	})
 	if !errors.Is(err, ErrInvalidChildWait) {
@@ -614,16 +614,18 @@ func TestChildCompletionDeliveriesAreOrderedByWaitIdentity(t *testing.T) {
 	waitC, _ := ParseWaitID("wait:c")
 	waitA, _ := ParseWaitID("wait:a")
 	waitB, _ := ParseWaitID("wait:b")
-	deliveries := []childCompletionDelivery{
-		{waitID: waitC},
-		{waitID: waitA},
-		{waitID: waitB},
+	registrations := map[WaitID]*childWaitRegistration{
+		waitC: {waitID: waitC},
+		waitA: {waitID: waitA},
+		waitB: {waitID: waitB},
 	}
-	sortChildCompletionDeliveries(deliveries)
+	ordered := orderedChildWaitRegistrations(registrations)
 	want := []WaitID{waitA, waitB, waitC}
-	for index, delivery := range deliveries {
-		if delivery.waitID != want[index] {
-			t.Fatalf("delivery %d WaitID = %s, want %s", index, delivery.waitID, want[index])
+	for index, registration := range ordered {
+		if registration.waitID != want[index] {
+			t.Fatalf(
+				"delivery %d WaitID = %s, want %s", index, registration.waitID, want[index],
+			)
 		}
 	}
 }

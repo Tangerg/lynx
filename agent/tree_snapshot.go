@@ -308,27 +308,57 @@ func (e *Engine) CaptureTree(ctx context.Context, rootID ProcessID) (TreeSnapsho
 		return TreeSnapshot{}, ErrInvalidProcessRelation
 	}
 	ctx = requireContext(ctx)
-	source, err := e.quiesceOwnedTree(ctx, rootID)
+	source, err := e.quiesceOwnedTree(ctx, rootID, treeFreezeModeSnapshot)
 	if err != nil {
 		return TreeSnapshot{}, err
 	}
 	defer source.release()
-	return e.captureQuiescedTree(ctx, rootID, source.quiescence.controllers)
+	return source.snapshot, nil
 }
 
-type treeQuiescence struct {
-	controllers []*processController
-	releaseGate chan struct{}
-	releaseOnce sync.Once
+// treeFreeze is an unforgeable, one-shot authority over a tree-level safe
+// boundary. State remains private to treeRuntime; this value can only ask that
+// owner to apply an exact projection or resume the source tree.
+type treeFreeze struct {
+	runtime  *treeRuntime
+	mu       sync.Mutex
+	resolved bool
 }
 
-func (t *treeQuiescence) release() {
-	if t == nil {
-		return
+func (t *treeFreeze) release() error {
+	return t.resolve(treeCommandReleaseFreeze, nil)
+}
+
+func (t *treeFreeze) apply(projection *treeStateProjection) error {
+	return t.resolve(treeCommandApplyFreeze, projection)
+}
+
+func (t *treeFreeze) resolve(kind treeCommandKind, projection *treeStateProjection) error {
+	if t == nil || t.runtime == nil {
+		return ErrEngineQuiescenceUnavailable
 	}
-	t.releaseOnce.Do(func() {
-		close(t.releaseGate)
-	})
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.resolved {
+		return nil
+	}
+	response := make(chan error, 1)
+	select {
+	case t.runtime.commands <- treeCommand{
+		kind: kind, freeze: t, projection: projection, response: response,
+	}:
+	case <-t.runtime.done:
+		return ErrEngineQuiescenceUnavailable
+	}
+	select {
+	case err := <-response:
+		if err == nil {
+			t.resolved = true
+		}
+		return err
+	case <-t.runtime.done:
+		return ErrEngineQuiescenceUnavailable
+	}
 }
 
 // quiescedTree owns the root-scoped operation and its Strategy-safe barrier as
@@ -336,21 +366,33 @@ func (t *treeQuiescence) release() {
 // barrier before admitting the next operation on the same tree.
 type quiescedTree struct {
 	operation   *treeOperation
-	quiescence  *treeQuiescence
+	freeze      *treeFreeze
+	snapshot    TreeSnapshot
 	releaseOnce sync.Once
 }
 
-func (e *Engine) quiesceOwnedTree(ctx context.Context, rootID ProcessID) (*quiescedTree, error) {
+func (e *Engine) quiesceOwnedTree(
+	ctx context.Context,
+	rootID ProcessID,
+	mode treeFreezeMode,
+) (*quiescedTree, error) {
 	operation, err := e.acquireTreeOperation(ctx, rootID)
 	if err != nil {
 		return nil, err
 	}
-	quiescence, err := e.quiesceTree(ctx, rootID)
+	runtime, err := e.runtimeForTree(rootID)
 	if err != nil {
 		operation.release()
 		return nil, err
 	}
-	return &quiescedTree{operation: operation, quiescence: quiescence}, nil
+	freeze, snapshot, err := runtime.acquireTreeFreeze(ctx, mode)
+	if err != nil {
+		operation.release()
+		return nil, err
+	}
+	return &quiescedTree{
+		operation: operation, freeze: freeze, snapshot: snapshot,
+	}, nil
 }
 
 func (q *quiescedTree) release() {
@@ -358,154 +400,81 @@ func (q *quiescedTree) release() {
 		return
 	}
 	q.releaseOnce.Do(func() {
-		q.quiescence.release()
+		_ = q.freeze.release()
 		q.operation.release()
 	})
 }
 
 func (q *quiescedTree) valid(engine *Engine, rootID ProcessID) bool {
-	return q != nil && q.operation != nil && q.quiescence != nil &&
-		q.operation.engine == engine && q.operation.rootID == rootID
+	return q != nil && q.operation != nil && q.freeze != nil && q.snapshot.Valid() &&
+		q.operation.engine == engine && q.operation.rootID == rootID &&
+		q.snapshot.RootID() == rootID
 }
 
-// quiesceTree requires ownership of the root's tree operation. It returns every
-// controller after active loops have reached Strategy-safe boundaries.
-func (e *Engine) quiesceTree(
-	ctx context.Context,
-	rootID ProcessID,
-) (*treeQuiescence, error) {
-	quiescence := &treeQuiescence{releaseGate: make(chan struct{})}
-	transferred := false
-	defer func() {
-		if !transferred {
-			quiescence.release()
-		}
-	}()
-	quiesced := make(map[ProcessID]struct{})
-	for {
-		controllers, err := e.treeControllers(rootID)
-		if err != nil {
-			return nil, err
-		}
-		complete := true
-		for _, controller := range controllers {
-			if controller.status().Terminal() {
-				if err := waitTreeSettled(ctx, controller); err != nil {
-					return nil, err
-				}
-				continue
-			}
-			if _, ready := quiesced[controller.processID]; ready {
-				continue
-			}
-			complete = false
-			response, err := (&Process{controller: controller}).request(ctx, processCommand{
-				kind: commandQuiesce, release: quiescence.releaseGate,
-			})
-			if err != nil {
-				if errors.Is(err, ErrProcessFinished) {
-					if waitTreeSettledErr := waitTreeSettled(ctx, controller); waitTreeSettledErr != nil {
-						return nil, waitTreeSettledErr
-					}
-					continue
-				}
-				return nil, err
-			}
-			if !response.accepted {
-				return nil, ErrEngineQuiescenceUnavailable
-			}
-			quiesced[controller.processID] = struct{}{}
-		}
-		if complete {
-			break
-		}
-	}
-	controllers, err := e.treeControllers(rootID)
-	if err != nil {
-		return nil, err
-	}
-	quiescence.controllers = controllers
-	transferred = true
-	return quiescence, nil
-}
-
-// captureQuiescedTree requires ownership of the root's tree operation and a
-// barrier returned by quiesceTree that has not yet been released.
-func (e *Engine) captureQuiescedTree(
-	ctx context.Context,
-	rootID ProcessID,
-	controllers []*processController,
-) (TreeSnapshot, error) {
-	var err error
-	wire := treeSnapshotWire{SchemaVersion: treeSnapshotSchemaVersion, RootID: rootID}
-	for _, controller := range controllers {
-		var snapshot Snapshot
-		if controller.status().Terminal() {
-			var ok bool
-			snapshot, ok, err = controller.finishedSnapshot()
-			if !ok {
-				return TreeSnapshot{}, ErrEngineQuiescenceUnavailable
-			}
-		} else {
-			response, requestErr := (&Process{controller: controller}).request(ctx, processCommand{kind: commandCapture})
-			err = requestErr
-			snapshot = response.snapshot
-		}
-		if err != nil {
-			return TreeSnapshot{}, err
-		}
-		wire.ProcessSnapshots = append(wire.ProcessSnapshots, snapshot)
-	}
-	e.mu.RLock()
-	for _, registration := range e.childWaits {
-		parent := e.processes[registration.parent]
-		if parent == nil || parent.relation.RootID() != rootID {
-			continue
-		}
-		wire.ChildWaits = append(wire.ChildWaits, childWaitSnapshotWire{
-			ParentProcessID: registration.parent, WaitID: registration.waitID,
-			Spec: childWaitSpecWireFromValue(registration.spec),
-		})
-	}
-	e.mu.RUnlock()
-	return newTreeSnapshot(wire)
-}
-
-func (e *Engine) treeControllers(rootID ProcessID) ([]*processController, error) {
+func (e *Engine) runtimeForTree(rootID ProcessID) (*treeRuntime, error) {
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 	root := e.processes[rootID]
-	if root == nil || !root.relation.IsRoot() || root.relation.RootID() != rootID {
+	runtime := e.trees[rootID]
+	if root == nil || runtime == nil || !root.relation.IsRoot() ||
+		root.relation.RootID() != rootID || root.runtime != runtime {
 		return nil, ErrInvalidProcessRelation
 	}
-	var controllers []*processController
-	for _, controller := range e.processes {
-		if controller.relation.RootID() == rootID {
-			controllers = append(controllers, controller)
-		}
-	}
-	slices.SortFunc(controllers, func(left, right *processController) int {
-		if order := cmp.Compare(left.relation.Depth(), right.relation.Depth()); order != 0 {
-			return order
-		}
-		return cmp.Compare(left.processID.String(), right.processID.String())
-	})
-	return controllers, nil
+	return runtime, nil
 }
 
-func waitTreeSettled(ctx context.Context, controller *processController) error {
+func (t *treeRuntime) acquireTreeFreeze(
+	ctx context.Context,
+	mode treeFreezeMode,
+) (*treeFreeze, TreeSnapshot, error) {
+	ctx = requireContext(ctx)
+	if freeze, snapshot, err, done := t.finishedTreeFreeze(); done {
+		return freeze, snapshot, err
+	}
+	acquisition := &treeFreezeAcquisition{
+		response: make(chan treeFreezeAcquisitionResult, 1),
+		canceled: make(chan struct{}),
+		mode:     mode,
+	}
 	select {
-	case <-controller.treeSettled:
-		return nil
+	case t.commands <- treeCommand{
+		kind: treeCommandAcquireFreeze, acquisition: acquisition,
+	}:
+	case <-t.done:
+		freeze, snapshot, err, _ := t.finishedTreeFreeze()
+		return freeze, snapshot, err
 	case <-ctx.Done():
-		return ctx.Err()
+		return nil, TreeSnapshot{}, ctx.Err()
+	}
+	select {
+	case result := <-acquisition.response:
+		return result.freeze, result.snapshot, result.err
+	case <-t.done:
+		freeze, snapshot, err, _ := t.finishedTreeFreeze()
+		return freeze, snapshot, err
+	case <-ctx.Done():
+		close(acquisition.canceled)
+		return nil, TreeSnapshot{}, ctx.Err()
+	}
+}
+
+func (t *treeRuntime) finishedTreeFreeze() (*treeFreeze, TreeSnapshot, error, bool) {
+	select {
+	case <-t.done:
+		snapshot, err := t.captureTree()
+		if err != nil {
+			return nil, TreeSnapshot{}, err, true
+		}
+		return &treeFreeze{runtime: t, resolved: true}, snapshot, nil, true
+	default:
+		return nil, TreeSnapshot{}, nil, false
 	}
 }
 
 type restoredTreeProcess struct {
 	snapshot   Snapshot
 	controller *processController
-	loop       *processLoop
+	loop       *processState
 	wire       processSnapshotWire
 }
 
@@ -549,6 +518,7 @@ func (e *Engine) RestoreTree(
 	if err := restoration.prepareChildWaits(); err != nil {
 		return nil, err
 	}
+	restoration.prepareRuntime(ctx)
 	if err := e.registerRestoredTree(restoration.processes, restoration.childWaits); err != nil {
 		return nil, err
 	}
@@ -561,6 +531,18 @@ type treeRestoration struct {
 	deployments map[DeploymentRef]Deployment
 	processes   []restoredTreeProcess
 	childWaits  []*childWaitRegistration
+	runtime     *treeRuntime
+}
+
+func (t *treeRestoration) prepareRuntime(ctx context.Context) {
+	states := make([]*processState, 0, len(t.processes))
+	for index := range t.processes {
+		states = append(states, t.processes[index].loop)
+	}
+	t.runtime = newTreeRuntime(t.engine, t.wire.RootID, ctx, states...)
+	for _, registration := range t.childWaits {
+		t.runtime.childWaits[registration.waitID] = registration
+	}
 }
 
 func (t *treeRestoration) prepareProcesses() error {
@@ -625,33 +607,21 @@ func (t *treeRestoration) prepareChildWaits() error {
 }
 
 func (e *Engine) startRestoredTree(ctx context.Context, restoration *treeRestoration) *Process {
-	startGate := make(chan struct{})
-	rootContext := requireContext(ctx)
-	descendantContext := context.WithoutCancel(rootContext)
 	for index := range restoration.processes {
 		entry := &restoration.processes[index]
 		if entry.wire.Status.Terminal() {
 			entry.controller.complete(entry.loop.result(), entry.snapshot, nil)
-			continue
 		}
-		entry.loop.quiescence = &processQuiescence{
-			command: processCommand{release: startGate},
-		}
-		runContext := descendantContext
-		if entry.controller.processID == restoration.wire.RootID {
-			runContext = rootContext
-		}
-		go entry.loop.run(runContext)
 	}
 	for index := len(restoration.processes) - 1; index >= 0; index-- {
 		entry := &restoration.processes[index]
 		if !entry.wire.Status.Terminal() {
 			continue
 		}
-		e.processFinished(entry.controller)
+		restoration.runtime.processFinished(entry.loop)
 		entry.controller.markTreeSettled()
 	}
-	close(startGate)
+	go restoration.runtime.run(requireContext(ctx))
 	root := restoredProcessByID(restoration.processes, restoration.wire.RootID)
 	return &Process{controller: root.controller}
 }
@@ -684,9 +654,14 @@ func (e *Engine) registerRestoredTree(
 		}
 	}
 	for _, wait := range waits {
-		if _, exists := e.childWaits[wait.waitID]; exists {
+		if wait == nil || !wait.waitID.Valid() {
 			return ErrInvalidChildWait
 		}
+	}
+	rootID := processes[0].controller.relation.RootID()
+	runtime := processes[0].controller.runtime
+	if runtime == nil || runtime.rootID != rootID || e.trees[rootID] != nil {
+		return ErrInvalidProcessRelation
 	}
 	for _, process := range processes {
 		controller := process.controller
@@ -696,9 +671,7 @@ func (e *Engine) registerRestoredTree(
 			e.children[childIdentity{parent: parentID, key: key}] = controller.processID
 		}
 	}
-	for _, wait := range waits {
-		e.childWaits[wait.waitID] = wait
-	}
+	e.trees[rootID] = runtime
 	return nil
 }
 

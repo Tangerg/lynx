@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-func (p *processLoop) publishEvent(
+func (p *processState) publishEvent(
 	ctx context.Context,
 	name string,
 	phase EventPhase,
@@ -38,7 +38,7 @@ func (p *processLoop) publishEvent(
 	p.engine.observation.publishEvent(context.WithoutCancel(ctx), event)
 }
 
-func (p *processLoop) publishEffectStarted(
+func (p *processState) publishEffectStarted(
 	ctx context.Context,
 	step uint64,
 	effectID EffectID,
@@ -49,7 +49,7 @@ func (p *processLoop) publishEffectStarted(
 	return time.Now()
 }
 
-func (p *processLoop) publishSettlementEvent(
+func (p *processState) publishSettlementEvent(
 	ctx context.Context,
 	effectID EffectID,
 	target EffectTarget,

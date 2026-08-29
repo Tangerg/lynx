@@ -7,41 +7,38 @@ import (
 	"time"
 )
 
-func (p *processLoop) prepareNextStep(ctx context.Context) {
-	if !resourceQuantitiesFit(p.limits.MaxSteps, p.committedSteps, 1) ||
-		!resourceQuantitiesFit(p.budget.Steps, p.committedSteps, p.reservedBudget.Steps, 1) {
-		p.fail(FailureKindExecution, "engine.limit.steps", ErrResourceLimitExceeded)
-		return
+type stepPreparationFailure struct {
+	kind  FailureKind
+	code  string
+	cause error
+}
+
+func (p *processState) stepSchedulingFailure() *stepPreparationFailure {
+	if resourceQuantitiesFit(p.limits.MaxSteps, p.committedSteps, 1) &&
+		resourceQuantitiesFit(p.budget.Steps, p.committedSteps, p.reservedBudget.Steps, 1) {
+		return nil
 	}
-	sequence := p.committedSteps + 1
-	p.publishEvent(ctx, EventStepStarted, EventPhaseAttempt, sequence, EffectID{}, emptyEventPayload())
-	stepStartedAt := time.Now()
+	return &stepPreparationFailure{
+		kind: FailureKindExecution, code: "engine.limit.steps", cause: ErrResourceLimitExceeded,
+	}
+}
+
+func (p *processState) prepareStepResult(
+	ctx context.Context,
+	result stepJobResult,
+) *stepPreparationFailure {
+	transition := result.transition
 	signals := p.mailbox.pending()
-	transition, err := stepExecution(ctx, p.execution, signals)
-	stepStatus := StepStatusSucceeded
-	if err != nil {
-		stepStatus = StepStatusFailed
-	}
-	stepPayload, _ := json.Marshal(stepFinishedEventPayload{
-		StepStatus: stepStatus, DurationMS: time.Since(stepStartedAt).Milliseconds(),
-	})
-	p.publishEvent(ctx, EventStepFinished, EventPhaseAttempt, sequence, EffectID{}, stepPayload)
-	if err != nil {
-		p.observeHostError(ctx)
-		p.discardExecution()
-		p.fail(failureKindForError(err), "execution.step.failed", err)
-		return
-	}
 	if !transition.Valid() || uint64(transition.ConsumedSignals()) > uint64(len(signals)) {
-		p.discardExecution()
-		p.fail(FailureKindContract, "execution.transition.invalid", ErrInvalidTransition)
-		return
+		return &stepPreparationFailure{
+			kind: FailureKindContract, code: "execution.transition.invalid", cause: ErrInvalidTransition,
+		}
 	}
 	for _, effect := range transition.Effects() {
 		if !p.capabilities.Allows(effect.RequiredCapabilities()) {
-			p.discardExecution()
-			p.fail(FailureKindContract, "engine.capability.denied", ErrInvalidCapability)
-			return
+			return &stepPreparationFailure{
+				kind: FailureKindContract, code: "engine.capability.denied", cause: ErrInvalidCapability,
+			}
 		}
 	}
 	effectCount := uint64(len(transition.Effects()))
@@ -49,9 +46,9 @@ func (p *processLoop) prepareNextStep(ctx context.Context) {
 		!resourceQuantitiesFit(
 			p.budget.Effects, p.usage.PreparedEffects, p.reservedBudget.Effects, effectCount,
 		) {
-		p.discardExecution()
-		p.fail(FailureKindExecution, "engine.limit.effects", ErrResourceLimitExceeded)
-		return
+		return &stepPreparationFailure{
+			kind: FailureKindExecution, code: "engine.limit.effects", cause: ErrResourceLimitExceeded,
+		}
 	}
 	remainingPending := p.mailbox.pendingCount() - uint64(transition.ConsumedSignals())
 	if !resourceQuantitiesFit(p.limits.MaxSignals, p.usage.AcceptedSignals, effectCount) ||
@@ -59,37 +56,26 @@ func (p *processLoop) prepareNextStep(ctx context.Context) {
 		!resourceQuantitiesFit(
 			p.budget.Signals, p.usage.AcceptedSignals, p.reservedBudget.Signals, effectCount,
 		) {
-		p.discardExecution()
-		p.fail(FailureKindExecution, "engine.limit.signals", ErrResourceLimitExceeded)
-		return
+		return &stepPreparationFailure{
+			kind: FailureKindExecution, code: "engine.limit.signals", cause: ErrResourceLimitExceeded,
+		}
 	}
 	if output, completes := transition.Output(); completes {
 		if validateOutputErr := p.deployment.Descriptor().ValidateOutput(output); validateOutputErr != nil {
-			p.discardExecution()
-			p.fail(FailureKindContract, "execution.output.invalid", validateOutputErr)
-			return
+			return &stepPreparationFailure{
+				kind: FailureKindContract, code: "execution.output.invalid", cause: validateOutputErr,
+			}
 		}
-	}
-	candidateState, err := captureExecution(p.execution)
-	if err != nil {
-		p.discardExecution()
-		p.fail(failureKindForError(err), "execution.snapshot.failed", err)
-		return
-	}
-	candidate, err := restoreExecution(p.deployment.Definition(), candidateState)
-	if err != nil {
-		p.discardExecution()
-		p.fail(failureKindForError(err), "execution.snapshot.unrestorable", err)
-		return
 	}
 	digest, err := executionStateDigest(p.lastStableState)
 	if err != nil {
-		p.discardExecution()
-		p.fail(FailureKindContract, "engine.last_stable.invalid", err)
-		return
+		return &stepPreparationFailure{
+			kind: FailureKindContract, code: "engine.last_stable.invalid", cause: err,
+		}
 	}
+	sequence := p.committedSteps + 1
 	wire := preparedStepWire{
-		StepSequence: sequence, LastStableDigest: digest, CandidateState: candidateState,
+		StepSequence: sequence, LastStableDigest: digest, CandidateState: result.candidateState,
 		SignalCursor: p.mailbox.committedSignalCursor() + uint64(transition.ConsumedSignals()),
 		Transition:   transition,
 	}
@@ -99,33 +85,15 @@ func (p *processLoop) prepareNextStep(ctx context.Context) {
 		})
 	}
 	p.prepared = &preparedStep{
-		wire: wire, candidate: candidate, acknowledged: len(wire.Effects) == 0,
+		wire: wire, candidate: result.candidate, acknowledged: len(wire.Effects) == 0,
 	}
 	p.usage.PreparedEffects += effectCount
 	p.updateView()
 	p.publishEvent(ctx, EventStepPrepared, EventPhaseAttempt, sequence, EffectID{}, emptyEventPayload())
+	return nil
 }
 
-func (p *processLoop) acknowledgePrepared(ctx context.Context) bool {
-	if p.engine.acknowledger == nil {
-		p.prepared.acknowledged = true
-		return true
-	}
-	snapshot, err := p.capture()
-	if err == nil {
-		err = acknowledgePreparedStep(ctx, p.engine.acknowledger, snapshot)
-	}
-	if err == nil {
-		p.prepared.acknowledged = true
-		return true
-	}
-	p.observeHostError(ctx)
-	p.discardPrepared()
-	p.fail(FailureKindExternal, "engine.prepared_acknowledgment.failed", err)
-	return false
-}
-
-func (p *processLoop) finalizePrepared(ctx context.Context) error {
+func (p *processState) finalizePrepared(ctx context.Context) error {
 	finalization, err := newPreparedStepFinalization(p)
 	if err != nil {
 		return err
@@ -138,7 +106,7 @@ func (p *processLoop) finalizePrepared(ctx context.Context) error {
 }
 
 type preparedStepFinalization struct {
-	loop                  *processLoop
+	loop                  *processState
 	prepared              *preparedStep
 	mailbox               signalMailbox
 	consumedChildWaits    []WaitID
@@ -158,7 +126,7 @@ type preparedTransitionState struct {
 	closedChildWaits []WaitID
 }
 
-func newPreparedStepFinalization(loop *processLoop) (*preparedStepFinalization, error) {
+func newPreparedStepFinalization(loop *processState) (*preparedStepFinalization, error) {
 	mailbox, err := restoreSignalMailbox(loop.mailbox.snapshot())
 	if err != nil {
 		return nil, err
@@ -251,7 +219,10 @@ func (p *preparedStepFinalization) registerChildWait(record preparedEffectWire) 
 	if registerWaitErr := p.mailbox.registerWait(spec.Key, waitID, false); registerWaitErr != nil {
 		return WaitID{}, registerWaitErr
 	}
-	immediateSignal, immediatelySatisfied, err := p.loop.engine.registerChildWait(
+	if p.loop.runtime == nil {
+		return WaitID{}, ErrInvalidChildWait
+	}
+	immediateSignal, immediatelySatisfied, err := p.loop.runtime.registerChildWait(
 		p.loop.controller.processID, waitID, spec,
 	)
 	if err != nil {
@@ -369,10 +340,10 @@ func (p *preparedStepFinalization) commit(ctx context.Context) error {
 	payload, _ := json.Marshal(stepCommittedEventPayload{ProcessStatus: loop.status})
 	loop.publishEvent(ctx, EventStepCommitted, EventPhaseCommitted, loop.committedSteps, EffectID{}, payload)
 	for _, waitID := range p.consumedChildWaits {
-		loop.engine.unregisterChildWait(waitID)
+		loop.runtime.unregisterChildWait(waitID)
 	}
 	for _, waitID := range p.transition.closedChildWaits {
-		loop.engine.unregisterChildWait(waitID)
+		loop.runtime.unregisterChildWait(waitID)
 	}
 	p.committed = true
 	return nil
@@ -383,16 +354,16 @@ func (p *preparedStepFinalization) rollback() {
 		return
 	}
 	for _, waitID := range p.registeredChildWaits {
-		p.loop.engine.unregisterChildWait(waitID)
+		p.loop.runtime.unregisterChildWait(waitID)
 	}
 }
 
-func (p *processLoop) discardPrepared() {
+func (p *processState) discardPrepared() {
 	p.prepared = nil
 	p.discardExecution()
 }
 
-func (p *processLoop) discardExecution() {
+func (p *processState) discardExecution() {
 	execution, err := restoreExecution(p.deployment.Definition(), p.lastStableState)
 	if err == nil {
 		p.execution = execution
@@ -401,7 +372,7 @@ func (p *processLoop) discardExecution() {
 	}
 }
 
-func (p *processLoop) fail(kind FailureKind, code string, err error) {
+func (p *processState) fail(kind FailureKind, code string, err error) {
 	failure, failureErr := failureFromError(kind, code, err)
 	if failureErr != nil {
 		failure, _ = NewFailure(FailureKindContract, "engine.failure.invalid", "Engine could not construct a valid failure")
@@ -410,7 +381,7 @@ func (p *processLoop) fail(kind FailureKind, code string, err error) {
 	p.commitTermination(outcome)
 }
 
-func (p *processLoop) commitTermination(outcome stepOutcome) {
+func (p *processState) commitTermination(outcome stepOutcome) {
 	termination := p.resolveStepTermination(outcome)
 	p.termination = termination
 	p.status = termination.Status()
@@ -419,12 +390,12 @@ func (p *processLoop) commitTermination(outcome stepOutcome) {
 	p.pauseReason = ""
 	p.pendingControl = pendingControl{}
 	for _, waitID := range p.mailbox.closeAllWaits() {
-		p.engine.unregisterChildWait(waitID)
+		p.runtime.unregisterChildWait(waitID)
 	}
 	p.updateView()
 }
 
-func (p *processLoop) resolveStepTermination(outcome stepOutcome) Termination {
+func (p *processState) resolveStepTermination(outcome stepOutcome) Termination {
 	termination, err := resolveTermination(terminationFacts{
 		kill: p.pendingControl.kill, deadline: p.pendingControl.deadline,
 		cancellation: p.pendingControl.cancellation, outcome: outcome,
@@ -434,10 +405,4 @@ func (p *processLoop) resolveStepTermination(outcome stepOutcome) Termination {
 		termination = terminationForFailure(failure)
 	}
 	return termination
-}
-
-func (p *processLoop) observeHostError(ctx context.Context) {
-	if err := ctx.Err(); err != nil {
-		p.recordHostTermination(err)
-	}
 }
