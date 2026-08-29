@@ -74,6 +74,7 @@ const (
 var (
 	ErrInvalidObserverConfig = errors.New("agent otel: invalid observer configuration")
 	errNilContext            = errors.New("agent otel: nil Context")
+	errIncompleteSpan        = errors.New("agent otel: observer closed before span completion")
 )
 
 // ObserverConfig selects the official OpenTelemetry providers used by Observer.
@@ -321,7 +322,7 @@ func (o *Observer) Close() {
 	o.stateMu.Unlock()
 	endedAt := time.Now()
 	for _, span := range spans {
-		span.SetStatus(codes.Error, "OpenTelemetry observer closed before span completion")
+		recordSpanFailure(span, errIncompleteSpan, endedAt)
 		span.End(trace.WithTimestamp(endedAt))
 	}
 }
@@ -417,7 +418,14 @@ func (o *Observer) finishProcess(ctx context.Context, event agent.Event) {
 	}
 	record.span.SetAttributes(spanAttributes...)
 	if processStatusIsError(fact.Status()) {
-		record.span.SetStatus(codes.Error, fact.Cause().String())
+		observedError := processFactError{
+			status: fact.Status(), cause: fact.Cause(),
+		}
+		if failureKind, failureCode, failed := fact.Failure(); failed {
+			observedError.failureKind = failureKind
+			observedError.failureCode = failureCode
+		}
+		recordSpanFailure(record.span, observedError, event.OccurredAt())
 	}
 	record.span.End(trace.WithTimestamp(event.OccurredAt()))
 }
@@ -487,7 +495,7 @@ func (o *Observer) finishStep(ctx context.Context, event agent.Event) {
 	}
 	record.SetAttributes(stepStatusAttribute.String(fact.Status().String()))
 	if fact.Status() == agent.StepStatusFailed {
-		record.SetStatus(codes.Error, "Execution Step failed")
+		recordSpanFailure(record, stepFactError{}, event.OccurredAt())
 	}
 	record.End(trace.WithTimestamp(event.OccurredAt()))
 }
@@ -564,7 +572,9 @@ func (o *Observer) finishEffect(ctx context.Context, event agent.Event) {
 		effectStatusAttribute.String(fact.SettlementStatus().String()),
 	)
 	if fact.SettlementStatus() != agent.SettlementStatusSucceeded {
-		record.SetStatus(codes.Error, "Effect attempt "+fact.SettlementStatus().String())
+		recordSpanFailure(record, effectFactError{
+			target: fact.Target(), settlement: fact.SettlementStatus(),
+		}, event.OccurredAt())
 	}
 	record.End(trace.WithTimestamp(event.OccurredAt()))
 }
@@ -646,6 +656,39 @@ func elapsedSeconds(startedAt, finishedAt time.Time) float64 {
 		return 0
 	}
 	return finishedAt.Sub(startedAt).Seconds()
+}
+
+type processFactError struct {
+	status      agent.Status
+	cause       agent.TerminationCause
+	failureKind agent.FailureKind
+	failureCode string
+}
+
+func (e processFactError) Error() string {
+	if e.failureCode != "" {
+		return "agent Process " + e.status.String() + ": " +
+			e.failureKind.String() + "/" + e.failureCode
+	}
+	return "agent Process " + e.status.String() + ": " + e.cause.String()
+}
+
+type stepFactError struct{}
+
+func (stepFactError) Error() string { return "agent Execution Step failed" }
+
+type effectFactError struct {
+	target     agent.EffectTarget
+	settlement agent.SettlementStatus
+}
+
+func (e effectFactError) Error() string {
+	return "agent " + e.target.String() + " Effect " + e.settlement.String()
+}
+
+func recordSpanFailure(span trace.Span, observedError error, occurredAt time.Time) {
+	span.RecordError(observedError, trace.WithTimestamp(occurredAt))
+	span.SetStatus(codes.Error, observedError.Error())
 }
 
 func activationForEvent(event agent.Event) processActivation {

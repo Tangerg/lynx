@@ -9,12 +9,14 @@ import (
 	"testing/synctest"
 
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/metric/noop"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	semconv "go.opentelemetry.io/otel/semconv/v1.40.0"
 
 	agent "github.com/Tangerg/scope/agent"
 	"github.com/Tangerg/scope/agent/agenttest"
@@ -153,7 +155,7 @@ func TestObserverRecordsStableProcessFailureAttribution(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	input, err := agent.EncodeInput(testInput{Value: "fail"})
+	input, err := agent.EncodeInput(testInput{Value: testValueProcessFailure})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -172,6 +174,10 @@ func TestObserverRecordsStableProcessFailureAttribution(t *testing.T) {
 	if got := stringAttribute(process.Attributes(), "agent.failure.code"); got != "test.otel.failed" {
 		t.Fatalf("failure code = %q", got)
 	}
+	assertSpanException(
+		t, process,
+		"agent Process failed: execution/test.otel.failed",
+	)
 	var metrics metricdata.ResourceMetrics
 	if err := reader.Collect(t.Context(), &metrics); err != nil {
 		t.Fatal(err)
@@ -179,6 +185,59 @@ func TestObserverRecordsStableProcessFailureAttribution(t *testing.T) {
 	exits := metricByName(t, metrics, "agent.process.exits")
 	assertSumAttribute(t, exits, "agent.failure.kind", "execution")
 	assertSumAttribute(t, exits, "agent.failure.code", "test.otel.failed")
+}
+
+func TestObserverRecordsStepAndEffectFactErrors(t *testing.T) {
+	tests := []struct {
+		name        string
+		value       string
+		spanName    string
+		wantStatus  agent.Status
+		wantMessage string
+	}{
+		{
+			name: "Step failure", value: testValueStepFailure,
+			spanName: "agent.step", wantStatus: agent.StatusFailed,
+			wantMessage: "agent Execution Step failed",
+		},
+		{
+			name: "Effect failure", value: testValueEffectFailure,
+			spanName: "agent.effect", wantStatus: agent.StatusCompleted,
+			wantMessage: "agent dispatcher Effect failed",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			recorder := tracetest.NewSpanRecorder()
+			provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+			t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+			observer, err := agentotel.NewObserver(agentotel.ObserverConfig{TracerProvider: provider})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(observer.Close)
+			engine, err := agent.NewEngine(agent.EngineConfig{
+				EventListeners: []agent.EventListener{observer},
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			input, err := agent.EncodeInput(testInput{Value: test.value})
+			if err != nil {
+				t.Fatal(err)
+			}
+			result, err := engine.Run(t.Context(), testDeployment(t), input)
+			if err != nil || result.Status() != test.wantStatus {
+				t.Fatalf("result = %s, error = %v", result.Status(), err)
+			}
+			if err := engine.Close(); err != nil {
+				t.Fatal(err)
+			}
+
+			span := spanByName(t, recorder.Ended(), test.spanName, 0)
+			assertSpanException(t, span, test.wantMessage)
+		})
+	}
 }
 
 func TestObserverDistinguishesRestoredProcessActivation(t *testing.T) {
@@ -327,6 +386,21 @@ func TestObserverIgnoresEventsAfterClose(t *testing.T) {
 	}
 }
 
+func TestObserverCloseRecordsIncompleteSpanError(t *testing.T) {
+	recorder := tracetest.NewSpanRecorder()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
+	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
+	observer, err := agentotel.NewObserver(agentotel.ObserverConfig{TracerProvider: provider})
+	if err != nil {
+		t.Fatal(err)
+	}
+	observer.OnEvent(t.Context(), captureProcessStartedEvent(t))
+	observer.Close()
+
+	process := spanByName(t, recorder.Ended(), "agent.process", 0)
+	assertSpanException(t, process, "agent otel: observer closed before span completion")
+}
+
 func TestObserverCloseWaitsForInFlightObservation(t *testing.T) {
 	event := captureProcessStartedEvent(t)
 	synctest.Test(t, func(t *testing.T) {
@@ -433,6 +507,24 @@ type testOutput struct {
 	Value string `json:"value"`
 }
 
+const (
+	testValueProcessFailure                     = "process_failure"
+	testValueStepFailure                        = "step_failure"
+	testValueEffectFailure                      = "effect_failure"
+	testEffectObserve       testEffectOperation = "observe"
+	testEffectFail          testEffectOperation = "fail"
+)
+
+type testEffectOperation string
+
+type testEffectRequest struct {
+	Operation testEffectOperation `json:"operation"`
+}
+
+type testEffectResponse struct {
+	OK bool `json:"ok"`
+}
+
 type testDefinition struct {
 	descriptor agent.Descriptor
 }
@@ -464,7 +556,7 @@ type testExecution struct {
 }
 
 func (t *testExecution) Step(context.Context, []agent.Signal) (agent.Transition, error) {
-	if t.Phase == 0 && t.Value == "fail" {
+	if t.Phase == 0 && t.Value == testValueProcessFailure {
 		failure, err := agent.NewFailure(agent.FailureKindExecution, "test.otel.failed", "test failure")
 		if err != nil {
 			return agent.Transition{}, err
@@ -472,12 +564,23 @@ func (t *testExecution) Step(context.Context, []agent.Signal) (agent.Transition,
 		t.Phase = 2
 		return agent.Fail(0, failure)
 	}
+	if t.Phase == 0 && t.Value == testValueStepFailure {
+		return agent.Transition{}, errors.New("test Step failure")
+	}
 	if t.Phase == 0 {
 		if t.Value == "pause" {
 			t.Phase = 1
 			return agent.Pause(0, "test observation restore")
 		}
-		effect, err := agent.NewDispatcherEffect(json.RawMessage(`{"operation":"observe"}`))
+		operation := testEffectObserve
+		if t.Value == testValueEffectFailure {
+			operation = testEffectFail
+		}
+		payload, err := json.Marshal(testEffectRequest{Operation: operation})
+		if err != nil {
+			return agent.Transition{}, err
+		}
+		effect, err := agent.NewDispatcherEffect(payload)
 		if err != nil {
 			return agent.Transition{}, err
 		}
@@ -514,7 +617,19 @@ func (testDispatcher) Dispatch(
 	request agent.EffectRequest,
 	_ agent.DeltaEmitter,
 ) (agent.Settlement, error) {
-	return agent.NewSettlement(request.ID(), agent.SettlementStatusSucceeded, json.RawMessage(`{"ok":true}`))
+	var effectRequest testEffectRequest
+	if err := json.Unmarshal(request.Effect().Payload(), &effectRequest); err != nil {
+		return agent.Settlement{}, err
+	}
+	status := agent.SettlementStatusSucceeded
+	if effectRequest.Operation == testEffectFail {
+		status = agent.SettlementStatusFailed
+	}
+	payload, err := json.Marshal(testEffectResponse{OK: status == agent.SettlementStatusSucceeded})
+	if err != nil {
+		return agent.Settlement{}, err
+	}
+	return agent.NewSettlement(request.ID(), status, payload)
 }
 
 func (testDispatcher) ReplayPolicy(agent.Effect) agent.ReplayPolicy {
@@ -604,6 +719,28 @@ func stringAttribute(attributes []attribute.KeyValue, key string) string {
 		}
 	}
 	return ""
+}
+
+func assertSpanException(t *testing.T, span sdktrace.ReadOnlySpan, wantMessage string) {
+	t.Helper()
+	if span.Status().Code != codes.Error {
+		t.Fatalf("span %q status = %s, want Error", span.Name(), span.Status().Code)
+	}
+	for _, event := range span.Events() {
+		if event.Name != semconv.ExceptionEventName {
+			continue
+		}
+		exceptionType := stringAttribute(event.Attributes, string(semconv.ExceptionTypeKey))
+		message := stringAttribute(event.Attributes, string(semconv.ExceptionMessageKey))
+		if exceptionType == "" || message != wantMessage {
+			t.Fatalf(
+				"span %q exception type=%q message=%q, want message %q",
+				span.Name(), exceptionType, message, wantMessage,
+			)
+		}
+		return
+	}
+	t.Fatalf("span %q has no exception event", span.Name())
 }
 
 func metricByName(t *testing.T, metrics metricdata.ResourceMetrics, name string) metricdata.Metrics {

@@ -83,6 +83,9 @@ Process、Step 与 Effect span 携带 exact Process/tree、Deployment 和 activa
 归因；durable execution 额外携带 `agent.tree.incarnation_id`。metric 只使用
 Deployment name/version、activation、status/cause、Effect target/status 和稳定
 failure kind/code 等受控维度，不写入 raw payload、Input、Output 或产品身份。
+Process error outcome、失败的 Step attempt 和非成功 Effect settlement 同时设置
+span error status 并记录标准 OTel exception event；exception 由 typed fact 投影，
+不会伪造原始 stack，也不会重新引入 Failure message 或 opaque payload。
 
 Observer 不保存 Event callback context，只保存仍在活动的 span。`Close` 先线性化
 拒绝新 observation，等待已经进入的 callback 完成，再以错误状态结束残留 span；
