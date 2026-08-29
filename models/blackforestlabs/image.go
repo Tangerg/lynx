@@ -83,34 +83,49 @@ func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
-	if err := req.Validate(); err != nil {
+	model, apiReq, err := i.buildRequest(req)
+	if err != nil {
 		return nil, err
+	}
+	async, final, err := i.runGeneration(ctx, model, apiReq)
+	if err != nil {
+		return nil, err
+	}
+	value, err := i.downloadGeneratedImage(ctx, final.Result.Sample, apiReq.OutputFormat)
+	if err != nil {
+		return nil, err
+	}
+	return mapImageResponse(value, async, final)
+}
+
+func (i *ImageModel) buildRequest(req *image.Request) (string, *generateRequest, error) {
+	if err := req.Validate(); err != nil {
+		return "", nil, err
 	}
 	effectiveOptions, err := i.defaultOptions.Resolve(req.Options)
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	if effectiveOptions.NegativePrompt != "" {
-		return nil, errors.New("blackforestlabs: image: unsupported option: negative_prompt")
+		return "", nil, errors.New("blackforestlabs: image: unsupported option: negative_prompt")
 	}
 
 	apiReqValue, _, err := effectiveOptions.Extensions.Decode[generateRequest](ImageRequestExtensionKey)
-
-	apiReq := &apiReqValue
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
+	apiReq := &apiReqValue
 	apiReq.Prompt = req.Prompt
 	if effectiveOptions.Width != nil {
 		apiReq.Width = int(*effectiveOptions.Width)
 		if int64(apiReq.Width) != *effectiveOptions.Width {
-			return nil, fmt.Errorf("blackforestlabs: image: width %d exceeds int", *effectiveOptions.Width)
+			return "", nil, fmt.Errorf("blackforestlabs: image: width %d exceeds int", *effectiveOptions.Width)
 		}
 	}
 	if effectiveOptions.Height != nil {
 		apiReq.Height = int(*effectiveOptions.Height)
 		if int64(apiReq.Height) != *effectiveOptions.Height {
-			return nil, fmt.Errorf("blackforestlabs: image: height %d exceeds int", *effectiveOptions.Height)
+			return "", nil, fmt.Errorf("blackforestlabs: image: height %d exceeds int", *effectiveOptions.Height)
 		}
 	}
 	if effectiveOptions.Seed != nil {
@@ -119,42 +134,45 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if effectiveOptions.OutputFormat != "" && apiReq.OutputFormat == "" {
 		apiReq.OutputFormat = strings.TrimPrefix(effectiveOptions.OutputFormat, "image/")
 	}
+	return effectiveOptions.Model, apiReq, nil
+}
 
-	async, err := i.api.generate(ctx, effectiveOptions.Model, apiReq)
+func (i *ImageModel) runGeneration(ctx context.Context, model string, request *generateRequest) (*asyncResponse, *pollResult, error) {
+	async, err := i.api.generate(ctx, model, request)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-
 	if async.ID == "" {
-		return nil, errors.New("blackforestlabs: generation response has no task id")
+		return nil, nil, errors.New("blackforestlabs: generation response has no task id")
 	}
 	if async.PollingURL == "" {
-		return nil, errors.New("blackforestlabs: generation response has no polling_url")
+		return nil, nil, errors.New("blackforestlabs: generation response has no polling_url")
 	}
-
 	final, err := i.pollUntilDone(ctx, async.PollingURL)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if final.Result.Sample == "" {
-		return nil, errors.New("blackforestlabs: ready output has no sample URL")
+		return nil, nil, errors.New("blackforestlabs: ready output has no sample URL")
 	}
+	return async, final, nil
+}
 
-	data, mimeType, err := i.api.downloadOutput(ctx, final.Result.Sample)
+func (i *ImageModel) downloadGeneratedImage(ctx context.Context, outputURL, outputFormat string) (*media.Media, error) {
+	data, mimeType, err := i.api.downloadOutput(ctx, outputURL)
 	if err != nil {
 		return nil, err
 	}
 	if mimeType == "" {
-		mimeType = mime.TypeByExtension("." + apiReq.OutputFormat)
+		mimeType = mime.TypeByExtension("." + outputFormat)
 	}
 	if mimeType == "" {
 		mimeType = "application/octet-stream"
 	}
-	value, err := media.NewBytes(mimeType, data)
-	if err != nil {
-		return nil, err
-	}
+	return media.NewBytes(mimeType, data)
+}
 
+func mapImageResponse(value *media.Media, async *asyncResponse, final *pollResult) (*image.Response, error) {
 	var outputMetadata metadata.Map
 	if setErr := outputMetadata.Set("blackforestlabs/output_url", final.Result.Sample); setErr != nil {
 		return nil, setErr
