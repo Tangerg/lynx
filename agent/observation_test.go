@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -99,6 +100,102 @@ func TestEventRejectsMismatchedFrameworkFactContracts(t *testing.T) {
 			}
 		})
 	}
+}
+
+func FuzzEventJSONRoundTrip(f *testing.F) {
+	descriptor := testDescriptorForFuzz(f)
+	reference, err := NewDeploymentRef(
+		descriptor,
+		ComputeDigest([]byte("event fuzz implementation")),
+		ComputeDigest([]byte("event fuzz configuration")),
+	)
+	if err != nil {
+		f.Fatal(err)
+	}
+	processID, err := ParseProcessID("process:event-fuzz")
+	if err != nil {
+		f.Fatal(err)
+	}
+	effectID, err := ParseEffectID("process:event-fuzz:step:1:effect:0")
+	if err != nil {
+		f.Fatal(err)
+	}
+	durationMS := int64(1)
+	usage := Usage{CommittedSteps: 1, PreparedEffects: 1, AcceptedSignals: 1}
+	payloads := []struct {
+		name         string
+		phase        EventPhase
+		stepSequence uint64
+		effectID     EffectID
+		payload      any
+	}{
+		{name: EventProcessStarted, phase: EventPhaseCommitted, payload: struct{}{}},
+		{name: EventProcessFinished, phase: EventPhaseCommitted, payload: processFinishedEventPayload{
+			ProcessStatus: StatusCompleted, TerminationCause: TerminationCauseCompletion, Usage: &usage,
+		}},
+		{name: EventSignalAccepted, phase: EventPhaseCommitted, payload: signalAcceptedEventPayload{
+			SignalID: "signal:event-fuzz",
+		}},
+		{name: EventStepFinished, phase: EventPhaseAttempt, stepSequence: 1, payload: stepFinishedEventPayload{
+			StepStatus: StepStatusSucceeded, DurationMS: &durationMS,
+		}},
+		{name: EventStepCommitted, phase: EventPhaseCommitted, stepSequence: 1, payload: stepCommittedEventPayload{
+			ProcessStatus: StatusRunning,
+		}},
+		{name: EventEffectStarted, phase: EventPhaseAttempt, stepSequence: 1, effectID: effectID, payload: effectStartedEventPayload{
+			EffectTarget: EffectTargetDispatcher,
+		}},
+		{name: EventEffectFinished, phase: EventPhaseAttempt, stepSequence: 1, effectID: effectID, payload: effectFinishedEventPayload{
+			EffectTarget: EffectTargetDispatcher, SettlementStatus: SettlementStatusSucceeded, DurationMS: &durationMS,
+		}},
+		{name: EventDeltaDropped, phase: EventPhaseAttempt, stepSequence: 1, effectID: effectID, payload: deltaDroppedEventPayload{
+			DroppedDeltaCount: 1,
+		}},
+	}
+	for index, fixture := range payloads {
+		payload, marshalErr := json.Marshal(fixture.payload)
+		if marshalErr != nil {
+			f.Fatal(marshalErr)
+		}
+		event, eventErr := newEvent(eventSpec{
+			processSequence: uint64(index + 1), processID: processID,
+			deploymentRef: reference, relation: rootProcessRelation(processID),
+			stepSequence: fixture.stepSequence, effectID: fixture.effectID,
+			name: fixture.name, phase: fixture.phase, occurredAt: time.Unix(20, 0), payload: payload,
+		})
+		if eventErr != nil {
+			f.Fatal(eventErr)
+		}
+		seed, marshalErr := json.Marshal(event)
+		if marshalErr != nil {
+			f.Fatal(marshalErr)
+		}
+		f.Add(seed)
+	}
+	f.Fuzz(func(t *testing.T, data []byte) {
+		var event Event
+		if err := json.Unmarshal(data, &event); err != nil {
+			return
+		}
+		if !event.Valid() {
+			t.Fatal("decoded Event is invalid")
+		}
+		encoded, err := json.Marshal(event)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var roundTrip Event
+		if unmarshalErr := json.Unmarshal(encoded, &roundTrip); unmarshalErr != nil {
+			t.Fatal(unmarshalErr)
+		}
+		reencoded, err := json.Marshal(roundTrip)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !bytes.Equal(reencoded, encoded) {
+			t.Fatalf("Event JSON is not stable:\nfirst:  %s\nsecond: %s", encoded, reencoded)
+		}
+	})
 }
 
 func TestDeltaIsEffectLocalAndImmutable(t *testing.T) {
