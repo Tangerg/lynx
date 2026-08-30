@@ -13,6 +13,22 @@ import (
 )
 
 func TestProviderConstructorsAreSelfCovering(t *testing.T) {
+	constructors := 0
+	for _, provider := range modelProviderDirectories(t) {
+		declarations, validateReceivers := parseProviderDeclarations(t, provider)
+		for _, function := range declarations {
+			if validateProviderConstructor(t, function, validateReceivers) {
+				constructors++
+			}
+		}
+	}
+	if constructors < 70 {
+		t.Fatalf("discovered %d provider constructors, want at least 70", constructors)
+	}
+}
+
+func modelProviderDirectories(t *testing.T) []string {
+	t.Helper()
 	_, currentFile, _, ok := runtime.Caller(0)
 	if !ok {
 		t.Fatal("resolve provider conformance source path")
@@ -22,68 +38,81 @@ func TestProviderConstructorsAreSelfCovering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	constructors := 0
+	var directories []string
 	for _, provider := range providers {
 		info, err := os.Stat(provider)
 		if err != nil || !info.IsDir() {
 			continue
 		}
-		files, err := filepath.Glob(filepath.Join(provider, "*.go"))
-		if err != nil {
-			t.Fatal(err)
-		}
-		validateReceivers := map[string]struct{}{}
-		var declarations []*ast.FuncDecl
-		fileSet := token.NewFileSet()
-		for _, file := range files {
-			if strings.HasSuffix(file, "_test.go") {
-				continue
-			}
-			parsed, err := parser.ParseFile(fileSet, file, nil, 0)
-			if err != nil {
-				t.Fatalf("parse %s: %v", file, err)
-			}
-			for _, declaration := range parsed.Decls {
-				function, ok := declaration.(*ast.FuncDecl)
-				if !ok {
-					continue
-				}
-				declarations = append(declarations, function)
-				if function.Name.Name == "Validate" && function.Recv != nil && len(function.Recv.List) == 1 {
-					if receiver := namedType(function.Recv.List[0].Type); receiver != "" {
-						validateReceivers[receiver] = struct{}{}
-					}
-				}
-			}
-		}
+		directories = append(directories, provider)
+	}
+	return directories
+}
 
-		for _, function := range declarations {
-			if function.Recv != nil || !strings.HasPrefix(function.Name.Name, "New") || !function.Name.IsExported() {
+func parseProviderDeclarations(t *testing.T, provider string) ([]*ast.FuncDecl, map[string]struct{}) {
+	t.Helper()
+	files, err := filepath.Glob(filepath.Join(provider, "*.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	validateReceivers := map[string]struct{}{}
+	var declarations []*ast.FuncDecl
+	fileSet := token.NewFileSet()
+	for _, file := range files {
+		if strings.HasSuffix(file, "_test.go") {
+			continue
+		}
+		parsed, err := parser.ParseFile(fileSet, file, nil, 0)
+		if err != nil {
+			t.Fatalf("parse %s: %v", file, err)
+		}
+		for _, declaration := range parsed.Decls {
+			function, ok := declaration.(*ast.FuncDecl)
+			if !ok {
 				continue
 			}
-			configType, parameterCount := constructorConfig(function.Type.Params)
-			if configType == "" {
-				continue
-			}
-			constructors++
-			if parameterCount != 1 && parameterCount != 2 {
-				t.Errorf("%s: constructor with config has %d parameters", function.Name.Name, parameterCount)
-			}
-			if parameterCount == 2 && !startsWithContext(function.Type.Params) {
-				t.Errorf("%s: only context.Context may precede config", function.Name.Name)
-			}
-			if _, ok := validateReceivers[configType]; !ok {
-				t.Errorf("%s: %s does not own Validate", function.Name.Name, configType)
-			}
-			if !returnsValueAndError(function.Type.Results) {
-				t.Errorf("%s: constructor must return value and error", function.Name.Name)
-			}
+			declarations = append(declarations, function)
+			addValidateReceiver(validateReceivers, function)
 		}
 	}
-	if constructors < 70 {
-		t.Fatalf("discovered %d provider constructors, want at least 70", constructors)
+	return declarations, validateReceivers
+}
+
+func addValidateReceiver(receivers map[string]struct{}, function *ast.FuncDecl) {
+	if function.Name.Name != "Validate" || function.Recv == nil || len(function.Recv.List) != 1 {
+		return
 	}
+	if receiver := namedType(function.Recv.List[0].Type); receiver != "" {
+		receivers[receiver] = struct{}{}
+	}
+}
+
+func validateProviderConstructor(
+	t *testing.T,
+	function *ast.FuncDecl,
+	validateReceivers map[string]struct{},
+) bool {
+	t.Helper()
+	if function.Recv != nil || !strings.HasPrefix(function.Name.Name, "New") || !function.Name.IsExported() {
+		return false
+	}
+	configType, parameterCount := constructorConfig(function.Type.Params)
+	if configType == "" {
+		return false
+	}
+	if parameterCount != 1 && parameterCount != 2 {
+		t.Errorf("%s: constructor with config has %d parameters", function.Name.Name, parameterCount)
+	}
+	if parameterCount == 2 && !startsWithContext(function.Type.Params) {
+		t.Errorf("%s: only context.Context may precede config", function.Name.Name)
+	}
+	if _, ok := validateReceivers[configType]; !ok {
+		t.Errorf("%s: %s does not own Validate", function.Name.Name, configType)
+	}
+	if !returnsValueAndError(function.Type.Results) {
+		t.Errorf("%s: constructor must return value and error", function.Name.Name)
+	}
+	return true
 }
 
 func constructorConfig(parameters *ast.FieldList) (string, int) {
