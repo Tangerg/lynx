@@ -83,6 +83,9 @@ func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	model, apiReq, err := i.buildRequest(req)
 	if err != nil {
 		return nil, err
@@ -99,9 +102,6 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 }
 
 func (i *ImageModel) buildRequest(req *image.Request) (string, *generateRequest, error) {
-	if err := req.Validate(); err != nil {
-		return "", nil, err
-	}
 	effectiveOptions, err := i.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return "", nil, err
