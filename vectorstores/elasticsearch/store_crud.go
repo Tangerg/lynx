@@ -322,35 +322,43 @@ func (s *Store) toDocument(hit searchHit) (*document.Document, error) {
 	}
 	doc.Text = content
 
-	if s.metadataField != "" {
-		if rawMeta, ok := hit.Source[s.metadataField]; ok {
-			if m, ok := rawMeta.(map[string]any); ok {
-				var err error
-				doc.Metadata, err = metadata.FromValues(m)
-				if err != nil {
-					return nil, fmt.Errorf("elasticsearch: convert metadata: %w", err)
-				}
-			}
-		}
-	} else {
-		// Metadata was flattened onto the root — strip the
-		// reserved fields and surface the rest.
-		meta := make(map[string]any, len(hit.Source))
-		for k, v := range hit.Source {
-			if k == s.contentField || k == s.embeddingField {
-				continue
-			}
-			meta[k] = v
-		}
-		if len(meta) > 0 {
-			var err error
-			doc.Metadata, err = metadata.FromValues(meta)
-			if err != nil {
-				return nil, fmt.Errorf("elasticsearch: convert metadata: %w", err)
-			}
-		}
+	metadataValues, err := s.metadataValues(hit)
+	if err != nil {
+		return nil, err
+	}
+	doc.Metadata, err = metadata.FromValues(metadataValues)
+	if err != nil {
+		return nil, fmt.Errorf("elasticsearch: convert metadata: %w", err)
 	}
 	return doc, nil
+}
+
+func (s *Store) metadataValues(hit searchHit) (map[string]any, error) {
+	if s.metadataField != "" {
+		raw, present := hit.Source[s.metadataField]
+		if !present {
+			return nil, nil
+		}
+		values, ok := raw.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("elasticsearch: search hit %s field %q must be an object, got %T", hit.ID, s.metadataField, raw)
+		}
+		return values, nil
+	}
+
+	// Metadata was flattened onto the root — strip the reserved fields and
+	// surface the rest.
+	values := make(map[string]any, len(hit.Source))
+	for key, value := range hit.Source {
+		if key == s.contentField || key == s.embeddingField {
+			continue
+		}
+		values[key] = value
+	}
+	if len(values) == 0 {
+		return nil, nil
+	}
+	return values, nil
 }
 
 func (s *Store) Close() error { return nil }
