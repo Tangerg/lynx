@@ -4,6 +4,27 @@
 Core 协议能力增加 traces/metrics，并提供把 OTel 三类信号写到
 `log/slog` 的开发态 exporter；Core 本身不 import OTel。
 
+能力适配器按被包装合同分包，避免一个通用配置或 magic map 混合不同
+生命周期：
+
+| Package | 观察边界 | 组合入口 |
+|---|---|---|
+| `otel/chat` | chat call / lazy stream | `Middleware.Call` / `Middleware.Stream` |
+| `otel/embedding` | embedding call 与 input/token 数量 | `Middleware.Wrap` |
+| `otel/image` | image generation call | `Middleware.Wrap` |
+| `otel/moderation` | moderation call 与 input 数量 | `Middleware.Wrap` |
+| `otel/speech` | speech call / lazy stream | `Middleware.Wrap` / `Middleware.WrapStream` |
+| `otel/transcription` | transcription call | `Middleware.Wrap` |
+| `otel/eval` | generic evaluator result | `Middleware[T].Wrap` |
+| `otel/rag` | retrieval | `Middleware.Wrap` |
+| `otel/tool` | tool invocation | `Middleware.Wrap` |
+| `otel/history` | history store / listing | `Middleware.Store` / `Middleware.Conversations` |
+| `otel/vectorstore` | vector-store operations | capability-specific methods |
+| `otel/agent` | managed Process activation, Step and Effect | `Observer` |
+
+模型内容、query、document、音频、图像、transcript 和 evaluation subject
+均不进入 telemetry；adapter 只记录身份、数量、时延、结果与稳定错误分类。
+
 ## Chat instrumentation
 
 `otel/chat` 提供不可变的 `Middleware`。provider identity 在组合根显式传入，

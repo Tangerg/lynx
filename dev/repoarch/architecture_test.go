@@ -196,7 +196,7 @@ func TestDomainCapabilityModulesDoNotOwnOpenTelemetry(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
 	for _, relativeDir := range []string{
-		"core", "agent", "etl", "evaluation", "rag", "skills", "tools",
+		"core", "agent", "etl", "eval", "rag", "skills", "tools",
 	} {
 		assertNoOpenTelemetryImports(t, filepath.Join(root, relativeDir))
 	}
@@ -370,7 +370,12 @@ func TestRetiredLayoutsCannotReturn(t *testing.T) {
 		"documentreaders",
 		"etl/markdown/go.mod",
 		"history",
+		"evaluation",
+		"evals",
 		"rag/evaluation",
+		"rag/eval",
+		"otel/evaluation",
+		"otel/evals",
 		"internal/historykit",
 		"internal/repoarch",
 		"internal/vectorstorekit",
@@ -455,7 +460,7 @@ func moduleLayer(dir string) int {
 	switch dir {
 	case "core", "skills", "models/catalog":
 		return 0
-	case "a2a", "agent", "etl", "evaluation", "mcp", "rag", "tools":
+	case "a2a", "agent", "etl", "eval", "mcp", "rag", "tools":
 		return 1
 	case "otel":
 		return 2

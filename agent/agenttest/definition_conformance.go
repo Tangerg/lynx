@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"reflect"
 	"slices"
 	"strings"
 	"sync"
 	"testing"
+
+	"github.com/samber/lo"
 
 	agent "github.com/Tangerg/scope/agent"
 )
@@ -76,7 +77,7 @@ func RunDefinitionConformance(t *testing.T, config DefinitionConformanceConfig) 
 }
 
 func validateDefinitionConformanceConfig(config DefinitionConformanceConfig) error {
-	if nilInterface(config.Definition) {
+	if lo.IsNil(config.Definition) {
 		return errors.New("agenttest: Definition conformance Definition is nil")
 	}
 	if !config.Input.Valid() {
@@ -224,7 +225,7 @@ func verifyExecutionPair(
 	right agent.Execution,
 	signals []agent.Signal,
 ) error {
-	if nilInterface(left) || nilInterface(right) {
+	if lo.IsNil(left) || lo.IsNil(right) {
 		return errors.New("agenttest: Definition returned a nil Execution")
 	}
 	leftBefore, err := callSnapshot(left)
@@ -344,7 +345,7 @@ func callStart(definition agent.Definition, input agent.Input) (execution agent.
 	if err != nil {
 		return nil, fmt.Errorf("agenttest: Definition.Start: %w", err)
 	}
-	if nilInterface(execution) {
+	if lo.IsNil(execution) {
 		return nil, errors.New("agenttest: Definition.Start returned a nil Execution")
 	}
 	return execution, nil
@@ -360,7 +361,7 @@ func callRestore(definition agent.Definition, state agent.ExecutionState) (execu
 	if err != nil {
 		return nil, fmt.Errorf("agenttest: Definition.Restore: %w", err)
 	}
-	if nilInterface(execution) {
+	if lo.IsNil(execution) {
 		return nil, errors.New("agenttest: Definition.Restore returned a nil Execution")
 	}
 	return execution, nil
@@ -395,18 +396,4 @@ func callSnapshot(execution agent.Execution) (state agent.ExecutionState, err er
 		return agent.ExecutionState{}, errors.New("agenttest: Execution.Snapshot returned an invalid state")
 	}
 	return state, nil
-}
-
-func nilInterface(value any) bool {
-	if value == nil {
-		return true
-	}
-	reflected := reflect.ValueOf(value)
-	switch reflected.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map,
-		reflect.Pointer, reflect.Slice:
-		return reflected.IsNil()
-	default:
-		return false
-	}
 }

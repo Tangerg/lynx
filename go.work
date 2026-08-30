@@ -9,7 +9,7 @@ use (
 	./etl
 	./etl/html
 	./etl/pdf
-	./evaluation
+	./eval
 	./examples
 	./historystores/cassandra
 	./historystores/cosmosdb

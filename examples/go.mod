@@ -3,14 +3,13 @@ module github.com/Tangerg/scope/examples
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/agent v0.0.1
-	github.com/Tangerg/scope/core v0.0.1
-	github.com/Tangerg/scope/mcp v0.0.1
+	github.com/Tangerg/scope/agent v0.2.1-0.20260830034050-8cdd370cf840
+	github.com/Tangerg/scope/core v0.0.4-0.20260830034050-8cdd370cf840
+	github.com/Tangerg/scope/mcp v0.0.2-0.20260830034050-8cdd370cf840
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 )
 
 require (
-	github.com/Masterminds/semver/v3 v3.5.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.6.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

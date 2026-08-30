@@ -5,7 +5,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"reflect"
+
+	"github.com/samber/lo"
 
 	"github.com/Tangerg/scope/core/chat"
 	corejsonschema "github.com/Tangerg/scope/core/jsonschema"
@@ -49,7 +50,7 @@ type Binding struct {
 
 // Bind freezes and validates executable. Definition is read exactly once.
 func Bind(executable Tool) (Binding, error) {
-	if isNilTool(executable) {
+	if lo.IsNil(executable) {
 		return Binding{}, fmt.Errorf("%w: tool is nil", ErrInvalidTool)
 	}
 	definition := executable.Definition()
@@ -65,19 +66,6 @@ func Bind(executable Tool) (Binding, error) {
 		definition: definition.Clone(),
 		input:      input,
 	}}, nil
-}
-
-func isNilTool(executable Tool) bool {
-	if executable == nil {
-		return true
-	}
-	value := reflect.ValueOf(executable)
-	switch value.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
-		return value.IsNil()
-	default:
-		return false
-	}
 }
 
 // Definition returns an independent snapshot of the frozen definition.

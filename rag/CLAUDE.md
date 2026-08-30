@@ -20,14 +20,14 @@
 - **Query 的 per-call metadata 走类型化 ValueKey**：filter / history / tenant 等上下文通过
   不可变 Query envelope 传递；公开 API 不暴露 string-key `any` map，同名异型会显式报错。
   引用型 value 仍归调用方所有，并行检索时必须只读。
-- **评估与 RAG 平级**：通用评估策略位于顶层 `evaluation` module；RAG 只负责产生可供评估的输入，不拥有评估框架。
+- **评估与 RAG 平级**：通用评估策略位于顶层 `eval` module；RAG 只负责产生可供评估的输入，不拥有评估框架。
 - **观测策略位于 integration**：RAG 只传播 `context.Context`，不 import OTel；需要观测时由组合根使用 `otel/rag` 装饰最终 Retriever 或需要单独归因的分支。
 
 ## 模块特有反向不变量
 
 - ❌ **恢复 PipelineConfig / Pipeline** —— 组合用 Go 函数完成,不引框架式中心配置。
 - ❌ **加 QueryRouter / DocumentJoiner 之类固定阶段** —— 路由写成自定义 Retriever,合并写成 Refiner。
-- ❌ **把根包拆回 `rag/vectorstore`、`rag/llm`、`rag/ragchat` 或 `rag/evaluation`** —— 单包 + 具体命名即可；跨领域能力使用平级 module。
+- ❌ **把根包拆回 `rag/vectorstore`、`rag/llm`、`rag/ragchat`、`rag/eval` 或 `rag/evaluation`** —— 单包 + 具体命名即可；跨领域能力使用平级 module。
 - ❌ **为能力加大 Config / Builder** —— 小接口 + 函数组合优先,只有真实可选项才进 Config。
 - ❌ **让重复候选占用 TopK 或保留低分首次命中** —— 多 Retriever 合并必须保留同 ID 最高分,`Dedup` 与 `TopK` 组合顺序不得改变唯一 Top K。
 - ❌ **把 nil/空输出静默降级成 identity** —— 可选能力用显式 Identity/Nop；组合器构造期拒绝 nil，空模型输出、空 expansion 和并发分支错误必须返回。

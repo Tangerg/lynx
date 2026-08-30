@@ -74,6 +74,9 @@ func NewMiddleware(config MiddlewareConfig) (Middleware, error) {
 // Wrap freezes the Tool definition used for both execution identity and model
 // exposure. Optional capabilities remain discoverable through Tool.Unwrap.
 func (m Middleware) Wrap(next coretool.Tool) (coretool.Tool, error) {
+	if lo.IsNil(m.tracer) || lo.IsNil(m.duration) {
+		return nil, fmt.Errorf("%w: middleware must be constructed with NewMiddleware", ErrInvalidConfig)
+	}
 	if lo.IsNil(next) {
 		return nil, fmt.Errorf("%w: value must not be nil", ErrInvalidTool)
 	}

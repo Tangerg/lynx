@@ -151,13 +151,11 @@ Eino 的核心与扩展仓库、Spring AI 的 starter/module 体系、MAF/ADK/tR
 
 这不是排他选择。同一产品可以在直接模型调用、短工具循环和受管长期执行之间使用不同层级；关键是不要把所有路径压进最重的抽象。
 
-## Evaluation 是支持层，不是内核加分项
+## Eval 是支持层，不是内核加分项
 
-Scope 当前 `evaluation` 根包已经是 `Evaluator[T]` 驱动的通用质量评估内核，RAG/文本词汇位于 `evaluation/retrieval`、`evaluation/text` 等叶子包。它不再是 RAG 专用，但仍明确限定为 `[0,1]`、越高越好的标量质量判断，不是完整实验平台。
+Scope 的 `eval` 根包以 `Evaluator[T]` 为窄腰，已经拥有 Dataset、Experiment、Suite、Composite、Comparison、分位数汇总和结构化 Report。Report 区分 verdict、归一化 score 与带单位/方向的 raw measurement，因此不再把所有指标强压成 `[0,1]` 标量。文本、模型 judge 与排序词汇分别位于 `eval/text`、`eval/judge` 和 `eval/ranking`。
 
-tRPC-Agent-Go 的 evaluation 产品面更完整，但直接绑定 Agent Runner、Invocation、EvalSet、trace 和服务；Pi 的 evals 是私有 Coding Agent 行为 harness；Spring AI 的 `EvaluationRequest` 固定 user text、Document 和 response content，反而更偏 Chat/RAG。详细判断见 [Evaluation 支持层对比](EVALUATION.md)。
-
-这个维度不能反向决定 Agent 运行时排名。Scope 应保持 `evaluation` 不依赖 `agent`，由 Flame 或独立实验 harness 组合执行 trace、数据集、制品和 baseline/candidate。
+它仍不是应用级实验平台：持久化数据集、制品、trace 关联、项目目录、仪表盘和发布工作流属于 Flame 或独立 harness。这个维度不能反向决定 Agent 运行时排名，也不能让 `eval` 反向依赖 `agent`。详细边界见 [Eval 支持层边界](EVAL.md)。
 
 ## 对 Scope 的修正后判断
 
@@ -176,15 +174,15 @@ tRPC-Agent-Go 的 evaluation 产品面更完整，但直接绑定 Agent Runner�
 4. **闭合工作流词汇限制表达自由。** 这是稳定协议的代价，不是无条件优势。
 5. **目前主要由 Flame 验证。** 一个强消费者能证明设计并非纸上谈兵，尚不足以证明外部场景的普遍性。
 
-### 下一步最值得验证的不是“再加能力”
+### 验证项的当前闭环
 
-- 新调用方能否只依赖少量模块完成一次模型调用或短工具循环。
-- 一个自定义 Execution 能否在不理解内部运行时的情况下正确实现快照与恢复。
-- 跨进程恢复后，trace、Effect 身份和子执行因果关系是否仍连续。
-- 模型提供商的特有能力能否通过扩展保留，而不污染核心协议。
-- 多模块版本和兼容性是否有自动化约束，而不是依赖人工同步。
+- **普通路径**：根 README 直接展示 `chatclient`；最小 Tool loop 由 `chatclient.NewToolMiddleware` 完成；能力模块的 checked Example 防止文档重新只剩受管执行叙事。
+- **自定义 Execution**：`agenttest.RunDefinitionConformance` 验证 Descriptor、独立 state、snapshot/restore 与隐藏可变输入；仓库不制造第二套 Execution API。
+- **跨进程因果**：durable wire 携带版本、incarnation 与稳定 EffectID；`otel/agent` 的 restore 测试验证 restored activation、父子 span 和 incarnation attribution。
+- **Provider 特性**：Core 的 `metadata.Extensions` 保留 namespaced、JSON-safe 扩展，不把 provider SDK 或任意 parameter map 泄露进协议。
+- **多模块兼容**：CI 对每个 module 执行 `GOWORK=off` 的 tidy 与 compile；workspace 不再能掩盖过期内部版本。
 
-这些验证比继续扩张内置 Agent、工具或应用功能更能证明“框架通用性”。
+“再找一个真实产品消费者”仍是生态验证，不是 Scope 应在仓库内伪造的应用功能。下一阶段继续优先观察真实 Host 的组合成本与 trace，而不是扩张内置 Agent pattern、provider 数量或 Flame 所属能力。
 
 ## 本轮纠正的具体偏差
 

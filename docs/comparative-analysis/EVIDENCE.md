@@ -10,8 +10,8 @@
 | 九个有效运行状态 | `scope/agent/status.go`：`Status.Valid` |
 | Step 不做 I/O，外部工作由 Effect 表达 | `scope/agent/definition.go`、`scope/agent/effect.go` |
 | 直接调用、普通 flow、受管 workflow 是不同层级 | `scope/agent/doc/ARCHITECTURE.md` |
-| 通用 evaluation 根内核 | `scope/evaluation/evaluator.go`、`run.go`、`report.go`、`composite.go` |
-| RAG/文本指标已离开根内核 | `scope/evaluation/text/`、`scope/evaluation/retrieval/` |
+| 通用 eval 根内核 | `scope/eval/evaluator.go`、`experiment.go`、`report.go`、`composite.go` |
+| 领域指标已离开根内核 | `scope/eval/text/`、`scope/eval/judge/`、`scope/eval/ranking/` |
 | Flame 单向消费 Scope | `flame/runtime/go.mod` |
 
 ## Pi

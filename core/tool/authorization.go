@@ -74,7 +74,7 @@ func (guard Guard) Definition() chat.ToolDefinition {
 }
 
 func (guard Guard) Call(ctx context.Context, invocation Invocation) (chat.ToolOutput, error) {
-	if isNilTool(guard.tool) || lo.IsNil(guard.authorizer) {
+	if lo.IsNil(guard.tool) || lo.IsNil(guard.authorizer) {
 		return chat.ToolOutput{}, fmt.Errorf("%w: authorization guard is zero", ErrInvalidTool)
 	}
 	if err := ctx.Err(); err != nil {

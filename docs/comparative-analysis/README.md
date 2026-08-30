@@ -70,7 +70,7 @@ Flame 当前工作区有大量未提交改动，因此这里只采用稳定的�
 ## 文档索引
 
 - [综合结论](SYNTHESIS.md)
-- [Evaluation 支持层对比](EVALUATION.md)
+- [Eval 支持层边界](EVAL.md)
 - [源码证据索引](EVIDENCE.md)
 - [Pi](pi.md)
 - [Eino](eino.md)

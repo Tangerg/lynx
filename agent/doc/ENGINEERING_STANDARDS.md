@@ -344,6 +344,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - raw JSON 的解释权必须唯一：共同层只复制、限长、校验 envelope/schema digest，不窥探 Strategy payload。
 - 不使用 fluent builder、全局注册表、隐式默认 Strategy 或 package-global Engine。
 - 同一行为只保留一个权威入口；便利 API 必须确实减少概念，而不是制造同义入口。
+- interface 构造边界统一用 `lo.IsNil` 识别 typed nil；不在各 package 复制 reflection helper，也不为这一语义建立跨模块 utils owner。
 - exported GoDoc 写清行为、参数、返回、错误、副作用、并发和恢复合同。
 - exported callable 参数必须具名；每个 exported struct field 独立说明自身语义，不能用一条漂移注释覆盖多个字段。
 

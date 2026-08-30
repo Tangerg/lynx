@@ -4,8 +4,8 @@ go 1.27.0
 
 require (
 	github.com/PuerkitoBio/goquery v1.13.0
-	github.com/Tangerg/scope/core v0.0.1
-	github.com/Tangerg/scope/etl v0.0.2-0.20260828201124-b74555e40375
+	github.com/Tangerg/scope/core v0.0.4-0.20260830034050-8cdd370cf840
+	github.com/Tangerg/scope/etl v0.0.2-0.20260830034050-8cdd370cf840
 	github.com/andybalholm/cascadia v1.3.4
 	github.com/samber/lo v1.53.0
 )

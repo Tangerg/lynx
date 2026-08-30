@@ -5,6 +5,7 @@
 # Usage:
 #   scripts/check.sh                       # run everything
 #   scripts/check.sh build vet test        # subset
+#   scripts/check.sh isolate               # compile each module without go.work
 #   FAST=1 scripts/check.sh                # skip govulncheck (slowest)
 #   MODULE=core scripts/check.sh           # Core module only
 #   MODULE=models/google scripts/check.sh  # nested workspace module only
@@ -82,6 +83,10 @@ run_in_module() {
     test)  (cd "$mod" && go test -count=1 "${MODULE_PACKAGES[@]}") ;;
     race)  (cd "$mod" && go test -race -count=1 "${MODULE_PACKAGES[@]}") ;;
     tidy)  (cd "$mod" && go mod tidy -diff) ;;
+    isolate)
+      (cd "$mod" && GOWORK=off go mod tidy -diff)
+      (cd "$mod" && GOWORK=off go test -run '^$' ./...)
+      ;;
     lint)  (cd "$mod" && golangci-lint run --config="$ROOT/.golangci.yml" ./...) ;;
     vuln)  "$ROOT/scripts/check-vulnerabilities.sh" "$mod" ;;
     *) echo "unknown check: $check" >&2; return 2 ;;

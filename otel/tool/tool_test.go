@@ -129,6 +129,10 @@ func TestMiddlewareClassifiesWrappedCancellationWithoutChangingError(t *testing.
 }
 
 func TestMiddlewareRejectsNilAndInvalidTools(t *testing.T) {
+	var zero toolotel.Middleware
+	if wrapped, err := zero.Wrap(&testTool{}); wrapped != nil || !errors.Is(err, toolotel.ErrInvalidConfig) {
+		t.Fatalf("zero Wrap = (%v, %v)", wrapped, err)
+	}
 	middleware, _ := newRig(t)
 	var typedNil *testTool
 	for _, candidate := range []coretool.Tool{nil, typedNil} {

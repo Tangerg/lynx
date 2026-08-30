@@ -1,6 +1,6 @@
 github.com/RaveNoX/go-jsoncommentstrip v1.0.0/go.mod h1:78ihd09MekBnJnxpICcwzCMzGrKSKYe4AqU6PDYYpjk=
-github.com/Tangerg/scope/core v0.0.1 h1:fs347LjoXriZ6gKpfY/AJAt7L21mrxXbB1Be2DOi6Yk=
-github.com/Tangerg/scope/core v0.0.1/go.mod h1:GmtH7T7+Tk3KdWFxg8F/gA7pP7R2BieSoWJrY4qybYY=
+github.com/Tangerg/scope/core v0.0.4-0.20260830034050-8cdd370cf840 h1:23uaf2PAG4Ie1h3Njymx0qppOama8kX33hloN6EtLwM=
+github.com/Tangerg/scope/core v0.0.4-0.20260830034050-8cdd370cf840/go.mod h1:GmtH7T7+Tk3KdWFxg8F/gA7pP7R2BieSoWJrY4qybYY=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0 h1:axGnT1gRIfimI7gJifB699GoE/oq+F2MU7Dml6nw9rQ=
 github.com/apapsch/go-jsonmerge/v2 v2.0.0/go.mod h1:lvDnEdqiQrp0O42VQGgmlKpxL1AP2+08jFMw88y4klk=
 github.com/bmatcuk/doublestar v1.1.1/go.mod h1:UD6OnuiIn0yFxxA2le/rnRU1G4RaI4UvFv1sNto9p6w=

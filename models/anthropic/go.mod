@@ -3,13 +3,13 @@ module github.com/Tangerg/scope/models/anthropic
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/core v0.0.3
-	github.com/Tangerg/scope/models/protocol/anthropic v0.0.3
-	github.com/Tangerg/scope/models/protocol/openai v0.0.3
+	github.com/Tangerg/scope/core v0.0.4-0.20260830034050-8cdd370cf840
+	github.com/Tangerg/scope/models/protocol/anthropic v0.0.4-0.20260830034050-8cdd370cf840
+	github.com/Tangerg/scope/models/protocol/openai v0.0.4-0.20260830034050-8cdd370cf840
 )
 
 require (
-	github.com/anthropics/anthropic-sdk-go v1.67.0 // indirect
+	github.com/anthropics/anthropic-sdk-go v1.68.0 // indirect
 	github.com/bahlo/generic-list-go v0.2.0 // indirect
 	github.com/buger/jsonparser v1.6.1 // indirect
 	github.com/invopop/jsonschema v0.14.0 // indirect

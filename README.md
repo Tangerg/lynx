@@ -58,7 +58,7 @@ The repository is a Go workspace of independently versioned modules:
 
 - `core`: stable protocols and direct clients.
 - `agent`: managed execution kernel and strategies.
-- `evaluation`: datasets, suites, experiments, comparisons, and reports.
+- `eval`: datasets, suites, experiments, comparisons, and reports.
 - `etl`, `rag`, `tools`, `skills`, `mcp`, `a2a`: focused framework modules.
 - `models`, `vectorstores`, `historystores`: optional provider modules.
 - `otel`: observability adapters that remain outside Core.
@@ -67,6 +67,11 @@ Run the full repository gates with:
 
 ```bash
 scripts/check.sh build vet test race tidy
+scripts/check.sh isolate
 scripts/check-core-coverage.sh
 scripts/check-agent-coverage.sh
 ```
+
+## License
+
+Scope is licensed under the [Apache License 2.0](LICENSE).
