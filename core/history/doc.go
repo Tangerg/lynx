@@ -28,6 +28,6 @@
 //	historystores/cosmosdb/  — Azure Cosmos DB (NoSQL API)
 //
 // Every backend reads and writes only the current core/chat tagged JSON wire.
-// Historical wire migration is an explicit application data operation, not a
-// permanent compatibility branch in the library.
+// Backend data migration is an explicit application operation, not a library
+// runtime branch.
 package history
