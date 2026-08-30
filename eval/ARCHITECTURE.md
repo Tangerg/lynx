@@ -12,12 +12,15 @@ point is [`README.md`](README.md).
 ## 1. Scope
 
 The root package owns datasets, evaluators, reports, suites, experiments,
-comparisons, aggregation, and in-memory result projections. Domain packages own
-only their vocabulary:
+comparisons, aggregation, and in-memory result projections. Domain packages and
+leaf integration modules own only their vocabulary:
 
 - `judge` adapts model judgments to typed reports.
 - `ranking` evaluates ordered candidates.
 - `text` evaluates text quality dimensions.
+- `eval/trajectory` is an independently versioned leaf that records Agent and
+  Interaction facts and evaluates deterministic task, Tool, replay, and
+  resource contracts without making this module depend on Agent.
 
 RAG, Agent, and application concepts reach this module through typed subjects
 and evaluators. They must not become root evaluation primitives.
@@ -45,6 +48,9 @@ and evaluators. They must not become root evaluation primitives.
 - Never own dataset persistence, artifact storage, experiment-tracking services,
   dashboards, product identities, or deployment workflows. Those belong to a
   Host or an application layer.
+- Never make trajectory evaluation an Agent control plane. The recorder only
+  projects existing observation contracts; replay scheduling and corpus
+  persistence belong to a Host.
 - Never add a RAG-specific evaluator to the root package. Domain vocabulary stays
   in a focused subpackage and reaches the kernel through the generic evaluator
   protocol.
@@ -55,5 +61,7 @@ and evaluators. They must not become root evaluation primitives.
   reaches every domain package and `otel/eval`.
 - Adding a domain: implement `Evaluator` in its own package. Do not reach for a
   text or ranking concept the domain does not have.
+- Agent evaluation uses `trajectory.Recorder` rather than decoding private
+  `ProcessSnapshot` or `TreeSnapshot` wire representations.
 - Observability is external: `otel/eval` wraps a generic `Evaluator[T]`. This
   module never imports OpenTelemetry.

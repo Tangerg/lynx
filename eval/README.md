@@ -22,10 +22,53 @@ go get github.com/Tangerg/scope/eval
 | `judge` | Model-backed judgment adapted into typed reports |
 | `text` | Generated-text quality metrics |
 | `ranking` | Provider-neutral ranking metrics |
+| [`eval/trajectory`](trajectory) | Independent Agent trajectory capture, Tool assertions, replay consistency, and resource regressions |
 
 A new domain implements `Evaluator` directly. It does not depend on
 text-generation or ranking concepts, and it does not add primitives to the root
 package.
+
+## Evaluating Agent trajectories
+
+`trajectory.Recorder` joins the two observation boundaries that already own the
+facts: Agent `EventListener` for execution mechanics and Interaction
+`ExecutionObserver` for exact model and Tool calls. It neither changes execution
+nor parses snapshot internals.
+
+```go
+recorder := &trajectory.Recorder{}
+
+engine, err := agent.NewEngine(agent.EngineConfig{
+    EventListeners: []agent.EventListener{recorder},
+})
+
+dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{
+    Client:   modelClient,
+    Tools:    tools,
+    Observer: recorder,
+})
+
+result, err := engine.Run(ctx, deployment, input)
+actual, err := recorder.Take(result)
+
+report, err := (trajectory.Evaluator{}).Evaluate(ctx, trajectory.Sample{
+    Actual: actual,
+    Expected: trajectory.Expectation{
+        Status: agent.StatusCompleted,
+        Tools: &trajectory.ToolSequence{Calls: expectedCalls},
+        Baseline: replayBaseline,
+        Limits: resourceLimits,
+    },
+})
+```
+
+`Take` consumes one completed root tree, so a recorder attached to a long-lived
+Engine does not become an unbounded event log. `BehaviorDigest` compares semantic
+behavior while excluding wall-clock timestamps, attempt durations, provider
+responses, and token accounting; those remain available as recorded facts or
+separate regression metrics.
+The package evaluates a trajectory supplied by a caller. It does not schedule a
+replay, persist a regression corpus, or run an experiment service.
 
 ## Running an experiment
 

@@ -58,7 +58,8 @@ The repository is a Go workspace of independently versioned modules:
 
 - `core`: stable protocols and direct clients.
 - `agent`: managed execution kernel and strategies.
-- `eval`: datasets, suites, experiments, comparisons, and reports.
+- `eval`: datasets, suites, experiments, comparisons, and reports;
+  `eval/trajectory` adds Agent regressions as a leaf integration module.
 - `etl`, `rag`, `tools`, `skills`, `mcp`, `a2a`: focused framework modules.
 - `models`, `vectorstores`, `historystores`: optional provider modules.
 - `otel`: observability adapters that remain outside Core.
@@ -71,6 +72,21 @@ scripts/check.sh isolate
 scripts/check-core-coverage.sh
 scripts/check-agent-coverage.sh
 ```
+
+## Releasing every module
+
+From a clean `main` branch, one command validates the repository, derives the
+module dependency graph from `go.work` and `go.mod`, commits dependency pins,
+creates and verifies annotated tags, pushes `main`, and publishes every module
+tag in dependency order:
+
+```bash
+scripts/release.sh v0.11.0
+```
+
+The argument is one stable semantic version shared by all modules. The command
+is safe to resume after a network failure: existing tags must match exactly and
+are never deleted, moved, or force-pushed.
 
 ## License
 

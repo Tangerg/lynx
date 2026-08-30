@@ -4,10 +4,10 @@ github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0 h1:fhqpLE3UEXi9lPaBRpQ6Xu
 github.com/Azure/azure-sdk-for-go/sdk/internal v1.12.0/go.mod h1:7dCRMLwisfRH3dBupKeNCioWYUZ4SS09Z14H+7i8ZoY=
 github.com/Tangerg/scope/core v0.10.0 h1:/yL59EMBFkfsSX6B9519FnLIPldmZ3qcNkhlIHoiAUA=
 github.com/Tangerg/scope/core v0.10.0/go.mod h1:GmtH7T7+Tk3KdWFxg8F/gA7pP7R2BieSoWJrY4qybYY=
-github.com/Tangerg/scope/models/protocol/anthropic v0.10.0 h1:L/wk38LYjLBAG/+r0TYxAUf1ne8KI1p6roVSjLkFJo4=
-github.com/Tangerg/scope/models/protocol/anthropic v0.10.0/go.mod h1:TpriRbRgcqbPGFtvN3I3ceThfI3CO9j1GfrZn/ocCyE=
-github.com/Tangerg/scope/models/protocol/openai v0.10.0 h1:D7lpqnCkUq1yYsfyl+Dsk54GLMyW51qv6oPIe+ZAuKI=
-github.com/Tangerg/scope/models/protocol/openai v0.10.0/go.mod h1:g/IsLFMgj/3Y5hEjoE7pRpln+M7zMYR7GKNXhLI89RA=
+github.com/Tangerg/scope/models/protocol/anthropic v0.10.0 h1:5pfUcb2Ap/dKyNpE6gobZ+wtirbueBnTtOfimlYFhRU=
+github.com/Tangerg/scope/models/protocol/anthropic v0.10.0/go.mod h1:uwYPuZw8KWeqmWBcnHyPhmSY6bk1C2uI5BpEI1NcU/0=
+github.com/Tangerg/scope/models/protocol/openai v0.10.0 h1:9mJNCl8BBEYYx0zsVvGr6g6m65DMobU0W65Z6wMRcT4=
+github.com/Tangerg/scope/models/protocol/openai v0.10.0/go.mod h1:JkMEpi467w9SxgO3vWucCPZ5VYuEoAZ6oZ+5IZyUFU4=
 github.com/anthropics/anthropic-sdk-go v1.68.0 h1:FikM/c545Fw+6lp0iQ48hnfn1wK4SxBjkYoGrGMwMhY=
 github.com/anthropics/anthropic-sdk-go v1.68.0/go.mod h1:3EfIfmFqxH6rbiLcIP4tPFyXL/IHakx2wDG4OU+TIEI=
 github.com/aws/aws-sdk-go-v2 v1.43.6 h1:RrmFcqCBxkJuf7g1axVo5krB4jM/AO8r5e5oujrgdoQ=

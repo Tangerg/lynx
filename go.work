@@ -10,6 +10,7 @@ use (
 	./etl/html
 	./etl/pdf
 	./eval
+	./eval/trajectory
 	./examples
 	./historystores/cassandra
 	./historystores/cosmosdb

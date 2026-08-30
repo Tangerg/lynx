@@ -10,7 +10,8 @@
 // evaluator inputs.
 //
 // Domain vocabularies live outside the kernel: judge supplies generic
-// model-backed evaluation, text owns generated-text metrics, and ranking owns
-// provider-neutral ranking metrics. New domains implement Evaluator directly
-// and do not depend on text-generation or ranking concepts.
+// model-backed evaluation, text owns generated-text metrics, ranking owns
+// provider-neutral ranking metrics, and trajectory owns deterministic Agent
+// execution evaluation. New domains implement Evaluator directly and do not
+// depend on another domain's vocabulary.
 package eval

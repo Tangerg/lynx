@@ -456,6 +456,7 @@ func moduleLayer(dir string) int {
 		return 1
 	}
 	for _, prefix := range []string{
+		"eval/",
 		"etl/",
 		"historystores/",
 		"models/",
@@ -490,6 +491,9 @@ func allowedRepositoryDependency(source, target repositoryModule) bool {
 	}
 	if strings.HasPrefix(source.dir, "etl/") {
 		return target.dir == "etl"
+	}
+	if source.dir == "eval/trajectory" {
+		return target.dir == "eval" || target.dir == "agent"
 	}
 	if source.dir == "otel" {
 		return target.layer < source.layer && !strings.HasPrefix(target.dir, "dev/")
