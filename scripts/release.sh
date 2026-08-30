@@ -257,7 +257,9 @@ for ((release_layer = 0; release_layer <= release_max_layer; release_layer++)); 
 
     release_go -C "$release_module_dir" mod tidy
     release_go -C "$release_module_dir" mod tidy -diff
-    release_go -C "$release_module_dir" test -count=1 ./...
+    # Repository-wide behavior was tested above; this pass proves that every
+    # test package resolves through released module metadata without go.work.
+    release_go -C "$release_module_dir" test -run '^$' ./...
 
     release_tag=$(tag_for "$release_module_path")
     if git rev-parse -q --verify "refs/tags/$release_tag" >/dev/null; then

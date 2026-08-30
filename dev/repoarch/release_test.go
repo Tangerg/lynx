@@ -39,7 +39,7 @@ func TestReleaseEntryDerivesModulesAndKeepsTagsImmutable(t *testing.T) {
 		"release plan has invalid layer",
 		"release plan has no modules in layer",
 		"scripts/check.sh build vet test race lint",
-		"test -count=1 ./...",
+		"test -run '^$' ./...",
 		"go clean -modcache",
 		"git tag -a",
 		"mod download -json",
@@ -51,7 +51,6 @@ func TestReleaseEntryDerivesModulesAndKeepsTagsImmutable(t *testing.T) {
 	}
 	for _, forbidden := range []string{
 		"scripts/check.sh build vet test race tidy lint",
-		"test -run '^$' ./...",
 		"tag -d",
 		"--force",
 		"push -f",
