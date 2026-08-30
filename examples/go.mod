@@ -3,9 +3,9 @@ module github.com/Tangerg/scope/examples
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/agent v0.11.0
-	github.com/Tangerg/scope/core v0.11.0
-	github.com/Tangerg/scope/mcp v0.11.0
+	github.com/Tangerg/scope/agent v0.12.0
+	github.com/Tangerg/scope/core v0.12.0
+	github.com/Tangerg/scope/mcp v0.12.0
 	github.com/modelcontextprotocol/go-sdk v1.7.0
 )
 
