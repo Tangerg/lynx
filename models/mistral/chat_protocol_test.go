@@ -15,33 +15,7 @@ import (
 
 func TestChatMapsNativeThinkingAndReplaysIt(t *testing.T) {
 	requests := make([]map[string]any, 0, 2)
-	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
-		var body map[string]any
-		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
-			t.Errorf("decode request: %v", err)
-			http.Error(writer, "invalid request", http.StatusBadRequest)
-			return
-		}
-		requests = append(requests, body)
-		writer.Header().Set("Content-Type", "application/json")
-		_, _ = writer.Write([]byte(`{
-			"id":"cmpl-1",
-			"model":"mistral-medium-3-5",
-			"choices":[{
-				"index":0,
-				"finish_reason":"tool_calls",
-				"message":{
-					"role":"assistant",
-					"content":[
-						{"type":"thinking","thinking":[{"type":"text","text":"inspect inputs"}],"closed":true},
-						{"type":"text","text":"I need a lookup."}
-					],
-					"tool_calls":[{"id":"call-1","type":"function","index":0,"function":{"name":"lookup","arguments":{"id":7}}}]
-				}
-			}],
-			"usage":{"prompt_tokens":10,"completion_tokens":6,"total_tokens":16,"prompt_tokens_details":{"cached_tokens":4}}
-		}`))
-	}))
+	server := newThinkingReplayServer(t, &requests)
 	t.Cleanup(server.Close)
 
 	maxTokens := int64(2048)
@@ -73,31 +47,11 @@ func TestChatMapsNativeThinkingAndReplaysIt(t *testing.T) {
 	if err != nil {
 		t.Fatalf("first Call: %v", err)
 	}
-	if len(requests) != 1 || requests[0]["max_tokens"] != float64(maxTokens) || requests[0]["reasoning_effort"] != "high" || requests[0]["parallel_tool_calls"] != false {
-		t.Fatalf("first wire request = %#v", requests)
-	}
-	result := firstResponse.Output
-	if result.FinishReason != corechat.FinishReasonToolCalls || result.Message == nil || len(result.Message.Parts) != 3 {
-		t.Fatalf("result = %#v", result)
-	}
-	if result.Message.Parts[0].Kind != corechat.PartReasoning || result.Message.Parts[0].Text != "inspect inputs" || len(result.Message.Parts[0].Signature) == 0 {
-		t.Errorf("reasoning = %#v", result.Message.Parts[0])
-	}
-	if result.Message.Parts[1].Text != "I need a lookup." {
-		t.Errorf("text = %#v", result.Message.Parts[1])
-	}
-	call := result.Message.Parts[2].ToolCall
-	if call == nil || call.ID != "call-1" || call.Name != "lookup" || call.Arguments != `{"id":7}` {
-		t.Errorf("tool call = %#v", call)
-	}
-	usage := firstResponse.Metadata.Usage
-	if usage.InputTokens != 10 || usage.OutputTokens != 6 || usage.CacheReadInputTokens == nil || *usage.CacheReadInputTokens != 4 {
-		t.Errorf("usage = %#v", usage)
-	}
+	message := assertThinkingResponse(t, requests, maxTokens, firstResponse)
 
 	secondRequest := &corechat.Request{Messages: []corechat.Message{
 		firstRequest.Messages[0],
-		result.Message.Clone(),
+		message.Clone(),
 		corechat.NewToolMessage(corechat.ToolResult{
 			ID: "call-1", Name: "lookup", Output: corechat.NewTextToolOutput(`{"name":"scope"}`),
 		}),
@@ -122,6 +76,63 @@ func TestChatMapsNativeThinkingAndReplaysIt(t *testing.T) {
 	if len(nested) != 1 || nested[0].(map[string]any)["text"] != "inspect inputs" {
 		t.Fatalf("nested thinking replay = %#v", nested)
 	}
+}
+
+func newThinkingReplayServer(t *testing.T, requests *[]map[string]any) *httptest.Server {
+	t.Helper()
+	return httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Errorf("decode request: %v", err)
+			http.Error(writer, "invalid request", http.StatusBadRequest)
+			return
+		}
+		*requests = append(*requests, body)
+		writer.Header().Set("Content-Type", "application/json")
+		_, _ = writer.Write([]byte(`{
+			"id":"cmpl-1",
+			"model":"mistral-medium-3-5",
+			"choices":[{
+				"index":0,
+				"finish_reason":"tool_calls",
+				"message":{
+					"role":"assistant",
+					"content":[
+						{"type":"thinking","thinking":[{"type":"text","text":"inspect inputs"}],"closed":true},
+						{"type":"text","text":"I need a lookup."}
+					],
+					"tool_calls":[{"id":"call-1","type":"function","index":0,"function":{"name":"lookup","arguments":{"id":7}}}]
+				}
+			}],
+			"usage":{"prompt_tokens":10,"completion_tokens":6,"total_tokens":16,"prompt_tokens_details":{"cached_tokens":4}}
+		}`))
+	}))
+}
+
+func assertThinkingResponse(t *testing.T, requests []map[string]any, maxTokens int64, response *corechat.Response) *corechat.Message {
+	t.Helper()
+	if len(requests) != 1 || requests[0]["max_tokens"] != float64(maxTokens) || requests[0]["reasoning_effort"] != "high" || requests[0]["parallel_tool_calls"] != false {
+		t.Fatalf("first wire request = %#v", requests)
+	}
+	result := response.Output
+	if result.FinishReason != corechat.FinishReasonToolCalls || result.Message == nil || len(result.Message.Parts) != 3 {
+		t.Fatalf("result = %#v", result)
+	}
+	if result.Message.Parts[0].Kind != corechat.PartReasoning || result.Message.Parts[0].Text != "inspect inputs" || len(result.Message.Parts[0].Signature) == 0 {
+		t.Errorf("reasoning = %#v", result.Message.Parts[0])
+	}
+	if result.Message.Parts[1].Text != "I need a lookup." {
+		t.Errorf("text = %#v", result.Message.Parts[1])
+	}
+	call := result.Message.Parts[2].ToolCall
+	if call == nil || call.ID != "call-1" || call.Name != "lookup" || call.Arguments != `{"id":7}` {
+		t.Errorf("tool call = %#v", call)
+	}
+	usage := response.Metadata.Usage
+	if usage.InputTokens != 10 || usage.OutputTokens != 6 || usage.CacheReadInputTokens == nil || *usage.CacheReadInputTokens != 4 {
+		t.Errorf("usage = %#v", usage)
+	}
+	return result.Message
 }
 
 func TestChatCoalescesStreamedThinkingForReplay(t *testing.T) {

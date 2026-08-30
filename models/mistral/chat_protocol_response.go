@@ -75,59 +75,77 @@ func mapMistralContent(raw json.RawMessage) ([]corechat.Part, error) {
 	}
 	parts := make([]corechat.Part, 0, len(chunks))
 	for index := range chunks {
-		var discriminator struct {
-			Type contentType `json:"type"`
-		}
-		if err := json.Unmarshal(chunks[index], &discriminator); err != nil {
+		part, include, err := mapMistralContentChunk(chunks[index])
+		if err != nil {
 			return nil, fmt.Errorf("chunk[%d]: %w", index, err)
 		}
-		switch discriminator.Type {
-		case contentTypeText:
-			var chunk textChunk
-			if err := json.Unmarshal(chunks[index], &chunk); err != nil {
-				return nil, fmt.Errorf("chunk[%d]: %w", index, err)
-			}
-			if chunk.Text != "" {
-				parts = append(parts, corechat.NewTextPart(chunk.Text))
-			}
-		case contentTypeThinking:
-			var chunk struct {
-				Thinking []json.RawMessage `json:"thinking"`
-			}
-			if err := json.Unmarshal(chunks[index], &chunk); err != nil {
-				return nil, fmt.Errorf("chunk[%d]: %w", index, err)
-			}
-			var reasoning strings.Builder
-			for nestedIndex := range chunk.Thinking {
-				var nested textChunk
-				if err := json.Unmarshal(chunk.Thinking[nestedIndex], &nested); err == nil && nested.Type == contentTypeText {
-					reasoning.WriteString(nested.Text)
-				}
-			}
-			frame, err := encodeThinkingFrame(chunks[index])
-			if err != nil {
-				return nil, fmt.Errorf("chunk[%d]: %w", index, err)
-			}
-			parts = append(parts, corechat.NewReasoningPart(reasoning.String(), frame))
-		case contentTypeImageURL:
-			var chunk imageURLChunk
-			if err := json.Unmarshal(chunks[index], &chunk); err != nil {
-				return nil, fmt.Errorf("chunk[%d]: %w", index, err)
-			}
-			image, err := media.NewURI("image/*", string(chunk.ImageURL))
-			if err != nil {
-				return nil, fmt.Errorf("chunk[%d]: %w", index, err)
-			}
-			parts = append(parts, corechat.NewMediaPart(image))
-		case contentTypeReference, contentTypeToolReference:
-			// Reference chunks remain available losslessly in the response or
-			// stream-chunk extension. Core has no citation part kind.
-			continue
-		default:
-			return nil, fmt.Errorf("chunk[%d]: unsupported content type %q", index, discriminator.Type)
+		if include {
+			parts = append(parts, part)
 		}
 	}
 	return parts, nil
+}
+
+func mapMistralContentChunk(raw json.RawMessage) (corechat.Part, bool, error) {
+	var discriminator struct {
+		Type contentType `json:"type"`
+	}
+	if err := json.Unmarshal(raw, &discriminator); err != nil {
+		return corechat.Part{}, false, err
+	}
+	switch discriminator.Type {
+	case contentTypeText:
+		var chunk textChunk
+		if err := json.Unmarshal(raw, &chunk); err != nil {
+			return corechat.Part{}, false, err
+		}
+		return corechat.NewTextPart(chunk.Text), chunk.Text != "", nil
+	case contentTypeThinking:
+		part, err := mapMistralThinkingChunk(raw)
+		return part, err == nil, err
+	case contentTypeImageURL:
+		part, err := mapMistralImageChunk(raw)
+		return part, err == nil, err
+	case contentTypeReference, contentTypeToolReference:
+		// The complete native response remains available in metadata; Core has
+		// no citation part kind for these references.
+		return corechat.Part{}, false, nil
+	default:
+		return corechat.Part{}, false, fmt.Errorf("unsupported content type %q", discriminator.Type)
+	}
+}
+
+func mapMistralThinkingChunk(raw json.RawMessage) (corechat.Part, error) {
+	var chunk struct {
+		Thinking []json.RawMessage `json:"thinking"`
+	}
+	if err := json.Unmarshal(raw, &chunk); err != nil {
+		return corechat.Part{}, err
+	}
+	var reasoning strings.Builder
+	for nestedIndex := range chunk.Thinking {
+		var nested textChunk
+		if err := json.Unmarshal(chunk.Thinking[nestedIndex], &nested); err == nil && nested.Type == contentTypeText {
+			reasoning.WriteString(nested.Text)
+		}
+	}
+	frame, err := encodeThinkingFrame(raw)
+	if err != nil {
+		return corechat.Part{}, err
+	}
+	return corechat.NewReasoningPart(reasoning.String(), frame), nil
+}
+
+func mapMistralImageChunk(raw json.RawMessage) (corechat.Part, error) {
+	var chunk imageURLChunk
+	if err := json.Unmarshal(raw, &chunk); err != nil {
+		return corechat.Part{}, err
+	}
+	image, err := media.NewURI("image/*", string(chunk.ImageURL))
+	if err != nil {
+		return corechat.Part{}, err
+	}
+	return corechat.NewMediaPart(image), nil
 }
 
 func mapMistralToolCalls(calls []chatToolCall) ([]corechat.Part, error) {
