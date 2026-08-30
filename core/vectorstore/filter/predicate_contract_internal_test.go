@@ -116,7 +116,7 @@ func TestVisitRejectsInvalidInputsBeforeDispatch(t *testing.T) {
 	}
 }
 
-func TestLiteralVocabularyAndConstructors(t *testing.T) {
+func TestStringLiteralVocabulary(t *testing.T) {
 	stringLiteral := NewLiteral("scope")
 	if !stringLiteral.IsString() || stringLiteral.IsNumber() || stringLiteral.IsBool() || stringLiteral.IsNull() {
 		t.Fatal("string literal kind helpers are inconsistent")
@@ -139,7 +139,9 @@ func TestLiteralVocabularyAndConstructors(t *testing.T) {
 	if _, err := (*Literal)(nil).AsBool(); err == nil {
 		t.Fatal("AsBool accepted a nil literal")
 	}
+}
 
+func TestNumericAndBooleanLiteralVocabulary(t *testing.T) {
 	numberLiteral := NewLiteral(42)
 	if got, err := numberLiteral.AsNumber(); err != nil || got.String() != "42" {
 		t.Fatalf("AsNumber() = %v, %v", got, err)
@@ -167,6 +169,7 @@ func TestLiteralVocabularyAndConstructors(t *testing.T) {
 		t.Fatal("AsBool accepted an invalid boolean")
 	}
 
+	stringLiteral := NewLiteral("scope")
 	nullLiteral := &Literal{kind: LiteralNull, text: "null"}
 	if !nullLiteral.IsNull() || nullLiteral.IsSameKind(stringLiteral) || !stringLiteral.IsSameKind(NewLiteral("other")) {
 		t.Fatal("literal kind comparison is inconsistent")
@@ -174,7 +177,10 @@ func TestLiteralVocabularyAndConstructors(t *testing.T) {
 	if (*Literal)(nil).IsSameKind(stringLiteral) || stringLiteral.IsSameKind(nil) {
 		t.Fatal("nil literal kinds must not match")
 	}
+}
 
+func TestLiteralAndListConstructors(t *testing.T) {
+	stringLiteral := NewLiteral("scope")
 	if got := NewLiteral(stringLiteral); got != stringLiteral {
 		t.Fatal("NewLiteral did not preserve an existing literal")
 	}
@@ -243,7 +249,7 @@ func TestSemanticConstructorsCoverVocabulary(t *testing.T) {
 	}
 }
 
-func TestSemanticNodeMethods(t *testing.T) {
+func TestLeafSemanticNodeMethods(t *testing.T) {
 	start, end := Position{Line: 2, Column: 3}, Position{Line: 2, Column: 8}
 	if start.String() != "2:3" {
 		t.Fatalf("Position.String() = %q", start.String())
@@ -278,7 +284,12 @@ func TestSemanticNodeMethods(t *testing.T) {
 	if nilList.Start() != (Position{}) || nilList.End() != (Position{}) || nilList.Equal(otherNilList) {
 		t.Fatal("nil list methods are inconsistent")
 	}
+}
 
+func TestCompoundSemanticNodeMethods(t *testing.T) {
+	start, end := Position{Line: 2, Column: 3}, Position{Line: 2, Column: 8}
+	ident := &Ident{name: "field", start: start, end: end}
+	literal := &Literal{kind: LiteralString, text: "value", start: start, end: end}
 	binary := &BinaryExpr{left: ident, operator: OpEqual, right: literal, start: start, end: end}
 	if binary.Start() != start || binary.End() != end || !binary.Equal(&BinaryExpr{left: NewIdent("field"), operator: OpEqual, right: NewLiteral("value")}) {
 		t.Fatal("binary methods are inconsistent")

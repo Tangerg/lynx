@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Tangerg/scope/core/chat"
 	"github.com/Tangerg/scope/core/document"
 	"github.com/Tangerg/scope/core/embedding"
 	"github.com/Tangerg/scope/core/image"
@@ -58,46 +59,8 @@ func TestRemovedConvenienceSurfaceDoesNotReturn(t *testing.T) {
 		"vectorstore": {"AcceptAllScores": true, "NewDocumentWriter": true},
 		"image":       {"Image": true, "NewImage": true, "ResponseFormat": true},
 	}
-	fset := token.NewFileSet()
 	for packageName, names := range forbidden {
-		root := filepath.Join(coreRoot(t), packageName)
-		entries, err := os.ReadDir(root)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, entry := range entries {
-			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
-				continue
-			}
-			path := filepath.Join(root, entry.Name())
-			file, err := parser.ParseFile(fset, path, nil, 0)
-			if err != nil {
-				t.Fatalf("parse %s: %v", path, err)
-			}
-			for _, declaration := range file.Decls {
-				switch declaration := declaration.(type) {
-				case *ast.FuncDecl:
-					if declaration.Recv == nil && names[declaration.Name.Name] {
-						t.Errorf("core/%s must not reintroduce %s", packageName, declaration.Name.Name)
-					}
-				case *ast.GenDecl:
-					for _, specification := range declaration.Specs {
-						switch specification := specification.(type) {
-						case *ast.TypeSpec:
-							if names[specification.Name.Name] {
-								t.Errorf("core/%s must not reintroduce %s", packageName, specification.Name.Name)
-							}
-						case *ast.ValueSpec:
-							for _, name := range specification.Names {
-								if names[name.Name] {
-									t.Errorf("core/%s must not reintroduce %s", packageName, name.Name)
-								}
-							}
-						}
-					}
-				}
-			}
-		}
+		assertTopLevelNamesAbsent(t, packageName, names)
 	}
 }
 
@@ -151,64 +114,25 @@ func TestVectorStoreCapabilitiesRemainSmall(t *testing.T) {
 }
 
 func TestEmbeddingSPIRemainsMinimal(t *testing.T) {
-	want := map[reflect.Type]string{
-		reflect.TypeFor[embedding.Model](): "Call",
-	}
-	for typ, method := range want {
-		if typ.NumMethod() != 1 || typ.Method(0).Name != method {
-			t.Errorf("%v methods changed: want only %s", typ, method)
-		}
-	}
-
-	root := filepath.Join(coreRoot(t), "embedding")
-	forbiddenTypes := map[string]bool{
+	assertSingleMethodInterface(t, reflect.TypeFor[embedding.Model](), "Call")
+	forbidden := map[string]bool{
 		"ModelMetadata": true, "Client": true,
 		"ClientRequest": true, "ClientCaller": true,
 		"Dimensioner": true, "DimensionFunc": true,
 		"EncodingFormat": true, "ModalityType": true,
 		"Middleware": true, "MiddlewareChain": true, "Handler": true,
 	}
-	forbiddenFuncs := map[string]bool{
+	for name := range map[string]bool{
 		"GetDimensions":     true,
 		"ProbeDimensions":   true,
 		"ResolveDimensions": true,
 		"NewClient":         true,
 		"NewClientRequest":  true, "NewClientFromRequest": true,
 		"NewMiddlewareChain": true,
+	} {
+		forbidden[name] = true
 	}
-	fset := token.NewFileSet()
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
-			continue
-		}
-		path := filepath.Join(root, entry.Name())
-		file, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			t.Fatalf("parse %s: %v", path, err)
-		}
-		for _, declaration := range file.Decls {
-			switch typed := declaration.(type) {
-			case *ast.GenDecl:
-				if typed.Tok != token.TYPE {
-					continue
-				}
-				for _, specification := range typed.Specs {
-					name := specification.(*ast.TypeSpec).Name.Name
-					if forbiddenTypes[name] {
-						t.Errorf("core/embedding must not reintroduce %s", name)
-					}
-				}
-			case *ast.FuncDecl:
-				if typed.Recv == nil && forbiddenFuncs[typed.Name.Name] {
-					t.Errorf("core/embedding must not reintroduce %s", typed.Name.Name)
-				}
-			}
-		}
-	}
+	assertTopLevelNamesAbsent(t, "embedding", forbidden)
 }
 
 func TestOtherModalitySPIsRemainMinimal(t *testing.T) {
@@ -267,95 +191,33 @@ func TestCoreDoesNotOwnProviderCatalogData(t *testing.T) {
 
 func assertMinimalModalityPackage(t *testing.T, packageName string) {
 	t.Helper()
-	root := filepath.Join(coreRoot(t), packageName)
-	forbiddenTypes := map[string]bool{
+	forbidden := map[string]bool{
 		"ModelMetadata": true, "Client": true,
 		"ClientRequest": true, "ClientCaller": true, "ClientStreamer": true,
 		"Middleware": true, "MiddlewareChain": true,
 		"Handler": true, "HandlerFunc": true,
 	}
-	forbiddenFuncs := map[string]bool{
+	for name := range map[string]bool{
 		"NewClient": true, "NewClientRequest": true,
 		"NewClientFromRequest": true, "NewMiddlewareChain": true,
+	} {
+		forbidden[name] = true
 	}
-	fset := token.NewFileSet()
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
-			continue
-		}
-		path := filepath.Join(root, entry.Name())
-		file, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			t.Fatalf("parse %s: %v", path, err)
-		}
-		for _, declaration := range file.Decls {
-			switch typed := declaration.(type) {
-			case *ast.GenDecl:
-				if typed.Tok != token.TYPE {
-					continue
-				}
-				for _, specification := range typed.Specs {
-					name := specification.(*ast.TypeSpec).Name.Name
-					if forbiddenTypes[name] {
-						t.Errorf("core/%s must not reintroduce %s", packageName, name)
-					}
-				}
-			case *ast.FuncDecl:
-				if typed.Recv == nil && forbiddenFuncs[typed.Name.Name] {
-					t.Errorf("core/%s must not reintroduce %s", packageName, typed.Name.Name)
-				}
-			}
-		}
-	}
+	assertTopLevelNamesAbsent(t, packageName, forbidden)
 }
 
 func TestFilterPublicFacadeKeepsFrontendInternalsPrivate(t *testing.T) {
-	root := filepath.Join(coreRoot(t), "vectorstore", "filter")
-	forbiddenTypes := map[string]bool{
+	forbidden := map[string]bool{
 		"Token": true, "Lexer": true, "Parser": true,
 		"Analyzer": true, "Optimizer": true,
 	}
-	forbiddenFuncs := map[string]bool{
+	for name := range map[string]bool{
 		"Analyze": true, "Optimize": true, "ParseAndAnalyze": true,
 		"NewLexer": true, "NewParser": true, "NewAnalyzer": true, "NewOptimizer": true,
+	} {
+		forbidden[name] = true
 	}
-	fset := token.NewFileSet()
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, entry := range entries {
-		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
-			continue
-		}
-		path := filepath.Join(root, entry.Name())
-		file, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			t.Fatalf("parse %s: %v", path, err)
-		}
-		for _, declaration := range file.Decls {
-			switch typed := declaration.(type) {
-			case *ast.GenDecl:
-				if typed.Tok != token.TYPE {
-					continue
-				}
-				for _, specification := range typed.Specs {
-					name := specification.(*ast.TypeSpec).Name.Name
-					if forbiddenTypes[name] {
-						t.Errorf("core/vectorstore/filter must not expose compiler type %s", name)
-					}
-				}
-			case *ast.FuncDecl:
-				if typed.Recv == nil && forbiddenFuncs[typed.Name.Name] {
-					t.Errorf("core/vectorstore/filter must not expose compiler helper %s", typed.Name.Name)
-				}
-			}
-		}
-	}
+	assertTopLevelNamesAbsent(t, filepath.Join("vectorstore", "filter"), forbidden)
 
 	for _, typ := range []reflect.Type{
 		reflect.TypeFor[filter.Ident](),
@@ -380,19 +242,40 @@ func containsInternalType(typ reflect.Type) bool {
 	return strings.Contains(typ.PkgPath(), "/internal/")
 }
 
-func TestTargetChatSPIExcludesDefaultsAndIdentity(t *testing.T) {
-	root := filepath.Join(coreRoot(t), "chat")
-	fset := token.NewFileSet()
-	allowed := map[string]map[string]bool{
-		"Model":    {"Call": true},
-		"Streamer": {"Stream": true},
+func assertSingleMethodInterface(t *testing.T, typ reflect.Type, method string) {
+	t.Helper()
+	if typ.Kind() != reflect.Interface || typ.NumMethod() != 1 || typ.Method(0).Name != method {
+		t.Errorf("%v methods changed: want only %s", typ, method)
 	}
-	found := make(map[string]bool, len(allowed))
+}
 
+func assertTopLevelNamesAbsent(t *testing.T, packagePath string, forbidden map[string]bool) {
+	t.Helper()
+	for _, parsed := range parsePackageFiles(t, packagePath) {
+		for _, declaration := range parsed.file.Decls {
+			for _, name := range topLevelNames(declaration) {
+				if forbidden[name] {
+					t.Errorf("core/%s must not reintroduce %s: %s", packagePath, name, parsed.path)
+				}
+			}
+		}
+	}
+}
+
+type parsedGoFile struct {
+	path string
+	file *ast.File
+}
+
+func parsePackageFiles(t *testing.T, packagePath string) []parsedGoFile {
+	t.Helper()
+	root := filepath.Join(coreRoot(t), packagePath)
 	entries, err := os.ReadDir(root)
 	if err != nil {
-		t.Fatalf("read target chat package: %v", err)
+		t.Fatal(err)
 	}
+	fset := token.NewFileSet()
+	files := make([]parsedGoFile, 0, len(entries))
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasSuffix(entry.Name(), "_test.go") {
 			continue
@@ -402,48 +285,46 @@ func TestTargetChatSPIExcludesDefaultsAndIdentity(t *testing.T) {
 		if err != nil {
 			t.Fatalf("parse %s: %v", path, err)
 		}
-		for _, declaration := range file.Decls {
-			general, ok := declaration.(*ast.GenDecl)
-			if !ok || general.Tok != token.TYPE {
-				continue
-			}
-			for _, specification := range general.Specs {
-				typeSpec := specification.(*ast.TypeSpec)
-				if typeSpec.Name.Name == "ModelMetadata" {
-					t.Errorf("target core/chat must not expose provider identity type ModelMetadata: %s", path)
-				}
-				methods, tracked := allowed[typeSpec.Name.Name]
-				if !tracked {
-					continue
-				}
-				found[typeSpec.Name.Name] = true
-				if typeSpec.TypeParams != nil && len(typeSpec.TypeParams.List) != 0 {
-					t.Errorf("core/chat.%s must not use type parameters", typeSpec.Name.Name)
-				}
-				iface, ok := typeSpec.Type.(*ast.InterfaceType)
-				if !ok {
-					t.Errorf("core/chat.%s must remain an interface", typeSpec.Name.Name)
-					continue
-				}
-				for _, field := range iface.Methods.List {
-					if len(field.Names) == 0 {
-						t.Errorf("core/chat.%s must not embed another interface", typeSpec.Name.Name)
-						continue
-					}
-					for _, name := range field.Names {
-						if !methods[name.Name] {
-							t.Errorf("core/chat.%s must not require %s", typeSpec.Name.Name, name.Name)
-						}
-					}
-				}
-			}
-		}
+		files = append(files, parsedGoFile{path: path, file: file})
 	}
-	for name := range allowed {
-		if !found[name] {
-			t.Errorf("target core/chat.%s declaration not found", name)
+	return files
+}
+
+func topLevelNames(declaration ast.Decl) []string {
+	switch declaration := declaration.(type) {
+	case *ast.FuncDecl:
+		if declaration.Recv == nil {
+			return []string{declaration.Name.Name}
 		}
+	case *ast.GenDecl:
+		var names []string
+		for _, specification := range declaration.Specs {
+			names = append(names, specificationNames(specification)...)
+		}
+		return names
 	}
+	return nil
+}
+
+func specificationNames(specification ast.Spec) []string {
+	switch specification := specification.(type) {
+	case *ast.TypeSpec:
+		return []string{specification.Name.Name}
+	case *ast.ValueSpec:
+		names := make([]string, len(specification.Names))
+		for index := range specification.Names {
+			names[index] = specification.Names[index].Name
+		}
+		return names
+	default:
+		return nil
+	}
+}
+
+func TestTargetChatSPIExcludesDefaultsAndIdentity(t *testing.T) {
+	assertSingleMethodInterface(t, reflect.TypeFor[chat.Model](), "Call")
+	assertSingleMethodInterface(t, reflect.TypeFor[chat.Streamer](), "Stream")
+	assertTopLevelNamesAbsent(t, "chat", map[string]bool{"ModelMetadata": true})
 }
 
 func TestCoreDoesNotImportUpperScopeModules(t *testing.T) {

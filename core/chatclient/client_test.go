@@ -96,6 +96,31 @@ func TestNewRejectsInvalidConstruction(t *testing.T) {
 }
 
 func TestCallResolvesDefaultsAndProtectsCallerRequest(t *testing.T) {
+	request, defaults, callerMaxTokens := newProtectedCallFixture(t)
+	model := callOnly{call: func(_ context.Context, received *chat.Request) (*chat.Response, error) {
+		assertResolvedRequest(t, received, request)
+		mutateRequestReferences(received)
+		return &chat.Response{Metadata: &chat.ResponseMetadata{ID: "response-1"}}, nil
+	}}
+	client, err := New(model, Config{Defaults: defaults})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// New snapshots configuration-owned reference values.
+	*defaults.Temperature = 1.5
+	defaults.Stop[0] = "MUTATED"
+	response, err := client.Call(context.Background(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Metadata.ID != "response-1" {
+		t.Fatalf("response ID = %q", response.Metadata.ID)
+	}
+	assertCallerRequestUnchanged(t, request, *callerMaxTokens)
+}
+
+func newProtectedCallFixture(t *testing.T) (*chat.Request, chat.Options, *int64) {
+	t.Helper()
 	inline, err := media.NewBytes("image/png", []byte{1, 2, 3})
 	if err != nil {
 		t.Fatal(err)
@@ -141,55 +166,46 @@ func TestCallResolvesDefaultsAndProtectsCallerRequest(t *testing.T) {
 		Temperature: &temperature,
 		TopP:        &topP,
 	}
-	model := callOnly{call: func(_ context.Context, received *chat.Request) (*chat.Response, error) {
-		if received == request {
-			t.Fatal("model received caller-owned request pointer")
-		}
-		if received.Options.Model != "request-model" {
-			t.Fatalf("model = %q, want request-model", received.Options.Model)
-		}
-		if received.Options.MaxTokens == nil || *received.Options.MaxTokens != 7 {
-			t.Fatalf("max tokens = %v, want 7", received.Options.MaxTokens)
-		}
-		if received.Options.Temperature == nil || *received.Options.Temperature != 0.25 {
-			t.Fatalf("temperature = %v, want snapshotted 0.25", received.Options.Temperature)
-		}
-		if received.Options.TopP == nil || *received.Options.TopP != 0.8 {
-			t.Fatalf("top_p = %v, want inherited 0.8", received.Options.TopP)
-		}
-		if received.Options.Stop == nil || len(received.Options.Stop) != 0 {
-			t.Fatalf("stop = %#v, want explicit non-nil empty override", received.Options.Stop)
-		}
+	return request, defaults, &requestMaxTokens
+}
 
-		// Mutate every reference-shaped request field. None may alias request.
-		received.Messages[0].Metadata["turn"][0] = '9'
-		received.Messages[0].Parts[0].Media.Source.Bytes[0] = 9
-		received.Messages[0].Parts[0].Media.Metadata["origin"][1] = 'X'
-		received.Messages[1].Parts[0].Signature[0] = 9
-		received.Messages[1].Parts[1].ToolCall.Name = "mutated"
-		received.Messages[2].Parts[0].ToolResult.Output.Content[0].Text = "mutated"
-		received.Tools[0].InputSchema[2] = 'X'
-		received.Options.Extensions["test/value"][1] = 'X'
-		*received.Options.MaxTokens = 8
-		*received.Options.Temperature = 2
+func assertResolvedRequest(t *testing.T, received, original *chat.Request) {
+	t.Helper()
+	if received == original {
+		t.Fatal("model received caller-owned request pointer")
+	}
+	if received.Options.Model != "request-model" {
+		t.Fatalf("model = %q, want request-model", received.Options.Model)
+	}
+	if received.Options.MaxTokens == nil || *received.Options.MaxTokens != 7 {
+		t.Fatalf("max tokens = %v, want 7", received.Options.MaxTokens)
+	}
+	if received.Options.Temperature == nil || *received.Options.Temperature != 0.25 {
+		t.Fatalf("temperature = %v, want snapshotted 0.25", received.Options.Temperature)
+	}
+	if received.Options.TopP == nil || *received.Options.TopP != 0.8 {
+		t.Fatalf("top_p = %v, want inherited 0.8", received.Options.TopP)
+	}
+	if received.Options.Stop == nil || len(received.Options.Stop) != 0 {
+		t.Fatalf("stop = %#v, want explicit non-nil empty override", received.Options.Stop)
+	}
+}
 
-		return &chat.Response{Metadata: &chat.ResponseMetadata{ID: "response-1"}}, nil
-	}}
-	client, err := New(model, Config{Defaults: defaults})
-	if err != nil {
-		t.Fatal(err)
-	}
-	// New snapshots configuration-owned reference values.
-	temperature = 1.5
-	defaults.Stop[0] = "MUTATED"
-	response, err := client.Call(context.Background(), request)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if response.Metadata.ID != "response-1" {
-		t.Fatalf("response ID = %q", response.Metadata.ID)
-	}
+func mutateRequestReferences(received *chat.Request) {
+	received.Messages[0].Metadata["turn"][0] = '9'
+	received.Messages[0].Parts[0].Media.Source.Bytes[0] = 9
+	received.Messages[0].Parts[0].Media.Metadata["origin"][1] = 'X'
+	received.Messages[1].Parts[0].Signature[0] = 9
+	received.Messages[1].Parts[1].ToolCall.Name = "mutated"
+	received.Messages[2].Parts[0].ToolResult.Output.Content[0].Text = "mutated"
+	received.Tools[0].InputSchema[2] = 'X'
+	received.Options.Extensions["test/value"][1] = 'X'
+	*received.Options.MaxTokens = 8
+	*received.Options.Temperature = 2
+}
 
+func assertCallerRequestUnchanged(t *testing.T, request *chat.Request, callerMaxTokens int64) {
+	t.Helper()
 	if got := request.Messages[0].Metadata["turn"]; string(got) != "1" {
 		t.Fatalf("caller message metadata mutated: %s", got)
 	}
@@ -214,8 +230,8 @@ func TestCallResolvesDefaultsAndProtectsCallerRequest(t *testing.T) {
 	if got := request.Options.Extensions["test/value"]; string(got) != `"caller"` {
 		t.Fatalf("caller extension mutated: %s", got)
 	}
-	if requestMaxTokens != 7 {
-		t.Fatalf("caller max tokens mutated: %d", requestMaxTokens)
+	if callerMaxTokens != 7 {
+		t.Fatalf("caller max tokens mutated: %d", callerMaxTokens)
 	}
 }
 
