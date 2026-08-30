@@ -15,6 +15,18 @@ import (
 )
 
 func TestWaitingForkTreeRestoresWithoutDuplicateChildren(t *testing.T) {
+	fixture := newRestorableForkFixture(t)
+	snapshot, initialChildren := captureWaitingForkTree(t, fixture)
+	completeRestoredForkTree(t, fixture, snapshot, initialChildren)
+}
+
+type restorableForkFixture struct {
+	root     agent.Deployment
+	resolver deploymentResolver
+}
+
+func newRestorableForkFixture(t *testing.T) restorableForkFixture {
+	t.Helper()
 	branches := make([]workflow.ForkBranch, 0, 3)
 	resolver := deploymentResolver{}
 	for _, id := range []string{"first", "second", "third"} {
@@ -39,9 +51,17 @@ func TestWaitingForkTreeRestoresWithoutDuplicateChildren(t *testing.T) {
 		t.Fatal(err)
 	}
 	rootDeployment := mustDeployment(t, mustDefinition(t, "test.workflow.restorable_fork", stage), "restorable-fork")
-	engine, _ := agent.NewEngine(agent.EngineConfig{DeploymentResolver: resolver})
+	return restorableForkFixture{root: rootDeployment, resolver: resolver}
+}
+
+func captureWaitingForkTree(
+	t *testing.T,
+	fixture restorableForkFixture,
+) (agent.TreeSnapshot, []agent.ProcessID) {
+	t.Helper()
+	engine, _ := agent.NewEngine(agent.EngineConfig{DeploymentResolver: fixture.resolver})
 	input, _ := agent.EncodeInput(forkInput{Value: 7})
-	root, err := engine.Start(context.Background(), rootDeployment, input)
+	root, err := engine.Start(context.Background(), fixture.root, input)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,14 +82,39 @@ func TestWaitingForkTreeRestoresWithoutDuplicateChildren(t *testing.T) {
 	if closeErr := engine.Close(); closeErr != nil {
 		t.Fatal(closeErr)
 	}
+	return snapshot, initialChildren
+}
 
-	restoredEngine, _ := agent.NewEngine(agent.EngineConfig{DeploymentResolver: resolver})
-	restoredRoot, err := restoredEngine.RestoreTree(context.Background(), rootDeployment, snapshot)
+func completeRestoredForkTree(
+	t *testing.T,
+	fixture restorableForkFixture,
+	snapshot agent.TreeSnapshot,
+	initialChildren []agent.ProcessID,
+) {
+	t.Helper()
+	restoredEngine, _ := agent.NewEngine(agent.EngineConfig{DeploymentResolver: fixture.resolver})
+	restoredRoot, err := restoredEngine.RestoreTree(context.Background(), fixture.root, snapshot)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, childID := range slices.Backward(initialChildren) {
-		child, found := restoredEngine.Process(childID)
+	resumePausedChildren(t, restoredEngine, initialChildren)
+	secondWindow := awaitPausedWindow(t, restoredEngine, restoredRoot.ID(), 4)
+	thirdChild := newPausedChildID(secondWindow, initialChildren)
+	if !thirdChild.Valid() {
+		t.Fatal("restored Workflow did not create exactly one second-window child")
+	}
+	resumeProcess(t, restoredEngine, thirdChild)
+	assertRestoredForkResult(t, restoredEngine, restoredRoot)
+}
+
+func resumePausedChildren(
+	t *testing.T,
+	engine *agent.Engine,
+	children []agent.ProcessID,
+) {
+	t.Helper()
+	for _, childID := range slices.Backward(children) {
+		child, found := engine.Process(childID)
 		if !found {
 			t.Fatalf("restored child %s was not registered", childID)
 		}
@@ -80,25 +125,33 @@ func TestWaitingForkTreeRestoresWithoutDuplicateChildren(t *testing.T) {
 			t.Fatal(resumeErr)
 		}
 	}
-	secondWindow := awaitPausedWindow(t, restoredEngine, restoredRoot.ID(), 4)
-	var thirdChild agent.ProcessID
-	for _, process := range secondWindow.ProcessSnapshots() {
-		if process.Relation().Depth() == 1 && !slices.Contains(initialChildren, process.ProcessID()) &&
+}
+
+func newPausedChildID(tree agent.TreeSnapshot, existing []agent.ProcessID) agent.ProcessID {
+	for _, process := range tree.ProcessSnapshots() {
+		if process.Relation().Depth() == 1 && !slices.Contains(existing, process.ProcessID()) &&
 			process.Status() == agent.StatusPaused {
-			thirdChild = process.ProcessID()
+			return process.ProcessID()
 		}
 	}
-	if !thirdChild.Valid() {
-		t.Fatal("restored Workflow did not create exactly one second-window child")
-	}
-	child, found := restoredEngine.Process(thirdChild)
+	var none agent.ProcessID
+	return none
+}
+
+func resumeProcess(t *testing.T, engine *agent.Engine, processID agent.ProcessID) {
+	t.Helper()
+	child, found := engine.Process(processID)
 	if !found {
-		t.Fatalf("second-window child %s was not registered", thirdChild)
+		t.Fatalf("second-window child %s was not registered", processID)
 	}
 	if resumeErr := child.Resume(context.Background()); resumeErr != nil {
 		t.Fatal(resumeErr)
 	}
-	result, err := restoredRoot.Await(context.Background())
+}
+
+func assertRestoredForkResult(t *testing.T, engine *agent.Engine, root *agent.Process) {
+	t.Helper()
+	result, err := root.Await(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -106,14 +159,14 @@ func TestWaitingForkTreeRestoresWithoutDuplicateChildren(t *testing.T) {
 	if strings.Join(output.Branches, ",") != "first,second,third" || output.Total != 21 {
 		t.Fatalf("restored Fork output = %#v", output)
 	}
-	finalTree, err := restoredEngine.CaptureTree(context.Background(), restoredRoot.ID())
+	finalTree, err := engine.CaptureTree(context.Background(), root.ID())
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(finalTree.ProcessSnapshots()) != 4 {
 		t.Fatalf("restored final tree size = %d", len(finalTree.ProcessSnapshots()))
 	}
-	if err := restoredEngine.Close(); err != nil {
+	if err := engine.Close(); err != nil {
 		t.Fatal(err)
 	}
 }

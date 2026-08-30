@@ -17,6 +17,22 @@ import (
 )
 
 func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
+	fixture := newCheckpointFixture(t)
+	tree, pending := captureWaitingCheckpoint(t, fixture.deployment)
+	restored, result := restoreWaitingCheckpoint(t, fixture.deployment, tree, pending, fixture.waiting)
+	assertCheckpointResult(t, result, fixture)
+	assertFinishedCheckpointRejectsStaleSignal(t, restored, pending)
+}
+
+type checkpointFixture struct {
+	prefixCalls *atomic.Int32
+	waiting     *inputRequestTool
+	model       *checkpointModel
+	deployment  agent.Deployment
+}
+
+func newCheckpointFixture(t *testing.T) checkpointFixture {
+	t.Helper()
 	var prefixCalls atomic.Int32
 	prefix, err := tool.NewFunc(tool.FuncConfig{
 		Name:        "prefix",
@@ -32,7 +48,19 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	t.Cleanup(waiting.Release)
 	model := &checkpointModel{}
 	deployment := newDeployment(t, model, []tool.Tool{prefix, waiting}, 3)
+	return checkpointFixture{
+		prefixCalls: &prefixCalls,
+		waiting:     waiting,
+		model:       model,
+		deployment:  deployment,
+	}
+}
 
+func captureWaitingCheckpoint(
+	t *testing.T,
+	deployment agent.Deployment,
+) (agent.TreeSnapshot, interaction.PendingToolInput) {
+	t.Helper()
 	firstEngine, err := agent.NewEngine(agent.EngineConfig{})
 	if err != nil {
 		t.Fatal(err)
@@ -74,7 +102,17 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	if pending.WaitID() != waitID || string(pending.Prompt()) != `{"question":"What is your name?"}` {
 		t.Fatalf("pending input = WaitID %s, prompt %s", pending.WaitID().String(), pending.Prompt())
 	}
+	return tree, pending
+}
 
+func restoreWaitingCheckpoint(
+	t *testing.T,
+	deployment agent.Deployment,
+	tree agent.TreeSnapshot,
+	pending interaction.PendingToolInput,
+	waiting *inputRequestTool,
+) (*agent.Process, agent.Result) {
+	t.Helper()
 	restoredEngine, err := agent.NewEngine(agent.EngineConfig{})
 	if err != nil {
 		t.Fatal(err)
@@ -83,6 +121,33 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	answer := validCheckpointAnswer(t, restored, pending)
+	accepted, err := restored.DeliverSignal(context.Background(), answer)
+	if err != nil || !accepted {
+		t.Fatalf("DeliverSignal accepted = %t, error = %v", accepted, err)
+	}
+	<-waiting.continuationStarted
+	accepted, err = restored.DeliverSignal(context.Background(), answer)
+	if err != nil || accepted {
+		t.Fatalf("duplicate DeliverSignal accepted = %t, error = %v", accepted, err)
+	}
+	waiting.Release()
+	result, err := restored.Await(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if closeErr := restoredEngine.Close(); closeErr != nil {
+		t.Fatal(closeErr)
+	}
+	return restored, result
+}
+
+func validCheckpointAnswer(
+	t *testing.T,
+	restored *agent.Process,
+	pending interaction.PendingToolInput,
+) agent.SignalRequest {
+	t.Helper()
 	signalID, err := agent.ParseSignalID("signal:checkpoint-answer")
 	if err != nil {
 		t.Fatal(err)
@@ -109,34 +174,22 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	accepted, err := restored.DeliverSignal(context.Background(), answer)
-	if err != nil || !accepted {
-		t.Fatalf("DeliverSignal accepted = %t, error = %v", accepted, err)
-	}
-	<-waiting.continuationStarted
-	accepted, err = restored.DeliverSignal(context.Background(), answer)
-	if err != nil || accepted {
-		t.Fatalf("duplicate DeliverSignal accepted = %t, error = %v", accepted, err)
-	}
-	waiting.Release()
-	result, err := restored.Await(context.Background())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if closeErr := restoredEngine.Close(); closeErr != nil {
-		t.Fatal(closeErr)
-	}
+	return answer
+}
+
+func assertCheckpointResult(t *testing.T, result agent.Result, fixture checkpointFixture) {
+	t.Helper()
 	if result.Status() != agent.StatusCompleted {
 		t.Fatalf("status = %s, termination = %#v", result.Status(), result.Termination())
 	}
-	if prefixCalls.Load() != 1 {
-		t.Fatalf("settled prefix calls = %d, want 1", prefixCalls.Load())
+	if fixture.prefixCalls.Load() != 1 {
+		t.Fatalf("settled prefix calls = %d, want 1", fixture.prefixCalls.Load())
 	}
-	if waiting.initialCalls.Load() != 1 || waiting.continuationCalls.Load() != 1 {
-		t.Fatalf("input tool initial/continuation calls = %d/%d, want 1/1", waiting.initialCalls.Load(), waiting.continuationCalls.Load())
+	if fixture.waiting.initialCalls.Load() != 1 || fixture.waiting.continuationCalls.Load() != 1 {
+		t.Fatalf("input tool initial/continuation calls = %d/%d, want 1/1", fixture.waiting.initialCalls.Load(), fixture.waiting.continuationCalls.Load())
 	}
-	if model.Calls() != 2 {
-		t.Fatalf("model calls = %d, want 2", model.Calls())
+	if fixture.model.Calls() != 2 {
+		t.Fatalf("model calls = %d, want 2", fixture.model.Calls())
 	}
 	erased, _ := result.Output()
 	output, err := erased.Decode[interaction.Output]()
@@ -146,6 +199,14 @@ func TestToolCheckpointRestoresWithoutRepeatingSettledPrefix(t *testing.T) {
 	if output.ModelResponse == nil || output.ModelResponse.Text() != "prefix-complete; hello Ada" {
 		t.Fatalf("output = %#v", output)
 	}
+}
+
+func assertFinishedCheckpointRejectsStaleSignal(
+	t *testing.T,
+	restored *agent.Process,
+	pending interaction.PendingToolInput,
+) {
+	t.Helper()
 	staleID, err := agent.ParseSignalID("signal:stale-checkpoint-answer")
 	if err != nil {
 		t.Fatal(err)

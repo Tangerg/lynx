@@ -1027,6 +1027,13 @@ func TestEventLifecycleCarriesExactBindingAndAttemptDurations(t *testing.T) {
 		EventStepStarted, EventStepFinished, EventStepPrepared, EventStepCommitted,
 		EventProcessFinished,
 	}
+	assertEventSequence(t, events, wantNames)
+	assertEventEnvelopes(t, events, result, deployment)
+	assertEventPayloads(t, events, result)
+}
+
+func assertEventSequence(t *testing.T, events []Event, wantNames []string) {
+	t.Helper()
 	if len(events) != len(wantNames) {
 		t.Fatalf("events = %d, want %d: %#v", len(events), len(wantNames), eventNames(events))
 	}
@@ -1034,42 +1041,50 @@ func TestEventLifecycleCarriesExactBindingAndAttemptDurations(t *testing.T) {
 		if event.Name() != wantNames[index] {
 			t.Fatalf("event[%d] = %q, want %q", index, event.Name(), wantNames[index])
 		}
+	}
+}
+
+func assertEventEnvelopes(t *testing.T, events []Event, result Result, deployment Deployment) {
+	t.Helper()
+	for index, event := range events {
 		if event.ProcessSequence() != uint64(index+1) || event.ProcessID() != result.ProcessID() ||
 			event.DeploymentRef() != deployment.DeploymentRef() ||
 			event.Relation().ProcessID() != result.ProcessID() || !event.Relation().IsRoot() {
 			t.Fatalf("event[%d] envelope = %+v", index, event)
 		}
 	}
+}
+
+func assertEventPayloads(t *testing.T, events []Event, result Result) {
+	t.Helper()
 	for _, event := range events {
-		switch event.Name() {
-		case EventEffectStarted:
-			fact, ok := event.EffectStarted()
-			if !ok || fact.Target() != EffectTargetDispatcher {
-				t.Fatalf("event %q payload = %s", event.Name(), event.Payload())
-			}
-		case EventStepFinished:
-			fact, ok := event.StepFinished()
-			if !ok || fact.Duration() < 0 || fact.Status() != StepStatusSucceeded {
-				t.Fatalf("event %q payload = %s", event.Name(), event.Payload())
-			}
-		case EventEffectFinished:
-			fact, ok := event.EffectFinished()
-			if !ok || fact.Duration() < 0 || fact.SettlementStatus() != SettlementStatusSucceeded ||
-				fact.Target() != EffectTargetDispatcher {
-				t.Fatalf("event %q payload = %s", event.Name(), event.Payload())
-			}
-		case EventStepCommitted:
-			fact, ok := event.StepCommitted()
-			if !ok || !fact.Valid() {
-				t.Fatalf("event %q payload = %s", event.Name(), event.Payload())
-			}
-		case EventProcessFinished:
-			fact, ok := event.ProcessFinished()
-			if !ok || fact.Status() != StatusCompleted ||
-				fact.Cause() != TerminationCauseCompletion || fact.Usage() != result.Usage() {
-				t.Fatalf("event %q payload = %s", event.Name(), event.Payload())
-			}
+		if !validEventPayload(event, result) {
+			t.Fatalf("event %q payload = %s", event.Name(), event.Payload())
 		}
+	}
+}
+
+func validEventPayload(event Event, result Result) bool {
+	switch event.Name() {
+	case EventEffectStarted:
+		fact, ok := event.EffectStarted()
+		return ok && fact.Target() == EffectTargetDispatcher
+	case EventStepFinished:
+		fact, ok := event.StepFinished()
+		return ok && fact.Duration() >= 0 && fact.Status() == StepStatusSucceeded
+	case EventEffectFinished:
+		fact, ok := event.EffectFinished()
+		return ok && fact.Duration() >= 0 && fact.SettlementStatus() == SettlementStatusSucceeded &&
+			fact.Target() == EffectTargetDispatcher
+	case EventStepCommitted:
+		fact, ok := event.StepCommitted()
+		return ok && fact.Valid()
+	case EventProcessFinished:
+		fact, ok := event.ProcessFinished()
+		return ok && fact.Status() == StatusCompleted &&
+			fact.Cause() == TerminationCauseCompletion && fact.Usage() == result.Usage()
+	default:
+		return true
 	}
 }
 

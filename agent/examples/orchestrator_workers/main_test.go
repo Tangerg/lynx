@@ -33,6 +33,30 @@ func TestRun(t *testing.T) {
 
 func TestInteractionCanDelegateExactPlanningWorkers(t *testing.T) {
 	planningWorker, taskState := newPlanningWorker(t)
+	model := &planningDelegateModel{}
+	root := newPlanningDelegateRoot(t, planningWorker, model)
+	engine, err := agent.NewEngine(agent.EngineConfig{
+		DeploymentResolver: deploymentResolver{planningWorker.DeploymentRef(): planningWorker},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if closeErr := engine.Close(); closeErr != nil {
+			t.Errorf("close Engine: %v", closeErr)
+		}
+	})
+	result := runPlanningDelegate(t, engine, root)
+	assertPlanningDelegateResult(t, result, model, taskState)
+	assertPlanningDelegateTree(t, engine, result.ProcessID(), planningWorker.DeploymentRef())
+}
+
+func newPlanningDelegateRoot(
+	t *testing.T,
+	planningWorker agent.Deployment,
+	model *planningDelegateModel,
+) agent.Deployment {
+	t.Helper()
 	budget, err := agent.NewBudget(32, 32, 64)
 	if err != nil {
 		t.Fatal(err)
@@ -46,24 +70,6 @@ func TestInteractionCanDelegateExactPlanningWorkers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	model := &planningDelegateModel{}
-	validator := func(candidate interaction.CompletionCandidate) (interaction.CompletionDecision, error) {
-		artifacts := candidate.Artifacts().All()
-		if len(artifacts) != 2 {
-			return interaction.CompletionDecision{Feedback: "Complete both planned review tasks."}, nil
-		}
-		for index, artifact := range artifacts {
-			output, decodeErr := artifact.Decode[planning.Output]()
-			if decodeErr != nil {
-				return interaction.CompletionDecision{}, decodeErr
-			}
-			if artifact.DelegateName() != "review_with_planning" ||
-				output.Outcome != planning.OutcomeAchieved {
-				return interaction.CompletionDecision{}, fmt.Errorf("planning artifact %d was not achieved", index)
-			}
-		}
-		return interaction.CompletionDecision{Accepted: true}, nil
-	}
 	client, err := chatclient.New(model, chatclient.Config{})
 	if err != nil {
 		t.Fatal(err)
@@ -72,7 +78,7 @@ func TestInteractionCanDelegateExactPlanningWorkers(t *testing.T) {
 		Name:          "example.orchestrator_workers.planning_delegate",
 		Description:   "Delegate model-selected tasks to exact Planning workers.",
 		MaxModelCalls: 2,
-		Delegates:     []interaction.Delegate{delegate}, CompletionValidator: validator,
+		Delegates:     []interaction.Delegate{delegate}, CompletionValidator: validatePlanningCompletion,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -89,17 +95,28 @@ func TestInteractionCanDelegateExactPlanningWorkers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	engine, err := agent.NewEngine(agent.EngineConfig{
-		DeploymentResolver: deploymentResolver{planningWorker.DeploymentRef(): planningWorker},
-	})
-	if err != nil {
-		t.Fatal(err)
+	return root
+}
+
+func validatePlanningCompletion(candidate interaction.CompletionCandidate) (interaction.CompletionDecision, error) {
+	artifacts := candidate.Artifacts().All()
+	if len(artifacts) != 2 {
+		return interaction.CompletionDecision{Feedback: "Complete both planned review tasks."}, nil
 	}
-	t.Cleanup(func() {
-		if closeErr := engine.Close(); closeErr != nil {
-			t.Errorf("close Engine: %v", closeErr)
+	for index, artifact := range artifacts {
+		output, err := artifact.Decode[planning.Output]()
+		if err != nil {
+			return interaction.CompletionDecision{}, err
 		}
-	})
+		if artifact.DelegateName() != "review_with_planning" || output.Outcome != planning.OutcomeAchieved {
+			return interaction.CompletionDecision{}, fmt.Errorf("planning artifact %d was not achieved", index)
+		}
+	}
+	return interaction.CompletionDecision{Accepted: true}, nil
+}
+
+func runPlanningDelegate(t *testing.T, engine *agent.Engine, root agent.Deployment) agent.Result {
+	t.Helper()
 	input, err := agent.EncodeInput(interaction.Input{Messages: []chat.Message{
 		chat.NewUserMessage(chat.NewTextPart("plan both reviews, then synthesize")),
 	}})
@@ -114,6 +131,16 @@ func TestInteractionCanDelegateExactPlanningWorkers(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	return result
+}
+
+func assertPlanningDelegateResult(
+	t *testing.T,
+	result agent.Result,
+	model *planningDelegateModel,
+	taskState *planningTaskState,
+) {
+	t.Helper()
 	output, err := decodeCompleted[interaction.Output](result)
 	if err != nil {
 		t.Fatal(err)
@@ -122,7 +149,16 @@ func TestInteractionCanDelegateExactPlanningWorkers(t *testing.T) {
 		model.Calls() != 2 || taskState.CompletedCount() != 2 {
 		t.Fatalf("output=%#v model calls=%d completed=%d", output, model.Calls(), taskState.CompletedCount())
 	}
-	tree, err := engine.CaptureTree(context.Background(), process.ID())
+}
+
+func assertPlanningDelegateTree(
+	t *testing.T,
+	engine *agent.Engine,
+	processID agent.ProcessID,
+	planningRef agent.DeploymentRef,
+) {
+	t.Helper()
+	tree, err := engine.CaptureTree(context.Background(), processID)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,7 +168,7 @@ func TestInteractionCanDelegateExactPlanningWorkers(t *testing.T) {
 	}
 	planningChildren := 0
 	for _, snapshot := range snapshots {
-		if snapshot.DeploymentRef() == planningWorker.DeploymentRef() {
+		if snapshot.DeploymentRef() == planningRef {
 			planningChildren++
 		}
 	}

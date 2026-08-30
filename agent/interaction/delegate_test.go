@@ -203,6 +203,20 @@ func TestManagedDelegateReturnsArgumentAndStartFailuresToModel(t *testing.T) {
 }
 
 func TestWaitingManagedDelegateTreeRestoresWithoutRestartingChild(t *testing.T) {
+	fixture := newDelegateRestoreFixture(t)
+	tree, childID := captureWaitingDelegateTree(t, fixture)
+	completeRestoredDelegateTree(t, fixture, tree, childID)
+}
+
+type delegateRestoreFixture struct {
+	child    agent.Deployment
+	root     agent.Deployment
+	resolver delegateResolver
+	model    *restorableDelegateModel
+}
+
+func newDelegateRestoreFixture(t *testing.T) delegateRestoreFixture {
+	t.Helper()
 	child := pausingDelegateDeployment(t)
 	budget, _ := agent.NewBudget(20, 20, 20)
 	delegate, err := interaction.NewDelegate(interaction.DelegateConfig{
@@ -215,19 +229,37 @@ func TestWaitingManagedDelegateTreeRestoresWithoutRestartingChild(t *testing.T) 
 	model := &restorableDelegateModel{}
 	rootDeployment := delegateInteraction(t, model, nil, []interaction.Delegate{delegate})
 	resolver := delegateResolver{child.DeploymentRef(): child}
-	engine, _ := agent.NewEngine(agent.EngineConfig{DeploymentResolver: resolver})
-	root, err := engine.Start(context.Background(), rootDeployment, interactionInput(t, "pause and restore"))
+	return delegateRestoreFixture{child: child, root: rootDeployment, resolver: resolver, model: model}
+}
+
+func captureWaitingDelegateTree(
+	t *testing.T,
+	fixture delegateRestoreFixture,
+) (agent.TreeSnapshot, agent.ProcessID) {
+	t.Helper()
+	engine, _ := agent.NewEngine(agent.EngineConfig{DeploymentResolver: fixture.resolver})
+	root, err := engine.Start(context.Background(), fixture.root, interactionInput(t, "pause and restore"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	tree, childID := awaitWaitingDelegateTree(t, engine, root.ID())
-	var rootSnapshot agent.ProcessSnapshot
+	rootSnapshot := rootProcessSnapshot(tree)
+	assertActiveDelegateChild(t, rootSnapshot, childID)
+	terminateOriginalDelegateTree(t, engine, root, childID)
+	return tree, childID
+}
+
+func rootProcessSnapshot(tree agent.TreeSnapshot) agent.ProcessSnapshot {
 	for _, snapshot := range tree.ProcessSnapshots() {
 		if snapshot.Relation().IsRoot() {
-			rootSnapshot = snapshot
-			break
+			return snapshot
 		}
 	}
+	return agent.ProcessSnapshot{}
+}
+
+func assertActiveDelegateChild(t *testing.T, rootSnapshot agent.ProcessSnapshot, childID agent.ProcessID) {
+	t.Helper()
 	activeChildren, found, err := interaction.ActiveDelegateChildrenFromSnapshot(rootSnapshot)
 	if err != nil || !found || len(activeChildren) != 1 {
 		t.Fatalf("active Delegate children = %#v, found = %t, error = %v", activeChildren, found, err)
@@ -246,6 +278,15 @@ func TestWaitingManagedDelegateTreeRestoresWithoutRestartingChild(t *testing.T) 
 		activeChild.ChildKey().String() == "" || activeChild.ProcessID() != childID {
 		t.Fatalf("active Delegate child = %#v", activeChild)
 	}
+}
+
+func terminateOriginalDelegateTree(
+	t *testing.T,
+	engine *agent.Engine,
+	root *agent.Process,
+	childID agent.ProcessID,
+) {
+	t.Helper()
 	if killErr := root.Kill(context.Background(), "replace captured Delegate tree"); killErr != nil {
 		t.Fatal(killErr)
 	}
@@ -262,9 +303,17 @@ func TestWaitingManagedDelegateTreeRestoresWithoutRestartingChild(t *testing.T) 
 	if closeErr := engine.Close(); closeErr != nil {
 		t.Fatal(closeErr)
 	}
+}
 
-	restoredEngine, _ := agent.NewEngine(agent.EngineConfig{DeploymentResolver: resolver})
-	restoredRoot, err := restoredEngine.RestoreTree(context.Background(), rootDeployment, tree)
+func completeRestoredDelegateTree(
+	t *testing.T,
+	fixture delegateRestoreFixture,
+	tree agent.TreeSnapshot,
+	childID agent.ProcessID,
+) {
+	t.Helper()
+	restoredEngine, _ := agent.NewEngine(agent.EngineConfig{DeploymentResolver: fixture.resolver})
+	restoredRoot, err := restoredEngine.RestoreTree(context.Background(), fixture.root, tree)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -279,8 +328,8 @@ func TestWaitingManagedDelegateTreeRestoresWithoutRestartingChild(t *testing.T) 
 		t.Fatal(resumeErr)
 	}
 	result, err := restoredRoot.Await(context.Background())
-	if err != nil || result.Status() != agent.StatusCompleted || model.Calls() != 2 {
-		t.Fatalf("restored result = %#v, error = %v, model calls = %d", result.Termination(), err, model.Calls())
+	if err != nil || result.Status() != agent.StatusCompleted || fixture.model.Calls() != 2 {
+		t.Fatalf("restored result = %#v, error = %v, model calls = %d", result.Termination(), err, fixture.model.Calls())
 	}
 	finalTree, err := restoredEngine.CaptureTree(context.Background(), restoredRoot.ID())
 	if err != nil {

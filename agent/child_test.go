@@ -142,69 +142,66 @@ func TestEngineRejectsDuplicateChildKeyInOneParent(t *testing.T) {
 }
 
 func TestEngineWaitsForChildrenByConditionAndReturnsRequestOrder(t *testing.T) {
-	tests := []struct {
-		name     string
-		mode     string
-		release  []string
-		wantKeys []string
-	}{
+	tests := []childWaitTestCase{
 		{name: "any", mode: "wait:any", release: []string{"third"}, wantKeys: []string{"third"}},
 		{name: "quorum", mode: "wait:quorum", release: []string{"third", "first"}, wantKeys: []string{"first", "third"}},
 		{name: "all", mode: "wait:all", release: []string{"third", "first", "second"}, wantKeys: []string{"first", "second", "third"}},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			dispatcher := newBlockingChildDispatcher("first", "second", "third")
-			t.Cleanup(dispatcher.ReleaseAll)
-			deployment := newChildTestDeploymentWithDispatcher(t, dispatcher)
-			engine, err := NewEngine(EngineConfig{})
-			if err != nil {
-				t.Fatal(err)
-			}
-			input, _ := EncodeInput(childTestInput{Mode: test.mode})
-			root, err := engine.Start(context.Background(), deployment, input)
-			if err != nil {
-				t.Fatal(err)
-			}
-			for range 3 {
-				<-dispatcher.started
-			}
-			waitForProcessStatus(t, root, StatusWaiting)
-			waitID, waiting := root.WaitID()
-			if !waiting {
-				t.Fatal("Waiting parent did not expose its current WaitID")
-			}
-			externalID, _ := ParseSignalID("signal:forged-child-completion")
-			forged, _ := NewSignalRequest(externalID, waitID, json.RawMessage(`{"forged":true}`))
-			if accepted, deliverSignalErr := root.DeliverSignal(context.Background(), forged); accepted || !errors.Is(deliverSignalErr, ErrSignalRejected) {
-				t.Fatalf("forged child completion accepted = %t, error = %v", accepted, deliverSignalErr)
-			}
-			for _, name := range test.release {
-				dispatcher.Release(name)
-			}
-			result, err := root.Await(context.Background())
-			if err != nil {
-				t.Fatal(err)
-			}
-			output := childTestResult(t, result)
-			if !slices.Equal(output.CompletedKeys, test.wantKeys) {
-				t.Fatalf("completed keys = %v, want %v", output.CompletedKeys, test.wantKeys)
-			}
-			dispatcher.ReleaseAll()
-			for _, id := range output.ChildIDs {
-				childID, _ := ParseProcessID(id)
-				child, found := engine.Process(childID)
-				if !found {
-					t.Fatalf("child %s is missing", childID)
-				}
-				if _, err := child.Await(context.Background()); err != nil {
-					t.Fatal(err)
-				}
-			}
-			if err := engine.Close(); err != nil {
-				t.Fatal(err)
-			}
-		})
+		t.Run(test.name, func(t *testing.T) { runChildWaitTest(t, test) })
+	}
+}
+
+type childWaitTestCase struct {
+	name     string
+	mode     string
+	release  []string
+	wantKeys []string
+}
+
+func runChildWaitTest(t *testing.T, test childWaitTestCase) {
+	t.Helper()
+	dispatcher := newBlockingChildDispatcher("first", "second", "third")
+	t.Cleanup(dispatcher.ReleaseAll)
+	deployment := newChildTestDeploymentWithDispatcher(t, dispatcher)
+	engine, err := NewEngine(EngineConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(childTestInput{Mode: test.mode})
+	root, err := engine.Start(context.Background(), deployment, input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for range 3 {
+		<-dispatcher.started
+	}
+	waitForProcessStatus(t, root, StatusWaiting)
+	rejectForgedChildCompletion(t, root)
+	for _, name := range test.release {
+		dispatcher.Release(name)
+	}
+	output := childTestResult(t, mustAwait(t, root))
+	if !slices.Equal(output.CompletedKeys, test.wantKeys) {
+		t.Fatalf("completed keys = %v, want %v", output.CompletedKeys, test.wantKeys)
+	}
+	dispatcher.ReleaseAll()
+	awaitChildren(t, engine, output.ChildIDs)
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func rejectForgedChildCompletion(t *testing.T, root *Process) {
+	t.Helper()
+	waitID, waiting := root.WaitID()
+	if !waiting {
+		t.Fatal("Waiting parent did not expose its current WaitID")
+	}
+	externalID, _ := ParseSignalID("signal:forged-child-completion")
+	forged, _ := NewSignalRequest(externalID, waitID, json.RawMessage(`{"forged":true}`))
+	if accepted, err := root.DeliverSignal(context.Background(), forged); accepted || !errors.Is(err, ErrSignalRejected) {
+		t.Fatalf("forged child completion accepted = %t, error = %v", accepted, err)
 	}
 }
 
@@ -250,103 +247,96 @@ func TestEngineSupportsBoundedSameDefinitionRecursion(t *testing.T) {
 }
 
 func TestEngineEnforcesChildDepthFanoutActiveAndTreeLimits(t *testing.T) {
-	t.Run("depth", func(t *testing.T) {
-		deployment := newChildTestDeployment(t)
-		engine, err := NewEngine(EngineConfig{TreeLimits: TreeLimits{
-			MaxDepth: 1, MaxChildren: 2, MaxActiveChildren: 2, MaxTreeProcesses: 3,
-		}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		input, _ := EncodeInput(childTestInput{Mode: "recurse:2"})
-		root, err := engine.Start(context.Background(), deployment, input)
-		if err != nil {
-			t.Fatal(err)
-		}
-		rootOutput := childTestResult(t, mustAwait(t, root))
-		childID, _ := ParseProcessID(rootOutput.ChildIDs[0])
-		child, _ := engine.Process(childID)
-		childOutput := childTestResult(t, mustAwait(t, child))
-		if childOutput.Failures != 1 || !slices.Contains(childOutput.FailureCodes, "engine.child.tree_limit") {
-			t.Fatalf("depth-limited child output = %#v", childOutput)
-		}
-		if err := engine.Close(); err != nil {
-			t.Fatal(err)
-		}
-	})
+	t.Run("depth", testChildDepthLimit)
+	t.Run("lifetime fanout", testChildLifetimeFanoutLimit)
+	t.Run("active children", testActiveChildLimit)
+	t.Run("tree processes", testTreeProcessLimit)
+}
 
-	t.Run("lifetime fanout", func(t *testing.T) {
-		deployment := newChildTestDeployment(t)
-		engine, err := NewEngine(EngineConfig{TreeLimits: TreeLimits{
-			MaxDepth: 2, MaxChildren: 2, MaxActiveChildren: 2, MaxTreeProcesses: 4,
-		}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		input, _ := EncodeInput(childTestInput{Mode: "fanout"})
-		root, err := engine.Start(context.Background(), deployment, input)
-		if err != nil {
-			t.Fatal(err)
-		}
-		output := childTestResult(t, mustAwait(t, root))
-		if len(output.ChildIDs) != 2 || output.Failures != 1 {
-			t.Fatalf("fanout-limited output = %#v", output)
-		}
-		awaitChildren(t, engine, output.ChildIDs)
-		if err := engine.Close(); err != nil {
-			t.Fatal(err)
-		}
-	})
+func testChildDepthLimit(t *testing.T) {
+	engine, err := NewEngine(EngineConfig{TreeLimits: TreeLimits{
+		MaxDepth: 1, MaxChildren: 2, MaxActiveChildren: 2, MaxTreeProcesses: 3,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(childTestInput{Mode: "recurse:2"})
+	root, err := engine.Start(context.Background(), newChildTestDeployment(t), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rootOutput := childTestResult(t, mustAwait(t, root))
+	childID, _ := ParseProcessID(rootOutput.ChildIDs[0])
+	child, _ := engine.Process(childID)
+	childOutput := childTestResult(t, mustAwait(t, child))
+	if childOutput.Failures != 1 || !slices.Contains(childOutput.FailureCodes, "engine.child.tree_limit") {
+		t.Fatalf("depth-limited child output = %#v", childOutput)
+	}
+	mustCloseEngine(t, engine)
+}
 
-	t.Run("active children", func(t *testing.T) {
-		dispatcher := newBlockingChildDispatcher("first", "second", "third")
-		t.Cleanup(dispatcher.ReleaseAll)
-		deployment := newChildTestDeploymentWithDispatcher(t, dispatcher)
-		engine, err := NewEngine(EngineConfig{TreeLimits: TreeLimits{
-			MaxDepth: 2, MaxChildren: 3, MaxActiveChildren: 1, MaxTreeProcesses: 4,
-		}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		input, _ := EncodeInput(childTestInput{Mode: "fanout_blocking"})
-		root, err := engine.Start(context.Background(), deployment, input)
-		if err != nil {
-			t.Fatal(err)
-		}
-		<-dispatcher.started
-		output := childTestResult(t, mustAwait(t, root))
-		if len(output.ChildIDs) != 1 || output.Failures != 2 {
-			t.Fatalf("active-child-limited output = %#v", output)
-		}
-		dispatcher.ReleaseAll()
-		awaitChildren(t, engine, output.ChildIDs)
-		if err := engine.Close(); err != nil {
-			t.Fatal(err)
-		}
-	})
+func testChildLifetimeFanoutLimit(t *testing.T) {
+	engine, err := NewEngine(EngineConfig{TreeLimits: TreeLimits{
+		MaxDepth: 2, MaxChildren: 2, MaxActiveChildren: 2, MaxTreeProcesses: 4,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(childTestInput{Mode: "fanout"})
+	root, err := engine.Start(context.Background(), newChildTestDeployment(t), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := childTestResult(t, mustAwait(t, root))
+	if len(output.ChildIDs) != 2 || output.Failures != 1 {
+		t.Fatalf("fanout-limited output = %#v", output)
+	}
+	awaitChildren(t, engine, output.ChildIDs)
+	mustCloseEngine(t, engine)
+}
 
-	t.Run("tree processes", func(t *testing.T) {
-		deployment := newChildTestDeployment(t)
-		engine, err := NewEngine(EngineConfig{TreeLimits: TreeLimits{
-			MaxDepth: 2, MaxChildren: 3, MaxActiveChildren: 3, MaxTreeProcesses: 2,
-		}})
-		if err != nil {
-			t.Fatal(err)
-		}
-		input, _ := EncodeInput(childTestInput{Mode: "fanout"})
-		root, err := engine.Start(context.Background(), deployment, input)
-		if err != nil {
-			t.Fatal(err)
-		}
-		output := childTestResult(t, mustAwait(t, root))
-		if len(output.ChildIDs) != 1 || output.Failures != 2 {
-			t.Fatalf("tree-process-limited output = %#v", output)
-		}
-		awaitChildren(t, engine, output.ChildIDs)
-		if err := engine.Close(); err != nil {
-			t.Fatal(err)
-		}
-	})
+func testActiveChildLimit(t *testing.T) {
+	dispatcher := newBlockingChildDispatcher("first", "second", "third")
+	t.Cleanup(dispatcher.ReleaseAll)
+	engine, err := NewEngine(EngineConfig{TreeLimits: TreeLimits{
+		MaxDepth: 2, MaxChildren: 3, MaxActiveChildren: 1, MaxTreeProcesses: 4,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(childTestInput{Mode: "fanout_blocking"})
+	root, err := engine.Start(context.Background(), newChildTestDeploymentWithDispatcher(t, dispatcher), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	<-dispatcher.started
+	output := childTestResult(t, mustAwait(t, root))
+	if len(output.ChildIDs) != 1 || output.Failures != 2 {
+		t.Fatalf("active-child-limited output = %#v", output)
+	}
+	dispatcher.ReleaseAll()
+	awaitChildren(t, engine, output.ChildIDs)
+	mustCloseEngine(t, engine)
+}
+
+func testTreeProcessLimit(t *testing.T) {
+	engine, err := NewEngine(EngineConfig{TreeLimits: TreeLimits{
+		MaxDepth: 2, MaxChildren: 3, MaxActiveChildren: 3, MaxTreeProcesses: 2,
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(childTestInput{Mode: "fanout"})
+	root, err := engine.Start(context.Background(), newChildTestDeployment(t), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	output := childTestResult(t, mustAwait(t, root))
+	if len(output.ChildIDs) != 1 || output.Failures != 2 {
+		t.Fatalf("tree-process-limited output = %#v", output)
+	}
+	awaitChildren(t, engine, output.ChildIDs)
+	mustCloseEngine(t, engine)
 }
 
 func TestTreeProcessLimitBoundsRecursiveBinaryExpansion(t *testing.T) {
@@ -448,13 +438,7 @@ func TestEngineAttenuatesChildBudgetAndCapabilities(t *testing.T) {
 }
 
 func TestParentTerminationPropagatesAtChildSafeBoundary(t *testing.T) {
-	tests := []struct {
-		name       string
-		terminate  func(t *testing.T, process *Process)
-		wantParent Status
-		wantChild  Status
-		wantCause  TerminationCause
-	}{
+	tests := []parentTerminationTestCase{
 		{
 			name: "completion", wantParent: StatusCompleted,
 			wantChild: StatusCanceled, wantCause: TerminationCauseParentCancellation,
@@ -471,53 +455,76 @@ func TestParentTerminationPropagatesAtChildSafeBoundary(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			dispatcher := newBlockingChildDispatcher("first", "second", "third")
-			t.Cleanup(dispatcher.ReleaseAll)
-			deployment := newChildTestDeploymentWithDispatcher(t, dispatcher)
-			mode := "fanout_blocking"
-			if test.terminate != nil {
-				mode = "wait:all"
-			}
-			engine, err := NewEngine(EngineConfig{})
-			if err != nil {
-				t.Fatal(err)
-			}
-			input, _ := EncodeInput(childTestInput{Mode: mode})
-			parent, err := engine.Start(context.Background(), deployment, input)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if test.terminate != nil {
-				for range 3 {
-					<-dispatcher.started
-				}
-				waitForProcessStatus(t, parent, StatusWaiting)
-				test.terminate(t, parent)
-			}
-			parentResult := mustAwait(t, parent)
-			if parentResult.Status() != test.wantParent {
-				t.Fatalf("parent status = %s, want %s", parentResult.Status(), test.wantParent)
-			}
-			var childIDs []string
-			if parentResult.Status() == StatusCompleted {
-				childIDs = childTestResult(t, parentResult).ChildIDs
-			} else {
-				childIDs = directChildIDs(t, engine, parent.ID())
-			}
-			dispatcher.ReleaseAll()
-			for _, encoded := range childIDs {
-				childID, _ := ParseProcessID(encoded)
-				child, _ := engine.Process(childID)
-				result := mustAwait(t, child)
-				if result.Status() != test.wantChild || result.Termination().Cause() != test.wantCause {
-					t.Fatalf("child result = status %s cause %s", result.Status(), result.Termination().Cause())
-				}
-			}
-			if err := engine.Close(); err != nil {
-				t.Fatal(err)
-			}
-		})
+		t.Run(test.name, func(t *testing.T) { runParentTerminationTest(t, test) })
+	}
+}
+
+type parentTerminationTestCase struct {
+	name       string
+	terminate  func(t *testing.T, process *Process)
+	wantParent Status
+	wantChild  Status
+	wantCause  TerminationCause
+}
+
+func runParentTerminationTest(t *testing.T, test parentTerminationTestCase) {
+	t.Helper()
+	dispatcher := newBlockingChildDispatcher("first", "second", "third")
+	t.Cleanup(dispatcher.ReleaseAll)
+	mode := "fanout_blocking"
+	if test.terminate != nil {
+		mode = "wait:all"
+	}
+	engine, err := NewEngine(EngineConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	input, _ := EncodeInput(childTestInput{Mode: mode})
+	parent, err := engine.Start(context.Background(), newChildTestDeploymentWithDispatcher(t, dispatcher), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if test.terminate != nil {
+		for range 3 {
+			<-dispatcher.started
+		}
+		waitForProcessStatus(t, parent, StatusWaiting)
+		test.terminate(t, parent)
+	}
+	parentResult := mustAwait(t, parent)
+	if parentResult.Status() != test.wantParent {
+		t.Fatalf("parent status = %s, want %s", parentResult.Status(), test.wantParent)
+	}
+	childIDs := terminatedChildIDs(t, engine, parent, parentResult)
+	dispatcher.ReleaseAll()
+	assertTerminatedChildren(t, engine, childIDs, test.wantChild, test.wantCause)
+	mustCloseEngine(t, engine)
+}
+
+func terminatedChildIDs(t *testing.T, engine *Engine, parent *Process, result Result) []string {
+	t.Helper()
+	if result.Status() == StatusCompleted {
+		return childTestResult(t, result).ChildIDs
+	}
+	return directChildIDs(t, engine, parent.ID())
+}
+
+func assertTerminatedChildren(t *testing.T, engine *Engine, childIDs []string, wantStatus Status, wantCause TerminationCause) {
+	t.Helper()
+	for _, encoded := range childIDs {
+		childID, _ := ParseProcessID(encoded)
+		child, _ := engine.Process(childID)
+		result := mustAwait(t, child)
+		if result.Status() != wantStatus || result.Termination().Cause() != wantCause {
+			t.Fatalf("child result = status %s cause %s", result.Status(), result.Termination().Cause())
+		}
+	}
+}
+
+func mustCloseEngine(t *testing.T, engine *Engine) {
+	t.Helper()
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
 	}
 }
 

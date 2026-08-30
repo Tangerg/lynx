@@ -223,86 +223,98 @@ func (e *crashTreeExecution) Step(
 func (e *crashTreeExecution) stepRoot(signals []agent.Signal) (agent.Transition, error) {
 	switch e.state.Phase {
 	case crashTreePhaseReady:
-		if len(signals) != 0 {
-			return agent.Transition{}, errors.New("agenttest: root received an unexpected initial Signal")
-		}
-		input, err := e.definition.descriptor.EncodeInput(crashTreeInput{Role: crashTreeRoleChild})
-		if err != nil {
-			return agent.Transition{}, err
-		}
-		key, err := agent.ParseChildKey(crashTreeChildKey)
-		if err != nil {
-			return agent.Transition{}, err
-		}
-		budget, err := agent.NewBudget(
-			crashTreeChildStepBudget,
-			crashTreeChildEffectBudget,
-			crashTreeChildSignalBudget,
-		)
-		if err != nil {
-			return agent.Transition{}, err
-		}
-		effect, err := agent.StartChild(agent.ChildSpec{
-			Key: key, DeploymentRef: e.definition.reference, Input: input,
-			Budget: budget, Capabilities: agent.CapabilitySet{},
-		})
-		if err != nil {
-			return agent.Transition{}, err
-		}
-		e.state.Phase = crashTreePhaseChildStarting
-		return agent.Continue(0, effect)
+		return e.startRootChild(signals)
 	case crashTreePhaseChildStarting:
-		if len(signals) != 1 {
-			return agent.Transition{}, errors.New("agenttest: child start result is missing")
-		}
-		started, err := agent.ParseChildStartResult(signals[0])
-		if err != nil {
-			return agent.Transition{}, err
-		}
-		childID, ok := started.ProcessID()
-		if !ok {
-			return agent.Transition{}, errors.New("agenttest: child did not start")
-		}
-		key, err := agent.ParseWaitKey(crashTreeRootWaitKey)
-		if err != nil {
-			return agent.Transition{}, err
-		}
-		effect, err := agent.WaitForChildren(agent.ChildWaitSpec{
-			Key: key, Children: []agent.ProcessID{childID}, Condition: agent.AllChildren(),
-		})
-		if err != nil {
-			return agent.Transition{}, err
-		}
-		e.state.ChildID = childID.String()
-		e.state.Phase = crashTreePhaseRootWaitOpening
-		return agent.Continue(1, effect)
+		return e.openRootChildWait(signals)
 	case crashTreePhaseRootWaitOpening:
-		if len(signals) != 1 {
-			return agent.Transition{}, errors.New("agenttest: child wait acknowledgement is missing")
-		}
-		opened, err := agent.ParseChildWaitOpened(signals[0])
-		if err != nil {
-			return agent.Transition{}, err
-		}
-		e.state.WaitID = opened.WaitID().String()
-		e.state.Phase = crashTreePhaseRootWaiting
-		return agent.Wait(1, opened.WaitID())
+		return e.enterRootChildWait(signals)
 	case crashTreePhaseRootWaiting:
-		if len(signals) != 1 {
-			return agent.Transition{}, errors.New("agenttest: child completion is missing")
-		}
-		if _, err := agent.ParseChildrenCompleted(signals[0]); err != nil {
-			return agent.Transition{}, err
-		}
-		e.state.Phase = crashTreePhaseFinished
-		output, err := agent.EncodeOutput(crashTreeOutput{Completed: true})
-		if err != nil {
-			return agent.Transition{}, err
-		}
-		return agent.Complete(1, output)
+		return e.completeRoot(signals)
 	default:
 		return agent.Transition{}, errors.New("agenttest: root cannot advance from its current phase")
 	}
+}
+
+func (e *crashTreeExecution) startRootChild(signals []agent.Signal) (agent.Transition, error) {
+	if len(signals) != 0 {
+		return agent.Transition{}, errors.New("agenttest: root received an unexpected initial Signal")
+	}
+	input, err := e.definition.descriptor.EncodeInput(crashTreeInput{Role: crashTreeRoleChild})
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	key, err := agent.ParseChildKey(crashTreeChildKey)
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	budget, err := agent.NewBudget(crashTreeChildStepBudget, crashTreeChildEffectBudget, crashTreeChildSignalBudget)
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	effect, err := agent.StartChild(agent.ChildSpec{
+		Key: key, DeploymentRef: e.definition.reference, Input: input,
+		Budget: budget, Capabilities: agent.CapabilitySet{},
+	})
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	e.state.Phase = crashTreePhaseChildStarting
+	return agent.Continue(0, effect)
+}
+
+func (e *crashTreeExecution) openRootChildWait(signals []agent.Signal) (agent.Transition, error) {
+	if len(signals) != 1 {
+		return agent.Transition{}, errors.New("agenttest: child start result is missing")
+	}
+	started, err := agent.ParseChildStartResult(signals[0])
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	childID, ok := started.ProcessID()
+	if !ok {
+		return agent.Transition{}, errors.New("agenttest: child did not start")
+	}
+	key, err := agent.ParseWaitKey(crashTreeRootWaitKey)
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	effect, err := agent.WaitForChildren(agent.ChildWaitSpec{
+		Key: key, Children: []agent.ProcessID{childID}, Condition: agent.AllChildren(),
+	})
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	e.state.ChildID = childID.String()
+	e.state.Phase = crashTreePhaseRootWaitOpening
+	return agent.Continue(1, effect)
+}
+
+func (e *crashTreeExecution) enterRootChildWait(signals []agent.Signal) (agent.Transition, error) {
+	if len(signals) != 1 {
+		return agent.Transition{}, errors.New("agenttest: child wait acknowledgement is missing")
+	}
+	opened, err := agent.ParseChildWaitOpened(signals[0])
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	e.state.WaitID = opened.WaitID().String()
+	e.state.Phase = crashTreePhaseRootWaiting
+	return agent.Wait(1, opened.WaitID())
+}
+
+func (e *crashTreeExecution) completeRoot(signals []agent.Signal) (agent.Transition, error) {
+	if len(signals) != 1 {
+		return agent.Transition{}, errors.New("agenttest: child completion is missing")
+	}
+	if _, err := agent.ParseChildrenCompleted(signals[0]); err != nil {
+		return agent.Transition{}, err
+	}
+	e.state.Phase = crashTreePhaseFinished
+	output, err := agent.EncodeOutput(crashTreeOutput{Completed: true})
+	if err != nil {
+		return agent.Transition{}, err
+	}
+	return agent.Complete(1, output)
 }
 
 func (e *crashTreeExecution) stepChild(signals []agent.Signal) (agent.Transition, error) {

@@ -579,12 +579,7 @@ func TestDurableUnknownResolutionCommitsAResolvedBoundary(t *testing.T) {
 
 func TestRestorePendingEffectUsesOneDurableRecoveryDecision(t *testing.T) {
 	pending, deployment, effectID := durablePendingTreeSnapshot(t)
-	for _, test := range []struct {
-		name       string
-		policy     ReplayPolicy
-		wantCalls  int32
-		wantStatus SettlementStatus
-	}{
+	for _, test := range []pendingEffectRecoveryCase{
 		{
 			name:   "never replay commits Unknown without dispatch",
 			policy: ReplayPolicyNever, wantStatus: SettlementStatusUnknown,
@@ -596,55 +591,87 @@ func TestRestorePendingEffectUsesOneDurableRecoveryDecision(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			durability := &recordingTreeDurability{}
-			dispatcher := &engineTestDispatcher{policy: test.policy}
-			restoredDeployment := engineTestDeployment(t, deployment.Definition(), dispatcher)
-			engine, err := NewEngine(EngineConfig{TreeDurability: durability})
-			if err != nil {
-				t.Fatal(err)
-			}
-			process, err := engine.RestoreTree(
-				context.Background(), restoredDeployment, pending,
-			)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if test.wantStatus == SettlementStatusUnknown {
-				snapshot := waitForUnknownSettlement(t, process)
-				wire, _ := snapshot.wire()
-				if wire.Prepared.Effects[0].ID != effectID {
-					t.Fatalf("restored EffectID=%s, want %s", wire.Prepared.Effects[0].ID, effectID)
-				}
-			} else if result := awaitResult(t, process); result.Status() != StatusCompleted {
-				t.Fatalf("restored result status=%s", result.Status())
-			}
-			if got := dispatcher.calls.Load(); got != test.wantCalls {
-				t.Fatalf("recovery dispatch calls=%d, want %d", got, test.wantCalls)
-			}
-			boundaries := durability.effectBoundaries()
-			if len(boundaries) == 0 {
-				t.Fatal("recovery settlement boundary is missing")
-			}
-			boundary := boundaries[0]
-			settlement, present := boundary.Settlement()
-			if boundary.Kind() != EffectBoundarySettled || !present ||
-				boundary.Request().ID() != effectID || settlement.EffectID() != effectID ||
-				settlement.Status() != test.wantStatus {
-				t.Fatalf("recovery boundary=%+v settlement=%+v present=%t", boundary, settlement, present)
-			}
-			activations := durability.treeActivations()
-			if len(activations) != 1 ||
-				boundary.PreviousTreeDigest() != activations[0].TreeSnapshot().Digest() {
-				t.Fatalf("activation=%v previous head=%s", activations, boundary.PreviousTreeDigest())
-			}
-			if test.wantStatus == SettlementStatusUnknown {
-				_ = process.Kill(context.Background(), "test cleanup")
-				_ = awaitResult(t, process)
-			}
-			if err := engine.Close(); err != nil {
-				t.Fatal(err)
-			}
+			runPendingEffectRecoveryCase(t, pending, deployment, effectID, test)
 		})
+	}
+}
+
+type pendingEffectRecoveryCase struct {
+	name       string
+	policy     ReplayPolicy
+	wantCalls  int32
+	wantStatus SettlementStatus
+}
+
+func runPendingEffectRecoveryCase(
+	t *testing.T,
+	pending TreeSnapshot,
+	deployment Deployment,
+	effectID EffectID,
+	test pendingEffectRecoveryCase,
+) {
+	t.Helper()
+	durability := &recordingTreeDurability{}
+	dispatcher := &engineTestDispatcher{policy: test.policy}
+	restoredDeployment := engineTestDeployment(t, deployment.Definition(), dispatcher)
+	engine, err := NewEngine(EngineConfig{TreeDurability: durability})
+	if err != nil {
+		t.Fatal(err)
+	}
+	process, err := engine.RestoreTree(context.Background(), restoredDeployment, pending)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assertRecoveredProcess(t, process, effectID, test.wantStatus)
+	if got := dispatcher.calls.Load(); got != test.wantCalls {
+		t.Fatalf("recovery dispatch calls=%d, want %d", got, test.wantCalls)
+	}
+	assertRecoveryBoundary(t, durability, effectID, test.wantStatus)
+	if test.wantStatus == SettlementStatusUnknown {
+		_ = process.Kill(context.Background(), "test cleanup")
+		_ = awaitResult(t, process)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func assertRecoveredProcess(t *testing.T, process *Process, effectID EffectID, want SettlementStatus) {
+	t.Helper()
+	if want != SettlementStatusUnknown {
+		if result := awaitResult(t, process); result.Status() != StatusCompleted {
+			t.Fatalf("restored result status=%s", result.Status())
+		}
+		return
+	}
+	snapshot := waitForUnknownSettlement(t, process)
+	wire, _ := snapshot.wire()
+	if wire.Prepared.Effects[0].ID != effectID {
+		t.Fatalf("restored EffectID=%s, want %s", wire.Prepared.Effects[0].ID, effectID)
+	}
+}
+
+func assertRecoveryBoundary(
+	t *testing.T,
+	durability *recordingTreeDurability,
+	effectID EffectID,
+	wantStatus SettlementStatus,
+) {
+	t.Helper()
+	boundaries := durability.effectBoundaries()
+	if len(boundaries) == 0 {
+		t.Fatal("recovery settlement boundary is missing")
+	}
+	boundary := boundaries[0]
+	settlement, present := boundary.Settlement()
+	if boundary.Kind() != EffectBoundarySettled || !present ||
+		boundary.Request().ID() != effectID || settlement.EffectID() != effectID ||
+		settlement.Status() != wantStatus {
+		t.Fatalf("recovery boundary=%+v settlement=%+v present=%t", boundary, settlement, present)
+	}
+	activations := durability.treeActivations()
+	if len(activations) != 1 || boundary.PreviousTreeDigest() != activations[0].TreeSnapshot().Digest() {
+		t.Fatalf("activation=%v previous head=%s", activations, boundary.PreviousTreeDigest())
 	}
 }
 

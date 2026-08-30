@@ -10,6 +10,22 @@ import (
 	"github.com/Tangerg/scope/agent/workflow"
 )
 
+type expectedTopologyBinding struct {
+	role       workflow.BindingRole
+	id         string
+	deployment agent.Deployment
+}
+
+type topologyCase struct {
+	name          string
+	stage         workflow.Stage
+	kind          workflow.StageKind
+	bindings      []expectedTopologyBinding
+	windowSize    uint32
+	itemLimit     uint32
+	maxIterations uint32
+}
+
 func TestDefinitionTopologyProjectsEverySealedStageKind(t *testing.T) {
 	numberChild := mustTopologyDeployment(
 		t,
@@ -87,71 +103,79 @@ func TestDefinitionTopologyProjectsEverySealedStageKind(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	type expectedBinding struct {
-		role       workflow.BindingRole
-		id         string
-		deployment agent.Deployment
-	}
-	tests := []struct {
-		name          string
-		stage         workflow.Stage
-		kind          workflow.StageKind
-		bindings      []expectedBinding
-		windowSize    uint32
-		itemLimit     uint32
-		maxIterations uint32
-	}{
+	tests := []topologyCase{
 		{name: "transform", stage: transform, kind: workflow.StageKindTransform},
-		{name: "call", stage: call, kind: workflow.StageKindCall, bindings: []expectedBinding{
+		{name: "call", stage: call, kind: workflow.StageKindCall, bindings: []expectedTopologyBinding{
 			{role: workflow.BindingRoleCall, deployment: numberChild},
 		}},
-		{name: "switch", stage: switcher, kind: workflow.StageKindSwitch, bindings: []expectedBinding{
+		{name: "switch", stage: switcher, kind: workflow.StageKindSwitch, bindings: []expectedTopologyBinding{
 			{role: workflow.BindingRoleCase, id: "primary", deployment: numberChild},
 			{role: workflow.BindingRoleCase, id: "fallback", deployment: alternateNumberChild},
 		}},
-		{name: "fork", stage: fork, kind: workflow.StageKindFork, bindings: []expectedBinding{
+		{name: "fork", stage: fork, kind: workflow.StageKindFork, bindings: []expectedTopologyBinding{
 			{role: workflow.BindingRoleBranch, id: "left", deployment: numberChild},
 			{role: workflow.BindingRoleBranch, id: "right", deployment: alternateNumberChild},
 		}, windowSize: 1},
-		{name: "map", stage: mapper, kind: workflow.StageKindMap, bindings: []expectedBinding{
+		{name: "map", stage: mapper, kind: workflow.StageKindMap, bindings: []expectedTopologyBinding{
 			{role: workflow.BindingRoleItem, deployment: numberChild},
 		}, windowSize: 2, itemLimit: 4},
-		{name: "loop", stage: loop, kind: workflow.StageKindLoop, bindings: []expectedBinding{
+		{name: "loop", stage: loop, kind: workflow.StageKindLoop, bindings: []expectedTopologyBinding{
 			{role: workflow.BindingRoleBody, deployment: identityChild},
 		}, maxIterations: 3},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			definition := mustDefinition(t, "test.topology."+test.name, test.stage)
-			topology := definition.Topology()
-			if topology.Descriptor.Digest() != definition.Descriptor().Digest() || len(topology.Stages) != 1 {
-				t.Fatalf("topology=%+v", topology)
-			}
-			stage := topology.Stages[0]
-			if stage.Kind != test.kind || stage.WindowSize != test.windowSize ||
-				stage.ItemLimit != test.itemLimit || stage.MaxIterations != test.maxIterations {
-				t.Fatalf("stage=%+v", stage)
-			}
-			if stage.ID != test.name || !stage.InputSchema.Valid() ||
-				!stage.OutputSchema.Valid() || len(stage.Bindings) != len(test.bindings) {
-				t.Fatalf("stage contracts=%+v", stage)
-			}
-			for index, want := range test.bindings {
-				binding := stage.Bindings[index]
-				descriptor := want.deployment.Descriptor()
-				if binding.Role != want.role || binding.ID != want.id ||
-					binding.DeploymentRef != want.deployment.DeploymentRef() ||
-					!bytes.Equal(binding.InputSchema.JSON(), descriptor.InputSchema().JSON()) ||
-					!bytes.Equal(binding.OutputSchema.JSON(), descriptor.OutputSchema().JSON()) ||
-					binding.Budget != budget ||
-					!slices.Equal(binding.Capabilities.Values(), capabilities.Values()) {
-					t.Fatalf("binding[%d]=%+v", index, binding)
-				}
-			}
-			if _, err := json.Marshal(topology); err != nil {
-				t.Fatalf("marshal Topology: %v", err)
-			}
+			assertTopologyCase(t, test, budget, capabilities)
 		})
+	}
+}
+
+func assertTopologyCase(
+	t *testing.T,
+	test topologyCase,
+	budget agent.Budget,
+	capabilities agent.CapabilitySet,
+) {
+	t.Helper()
+	definition := mustDefinition(t, "test.topology."+test.name, test.stage)
+	topology := definition.Topology()
+	if topology.Descriptor.Digest() != definition.Descriptor().Digest() || len(topology.Stages) != 1 {
+		t.Fatalf("topology=%+v", topology)
+	}
+	stage := topology.Stages[0]
+	if stage.Kind != test.kind || stage.WindowSize != test.windowSize ||
+		stage.ItemLimit != test.itemLimit || stage.MaxIterations != test.maxIterations {
+		t.Fatalf("stage=%+v", stage)
+	}
+	if stage.ID != test.name || !stage.InputSchema.Valid() ||
+		!stage.OutputSchema.Valid() || len(stage.Bindings) != len(test.bindings) {
+		t.Fatalf("stage contracts=%+v", stage)
+	}
+	for index, want := range test.bindings {
+		assertTopologyBinding(t, index, stage.Bindings[index], want, budget, capabilities)
+	}
+	if _, err := json.Marshal(topology); err != nil {
+		t.Fatalf("marshal Topology: %v", err)
+	}
+}
+
+func assertTopologyBinding(
+	t *testing.T,
+	index int,
+	binding workflow.BindingTopology,
+	want expectedTopologyBinding,
+	budget agent.Budget,
+	capabilities agent.CapabilitySet,
+) {
+	t.Helper()
+	descriptor := want.deployment.Descriptor()
+	if binding.Role != want.role || binding.ID != want.id ||
+		binding.DeploymentRef != want.deployment.DeploymentRef() ||
+		!bytes.Equal(binding.InputSchema.JSON(), descriptor.InputSchema().JSON()) ||
+		!bytes.Equal(binding.OutputSchema.JSON(), descriptor.OutputSchema().JSON()) ||
+		binding.Budget != budget ||
+		!slices.Equal(binding.Capabilities.Values(), capabilities.Values()) {
+		t.Fatalf("binding[%d]=%+v", index, binding)
 	}
 }
 

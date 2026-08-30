@@ -26,57 +26,8 @@ func TestCompletionValidatorUsesOrderedTypedDelegateArtifacts(t *testing.T) {
 		t.Fatal(err)
 	}
 	model := &artifactValidationModel{}
-	validator := func(candidate interaction.CompletionCandidate) (interaction.CompletionDecision, error) {
-		workingContext := candidate.WorkingContext()
-		if workingContext == nil || len(workingContext.Messages) == 0 {
-			return interaction.CompletionDecision{}, errors.New("candidate has no WorkingContext")
-		}
-		workingContext.Messages[0] = chat.NewUserMessage(chat.NewTextPart("mutated"))
-		if candidate.WorkingContext().Messages[0].Text() == "mutated" {
-			return interaction.CompletionDecision{}, errors.New("WorkingContext aliases validator-owned copy")
-		}
-		artifacts := candidate.Artifacts().All()
-		if len(artifacts) != 1 {
-			return interaction.CompletionDecision{}, fmt.Errorf("artifact count = %d", len(artifacts))
-		}
-		artifact := artifacts[0]
-		if artifact.DelegateName() != "delegate_artifact" {
-			return interaction.CompletionDecision{}, fmt.Errorf("artifact Delegate identity is incorrect")
-		}
-		artifacts[0] = interaction.Artifact{}
-		if candidate.Artifacts().All()[0].DelegateName() != "delegate_artifact" {
-			return interaction.CompletionDecision{}, errors.New("Artifact snapshot aliases validator-owned slice")
-		}
-		decoded, decodeErr := artifact.Decode[delegateResponse]()
-		if decodeErr != nil {
-			return interaction.CompletionDecision{}, fmt.Errorf("decode artifact: %w", decodeErr)
-		}
-		if decoded.Value != "artifact:evidence" {
-			return interaction.CompletionDecision{}, fmt.Errorf("decoded artifact = %#v", decoded)
-		}
-		if _, mismatchErr := artifact.Decode[struct {
-			Other string `json:"other"`
-		}](); !errors.Is(mismatchErr, interaction.ErrInvalidArtifact) || !errors.Is(mismatchErr, agent.ErrInvalidOutput) {
-			return interaction.CompletionDecision{}, fmt.Errorf("wrong typed decode error = %v", mismatchErr)
-		}
-		output := candidate.Output()
-		candidateText := ""
-		if output.ModelResponse != nil {
-			candidateText = output.ModelResponse.Text()
-			output.ModelResponse.Output.Message = nil
-			if candidate.Output().ModelResponse.Text() != candidateText {
-				return interaction.CompletionDecision{}, errors.New("candidate Output aliases validator-owned copy")
-			}
-		}
-		if candidateText == "premature" {
-			return interaction.CompletionDecision{
-				Feedback: "The delegated evidence is present, but the final answer must cite it explicitly.",
-			}, nil
-		}
-		return interaction.CompletionDecision{Accepted: true}, nil
-	}
 	root := delegateInteractionWithValidator(
-		t, model, nil, []interaction.Delegate{delegate}, validator, 4,
+		t, model, nil, []interaction.Delegate{delegate}, validateArtifactCompletion, 4,
 	)
 	engine, err := agent.NewEngine(agent.EngineConfig{
 		DeploymentResolver: delegateResolver{child.DeploymentRef(): child},
@@ -99,6 +50,87 @@ func TestCompletionValidatorUsesOrderedTypedDelegateArtifacts(t *testing.T) {
 	if err != nil || output.ModelResponse == nil || output.ModelResponse.Text() != "artifact:evidence supports the answer" {
 		t.Fatalf("output=%#v error=%v", output, err)
 	}
+}
+
+func validateArtifactCompletion(candidate interaction.CompletionCandidate) (interaction.CompletionDecision, error) {
+	if err := validateCandidateOwnership(candidate); err != nil {
+		return interaction.CompletionDecision{}, err
+	}
+	artifact, err := validatedArtifact(candidate)
+	if err != nil {
+		return interaction.CompletionDecision{}, err
+	}
+	if payloadErr := validateArtifactPayload(artifact); payloadErr != nil {
+		return interaction.CompletionDecision{}, payloadErr
+	}
+	candidateText, err := validateOutputOwnership(candidate)
+	if err != nil {
+		return interaction.CompletionDecision{}, err
+	}
+	if candidateText == "premature" {
+		return interaction.CompletionDecision{
+			Feedback: "The delegated evidence is present, but the final answer must cite it explicitly.",
+		}, nil
+	}
+	return interaction.CompletionDecision{Accepted: true}, nil
+}
+
+func validateCandidateOwnership(candidate interaction.CompletionCandidate) error {
+	workingContext := candidate.WorkingContext()
+	if workingContext == nil || len(workingContext.Messages) == 0 {
+		return errors.New("candidate has no WorkingContext")
+	}
+	workingContext.Messages[0] = chat.NewUserMessage(chat.NewTextPart("mutated"))
+	if candidate.WorkingContext().Messages[0].Text() == "mutated" {
+		return errors.New("WorkingContext aliases validator-owned copy")
+	}
+	return nil
+}
+
+func validatedArtifact(candidate interaction.CompletionCandidate) (interaction.Artifact, error) {
+	artifacts := candidate.Artifacts().All()
+	if len(artifacts) != 1 {
+		return interaction.Artifact{}, fmt.Errorf("artifact count = %d", len(artifacts))
+	}
+	artifact := artifacts[0]
+	if artifact.DelegateName() != "delegate_artifact" {
+		return interaction.Artifact{}, errors.New("artifact Delegate identity is incorrect")
+	}
+	artifacts[0] = interaction.Artifact{}
+	if candidate.Artifacts().All()[0].DelegateName() != "delegate_artifact" {
+		return interaction.Artifact{}, errors.New("Artifact snapshot aliases validator-owned slice")
+	}
+	return artifact, nil
+}
+
+func validateArtifactPayload(artifact interaction.Artifact) error {
+	decoded, err := artifact.Decode[delegateResponse]()
+	if err != nil {
+		return fmt.Errorf("decode artifact: %w", err)
+	}
+	if decoded.Value != "artifact:evidence" {
+		return fmt.Errorf("decoded artifact = %#v", decoded)
+	}
+	_, mismatchErr := artifact.Decode[struct {
+		Other string `json:"other"`
+	}]()
+	if !errors.Is(mismatchErr, interaction.ErrInvalidArtifact) || !errors.Is(mismatchErr, agent.ErrInvalidOutput) {
+		return fmt.Errorf("wrong typed decode error = %v", mismatchErr)
+	}
+	return nil
+}
+
+func validateOutputOwnership(candidate interaction.CompletionCandidate) (string, error) {
+	output := candidate.Output()
+	if output.ModelResponse == nil {
+		return "", nil
+	}
+	candidateText := output.ModelResponse.Text()
+	output.ModelResponse.Output.Message = nil
+	if candidate.Output().ModelResponse.Text() != candidateText {
+		return "", errors.New("candidate Output aliases validator-owned copy")
+	}
+	return candidateText, nil
 }
 
 func TestCompletionValidatorRetryHonorsModelCallLimit(t *testing.T) {
