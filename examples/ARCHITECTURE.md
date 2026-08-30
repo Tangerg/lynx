@@ -10,7 +10,7 @@ point is [`README.md`](README.md).
 ## 1. Position
 
 - Each subdirectory is a `main` package showing how several modules compose.
-- `examples` is a namespace root and holds no Go package of its own.
+- The root package contains only its `doc.go` overview and exports no API.
 
 ## 2. Negative invariants
 

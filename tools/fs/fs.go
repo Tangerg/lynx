@@ -3,8 +3,6 @@ package fs
 import (
 	"cmp"
 	"context"
-
-	"github.com/samber/lo"
 )
 
 // Each tool depends on the smallest backend capability it consumes. A backend
@@ -124,8 +122,6 @@ type GrepInput struct {
 func (g GrepInput) contextLines() (before, after int) {
 	return cmp.Or(g.BeforeContext, g.Context), cmp.Or(g.AfterContext, g.Context)
 }
-
-func isNilBackend(backend any) bool { return lo.IsNil(backend) }
 
 // GrepLineKind distinguishes a matching line from requested surrounding
 // context.

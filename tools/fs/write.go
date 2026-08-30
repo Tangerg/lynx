@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/scope/core/chat"
 	toolcontract "github.com/Tangerg/scope/core/tool"
 )
@@ -26,7 +28,7 @@ type WriteTool struct {
 }
 
 func NewWriteTool(executor Writer) *WriteTool {
-	if isNilBackend(executor) {
+	if lo.IsNil(executor) {
 		executor = NewLocalExecutor("")
 	}
 	t := &WriteTool{executor: executor}

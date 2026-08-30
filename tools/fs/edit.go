@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/scope/core/chat"
 	toolcontract "github.com/Tangerg/scope/core/tool"
 )
@@ -34,7 +36,7 @@ type EditTool struct {
 }
 
 func NewEditTool(executor Editor) *EditTool {
-	if isNilBackend(executor) {
+	if lo.IsNil(executor) {
 		executor = NewLocalExecutor("")
 	}
 	t := &EditTool{executor: executor}

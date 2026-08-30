@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/scope/core/chat"
 	toolcontract "github.com/Tangerg/scope/core/tool"
 )
@@ -34,7 +36,7 @@ type ReadTool struct {
 }
 
 func NewReadTool(executor Reader) *ReadTool {
-	if isNilBackend(executor) {
+	if lo.IsNil(executor) {
 		executor = NewLocalExecutor("")
 	}
 	t := &ReadTool{executor: executor}

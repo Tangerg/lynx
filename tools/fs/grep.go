@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/scope/core/chat"
 	toolcontract "github.com/Tangerg/scope/core/tool"
 )
@@ -49,7 +51,7 @@ type GrepTool struct {
 }
 
 func NewGrepTool(executor Grepper) *GrepTool {
-	if isNilBackend(executor) {
+	if lo.IsNil(executor) {
 		executor = NewLocalExecutor("")
 	}
 	t := &GrepTool{executor: executor}

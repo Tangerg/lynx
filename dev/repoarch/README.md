@@ -13,14 +13,20 @@ cd dev/repoarch && go test ./...
 A failure names the rule and the file that broke it. The gates check, among
 others:
 
-- Namespace roots such as `core`, `models`, `otel`, and `tools` contain no Go
-  package, so no root façade can appear.
+- Every workspace module keeps `README.md`, `ARCHITECTURE.md`, and `doc.go`.
+- `AGENTS.md` is the canonical repository guidance; `CLAUDE.md` points to it,
+  and module-specific contracts stay in `ARCHITECTURE.md`.
+- The `core`, `examples`, `otel`, and `tools` root packages contain only
+  `doc.go`, so an overview cannot become a second public API.
 - A provider module never imports a sibling provider, and its dependency island
   holds.
 - Each capability module documents its public packages and keeps at least one
   checked Go example.
 - Model modality boundaries and vector-store compiler shapes stay within their
   declared surface.
+- Receiver names and parameters follow the repository convention. Imported
+  package identities come from `go list`, so semantic import versions do not
+  hide shadowing.
 
 ## Why tests rather than review
 

@@ -1,274 +1,230 @@
-# DESIGN_PHILOSOPHY.md — the *why* behind Scope's design
+# Scope design philosophy
 
-> Scope's design documentation has three layers, each answering one question:
->
-> - [`AGENTS.md`](AGENTS.md): the **quick red lines** — laws, negative
->   invariants, trigger signals. "**May** I write it this way?"
-> - [`REFACTORING.md`](REFACTORING.md): the **refactoring yardstick** — naming,
->   comments, pointer versus value, nil guards, free function versus method,
->   guard clauses, locality, rhythm. "**What** do I change and **how**?"
-> - **This document**: the **organizing philosophy behind those red lines**.
->   "**Should** it be designed this way, and why?"
->
-> Before designing a new capability, a new package, or a public API change, run
-> it through the framework here. When actually refactoring, use
-> [`REFACTORING.md`](REFACTORING.md).
->
-> This document states principles only and binds to no concrete implementation —
-> concrete cases change as the code evolves and live in the code and in git. This
-> philosophy is not one person's taste: it has **two independent external
-> corroborations** — convergent design with **embabel-agent**, an older GOAP
-> agent framework, and a point-by-point match with the trade-offs in the **MCP Go
-> SDK design document**, co-written by the Go core team and Anthropic.
+This conceptual document explains why Scope is shaped the way it is. [`AGENTS.md`](AGENTS.md) contains the short repository rules, and [`REFACTORING.md`](REFACTORING.md) turns these principles into an editing and verification method. Module-specific contracts remain in each module's `ARCHITECTURE.md`.
 
----
+## The governing idea
 
-## 0. The whole thing, in one line
+Scope has one organizing idea: a thin, indivisible kernel; capabilities that reduce to that kernel; and no capability that rebuilds the kernel's infrastructure.
 
-> **A thin, indivisible kernel + every capability reducing to that kernel + no
-> capability rebuilding its own infrastructure.**
+The kernel owns only contracts that every implementation must obey. Concrete provider behavior, optional capabilities, protocol integrations, and application policy stay above it. This keeps the base abstraction broad enough to compose without making every consumer carry concepts it does not use.
 
-The MCP Go SDK states it as the last item on its requirements list: "the SDK
-should be **minimal**. However, it should admit **extensibility using simple
-interfaces, middleware, or hooks**." A minimal kernel with simple extension
-points, not a new machine per capability.
+## The two repair laws
 
----
+Scope is still in active development, so backward compatibility with a known-wrong design is not a goal. Two laws govern design changes:
 
-## 1. Three shapes of variation, and the litmus test
+1. Do not take on debt for convenience. Once the better shape is known, replace the wrong application programming interface (API), schema, name, or dependency direction instead of keeping an alias, migration, fallback, or temporary shim.
+2. Fix the root cause in the layer that owns it. A consumer-side condition, retry, coercion, or log entry that only hides an upstream invalid state is not a fix.
 
-When a new capability is added, it is necessarily a re-expression of the core,
-not a new machine. Three shapes, in priority order:
+A repair is complete only when the cause no longer exists. If the original invalid state can still be produced and one symptom merely stopped appearing, the change is a patch.
 
-| Shape | What varies | Pattern |
+Breaking exported APIs, wire shapes, and schemas still require an explicit blast-radius discussion before editing. Once approved, replace the old design outright and migrate every workspace consumer in the same change.
+
+## Explainable and explicit design
+
+The useful parts of the Zen of Python apply directly to framework design:
+
+- Prefer explicit relationships over implicit behavior. Dependencies, ownership, policy, identity, and lifecycle choices appear in types, declarations, or parameters.
+- Prefer a direct model over a complicated one. Necessary complexity remains visible; indirection does not pretend the complexity disappeared.
+- Prefer flat and sparse structure until nesting represents real ownership, composition, or protocol shape.
+- Treat readability as a correctness property. If the public model cannot explain the implementation, first assume the model or implementation is wrong.
+- Do not let special cases create a second semantic path. A genuine semantic difference gets a separate owner; an incidental difference uses the existing abstraction.
+- Let practical evidence correct theory, but do not weaken invariants to accommodate one integration.
+- Reject ambiguous input, ownership, or capability selection instead of guessing.
+- Keep one obvious API for one meaning. Discoverability comes from naming, documentation, and examples rather than duplicate entry points.
+- Implement a proven need now as a complete vertical slice. Wait when the design is not understood; incomplete urgency is worse than deliberate omission.
+- Treat an implementation that is hard to explain as a design warning, not as a reason to write a longer comment.
+- Use namespaces and package boundaries to communicate ownership and prevent collisions.
+
+## Scope's framework boundary
+
+Scope is reusable Go infrastructure for models, agents, retrieval-augmented generation (RAG), data processing, tools, evaluation, and protocol integration. It is not an application platform.
+
+| Boundary | Responsibility |
+|---|---|
+| Repository root | A Go workspace and release coordination point; never a root Go module or public facade |
+| `core` | Provider-neutral protocols, minimal service provider interfaces, direct clients, shared values, and reference implementations |
+| `agent`, `rag`, `etl`, `eval`, `tools`, `skills` | Reusable capability modules built on lower contracts |
+| `a2a`, `mcp`, `otel` | Protocol and observability integrations that adapt contracts from the outside |
+| Provider modules | Independently versioned leaf adapters with provider-specific dependencies and release cadence |
+| Flame | Product sessions, desktop workflows, deployment catalogs, dashboards, billing, marketplaces, and other application concerns |
+
+A module expresses an independent dependency set, release cadence, and version boundary. A package expresses one responsibility inside that boundary. Splitting modules for visual symmetry creates release overhead without isolation; merging unrelated provider dependencies couples versions that should move independently.
+
+`models/<provider>`, `vectorstores/<provider>`, and `historystores/<provider>` are separate modules because their software development kits (SDKs) and release cadences differ. `tools/web/<provider>` remains a package family because those providers share one lightweight dependency set and lifecycle.
+
+The project identity is `Scope`, and Go module paths start with `github.com/Tangerg/scope`. External provider and protocol names appear only where integration facts require them; they do not become naming anchors for Scope concepts.
+
+## Three shapes of variation
+
+New behavior should reuse the existing runtime before it proposes another one. Scope recognizes three shapes of variation, in this order:
+
+| Shape | What varies | Preferred form |
 |---|---|---|
-| **① Parameterize** | One parameter or policy | Strategy |
-| **② Compose** | Existing primitives assembled, compiling back to the core | Composition |
-| **③ Decorate** | An existing thing wrapped | Decorator |
+| Parameterize | One policy or decision | A value or narrow strategy passed to the owner |
+| Compose | Existing primitives form a higher capability | A type that owns the composition and compiles back to the lower contracts |
+| Decorate | An existing call gains cross-cutting behavior | Middleware or a decorator around the contract boundary |
 
-**The litmus test, asked in order when designing a capability:**
+Use this sequence when designing a capability:
 
-1. Can it be done by **turning one knob**? → ① (best)
-2. No knob, but can it be **assembled from existing primitives**? → ② (write a
-   shim that compiles back to the core)
-3. Neither, and it is really just **wrapping something**? → ③
-4. **None of the above fits, and it needs a whole new runtime, scheduler, or
-   state carrier?** → ⚠️ **This is a design-error signal.** Stop and ask whether
-   this actually belongs in the kernel, rather than starting a second one.
+1. Ask whether a value or policy parameter expresses the difference.
+2. If not, ask whether existing primitives can be composed under one real lifecycle owner.
+3. If not, ask whether the behavior only decorates an existing contract.
+4. If none fits, stop before adding a second runtime, scheduler, registry, or state carrier. Decide whether the missing concept belongs in the kernel, in a higher capability, or in Flame.
 
-> This is "composition over inheritance", pushed to its Go extreme:
-> **composition over inheritance, base capability as a library first; build an
-> explicit framework only when a lifecycle genuinely must be unified, and prefer
-> static over dynamic** (Go has no inheritance, no DI container, and uses
-> generics rather than reflection). A framework is justified when it really owns
-> the main loop, the state transitions, and the recovery invariants — not because
-> something needs a bigger configuration entry.
+Composition is preferred over inheritance. Go methods and interfaces express behavior without a framework base class, dependency injection container, reflection registry, or privileged hook hierarchy.
 
----
+## Put abstractions at the correct layer
 
-## 2. Package design
+An abstraction's layer is decided by how widely its contract applies, not by where its name sounds natural.
 
-### 2.1 Internally: a strict DAG, no reverse dependency
+A mandatory rule that every implementation must obey belongs at the lowest shared layer. An optional capability used by one consumer stays with that consumer, which defines the narrow interface it needs. Sinking consumer-specific behavior into Core makes every unrelated implementation carry a concept it cannot use.
 
-- A cross-package dependency must form a one-way acyclic graph. **The interface
-  is defined by the consumer**: the consuming package declares a narrow
-  interface, the consumed concrete type satisfies it implicitly, and nothing
-  exports "an interface for you to use".
-- **Machine-verifiable**: export the internal dependency edges, and any edge
-  pointing upward is a regression.
-- **The composition root assembles the concrete implementations.** The execution
-  kernel depends on abstractions only, and concrete implementations are injected
-  at the composition root — so adding or removing one has zero effect on the
-  kernel, and every implementation is treated identically.
+Concreteness accumulates upward. Core remains provider-neutral; capability modules add reusable semantics; integrations add protocol boundaries; providers add SDK details; the Host selects concrete implementations and application policy.
 
-### 2.2 On the user-facing side: one owner and one entry per meaning
+The placement test is direct: does every consumer need this to remain correct, or does one consumer choose to use it? The first answer can justify a kernel contract. The second requires a consumer-owned abstraction above the kernel.
 
-- A user imports the package that owns the meaning directly. The same capability
-  is never re-exposed through a root façade, an alias, or a thin forwarder —
-  that would create two public contracts with two documentation sets, two type
-  identities, and two evolution rhythms.
-- Discoverability is solved by package documentation, runnable examples, a
-  provider catalog, and consistent naming — never by duplicating an API to save
-  an import.
-- Only an upper package that genuinely owns a composition lifecycle, state, and
-  invariants may offer a new composition entry. Merely aggregating lower-level
-  symbols is not a composition capability.
+## Dependency direction and interface ownership
 
-### 2.3 One extension mechanism beats a pile of hooks and SPIs
+Package and module imports form a directed acyclic graph. Higher layers depend on lower contracts, provider modules depend on Core, and integrations depend on the contracts they adapt. Sibling providers do not import one another, and lower layers never import the compositions built above them.
 
-- Prefer **one** homogeneous mechanism plus type or middleware dispatch — one
-  `Middleware func(Handler) Handler`, one generic type dispatcher — over a named
-  slot per kind of extension.
-- More slots means more surface area and more cognitive load. The MCP Go SDK
-  using one middleware and explicitly refusing dozens of rarely-used hooks is the
-  same trade-off.
+Interfaces are defined by consumers because only a consumer knows the behavior it requires. Cross-package and public substitution boundaries use the smallest useful interface. Inside one cohesive package with one implementation and no substitution need, the concrete type is clearer than a ceremonial interface.
 
-### 2.4 A big package is not automatically a god package
+The composition root selects concrete implementations. It is the only place that should know both sides of several boundaries. A constructor or upper-level owner may accept a union of narrow interfaces, while each internal collaborator depends only on its own slice.
 
-- **An inherently cohesive large package is not force-split** — an execution
-  engine or a parser family is naturally large. The test: extract only if the
-  extraction **genuinely severs a coupling** and **does not break the public
-  API**; otherwise keep it, because splitting for tidiness has negative return.
-  The split signals are in [`AGENTS.md`](AGENTS.md) and
-  [`REFACTORING.md`](REFACTORING.md).
+Substitutability is behavioral, not syntactic. An implementation must honor every parameter, error, cancellation, streaming, and lifecycle promise of its interface. Compile-time assertions prove method shape; conformance suites prove the shared behavior.
 
-### 2.5 Abstraction is broader the lower it sits; concreteness only flows upward
+## Cohesion, coupling, and extension
 
-*(Learned twice the hard way, so it gets its own rule.)*
+The familiar design principles are decisions, not slogans:
 
-> **Which layer a type, interface, or field belongs to is decided by how many
-> layers use it — not by which layer it seems to belong to.**
-
-- **The rule**: a universal contract every consumer must obey **sinks to the
-  bottom** (the thin kernel); a concrete capability only one consumer or driver
-  uses **stays at that consumer's layer and never sinks into the base
-  abstraction**. The bottom carries only universal, indivisible contracts, and
-  each layer upward gets more concrete. **Concreteness accumulates upward; it is
-  never poured downward.**
-- **The anti-pattern this rule guards against**: pushing something
-  consumer-specific down into the bottom layer, for "sharing" or because it looks
-  like it belongs on the base type. The result is a bloated bottom polluted by
-  one consumer's concern, and **every other** consumer forced to carry a concept
-  it does not use. **"Lower means more general" is an illusion — lower is not
-  more abstract; lower imposes one consumer's specifics on everyone.**
-- **The test, in one sentence**: ask "**does every consumer need this, or only
-  this one?**" Only one means it belongs to that consumer's layer, not the base
-  type.
-- **Distinguish two kinds of capability (the key part):**
-  - A **mandatory control-flow contract across all implementations** — every
-    driver must obey it, and ignoring it is a bug → **sink it into the kernel.**
-  - An **optional capability one driver consumes** — a driver may ignore it and
-    still be correct → **keep it at that driver's or consumer's layer.** The
-    consumer defines the interface, a provider implements it structurally
-    (without importing the concrete driver in reverse), and the kernel stays
-    minimal.
-- This rule makes §0's thin kernel, §2.1's consumer-defined interfaces, and the
-  library-versus-application distinction explicit. It is one yardstick against
-  one failure mode: pouring specifics downward.
-
-### 2.6 Converging, inlining, or deleting a function needs a concrete redundancy signal
-
-*(Learned the hard way, so it gets its own rule.)*
-
-> The dual of §2.4. §2.4 says splitting for tidiness has negative return; this
-> says **converging, inlining, or deleting for tidiness has negative return
-> too.** Before touching a helper or a static function, you must be able to point
-> at a **concrete redundancy signal**. If you cannot, leave it. **Function count
-> is not a metric; redundancy is.**
-
-**Act (only with a signal):**
-
-| Redundancy signal | Action |
+| Principle | Scope interpretation |
 |---|---|
-| **A dead function** (zero callers) | Delete |
-| **One caller, a trivial body, and a redundant parameter that is always the same constant** | Inline (and switch a constant error to `errors.New` while you are there) |
-| **A generic `func F[T]` whose `T` is exactly a type's receiver type parameter** | Make it a method on that type — the receiver already provides `T`, so the generic is redundant |
-| **An implementation detail serving one type only, sitting at package scope** | Move it in as a method or a local constant, rather than polluting package scope |
+| High cohesion | A package, type, or function has one coherent reason to change |
+| Low coupling | A boundary exposes the least information needed by its consumer |
+| Single responsibility | Split mixed ownership or mixed lifecycle, not a large cohesive algorithm |
+| Open and closed | A real extension arrives as a new implementation of an existing contract, not another branch in a central dispatch loop |
+| Interface segregation | Consumers depend on the methods they use; assembly may compose those interfaces |
+| Dependency inversion | High-level capability code owns the abstraction and receives provider implementations |
+| Don't repeat yourself (DRY) | Share one truth that must evolve together; do not couple similar code that changes for different reasons |
+| Keep it understandable | Prefer ordinary control flow, named values, and local reasoning over reflection, clever generics, or hidden dispatch |
+| You are not going to need it (YAGNI) | Add an extension point after the variation exists, not when it is only imaginable |
 
-**Do not act (these are not ceremony; inlining or deleting them is a
-regression):**
+A large cohesive parser, engine, or protocol package is not automatically a god package. Split it only when the split gives each side a distinct responsibility and severs a real coupling. Function count, file count, and line count are signals for inspection, not design goals.
 
-| Case | Why it stays |
-|---|---|
-| **Two or more callers** | That is DRY; inlining recreates the duplication |
-| **A generic helper instantiated at several `T`** | A method's type parameters can only come from the receiver, so it cannot be a method; a free generic function is correct |
-| **No receiver exists** (a constructor, or `unmarshalX(bytes) (X, error)` creating a value from nothing) | There is nothing to hang it on |
-| **A cohesive named abstraction, a predicate with a why-comment, or a symmetric pair** (marshal ↔ unmarshal) | The name is the documentation; keep it even with one caller, because inlining bloats the call site and breaks the symmetry |
-| **A test helper living in `_test.go`** | Visible only to tests, not part of the production package API, and not package pollution |
+## One meaning, one public API
 
-- **The test, in one sentence**: ask "**can I point at one of the redundancy
-  signals above?**" If yes, act. If it is shared, polymorphically generic,
-  receiverless, a named documenting abstraction, or a test helper, leave it.
-  **Converging with no signal is convergence as ceremony** — the same
-  over-rotation as mechanically extracting interfaces (see §2.4 and
-  [`REFACTORING.md`](REFACTORING.md)).
-- **The anti-pattern this rule guards against**: mistaking one **real** local
-  de-duplication for a whole-package health metric, and inlining cohesive named
-  helpers one by one in pursuit of "fewer functions". That is the same mistake as
-  mechanically applying one ISP template across a whole module — **a real local
-  signal is not a global uniform action.**
+Every capability has one semantic owner, one public representation, and one primary call path. A method, free function, facade, alias, builder, compatibility wrapper, and alternate stream implementation cannot coexist as synonyms.
 
----
+An upper package may expose a new entry only when it owns a new lifecycle, state transition, type-erasure boundary, or composition invariant. Re-exporting lower symbols or shortening an import path does not create a capability.
 
-## 3. Coding principles
+Extension follows the same rule. Prefer one homogeneous mechanism, such as one middleware shape or one structural interface, over a named hook for each variation. Each additional mechanism creates another ordering model, error path, documentation surface, and compatibility obligation.
 
-*(The mandatory red lines are in [`AGENTS.md`](AGENTS.md); the hands-on details
-are in [`REFACTORING.md`](REFACTORING.md).)*
+Streaming and aggregate forms may coexist only when one is the source of truth. The aggregate form consumes the stream completely; it does not maintain separate parsing, cancellation, error, or lifecycle behavior.
 
-Below are the **principles** — the *why* — and they apply across modules. The red
-lines (`errors.New`, `%w`, no Java flavor, modern Go, OTel logging) are in
-AGENTS.md; how to refactor toward them is in REFACTORING.md. This document does
-not restate either; it gives the reason, noting where the MCP SDK independently
-made the same call.
+## Behavior-rich domain models
 
-| Principle | Why |
-|---|---|
-| **An options struct beats variadic `WithXxx` and builder chains** | More readable, simpler to document, and adding a field does not break a caller. |
-| **Accept interfaces, return structs** | Maximum compatibility on input, maximum information on output. An interface is a boundary; a struct is an implementation. |
-| **Make zero values useful** | Fewer constructors, fewer mistakes; a struct of exported fields is usable at its zero value. |
-| **`iter.Seq` and `iter.Seq2` beat channels** | A pull model, the context can be checked before the loop, and no goroutine leaks. |
-| **Hide the protocol and transport; business code never sees the wire shape** | Business logic should not know about JSON-RPC or an SDK DTO. Envelope I/O is decoupled from business. A shared model is exposed directly by its one owner — never re-wrapped in an empty forwarder just to hide an import or a type identity. |
-| **The smallest interface** | "The bigger the interface, the weaker the abstraction." A lower-level interface is easier to implement and easier to replace. |
-| **Layered errors** | A protocol error carries a code; a tool or business error goes in the result, not in a Go error. |
-| **A stateless kernel with differences as parameters** | One kernel serves many connections and sessions; per-session concerns arrive through a factory or a parameter, not an instance per session. |
+Scope prefers object-oriented, behavior-rich domain models over procedural logic operating on anemic data bags. In Go, object-oriented means encapsulated state plus methods on the type that owns the semantics, not inheritance or a class hierarchy.
 
----
+Entities and value objects own their invariants, validation, derived values, and pure state transitions. Moving these rules onto the owner makes invalid states harder to construct and keeps one semantic API. A procedural service that repeatedly inspects and mutates another type's fields usually signals misplaced behavior.
 
-## 4. When principles conflict
+Data that represents data remains data. Configuration, request and response data transfer objects, wire protocol values, plain parameters, and fact records do not need decorative methods or empty service objects.
 
-Follow "when principles conflict" in [`AGENTS.md`](AGENTS.md), plus one specific
-to this document:
+Input/output (I/O) marks the boundary. Pure rules belong to the domain owner; network calls, transactions, filesystem operations, and atomic database updates remain in adapters. Moving an atomic write into a load-modify-store entity method would reduce correctness rather than enrich the model.
 
-- **Discoverability versus a single entry**: keep the semantic owner and the
-  public entry unique. Raise discoverability through documentation, examples, and
-  naming — never manufacture a second API through a façade re-export (§2.2).
+A rich model does not require a speculative domain-driven design stack. Add repositories, application services, aggregates, and domain events only when distinct implementations, lifecycles, or transactional boundaries require them.
 
----
+## Stable vocabulary and no magic
 
-## 5. Design self-check
+Every noun names one concept and lifecycle across code, comments, errors, tests, and documentation. Two names for one meaning create two mental models; one name for two lifecycle stages hides ownership.
 
-*(Before a new capability, a new package, or a public API change.)*
+A stable finite vocabulary uses a named value type or constant owned by its domain. Protocol versions, defaults, timeouts, states, error classes, and observation keys need names even when each appears once. Their meaning, not repetition count, requires an owner.
 
-> This is the checklist for **designing something new**. **Refactoring existing
-> code** has its own — naming, comments, pointer versus value, nil guards, guard
-> clauses, locality, rhythm — in [`REFACTORING.md`](REFACTORING.md).
+Anonymous dynamic data stops at an open boundary. JSON, YAML, metadata extensions, and third-party SDKs may require `map[string]any`; internal configuration, domain state, and cross-package arguments use typed values.
 
-- [ ] Does this capability **reduce to the kernel**? Use the §1 litmus test to
-      pick the shape (①/②/③) — or did it trip the "rebuilding the foundation"
-      signal?
-- [ ] Does the cross-package dependency it introduces point **only downward**?
-      (The DAG holds.)
-- [ ] Does the consumer depend on a **narrow interface it defined itself**, or
-      did it grab a whole concrete type?
-- [ ] Is the extension point **one homogeneous mechanism**, or another named
-      slot?
-- [ ] Is configuration an **options struct** rather than variadics or a builder
-      chain?
-- [ ] Is streaming an **iterator** rather than a channel?
-- [ ] Has the public API change been discussed with the user, and does it migrate
-      every workspace consumer in the same batch?
-- [ ] Is this real DRY or false DRY? Would the abstraction force two pieces of
-      code that evolve for different reasons to change together? (Prefer the
-      duplication.)
-- [ ] Before converging, inlining, or deleting a helper: can you point at a
-      **concrete redundancy signal** — dead, single-caller with a redundant
-      parameter, a generic duplicating a receiver type parameter, or an
-      implementation detail leaked to package scope? If not, leave it, and do not
-      inline a cohesive named abstraction for the sake of "fewer functions"
-      (§2.6).
-- [ ] Which layer: **does every consumer need this, or only this one?** If only
-      one, do not sink it into the base abstraction — keep it at that consumer's
-      layer (§2.5).
+Magic includes more than literals. Ambient state, call-stack inspection, ancestor lookup, registration order, implicit globals, and reflection-based discovery also hide policy. Make the dependency or decision visible in a declaration or parameter.
 
----
+## Construction and protocol values
 
-## In one sentence
+Related construction settings use an explicit `Config` value. Optional fields have useful zero meanings, and required collaborators are validated at construction. Scope does not promote provider SDK functional options into its cross-provider API and does not add builder chains beside `New`.
 
-**Scope's design is not personal taste: it is a set of organizing principles
-corroborated both by embabel (convergent) and by the Go team's MCP SDK
-(authoritative) — a thin kernel, three shapes of variation, a narrow waist, one
-extension mechanism, base capability as a library first, and an explicit
-lifecycle framework.** Run the §1 litmus test and the §5 checklist before
-designing (answering "should I"), and use
-[`REFACTORING.md`](REFACTORING.md) while refactoring (answering "how"), and you
-will not drift.
+Accept interfaces and return concrete values. Inputs gain compatibility from narrow consumer-owned interfaces; outputs preserve information and behavior through concrete types. Return pointers only when identity, mutation, size, or meaningful optionality requires one.
+
+Useful zero values reduce constructors and invalid transitional states. Zero-value usefulness does not excuse an ambiguous zero, an unvalidated required collaborator, or a hidden default with protocol meaning.
+
+Protocols stay serializable and provider-neutral. Business code does not depend on SDK request types or transport envelopes. Streaming uses pull iterators when the caller owns consumption; a provider that cannot stream does not implement a fake streaming method.
+
+## Error ownership
+
+Errors retain their layer's semantics. A stable classification is a sentinel or typed error owned by the domain, never a message substring. Wrapping preserves the cause, and an error remains understandable without surrounding log context.
+
+Protocol failures, tool results, business outcomes, and transport failures are not interchangeable. Each boundary decides whether a condition is a Go error, a protocol result, or a typed domain outcome, then preserves that decision through adapters.
+
+Errors never disappear accidentally. A boundary may deliberately classify cancellation, aggregate several failures, or suppress a documented best-effort cleanup error. Silence without an explicit contract is data loss.
+
+## Observability stays outside the domain
+
+Observability consists of traces, metrics, and logs through the official OpenTelemetry API. Scope does not invent another tracer, meter, or logger abstraction.
+
+Core and capability modules remain independent of OpenTelemetry. The `otel` module decorates Core contracts from the outside. Agent-to-Agent (A2A) and Model Context Protocol (MCP) integrations may instrument the protocol boundary they own; that permission does not spread into the capabilities they adapt.
+
+The Host binds exporters and World Wide Web Consortium (W3C) propagation once at its composition root. Logs reach the OpenTelemetry LoggerProvider through the `slog` bridge. Domain code does not emit incidental logs in place of owned runtime signals; adapters record spans, metrics, status, and errors at the call boundary.
+
+The trace identifier originates at the entry point and propagates through every boundary. Telemetry records stable identities, counts, durations, outcomes, and low-cardinality classifications. Prompts, documents, media, credentials, and raw provider messages do not become attributes. Prefer semantic conventions; custom keys carry no Scope brand. The instrumentation scope may use the library path because it identifies the instrumentation library rather than domain data.
+
+A detached goroutine preserves trace values with `context.WithoutCancel` rather than starting from `context.Background()`. The complete signal and propagation contracts live in [`otel/ARCHITECTURE.md`](otel/ARCHITECTURE.md).
+
+## Performance follows evidence
+
+Rob Pike's five rules define Scope's performance discipline:
+
+1. Do not guess where time is spent. Bottlenecks appear in unexpected places, so profile the real workload.
+2. Measure before tuning. Change code only when one part dominates the workload, then measure again and preserve a benchmark when regression risk matters.
+3. Assume `n` is small until evidence says otherwise. Constants, allocation, cache locality, and maintenance cost often dominate theoretical complexity at real input sizes.
+4. Prefer straightforward algorithms and data structures. Clever algorithms create more states and more bugs, so evidence must pay for their complexity.
+5. Let data dominate. A representation with correct ownership and indexing usually makes the algorithm obvious.
+
+Parallelism, caching, custom allocators, tries, trees, and lock-free structures are not improvements by themselves. Each needs a measured bottleneck and a result that remains better after its complexity, memory, and failure modes are counted.
+
+## When principles conflict
+
+Use these tie-breakers when two valid principles point in different directions:
+
+- DRY versus low coupling: keep repetition when extraction would couple code that evolves independently or introduce a forbidden dependency.
+- Interface segregation versus simplicity: use a concrete type inside one cohesive implementation; split interfaces at real consumer or substitution boundaries.
+- Open extension versus YAGNI: retain an extension point after the variation has occurred; do not add one for a hypothetical implementation.
+- Purity versus practicality: preserve semantic invariants, but choose the implementation that fits real workloads and boundaries.
+- Discoverability versus one entry: improve names, package documentation, examples, and catalogs instead of creating a facade or alias.
+- Uniformity versus meaning: allow different shapes when they represent different identity, optionality, lifecycle, or ownership; do not force symmetry that erases semantics.
+
+## Directions already rejected
+
+These designs have been considered and must not return without new evidence that changes their premise:
+
+- A framework-wide retry layer or transient-error taxonomy; provider SDKs already own retry policy.
+- A second structured-output conversion chain; the parser family is the single owner.
+- A root facade that re-exports capabilities from their semantic packages.
+- A fat interface or whole engine, client, or store passed across a boundary that uses only a few methods.
+- Duplicate public enums, compatibility aliases, speculative hooks, placeholder interfaces, or empty service layers.
+- OAuth and token refresh inside a model provider; the Host supplies and replaces credentials.
+- A second observability abstraction or OpenTelemetry imports in Core and capability modules.
+- An application module or Flame product concern inside Scope.
+- A custom parser, codec, or infrastructure primitive retained beside a mature dependency that replaced it.
+
+## Design review checklist
+
+Before adding a capability, package, module, or exported contract, verify:
+
+- [ ] The capability belongs in Scope rather than Flame.
+- [ ] The design uses parameterization, composition, or decoration before introducing another runtime.
+- [ ] The contract sits at the lowest layer where every consumer needs it, and no lower.
+- [ ] Every dependency points downward, and each interface is owned by its consumer.
+- [ ] The capability has one semantic owner, representation, entry point, and extension mechanism.
+- [ ] Domain behavior lives on its owner, while wire and configuration data remain data models.
+- [ ] Stable vocabulary, defaults, versions, timeouts, and errors have named owners.
+- [ ] Dynamic maps and provider SDK types stop at their boundary.
+- [ ] Configuration uses one explicit `Config` shape with meaningful zero behavior.
+- [ ] Streaming, cancellation, errors, and lifecycle semantics have one source of truth.
+- [ ] Observability remains outside Core and capability modules.
+- [ ] Performance choices follow measurements from a real workload.
+- [ ] A breaking change has a stated blast radius and migrates every workspace consumer without a compatibility layer.
+- [ ] Code, tests, documentation, and architecture guards can describe the same model.

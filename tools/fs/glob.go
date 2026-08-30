@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/scope/core/chat"
 	toolcontract "github.com/Tangerg/scope/core/tool"
 )
@@ -28,7 +30,7 @@ type GlobTool struct {
 }
 
 func NewGlobTool(executor Globber) *GlobTool {
-	if isNilBackend(executor) {
+	if lo.IsNil(executor) {
 		executor = NewLocalExecutor("")
 	}
 	t := &GlobTool{executor: executor}

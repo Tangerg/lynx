@@ -5,7 +5,10 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"maps"
+	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -20,6 +23,117 @@ var documentedCapabilityModules = []string{
 	"rag",
 	"skills",
 	"tools",
+}
+
+var documentationOnlyModuleRoots = []string{"core", "examples", "otel", "tools"}
+
+func TestWorkspaceModulesKeepDocumentationEntryPoints(t *testing.T) {
+	t.Parallel()
+	root := repositoryRoot(t)
+	modules := discoverModules(t, root)
+	for _, modulePath := range slices.Sorted(maps.Keys(modules)) {
+		module := modules[modulePath]
+		t.Run(module.dir, func(t *testing.T) {
+			t.Parallel()
+			for _, name := range []string{"README.md", "ARCHITECTURE.md", "doc.go"} {
+				path := filepath.Join(root, filepath.FromSlash(module.dir), name)
+				info, err := os.Stat(path)
+				if err != nil {
+					t.Errorf("module %s is missing %s: %v", module.path, name, err)
+					continue
+				}
+				if !info.Mode().IsRegular() || info.Size() == 0 {
+					t.Errorf("module %s has no readable content in %s", module.path, name)
+					continue
+				}
+				if name == "doc.go" {
+					assertPackageOverview(t, path)
+				}
+			}
+		})
+	}
+}
+
+func TestRepositoryGuidanceHasOneCanonicalSource(t *testing.T) {
+	t.Parallel()
+	root := repositoryRoot(t)
+	claudePath := filepath.Join(root, "CLAUDE.md")
+	claude, err := os.ReadFile(claudePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Count(string(claude), "@./AGENTS.md") != 1 {
+		t.Error("CLAUDE.md must point to the canonical AGENTS.md exactly once")
+	}
+
+	err = filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		relativePath, relativeErr := filepath.Rel(root, path)
+		if relativeErr != nil {
+			return relativeErr
+		}
+		if entry.IsDir() {
+			if path != root && shouldSkipRepositoryDir(filepath.ToSlash(relativePath), entry.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if relativePath == "AGENTS.md" || relativePath == "CLAUDE.md" {
+			return nil
+		}
+		if entry.Name() == "AGENTS.md" || entry.Name() == "CLAUDE.md" {
+			t.Errorf("%s duplicates repository guidance; put module contracts in ARCHITECTURE.md", filepath.ToSlash(relativePath))
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestDocumentationOnlyModuleRootsStayDocumentationOnly keeps an overview from
+// becoming the second public entry for capabilities owned by child packages.
+func TestDocumentationOnlyModuleRootsStayDocumentationOnly(t *testing.T) {
+	t.Parallel()
+	root := repositoryRoot(t)
+	for _, relative := range documentationOnlyModuleRoots {
+		t.Run(relative, func(t *testing.T) {
+			t.Parallel()
+			directory := filepath.Join(root, relative)
+			entries, err := os.ReadDir(directory)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, entry := range entries {
+				if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
+					continue
+				}
+				if entry.Name() != "doc.go" {
+					t.Errorf("documentation-only module root %s contains production file %s", relative, entry.Name())
+				}
+			}
+
+			path := filepath.Join(directory, "doc.go")
+			file := assertPackageOverview(t, path)
+			if len(file.Decls) != 0 {
+				t.Errorf("%s/doc.go declares production API or implementation", relative)
+			}
+		})
+	}
+}
+
+func assertPackageOverview(t *testing.T, path string) *ast.File {
+	t.Helper()
+	file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if file.Doc == nil || !strings.HasPrefix(strings.TrimSpace(file.Doc.Text()), "Package "+file.Name.Name) {
+		t.Errorf("%s has no package overview", path)
+	}
+	return file
 }
 
 // TestCapabilityModulesDocumentTheirPublicSurface keeps documentation

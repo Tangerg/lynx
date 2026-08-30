@@ -1,227 +1,326 @@
-# REFACTORING.md — the Scope refactoring yardstick
+# Scope refactoring guide
 
-> The cross-module **refactoring yardstick and rhythm**. The *why* behind the
-> design is in [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md); the
-> repository-wide laws are in [`AGENTS.md`](AGENTS.md). This file is the
-> generalized checklist for "**what** to change, **how**, and at **what
-> rhythm**" while refactoring, and it applies to **every sub-module**. It is
-> stated entirely in the abstract, at the macro level, bound to no concrete
-> implementation — apply the judgment when you meet the matching situation.
+This reference turns [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md) into an editing method for every Scope module. [`AGENTS.md`](AGENTS.md) contains the short repository rules. Use this guide to decide what to change, what to leave alone, how to divide the work, and how to prove the result.
 
----
+## Refactor toward the owner
 
-## 0. Where the yardstick comes from
+A refactor improves structure while preserving the intended contract, or deliberately replaces an approved wrong contract. It is not a rewrite for stylistic uniformity and not a patch around a bad abstraction.
 
-- Measured against the **Go SDK design documents and the Go standard library**:
-  minimal, idiomatic, *accept interfaces / return structs*, small interfaces, a
-  `Config` value at construction, a useful zero value. Construction config for
-  Scope's own abstractions in Core, A2A, and elsewhere passes a `Config` struct
-  rather than `func(*T)` functional options. A lower-level provider adapter may
-  keep its SDK's functional options, but that mechanism is never promoted into
-  the shared cross-provider mental model.
-- **Refinement is not a rewrite.** Surgical, reversible, and **fixed at the
-  source** — never a patch stacked on a wrong design. (Fix the cause, not the
-  symptom; see the second law in [`AGENTS.md`](AGENTS.md).) Prior art
-  contributes ideas, **never a naming anchor**.
-- **The only admissible debt is "the design is not thought through yet".**
-  "Knowing the better shape and not changing it" is never admissible.
+Fix the cause in the layer that owns it. If a software development kit (SDK) conversion creates an invalid value, repair the conversion or contract rather than coercing the value in every consumer. If a schema permits an impossible state, repair the schema rather than adding defensive branches throughout the runtime.
 
-## 1. Naming: the name must match the thing
+Do not retain a known-wrong name, field, type, wire shape, or call path to reduce the number of edits. Once a breaking change is approved, migrate every workspace consumer, example, test, and document in the same batch, then delete the old path.
 
-- A name must match **the data it carries and the work it does**. If a type name
-  does not match its content, or a method name does not match its behavior,
-  change it.
-- A method name uses a plain verb describing this call's behavior or the fact it
-  returns. A past participle such as `Merged` or `Processed` is reserved for
-  genuinely persisted domain state and never poses as an operation.
-- The field name equals the serialization tag. When they disagree, **rename the
-  field rather than settling for the tag.**
-- Eliminate **package-name stutter** (`pkg.Pkg…`).
-- **A file name describes its contents.** A generic or Java-flavored file name
-  (`interface.go`, `impl.go`, `util.go`, `helper.go`) becomes a name describing
-  what is in it. Renaming a file is an in-package operation and changes no API.
-- Refer to the de facto vocabulary of the domain, but adopt a term only when it
-  is the best name under independent evaluation.
+## Start with evidence
 
-## 2. Comments
+Audit before editing:
 
-- Explain **why**, never *what* — the code states the what.
-- Delete stale, migration-era, and misleading comments. **After a rename or a
-  refactor, clean up every reference**, leaving no stale pointer behind.
+1. Read the owning package, its `ARCHITECTURE.md`, its callers, and the relevant contract tests.
+2. Search for every constructor, method, field, serialized name, interface implementation, example, and documentation reference in the blast radius.
+3. Classify the finding by ownership: naming, misplaced behavior, duplicate API, dependency direction, lifecycle, error semantics, data representation, performance, or documentation drift.
+4. Identify the source of truth and the symptom sites. Plan to change the source first.
+5. Separate independent findings into independently revertible batches.
+6. State the scope, alternatives, and blast radius before a structural or exported breaking change.
 
-## 3. Pointer versus value
+Repository-local call counts do not decide whether a public framework application programming interface (API) belongs. A locally unused export may be a valid downstream extension point; a heavily used export may still be the wrong abstraction. Judge responsibility, semantic ownership, and downstream utility.
 
-- **Necessarily present, small, and read-only → pass by value.** A meaningless
-  nil state plus one dereference is pure overhead.
-- **Genuinely optional — nil is a meaningful state the code branches on → pass a
-  pointer.**
-- Values and pointers coexisting in one signature is a **principled distinction**
-  when each satisfies the reason above, not an inconsistency.
-- **Never store derived state a method can compute on demand.** Delete the
-  redundant cache field and compute it.
-- The exception: some constructors return a **value** to guarantee immutability —
-  do not change one to return a pointer for uniformity.
+## Choose the right refactoring scope
 
-## 4. Nil guards: pointer-receiver hygiene
+Use two maintenance rhythms:
 
-- A pointer-receiver method **guards nil at the top**, so a caller does not have
-  to check `!= nil` first.
-- **Only on read accessors where nil is genuinely reachable**, returning a zero
-  value or a sentinel.
-- **Never on** a mutator, a service-style behavior method, or an internal helper
-  — there, a nil receiver is a **construction bug** and must surface rather than
-  silently no-op.
-- **Do not duplicate a guard** where the method is already nil-safe: it returns a
-  constant, never touches the receiver, delegates through something nil-safe, or
-  already has one.
+- Small refactoring follows a few feature rounds. Inspect recently changed files for naming drift, duplicate truth, dead comments, misplaced behavior, excessive nesting, and new exports that bypass an existing owner.
+- Large refactoring follows roughly ten to twenty feature rounds or a clear architectural signal. Inspect module boundaries, dead packages, god types, cross-package duplication, concrete dependencies crossing abstraction boundaries, and package or module splits.
 
-## 5. Free function versus method: controlling package scope
+Do not expand a small pass into an unbounded repository rewrite. Do not reduce a large boundary correction to scattered local patches. The ownership boundary determines the batch size.
 
-- A package-private function belongs as a **method** on a concrete type whenever
-  it is **conceptually that type's behavior or policy**. The test is **not**
-  "does it read the type's fields" — that is too narrow — but "is this something
-  that type should do". Reading state counts, of course, and so does a
-  **stateless policy, classification, or production**. Moving it out of package
-  scope costs nothing: the compiler still inlines it.
-- **Keep it a free function** where making it a method would manufacture a fake
-  object:
-  - `newXxx` and `parseXxx` **constructors and factories** — they produce the
-    type, they are not its behavior;
-  - a **pure assembly or builder shared across several types** — no single
-    owner;
-  - one operating on a slice or a sealed interface (nothing to hang it on,
-    analogous to `slices.*`), or a helper over a type from another package (Go
-    cannot add a method to an external type).
-- **Hang it on the right owner, do not force it.** If a behavior describes the
-  type of **its parameter**, it belongs to **that** type, not to whichever caller
-  happened to be nearby. Attaching it to the wrong object is worse than leaving a
-  free function. If the type cannot be changed because it is in another package,
-  leave the free function.
+## Make names carry semantics
 
-### 5.1 The rich domain model — the semantic side of §5
+Every noun names one concept and lifecycle across code, comments, errors, tests, and documentation. Rename a symbol when its data or behavior no longer matches its name.
 
-§5 governs mechanical relocation (free function → method); this governs which
-type the logic belongs to. Same principle, semantic side; they work together.
+Apply these naming rules:
 
-- **A domain entity or value object carries its own behavior.** Its
-  **invariants, derived values, state transitions, and validation** hang on the
-  type rather than scattering into service functions, SQL strings, or wire
-  conversions. Anemic means a data bag with the logic living elsewhere; when you
-  find that, pull the logic back onto the type — where it can be unit-tested as
-  a pure function with no service and no database.
-- **Data that is genuinely data is not anemic** — do not force methods onto it:
-  configs, request and response DTOs, wire protocol types, plain parameters, and
-  operation-result records. Zero methods is correct for them.
-- **The key boundary: only move up logic with no I/O.** Derivations, invariants,
-  and pure state transitions come back to the entity. But **a state write that is
-  the adapter's atomic SQL** — a counter increment, a single-field UPDATE —
-  **stays in the adapter**: moving it onto the entity degrades it into a
-  load-modify-store read-modify-write race, which is both slower and unsafe. The
-  test: "does this logic need I/O?" Yes → adapter; no → entity.
-- **Library versus application** (as with ISP): an application's domain entities
-  lean rich, but **do not stack a DDD layer for a single backend** — a
-  repository, an application service, an explicit aggregate root, a
-  domain-events framework. For one team and one backend that is pure ceremony
-  (YAGNI). Rich means pulling the rules back onto the type, not adding a layer on
-  top.
+- Use a plain verb for an operation. Reserve a past participle such as `Merged` or `Processed` for persisted state or a returned fact.
+- Keep a field name aligned with its serialization tag. When they disagree, rename the field and migrate the wire contract if required instead of preserving two vocabularies.
+- Remove package stutter such as `history.HistoryStore` when `history.Store` states the same meaning.
+- Name a file for its contents. Replace `impl.go`, `interface.go`, `util.go`, and `helper.go` with responsibility names.
+- Avoid empty Java-style roles such as `Impl`, `Service`, `Manager`, or generic `Handler` when the type has a more precise domain name.
+- Use the lowercase initial of the receiver type for every method receiver.
+- Do not let a parameter shadow an imported package. Resolve the package's declared name rather than guessing from the import path.
+- Keep an importable single-capability package singular or uncountable, such as `tool`, `history`, or `web`. Use a plural only for a non-importable namespace of sibling implementations.
+- Keep protocol and industry proper names in their established form when they express an objective integration fact.
 
-### 5.2 One exit per capability
+Run `dev/repoarch` after naming changes; its gates cover receiver spelling, imported package shadowing, retired layouts, and repository identity.
 
-- Find the capability's real owner first, then decide its single public entry. A
-  method and a free function as synonyms, an old name coexisting with a new one,
-  `New` coexisting with a builder or functional options, and a stream and a
-  once-shot each implemented separately are all duplicate-exit signals.
-- A streaming capability is preferred as the single underlying source of truth.
-  The non-streaming form is allowed only to consume that stream fully and return
-  the aggregate; it must not maintain a second parsing, error, or lifecycle path.
-- When deleting an old exit, migrate every real consumer and example in the same
-  batch. At this stage no alias, deprecated forwarder, or compatibility shim is
-  kept.
+## Put behavior on the domain owner
 
-## 6. Guard clauses and cyclomatic complexity
+Prefer object-oriented, behavior-rich domain models over procedural code around anemic data bags. In Go, this means methods on the type that owns the semantics, not inheritance.
 
-- `if cond { long body }` followed by trailing cleanup becomes
-  `if !cond { return }` plus a flat body. Merge nested conditions, and extract a
-  cohesive branch into a helper.
-- But a streaming iterator's `func → func → for → if !yield { return }` is
-  **structural nesting, not logical complexity** — leave it alone.
+Move invariants, validation, derived values, classification, and pure state transitions onto the entity or value object they describe. A package-level function that repeatedly inspects one type or enforces its policy usually belongs on that type even when the function does not read stored fields.
 
-## 7. Modern Go, per the module's Go version
+Keep data models as data. Configuration, request and response data transfer objects, wire values, plain parameters, and fact records do not become rich merely by acquiring methods. Add behavior only when the type owns a rule.
 
-- Replace older forms with the current version's features: `any`, `min`/`max`,
-  `slices.*` and `maps.*`, `iter.Seq2`, `range int` and `range slice`,
-  `time.Since`, `omitzero` (rather than an ineffective `omitempty`), typed
-  atomics, and `errors.AsType` (**only when the target is an error type**).
-- Take current guidance from the use-modern-go skill. **Clean up only real
-  stragglers, never change for the sake of changing** — mature code is usually
-  already modern.
+Keep input/output (I/O) in adapters. Database transactions, atomic updates, network calls, filesystem operations, and SDK invocations do not move onto a domain value. Pulling an atomic update into a load-modify-store entity method can introduce a race and an extra round trip.
 
-## 8. Organization and locality
+Do not create a repository interface, domain service, aggregate root, or event framework merely to make a model look object-oriented. Richness means one semantic owner, not more layers.
 
-- **Related code sits together, and shared code sinks to a shared place**, with
-  reading experience as the goal.
-- A **god file** — over the line threshold and mixing several concerns — splits
-  by responsibility into **several files in the same package**. That is a
-  purely in-package move: no API change, no import change.
-- **A large but cohesive, single-responsibility file is not split** — a parser, a
-  lexer, a tightly coupled builder family. Splitting one breaks the cohesion.
+## Decide between a method and a free function
 
-## 9. Hard Go idiom rules
+Make an unexported function a method when the behavior or policy conceptually belongs to one concrete type. The function does not need to read fields; production, classification, normalization, and policy can still belong to the owner.
 
-- `errors.New` is preferred over `fmt.Errorf("constant")`; a wrapped error always
-  uses `%w`, including on a panic path.
-- A local result accumulator uses a `nil` slice rather than `make([]T, 0)`. An
-  established house style of always-non-nil fields is kept.
-- A constructor **returns nil on error**, never a half-built value plus an error.
-- **A real bug found mid-refactor is fixed** — in its own commit, separate from
-  the refactor.
-- No speculative placeholder ("wire it later", a stub interface). Dead code is
-  deleted immediately.
+Keep a free function when no honest receiver exists:
 
-### 9.1 Magic values and dynamic data
+- A constructor or parser creates the value it would otherwise receive.
+- Pure assembly spans several types with no single owner.
+- The operation belongs to a slice, a sealed interface, or a type from another package.
+- A symmetric codec pair is clearer together at package scope.
 
-- A finite stable vocabulary uses a named string value object that owns its own
-  validity, parsing, string form, and codec. Only bit masks, counts, sequence
-  numbers, and in-process state-machine discriminants stay numeric.
-- Repetition is not the only reason to extract a constant: a value that appears
-  once but carries a protocol, a version, a default policy, a time budget, or an
-  observation attribute must also be named, because its meaning needs an owner.
-- `map[string]any` belongs only at a genuinely open-world boundary such as JSON,
-  YAML, or an SDK. The domain layer, the configuration layer, and cross-package
-  calls convert to a named struct or value object as early as possible.
+Do not attach behavior to whichever type happens to call it. A wrong receiver hides ownership more effectively than a well-named free function.
 
-### 9.2 Replacing hand-rolled code with a third-party capability
+## Keep one public path per capability
 
-- Before replacing, prove the library's maturity, maintenance activity, boundary
-  behavior, and dependency cost. After replacing, **delete** the local parser,
-  formatter, or codec and its duplicate tests — never hide the old
-  implementation behind an adapter.
-- A third-party type must not leak unintentionally through Scope's stable domain
-  API. If it is itself the de facto type of an industry protocol it may be used
-  directly; otherwise convert once at an adapter boundary.
-- Do not wrap every standard-library or third-party function for "consistent
-  style". Keep a narrow adapter only where it must carry a Scope policy, an error
-  boundary, or a lifecycle.
+Find the semantic owner before editing the API. A duplicate path exists when a method and free function are synonyms, `New` coexists with a builder or functional options, an old name forwards to a new name, a root package re-exports a child capability, or streaming and aggregate calls implement separate lifecycles.
 
-## 10. Rhythm and discipline
+Retain one canonical path and migrate all consumers to it. Do not leave a deprecated forwarder, alias, compatibility field, or second constructor.
 
-1. **Audit deeply first** — grep, explore, read the files — rather than editing
-   straight away.
-2. **Classify** the findings (naming, coupling, cohesion, SOLID, DRY, modern Go,
-   pointer versus value, nil, organization) and order them by impact.
-3. **Propose the batches**, with a "change versus leave" trade-off for each item.
-4. **Confirm a breaking or structural change first**: state the scope, the
-   **blast radius** (every cross-module consumer), and the alternatives, and wait
-   for a decision.
-5. **One independently revertable commit per batch**, with
-   `go build && go vet && go test ./...` **green between batches**. Push after
-   committing.
-6. The commit message states the **why**, including what the audit found and why
-   anything was skipped.
-7. **Admit a false positive.** If a closer look shows the finding was wrong, skip
-   it and record the reason — that is normal, not a failure.
+An upper package may add an entry only when it owns a real composition lifecycle, state, type-erasure boundary, or invariant. Shortening an import path is not sufficient.
 
-> The trigger signals, the Fowler-style checklist (dead code, guard clauses,
-> lookup tables, interface narrowing, performance scans), and the small-versus-
-> large refactoring rhythm are in the "Refactoring" section of
-> [`AGENTS.md`](AGENTS.md).
+Use one extension mechanism for one abstraction level. Prefer a homogeneous middleware shape or narrow structural interface over named hooks for each variation.
+
+When both streaming and aggregate calls are justified, make one consume the other. Parsing, cancellation, partial results, backpressure, and errors must have one implementation.
+
+## Shape interfaces at consumption boundaries
+
+Define an interface in the consuming package and include only the methods that consumer invokes. Do not accept a whole `*Engine`, `*Client`, or `*Store` to use one or two operations.
+
+Use a concrete type inside one cohesive subsystem when there is one implementation and no substitution, test, or module boundary. Extracting an internal interface for tidiness adds indirection without decoupling anything.
+
+Split a fat interface when several consumers use distinct method subsets. The composition root may accept or form a union; each collaborator should still depend on its own slice.
+
+Require behavioral conformance. Add a compile-time assertion for method shape and a reusable suite for semantics, including parameters, cancellation, errors, streams, and lifecycle behavior.
+
+## Use one construction model
+
+Use an explicit `Config` struct when construction has related settings. Required collaborators are validated during construction; optional fields have useful zero meanings.
+
+Do not add functional options, a builder chain, positional optional parameters, or a second constructor beside the `Config` path. Provider adapters may use their SDK's options internally, but Scope does not expose that mechanism as its cross-provider model.
+
+Return a concrete value or pointer according to its semantics. Do not return an interface implemented by one hidden type merely to reduce visible surface.
+
+## Choose values, pointers, and nil deliberately
+
+Use a value for a small, required, read-only object. Use a pointer when identity, mutation, size, or meaningful optionality requires one. Values and pointers may coexist in one signature when those semantics differ.
+
+Do not turn an immutable constructor from a value return into a pointer for visual uniformity. Do not store derived state that a method can calculate unless measurement proves the cache matters and the invalidation model is explicit.
+
+A nil receiver is valid only when nil has a documented domain meaning. A read accessor may return a zero value or sentinel for that state. Mutators, runtime behavior, and internal helpers should expose a construction bug rather than silently no-op.
+
+An interface can hold a typed nil. Call `lo.IsNil` directly at boundaries where that state is possible. Do not wrap it in `isNilX`, copy its reflection logic, or spread both `value == nil` and reflection checks across callers.
+
+A constructor returns nil on error rather than a half-built pointer plus an error.
+
+## Keep errors useful and typed
+
+An error message must make sense without the surrounding log. Include the failing operation, the relevant identity or boundary, and the cause.
+
+Use these forms consistently:
+
+- Use `errors.New` for a constant message.
+- Use `fmt.Errorf` for formatting and wrap a cause with `%w`.
+- Keep error text lowercase and omit a trailing period.
+- Use a sentinel or typed error for stable classification; never match message text.
+- Preserve the original cause through every adapter.
+- Return protocol and tool outcomes in their contract-defined result shape rather than converting every failure into a Go error.
+- Never discard an error unless a documented boundary deliberately classifies cancellation, aggregates failures, or defines best-effort cleanup.
+
+Do not hand-write `fmt.Errorf("... is nil")`. Use a named sentinel when callers need classification, or `errors.New` when they do not.
+
+## Replace magic with owned vocabulary
+
+Name every finite protocol value, version, default, timeout, state, error class, and observation key. A value needs a name because it carries policy, even if it appears once.
+
+Use a named string value type when the vocabulary needs validation, parsing, string conversion, or codecs. Keep numeric forms for counts, sequence numbers, bit masks, and internal state discriminants where numbers are the actual domain.
+
+Permit `map[string]any` only at a genuinely open JSON, YAML, metadata, or SDK boundary. Convert it to a typed value before domain logic, internal configuration, or cross-package calls.
+
+Replace hidden policy as well as literals. Turn ambient state, globals, registration order, call-stack inspection, and implicit ancestor lookup into explicit dependencies or parameters.
+
+## Extract, inline, or delete only with evidence
+
+Do not measure quality by function or line count. Change a helper only when a concrete redundancy signal exists.
+
+| Signal | Action |
+|---|---|
+| No callers | Delete the function and its obsolete tests |
+| One caller, trivial body, and a parameter that is always the same constant | Inline it and remove the redundant parameter |
+| A generic helper whose type parameter is exactly its receiver's type parameter | Make it a method on that generic type |
+| An implementation detail serving one type at package scope | Move it to that owner as a method or local constant |
+| The same truth appears three or more times and must evolve together | Extract one named owner |
+
+Leave these forms alone unless another problem exists:
+
+| Case | Why it stays |
+|---|---|
+| Two or more callers share a cohesive helper | Inlining recreates duplication |
+| A generic helper is instantiated with several unrelated types | No receiver can own all uses |
+| A constructor, parser, or decoder creates a value from nothing | It has no honest receiver |
+| A named predicate, codec pair, or algorithm explains intent | The name is part of readability |
+| A helper lives only in `_test.go` | It does not pollute production package scope |
+| Similar code changes for different reasons | Extraction would create false DRY |
+
+Stable semantic constants are an exception to the repetition threshold. A version, timeout, default, or protocol token needs a named owner even when it appears once.
+
+## Flatten control flow without hiding structure
+
+Use guard clauses to reject invalid or terminal cases early. Merge nested conditions that express one predicate, and extract a cohesive branch when naming it improves the caller.
+
+Do not treat structural nesting as cyclomatic complexity. An iterator may require nested closures and a yield check; a parser may require a recursive grammar. Flattening those shapes can make ownership and control flow less clear.
+
+Replace a long conditional dispatch with a table only when the cases are data and share one behavior. Use polymorphism when each case owns distinct behavior. Keep an explicit switch when the finite cases form a readable closed vocabulary.
+
+Inspect cleverness signals before preserving them: generics nested more than two levels, reflection inside domain code, `any` beyond an open boundary, long type switches, and deeply nested closures. Each may be valid, but each must remove more complexity than it introduces.
+
+## Organize for locality and ownership
+
+Keep behavior near the state and contract it explains. Shared code moves only to the lowest package where every consumer needs it.
+
+Split a large file when it mixes responsibilities, ownership, or lifecycles. Keep a large cohesive parser, generated mapping, protocol family, or tightly coupled algorithm together. A line threshold triggers inspection; it does not command a split.
+
+When a large cohesive type has irreducible field groups, a short field-zone comment may state the ownership or lifecycle distinction. Prefer named subtypes when they clarify the model; do not split state only to reduce a line count.
+
+Prefer several responsibility-named files in one package before creating another package. Create a package when it owns a coherent public or internal abstraction and the import direction remains valid.
+
+Create a module only for an independent dependency set, release cadence, or version boundary. Do not split modules for symmetry or merge unrelated provider SDKs into one aggregate module.
+
+## Apply modern Go with purpose
+
+Use the Go version declared by `go.work`, and keep every module's `go.mod` directive synchronized.
+
+Prefer current standard-library forms when they clarify the code: `any`, `min` and `max`, `slices`, `maps`, `iter.Seq2`, integer and slice range forms, `time.Since`, `omitzero`, typed atomics, `sync.WaitGroup.Go`, and `testing/synctest`.
+
+Use `errors.AsType` only when the target is an error type. Use an iterator instead of a channel when the caller owns pull-based consumption and no independent producer lifetime is required.
+
+Use a nil slice for a local result accumulator unless the owning contract requires a non-nil empty collection. Preserve established non-nil fields when callers rely on their serialization or mutation behavior.
+
+Do not modernize working code merely to change syntax. Apply a newer form when it removes manual loops, hidden ownership, races, or edge cases.
+
+## Replace hand-written infrastructure completely
+
+Use the standard library first. Before adding a dependency, inspect existing dependencies and verify the candidate's maintenance, boundary behavior, platform support, and dependency cost.
+
+Adopt a third-party library when it removes parsing, edge cases, and maintenance surface on net. Core may use a dependency under the same rule; being foundational is not a reason to reimplement general capability.
+
+After replacement, delete the local parser, formatter, codec, wrapper, and duplicate tests. Do not hide the previous implementation behind an adapter or wrap a mature function only for visual consistency.
+
+A third-party type may cross Scope's public API only when it is the de facto type of the external protocol. Otherwise convert once at the adapter boundary and keep Scope's domain model independent.
+
+Keep an adapter only when it owns Scope policy, error translation, authority, lifecycle, or a real protocol boundary.
+
+## Preserve concurrency and lifecycle ownership
+
+Every goroutine has one owner, a visible stop condition, and one component responsible for joining or detaching it. Every channel has one closer. Every transaction has one commit or rollback owner.
+
+Propagate `context.Context` through call boundaries. Do not replace a caller context with `context.Background()`. A deliberately detached operation keeps trace values with `context.WithoutCancel` and documents who ends it.
+
+State lock order, publication rules, callback phase, and shutdown ordering when violating them can pass compilation and fail in production. Prefer a type or state machine that makes invalid transitions impossible over comments asking callers to remember an order.
+
+Run race tests after changing shared state, cancellation, stream ownership, callbacks, caches, or goroutine lifetime.
+
+## Preserve the observability boundary
+
+Core and capability modules do not import OpenTelemetry or invent tracer, meter, or logger interfaces. Instrumentation belongs in protocol integrations or decorators in the `otel` module.
+
+Do not add incidental `slog` calls to domain code as a substitute for an owned signal. At an instrumentation boundary, record stable low-cardinality attributes, status, duration, and errors; never record prompts, credentials, documents, media, or raw provider messages.
+
+Prefer OpenTelemetry semantic conventions. Custom attribute keys carry no Scope brand. The Host binds exporters, the `slog` bridge, and World Wide Web Consortium (W3C) propagation once at the composition root.
+
+Read [`otel/ARCHITECTURE.md`](otel/ARCHITECTURE.md) before moving instrumentation or changing trace propagation.
+
+## Write comments only for information code cannot express
+
+First try naming, a richer type, a smaller function, or a clearer state transition. Add a comment only when code cannot carry the constraint itself.
+
+Valid comments explain one of these reasons:
+
+1. A public contract: invariants, ownership, lifetime, error semantics, side effects, or concurrency guarantees.
+2. An external constraint: a protocol rule, compatibility fact, provider SDK behavior, or business convention.
+3. A non-obvious algorithm: its idea, edge cases, complexity, or measured optimization.
+4. A counter-intuitive choice: why the more familiar implementation is wrong here.
+5. A safety rule: goroutine ownership, lock ordering, transaction boundaries, cancellation, trust, or cleanup.
+
+Do not restate a symbol name or line of code. Do not write migration history, reviewer notes, or comments such as "fixed here". Update or delete the comment in the same change as the code it constrains.
+
+An ordinary constructor, `Validate`, or `MarshalJSON` does not need template prose that repeats its name. If a lint rule demands noise, adjust the rule or use a package-level exemption rather than manufacturing a comment that will rot.
+
+## Test contracts, not implementation trivia
+
+Write tests against observable semantics and architecture boundaries. A test that copies an implementation table or computes its expected value with the production helper proves only that the code agrees with itself.
+
+Use exact expectations for discrete mappings, state transitions, wire values, error classifications, and lifecycle outcomes. Non-empty, unique, monotonic, or count-only proxies are insufficient when the contract specifies exact values.
+
+For an important regression guard, break the protected behavior locally and confirm that the test fails for the intended reason. Restore the behavior before committing.
+
+Add caller-visible coverage for an exported contract. Put reusable conformance suites beside the contract and run every implementation through the same suite.
+
+Use deterministic synchronization instead of sleeps and scheduling assumptions. Prefer `testing/synctest`, explicit barriers, controlled clocks, or owner-visible state. Run race tests for concurrency behavior.
+
+## Keep documentation executable and current
+
+Every workspace module keeps three entry points: `README.md` for usage, `ARCHITECTURE.md` for ownership and boundaries, and `doc.go` for Go package discovery. Update all three when their shared model changes.
+
+Module-specific contracts belong in that module's existing documents. Ask before adding another document. Do not create permanent point-in-time audits, review diaries, or coverage reports; turn a finding into code, an executable gate, or a current ruling in the owning document.
+
+Update links, examples, package names, error names, and code-shaped Markdown in the same batch as a rename. Documentation that teaches a retired path is a second API.
+
+Architecture gates should derive inventories from the repository rather than maintain a list that can silently become stale. A guard must fail when a new unclassified module, provider, package, or vocabulary item appears.
+
+## Optimize only after measurement
+
+Before a performance refactor:
+
+1. Find the existing benchmark, profile, trace, or metric for the suspected path. Add measurement first if none exists.
+2. Prove that one part dominates the workload.
+3. Record realistic input sizes and confirm whether `n` is large enough for algorithmic complexity to matter.
+4. Check whether a better representation or ownership model removes the cost before changing the algorithm.
+5. Make the smallest change that addresses the measured bottleneck.
+6. Measure again and preserve a benchmark when regression risk is meaningful.
+
+Do not add caching, parallelism, custom allocation, a tree, a trie, or a lock-free structure from intuition. Count invalidation, memory, synchronization, and failure modes as part of the cost.
+
+## Batch and verify the work
+
+Keep one ownership boundary or independently revertible purpose per commit. Separate a discovered behavioral bug from an unrelated structural cleanup unless the structure is the bug's root cause.
+
+For each batch:
+
+1. Apply the source-level correction.
+2. Migrate every affected workspace consumer and example.
+3. Remove the obsolete path and stale comments.
+4. Update tests, documentation, and architecture gates.
+5. Run focused tests while editing.
+6. Run the affected modules' build, vet, test, race, tidy, isolation, architecture, and lint checks before committing.
+7. State why the change exists and why inspected false positives were left unchanged.
+
+Run the full workspace gate before handing off a completed repository-wide round:
+
+```sh
+scripts/check.sh build vet test race tidy isolate lint
+```
+
+Push after committing unless the user asks to keep the work local.
+
+## Refactoring checklist
+
+Before completing a batch, verify:
+
+- [ ] The root cause is gone rather than hidden at a symptom site.
+- [ ] Names, serialization, errors, tests, and documentation use one vocabulary.
+- [ ] Domain rules live on their owner, and data transfer objects remain data.
+- [ ] The capability has one public path, one construction model, and one implementation of streaming or aggregate semantics.
+- [ ] Interfaces are consumer-owned and no wider than their caller needs.
+- [ ] Pointer, nil, error, and zero-value choices have semantic reasons.
+- [ ] Stable values and dynamic data have explicit owners and boundaries.
+- [ ] Helpers were extracted, inlined, or deleted only with a concrete signal.
+- [ ] Packages and files reflect responsibility rather than visual symmetry.
+- [ ] Concurrency, cancellation, cleanup, and observation still have one owner.
+- [ ] Tests assert exact contracts and fail when the protected behavior is removed.
+- [ ] `README.md`, `ARCHITECTURE.md`, `doc.go`, examples, and architecture gates match the code.
+- [ ] Focused and workspace verification are green for the batch's risk.

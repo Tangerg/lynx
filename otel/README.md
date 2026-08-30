@@ -166,9 +166,9 @@ core/vectorstore  <-- otel/vectorstore  --> OpenTelemetry API
 ```
 
 - A Core user who does not import `otel` takes on no OTel dependency.
-- The `otel` directory is a namespace with no root package. Each domain wrapper
-  calls the official API only; `otel/slog` and the tests in the same module use
-  the official SDK, which is why this module's `go.mod` requires it.
+- The root package contains only its `doc.go` overview and exports no API. Each
+  domain wrapper calls the official API; `otel/slog` and the tests in the same
+  module use the official SDK, which is why this module's `go.mod` requires it.
 - This module defines no tracer, meter, registry, or observation abstraction of
   its own.
 - Production exporters — OTLP, Jaeger, Zipkin — come from the official

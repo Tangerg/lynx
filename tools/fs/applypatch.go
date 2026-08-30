@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/samber/lo"
+
 	"github.com/Tangerg/scope/core/chat"
 	toolcontract "github.com/Tangerg/scope/core/tool"
 )
@@ -39,7 +41,7 @@ type ApplyPatchTool struct {
 }
 
 func NewApplyPatchTool(executor PatchApplier) *ApplyPatchTool {
-	if isNilBackend(executor) {
+	if lo.IsNil(executor) {
 		executor = NewLocalExecutor("")
 	}
 	t := &ApplyPatchTool{executor: executor}

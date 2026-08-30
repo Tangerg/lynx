@@ -5,10 +5,16 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"maps"
+	"os/exec"
 	"path/filepath"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 )
+
+const goListPackageNameFormat = "{{.ImportPath}}\t{{.Name}}"
 
 // TestReceiversAreTheirTypeInitial keeps one receiver spelling across the
 // repository. A receiver named after a word inside the type reads fine in
@@ -47,8 +53,9 @@ func TestReceiversAreTheirTypeInitial(t *testing.T) {
 // different objects, which survives review and misleads the next reader.
 func TestParametersDoNotShadowImportedPackages(t *testing.T) {
 	t.Parallel()
+	packageNames := loadPackageNames(t)
 	forEachGoFile(t, func(path string, fset *token.FileSet, file *ast.File) {
-		imported := importedPackageNames(file)
+		imported := importedPackageNames(t, path, file, packageNames)
 		for _, declaration := range file.Decls {
 			function, ok := declaration.(*ast.FuncDecl)
 			if !ok || function.Type.Params == nil {
@@ -67,17 +74,86 @@ func TestParametersDoNotShadowImportedPackages(t *testing.T) {
 	})
 }
 
-func importedPackageNames(file *ast.File) map[string]bool {
+func TestImportedPackageNamesUseResolvedPackageIdentity(t *testing.T) {
+	t.Parallel()
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "identity.go", `package identity
+import (
+	"math/rand/v2"
+	sdk "example.com/client/v3"
+	_ "example.com/sideeffect/v4"
+)`, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	got := importedPackageNames(t, "identity.go", file, map[string]string{
+		"math/rand/v2":              "rand",
+		"example.com/client/v3":     "client",
+		"example.com/sideeffect/v4": "sideeffect",
+	})
+	want := map[string]bool{"rand": true, "sdk": true}
+	if !maps.Equal(got, want) {
+		t.Fatalf("imported package names = %v, want %v", got, want)
+	}
+}
+
+func loadPackageNames(t *testing.T) map[string]string {
+	t.Helper()
+	root := repositoryRoot(t)
+	modules := discoverModules(t, root)
+	patterns := make([]string, 0, len(modules))
+	for _, module := range modules {
+		patterns = append(patterns, "./"+module.dir+"/...")
+	}
+	slices.Sort(patterns)
+
+	arguments := []string{"list", "-deps", "-test", "-f", goListPackageNameFormat}
+	command := exec.CommandContext(t.Context(), "go", append(arguments, patterns...)...)
+	command.Dir = root
+	output, err := command.CombinedOutput()
+	if err != nil {
+		t.Fatalf("resolve Go package names: %v\n%s", err, output)
+	}
+
+	names := make(map[string]string)
+	for line := range strings.Lines(string(output)) {
+		line = strings.TrimSuffix(line, "\n")
+		importPath, name, ok := strings.Cut(line, "\t")
+		if !ok || importPath == "" || name == "" {
+			t.Fatalf("go list returned malformed package identity %q", line)
+		}
+		names[importPath] = name
+	}
+	return names
+}
+
+func importedPackageNames(
+	t *testing.T,
+	sourcePath string,
+	file *ast.File,
+	packageNames map[string]string,
+) map[string]bool {
+	t.Helper()
 	names := make(map[string]bool, len(file.Imports))
 	for _, specification := range file.Imports {
-		path := strings.Trim(specification.Path.Value, `"`)
-		name := path[strings.LastIndex(path, "/")+1:]
 		if specification.Name != nil {
-			name = specification.Name.Name
+			name := specification.Name.Name
+			if name != "_" && name != "." {
+				names[name] = true
+			}
+			continue
 		}
-		if name != "_" && name != "." {
-			names[name] = true
+
+		importPath, err := strconv.Unquote(specification.Path.Value)
+		if err != nil {
+			t.Fatalf("%s has invalid import path %s: %v", sourcePath, specification.Path.Value, err)
 		}
+		name, ok := packageNames[importPath]
+		if !ok {
+			t.Fatalf("%s imports %q, whose package name go list did not report", sourcePath, importPath)
+		}
+		names[name] = true
 	}
 	return names
 }
