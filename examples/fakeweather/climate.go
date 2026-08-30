@@ -111,9 +111,8 @@ var seasonalPatterns = map[climateZone]seasonalPattern{
 //     ("antarctica research base" → polar).
 //  2. Known cities ([lookupCity]) — gazetteer entries.
 //  3. zoneTemperate fallback — also signals "treat as northern
-//     hemisphere" downstream (avoids the "summer = winter" surprise
-//     earlier versions produced for unknown southern-hemisphere
-//     locations).
+//     hemisphere" downstream so unknown locations retain deterministic
+//     seasonal behavior.
 func identifyClimateZone(location string) climateZone {
 	if zone, ok := lookupRegion(location); ok {
 		return zone

@@ -64,7 +64,7 @@ func run(ctx context.Context) (err error) {
 	}()
 
 	mcpClient := sdkmcp.NewClient(
-		&sdkmcp.Implementation{Name: "scope-mcp-agent", Version: "dev"},
+		&sdkmcp.Implementation{Name: "scope-mcp-agent"},
 		nil,
 	)
 	clientSession, err := mcpClient.Connect(ctx, clientTransport, nil)
@@ -183,7 +183,7 @@ func buildMCPServer() (*sdkmcp.Server, error) {
 		return nil, fmt.Errorf("derive search tool input schema: %w", err)
 	}
 	server := sdkmcp.NewServer(
-		&sdkmcp.Implementation{Name: "research-server", Version: "dev"},
+		&sdkmcp.Implementation{Name: "research-server"},
 		nil,
 	)
 
