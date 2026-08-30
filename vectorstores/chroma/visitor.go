@@ -18,10 +18,7 @@ var _ filter.Visitor = (*Visitor)(nil)
 // flat dotted keys, and accepts numbers only through int or float32 APIs;
 // compilation rejects every unsupported or lossy mapping.
 type Visitor struct {
-	err               error
-	result            v2.WhereClause
-	currentFieldKey   string
-	currentFieldValue any
+	result v2.WhereClause
 }
 
 type chromaNumber struct {
@@ -35,432 +32,298 @@ func NewVisitor() *Visitor {
 }
 
 func (v *Visitor) Result() v2.WhereClause {
-	if v.err != nil {
-		return nil
-	}
 	return v.result
 }
 
-func (v *Visitor) Visit(expr filter.Predicate) error {
-	v.err = nil
+func (v *Visitor) Visit(predicate filter.Predicate) error {
 	v.result = nil
-	v.currentFieldKey = ""
-	v.currentFieldValue = nil
-	v.err = v.visit(expr)
-	return v.err
+	result, err := compilePredicate(predicate)
+	if err != nil {
+		return err
+	}
+	v.result = result
+	return nil
 }
 
-func (v *Visitor) visit(expr filter.Expr) error {
-	if expr == nil {
-		return errors.New("chroma: cannot process nil expression")
-	}
-	if v.err != nil {
-		return v.err
-	}
-
-	switch node := expr.(type) {
+func compilePredicate(predicate filter.Predicate) (v2.WhereClause, error) {
+	switch expression := predicate.(type) {
 	case *filter.BinaryExpr:
-		return v.visitBinaryExpr(node)
+		return compileBinary(expression)
 	case *filter.UnaryExpr:
-		return v.visitUnaryExpr(node)
-	case *filter.IndexExpr:
-		return v.visitIndexExpr(node)
-	case *filter.Ident:
-		return v.visitIdent(node)
-	case *filter.Literal:
-		return v.visitLiteral(node)
-	case *filter.ListLiteral:
-		return v.visitListLiteral(node)
+		return nil, errors.New("chroma: NOT operator is not supported; rewrite using != or NIN")
 	default:
-		return fmt.Errorf("chroma: unsupported expression type %T", node)
+		return nil, fmt.Errorf("chroma: unsupported predicate type %T", expression)
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
-	return expr.Dispatch(filter.BinaryHandlers{
-		Logical:    v.visitLogicalExpr,
-		Comparison: v.visitComparisonExpr,
-		In:         v.visitInExpr,
-		Has:        v.visitHasExpr,
-		Like:       v.visitLikeExpr,
-	})
-}
-
-func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
-	return fmt.Errorf("chroma: HAS is not supported because Chroma metadata values are scalar (at %s)",
-		expr.Start().String())
-}
-
-func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
-	if expr.Operator().IsEqualityOperator() {
-		return v.visitEqualityExpr(expr)
+func compileBinary(expression *filter.BinaryExpr) (v2.WhereClause, error) {
+	switch operator := expression.Operator(); {
+	case operator.IsLogicalOperator():
+		return compileLogical(expression)
+	case operator.IsEqualityOperator():
+		return compileEquality(expression)
+	case operator.IsOrderingOperator():
+		return compileOrdering(expression)
+	case operator.Is(filter.OpIn):
+		return compileIn(expression)
+	case operator.Is(filter.OpHas):
+		return nil, fmt.Errorf("chroma: HAS is not supported because Chroma metadata values are scalar (at %s)", expression.Start())
+	case operator.Is(filter.OpLike):
+		return nil, fmt.Errorf("chroma: LIKE operator is not supported on metadata fields (at %s)", expression.Start())
+	default:
+		return nil, fmt.Errorf("chroma: unsupported binary operator %q at %s", operator, expression.Start())
 	}
-	return v.visitOrderingExpr(expr)
 }
 
-func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
-	return fmt.Errorf("chroma: LIKE operator is not supported on metadata fields (at %s)",
-		expr.Start().String())
-}
-
-func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
-	return expr.Dispatch(func(*filter.UnaryExpr) error {
-		return errors.New("chroma: NOT operator is not supported; rewrite using != or NIN")
-	})
-}
-
-func (v *Visitor) visitIdent(ident *filter.Ident) error {
-	v.currentFieldKey = ident.Name()
-	return nil
-}
-
-func (v *Visitor) visitLiteral(lit *filter.Literal) error {
-	value, err := v.literalToValue(lit)
+func compileLogical(expression *filter.BinaryExpr) (v2.WhereClause, error) {
+	left, err := compileOperand(expression.Left())
 	if err != nil {
-		return fmt.Errorf("chroma: convert literal at %s: %w", lit.Start().String(), err)
+		return nil, fmt.Errorf("chroma: process left operand of '%s' at %s: %w", expression.Operator(), expression.Start(), err)
 	}
-	v.currentFieldValue = value
-	return nil
-}
-
-func (v *Visitor) visitListLiteral(list *filter.ListLiteral) error {
-	values := make([]any, 0, list.Len())
-	for i, lit := range list.Literals() {
-		value, err := v.literalToValue(lit)
-		if err != nil {
-			return fmt.Errorf("chroma: convert list element at index %d: %w", i, err)
-		}
-		values = append(values, value)
-	}
-	v.currentFieldValue = values
-	return nil
-}
-
-func (v *Visitor) visitIndexExpr(expr *filter.IndexExpr) error {
-	fieldKey, err := v.buildIndexedFieldKey(expr)
+	right, err := compileOperand(expression.Right())
 	if err != nil {
-		return fmt.Errorf("chroma: build field path at %s: %w", expr.Start().String(), err)
+		return nil, fmt.Errorf("chroma: process right operand of '%s' at %s: %w", expression.Operator(), expression.Start(), err)
 	}
-	v.currentFieldKey = fieldKey
-	return nil
-}
-
-func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
-	leftClause, err := v.buildNestedClause(expr.Left())
-	if err != nil {
-		return fmt.Errorf("chroma: process left operand of '%s' at %s: %w",
-			expr.Operator().String(), expr.Start().String(), err)
-	}
-
-	rightClause, err := v.buildNestedClause(expr.Right())
-	if err != nil {
-		return fmt.Errorf("chroma: process right operand of '%s' at %s: %w",
-			expr.Operator().String(), expr.Start().String(), err)
-	}
-
-	switch expr.Operator() {
+	switch expression.Operator() {
 	case filter.OpAnd:
-		v.result = v2.And(leftClause, rightClause)
+		return v2.And(left, right), nil
 	case filter.OpOr:
-		v.result = v2.Or(leftClause, rightClause)
+		return v2.Or(left, right), nil
 	default:
-		return fmt.Errorf("chroma: unexpected logical operator '%s' at %s",
-			expr.Operator().String(), expr.Start().String())
+		return nil, fmt.Errorf("chroma: unexpected logical operator '%s' at %s", expression.Operator(), expression.Start())
 	}
-	return nil
 }
 
-func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left())
-	if err != nil {
-		return fmt.Errorf("chroma: extract field key from left operand of '%s' at %s: %w",
-			expr.Operator().String(), expr.Start().String(), err)
+func compileOperand(expression filter.Expr) (v2.WhereClause, error) {
+	predicate, ok := expression.(filter.Predicate)
+	if !ok {
+		return nil, fmt.Errorf("chroma: unsupported expression type %T for clause building", expression)
 	}
-
-	fieldValue, err := v.extractFieldValue(expr.Right())
-	if err != nil {
-		return fmt.Errorf("chroma: extract value from right operand of '%s' at %s: %w",
-			expr.Operator().String(), expr.Start().String(), err)
-	}
-
-	clause, err := v.buildEqualityClause(fieldKey, fieldValue, expr.Operator())
-	if err != nil {
-		return fmt.Errorf("chroma: build equality clause for '%s' at %s: %w",
-			expr.Operator().String(), expr.Start().String(), err)
-	}
-
-	v.result = clause
-	return nil
+	return compilePredicate(predicate)
 }
 
-func (v *Visitor) buildEqualityClause(fieldKey string, fieldValue any, op filter.Operator) (v2.WhereClause, error) {
-	isEq := op == filter.OpEqual
+func compileEquality(expression *filter.BinaryExpr) (v2.WhereClause, error) {
+	fieldKey, err := selectorKey(expression)
+	if err != nil {
+		return nil, fmt.Errorf("chroma: extract field key from left operand of '%s' at %s: %w", expression.Operator(), expression.Start(), err)
+	}
+	literal, err := expression.Literal()
+	if err != nil {
+		return nil, err
+	}
+	fieldValue, err := literalToValue(literal)
+	if err != nil {
+		return nil, fmt.Errorf("chroma: convert literal at %s: %w", literal.Start(), err)
+	}
+	clause, err := equalityClause(fieldKey, fieldValue, expression.Operator() == filter.OpEqual)
+	if err != nil {
+		return nil, fmt.Errorf("chroma: build equality clause for '%s' at %s: %w", expression.Operator(), expression.Start(), err)
+	}
+	return clause, nil
+}
 
-	switch val := fieldValue.(type) {
+func equalityClause(fieldKey string, fieldValue any, equal bool) (v2.WhereClause, error) {
+	switch value := fieldValue.(type) {
 	case string:
-		if isEq {
-			return v2.EqString(fieldKey, val), nil
+		if equal {
+			return v2.EqString(fieldKey, value), nil
 		}
-		return v2.NotEqString(fieldKey, val), nil
-
+		return v2.NotEqString(fieldKey, value), nil
 	case chromaNumber:
-		if val.isInteger {
-			if isEq {
-				return v2.EqInt(fieldKey, val.integer), nil
-			}
-			return v2.NotEqInt(fieldKey, val.integer), nil
-		}
-		if isEq {
-			return v2.EqFloat(fieldKey, val.fraction), nil
-		}
-		return v2.NotEqFloat(fieldKey, val.fraction), nil
-
+		return numericEqualityClause(fieldKey, value, equal), nil
 	case bool:
-		if isEq {
-			return v2.EqBool(fieldKey, val), nil
+		if equal {
+			return v2.EqBool(fieldKey, value), nil
 		}
-		return v2.NotEqBool(fieldKey, val), nil
-
+		return v2.NotEqBool(fieldKey, value), nil
 	default:
 		return nil, fmt.Errorf("chroma: unsupported value type %T for equality condition", fieldValue)
 	}
 }
 
-func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left())
-	if err != nil {
-		return fmt.Errorf("chroma: extract field key from left operand of '%s' at %s: %w",
-			expr.Operator().String(), expr.Start().String(), err)
-	}
-
-	fieldValue, err := v.extractFieldValue(expr.Right())
-	if err != nil {
-		return fmt.Errorf("chroma: extract value from right operand of '%s' at %s: %w",
-			expr.Operator().String(), expr.Start().String(), err)
-	}
-
-	numericValue, ok := fieldValue.(chromaNumber)
-	if !ok {
-		return fmt.Errorf("chroma: cannot convert value to number for '%s' comparison at %s: expected number, got %T",
-			expr.Operator().String(), expr.Start().String(), fieldValue)
-	}
-
-	var clause v2.WhereClause
-	switch expr.Operator() {
-	case filter.OpLess:
-		if numericValue.isInteger {
-			clause = v2.LtInt(fieldKey, numericValue.integer)
-		} else {
-			clause = v2.LtFloat(fieldKey, numericValue.fraction)
+func numericEqualityClause(fieldKey string, value chromaNumber, equal bool) v2.WhereClause {
+	if value.isInteger {
+		if equal {
+			return v2.EqInt(fieldKey, value.integer)
 		}
-	case filter.OpLessEqual:
-		if numericValue.isInteger {
-			clause = v2.LteInt(fieldKey, numericValue.integer)
-		} else {
-			clause = v2.LteFloat(fieldKey, numericValue.fraction)
-		}
-	case filter.OpGreater:
-		if numericValue.isInteger {
-			clause = v2.GtInt(fieldKey, numericValue.integer)
-		} else {
-			clause = v2.GtFloat(fieldKey, numericValue.fraction)
-		}
-	case filter.OpGreaterEqual:
-		if numericValue.isInteger {
-			clause = v2.GteInt(fieldKey, numericValue.integer)
-		} else {
-			clause = v2.GteFloat(fieldKey, numericValue.fraction)
-		}
-	default:
-		return fmt.Errorf("chroma: unexpected ordering operator '%s' at %s",
-			expr.Operator().String(), expr.Start().String())
+		return v2.NotEqInt(fieldKey, value.integer)
 	}
-
-	v.result = clause
-	return nil
+	if equal {
+		return v2.EqFloat(fieldKey, value.fraction)
+	}
+	return v2.NotEqFloat(fieldKey, value.fraction)
 }
 
-func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
-	fieldKey, err := v.extractFieldKey(expr.Left())
+func compileOrdering(expression *filter.BinaryExpr) (v2.WhereClause, error) {
+	fieldKey, err := selectorKey(expression)
 	if err != nil {
-		return fmt.Errorf("chroma: extract field key from left operand of 'IN' at %s: %w",
-			expr.Start().String(), err)
+		return nil, fmt.Errorf("chroma: extract field key from left operand of '%s' at %s: %w", expression.Operator(), expression.Start(), err)
 	}
-
-	listLit, err := expr.List()
-	if err != nil {
-		return fmt.Errorf("chroma: %w", err)
-	}
-
-	if err = v.visitListLiteral(listLit); err != nil {
-		return err
-	}
-
-	values, ok := v.currentFieldValue.([]any)
-	if !ok || len(values) == 0 {
-		return fmt.Errorf("chroma: extract list values for 'IN' operator at %s",
-			expr.Start().String())
-	}
-
-	switch values[0].(type) {
-	case string:
-		strs := make([]string, 0, len(values))
-		for _, val := range values {
-			value, ok := val.(string)
-			if !ok {
-				return fmt.Errorf("chroma: mixed value type %T in string list", val)
-			}
-			strs = append(strs, value)
-		}
-		v.result = v2.InString(fieldKey, strs...)
-
-	case chromaNumber:
-		// Keep an all-integral list on Chroma's int path. A mixed numeric
-		// list uses float32 only when every element can be represented safely.
-		allInt := true
-		for _, val := range values {
-			number, ok := val.(chromaNumber)
-			if !ok {
-				return fmt.Errorf("chroma: mixed value type %T in numeric list", val)
-			}
-			if !number.isInteger {
-				allInt = false
-				break
-			}
-		}
-		if allInt {
-			ints := make([]int, 0, len(values))
-			for _, val := range values {
-				ints = append(ints, val.(chromaNumber).integer)
-			}
-			v.result = v2.InInt(fieldKey, ints...)
-		} else {
-			floats := make([]float32, 0, listLit.Len())
-			for _, literal := range listLit.Literals() {
-				value, err := literal.Float32()
-				if err != nil {
-					return fmt.Errorf("chroma: IN numeric value: %w", err)
-				}
-				floats = append(floats, value)
-			}
-			v.result = v2.InFloat(fieldKey, floats...)
-		}
-
-	case bool:
-		bools := make([]bool, 0, len(values))
-		for _, val := range values {
-			value, ok := val.(bool)
-			if !ok {
-				return fmt.Errorf("chroma: mixed value type %T in bool list", val)
-			}
-			bools = append(bools, value)
-		}
-		v.result = v2.InBool(fieldKey, bools...)
-
-	default:
-		return fmt.Errorf("chroma: unsupported value type %T in 'IN' list at %s",
-			values[0], expr.Start().String())
-	}
-
-	return nil
-}
-
-func (v *Visitor) buildNestedClause(expr filter.Expr) (v2.WhereClause, error) {
-	switch node := expr.(type) {
-	case *filter.BinaryExpr, *filter.UnaryExpr:
-		nested := NewVisitor()
-		if err := nested.visit(node); err != nil {
-			return nil, err
-		}
-		return nested.result, nil
-	default:
-		return nil, fmt.Errorf("chroma: unsupported expression type %T for clause building", node)
-	}
-}
-
-func (v *Visitor) extractFieldKey(expr filter.Expr) (string, error) {
-	saved := v.currentFieldKey
-	v.currentFieldKey = ""
-
-	err := v.visit(expr)
-
-	extracted := v.currentFieldKey
-	v.currentFieldKey = saved
-
-	if err != nil {
-		return "", err
-	}
-	if extracted == "" {
-		return "", fmt.Errorf("chroma: extract field key from %T expression", expr)
-	}
-	return extracted, nil
-}
-
-func (v *Visitor) extractFieldValue(expr filter.Expr) (any, error) {
-	saved := v.currentFieldValue
-	v.currentFieldValue = nil
-
-	err := v.visit(expr)
-
-	extracted := v.currentFieldValue
-	v.currentFieldValue = saved
-
+	literal, err := expression.Literal()
 	if err != nil {
 		return nil, err
 	}
-	if extracted == nil {
-		return nil, fmt.Errorf("chroma: extract value from %T expression", expr)
+	fieldValue, err := literalToValue(literal)
+	if err != nil {
+		return nil, fmt.Errorf("chroma: convert literal at %s: %w", literal.Start(), err)
 	}
-	return extracted, nil
+	numericValue, ok := fieldValue.(chromaNumber)
+	if !ok {
+		return nil, fmt.Errorf("chroma: cannot convert value to number for '%s' comparison at %s: expected number, got %T", expression.Operator(), expression.Start(), fieldValue)
+	}
+	return orderingClause(fieldKey, numericValue, expression.Operator(), expression.Start().String())
 }
 
-func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
-	var pathParts []string
-
-	current := expr
-	for {
-		key, err := current.Index().Key()
-		if err != nil {
-			return "", fmt.Errorf("chroma: %w", err)
+func orderingClause(fieldKey string, value chromaNumber, operator filter.Operator, position string) (v2.WhereClause, error) {
+	switch operator {
+	case filter.OpLess:
+		if value.isInteger {
+			return v2.LtInt(fieldKey, value.integer), nil
 		}
-		pathParts = append([]string{key}, pathParts...)
-
-		switch left := current.Left().(type) {
-		case *filter.IndexExpr:
-			current = left
-		case *filter.Ident:
-			pathParts = append([]string{left.Name()}, pathParts...)
-			return strings.Join(pathParts, "."), nil
-		default:
-			return "", fmt.Errorf("chroma: invalid left operand type %T in index expression", left)
+		return v2.LtFloat(fieldKey, value.fraction), nil
+	case filter.OpLessEqual:
+		if value.isInteger {
+			return v2.LteInt(fieldKey, value.integer), nil
 		}
+		return v2.LteFloat(fieldKey, value.fraction), nil
+	case filter.OpGreater:
+		if value.isInteger {
+			return v2.GtInt(fieldKey, value.integer), nil
+		}
+		return v2.GtFloat(fieldKey, value.fraction), nil
+	case filter.OpGreaterEqual:
+		if value.isInteger {
+			return v2.GteInt(fieldKey, value.integer), nil
+		}
+		return v2.GteFloat(fieldKey, value.fraction), nil
+	default:
+		return nil, fmt.Errorf("chroma: unexpected ordering operator '%s' at %s", operator, position)
 	}
 }
 
-func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
-	if lit.IsString() {
-		return lit.AsString()
+func compileIn(expression *filter.BinaryExpr) (v2.WhereClause, error) {
+	fieldKey, err := selectorKey(expression)
+	if err != nil {
+		return nil, fmt.Errorf("chroma: extract field key from left operand of 'IN' at %s: %w", expression.Start(), err)
 	}
-	if lit.IsNumber() {
-		integer, err := lit.IsInteger()
+	list, err := expression.List()
+	if err != nil {
+		return nil, fmt.Errorf("chroma: %w", err)
+	}
+	literals := list.Literals()
+	switch {
+	case literals[0].IsString():
+		values, err := stringList(literals)
 		if err != nil {
 			return nil, err
 		}
-		if integer {
-			value, intErr := lit.Int()
-			if intErr != nil {
-				return nil, intErr
-			}
-			return chromaNumber{integer: value, isInteger: true}, nil
-		}
-		value, err := lit.Float32()
+		return v2.InString(fieldKey, values...), nil
+	case literals[0].IsNumber():
+		return numericInClause(fieldKey, literals)
+	case literals[0].IsBool():
+		values, err := boolList(literals)
 		if err != nil {
 			return nil, err
 		}
-		return chromaNumber{fraction: value}, nil
+		return v2.InBool(fieldKey, values...), nil
+	default:
+		return nil, fmt.Errorf("chroma: unsupported value type %s in 'IN' list at %s", literals[0].Kind(), expression.Start())
 	}
-	if lit.IsBool() {
-		return lit.AsBool()
+}
+
+func stringList(literals []*filter.Literal) ([]string, error) {
+	values := make([]string, 0, len(literals))
+	for _, literal := range literals {
+		value, err := literal.AsString()
+		if err != nil {
+			return nil, fmt.Errorf("chroma: IN string value: %w", err)
+		}
+		values = append(values, value)
 	}
-	return nil, fmt.Errorf("chroma: unsupported literal type '%s'", lit.Kind())
+	return values, nil
+}
+
+func boolList(literals []*filter.Literal) ([]bool, error) {
+	values := make([]bool, 0, len(literals))
+	for _, literal := range literals {
+		value, err := literal.AsBool()
+		if err != nil {
+			return nil, fmt.Errorf("chroma: IN bool value: %w", err)
+		}
+		values = append(values, value)
+	}
+	return values, nil
+}
+
+func numericInClause(fieldKey string, literals []*filter.Literal) (v2.WhereClause, error) {
+	integers := make([]int, 0, len(literals))
+	allIntegers := true
+	for _, literal := range literals {
+		integer, err := literal.IsInteger()
+		if err != nil {
+			return nil, fmt.Errorf("chroma: IN numeric value: %w", err)
+		}
+		if !integer {
+			allIntegers = false
+			break
+		}
+		value, err := literal.Int()
+		if err != nil {
+			return nil, fmt.Errorf("chroma: IN numeric value: %w", err)
+		}
+		integers = append(integers, value)
+	}
+	if allIntegers {
+		return v2.InInt(fieldKey, integers...), nil
+	}
+
+	floats := make([]float32, 0, len(literals))
+	for _, literal := range literals {
+		value, err := literal.Float32()
+		if err != nil {
+			return nil, fmt.Errorf("chroma: IN numeric value: %w", err)
+		}
+		floats = append(floats, value)
+	}
+	return v2.InFloat(fieldKey, floats...), nil
+}
+
+func selectorKey(expression *filter.BinaryExpr) (string, error) {
+	path, err := expression.Path()
+	if err != nil {
+		return "", err
+	}
+	return strings.Join(path, "."), nil
+}
+
+func literalToValue(literal *filter.Literal) (any, error) {
+	if literal.IsString() {
+		return literal.AsString()
+	}
+	if literal.IsNumber() {
+		return numericLiteralValue(literal)
+	}
+	if literal.IsBool() {
+		return literal.AsBool()
+	}
+	return nil, fmt.Errorf("chroma: unsupported literal type '%s'", literal.Kind())
+}
+
+func numericLiteralValue(literal *filter.Literal) (chromaNumber, error) {
+	integer, err := literal.IsInteger()
+	if err != nil {
+		return chromaNumber{}, err
+	}
+	if integer {
+		value, intErr := literal.Int()
+		if intErr != nil {
+			return chromaNumber{}, intErr
+		}
+		return chromaNumber{integer: value, isInteger: true}, nil
+	}
+	value, err := literal.Float32()
+	if err != nil {
+		return chromaNumber{}, err
+	}
+	return chromaNumber{fraction: value}, nil
 }

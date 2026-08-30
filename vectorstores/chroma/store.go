@@ -199,26 +199,37 @@ func metadataToMap(meta v2.DocumentMetadata) map[string]any {
 		return nil
 	}
 	result := make(map[string]any, len(keys))
-	for _, k := range keys {
-		if s, ok := impl.GetString(k); ok {
-			result[k] = s
-		} else if i, ok := impl.GetInt(k); ok {
-			result[k] = i
-		} else if f, ok := impl.GetFloat(k); ok {
-			result[k] = f
-		} else if b, ok := impl.GetBool(k); ok {
-			result[k] = b
-		} else if sa, ok := impl.GetStringArray(k); ok {
-			result[k] = sa
-		} else if ia, ok := impl.GetIntArray(k); ok {
-			result[k] = ia
-		} else if fa, ok := impl.GetFloatArray(k); ok {
-			result[k] = fa
-		} else if ba, ok := impl.GetBoolArray(k); ok {
-			result[k] = ba
+	for _, key := range keys {
+		if value, present := metadataValue(impl, key); present {
+			result[key] = value
 		}
 	}
 	return result
+}
+
+func metadataValue(metadata *v2.DocumentMetadataImpl, key string) (any, bool) {
+	if value, present := metadata.GetString(key); present {
+		return value, true
+	}
+	if value, present := metadata.GetInt(key); present {
+		return value, true
+	}
+	if value, present := metadata.GetFloat(key); present {
+		return value, true
+	}
+	if value, present := metadata.GetBool(key); present {
+		return value, true
+	}
+	if value, present := metadata.GetStringArray(key); present {
+		return value, true
+	}
+	if value, present := metadata.GetIntArray(key); present {
+		return value, true
+	}
+	if value, present := metadata.GetFloatArray(key); present {
+		return value, true
+	}
+	return metadata.GetBoolArray(key)
 }
 
 // buildAddOptions assembles the Upsert options for a single document batch
