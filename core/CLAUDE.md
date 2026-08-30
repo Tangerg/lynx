@@ -25,8 +25,8 @@
 
 - 已删除的旧 package、alias、bridge 和 generic framework 不得重新引入。
 - breaking change 必须在同一批次迁完全部 workspace 消费方；不保留 deprecated wrapper、双读写或旧 wire 解码。
-- exported API 变更必须评估 provider/backend 爆炸半径，并同步 package docs、examples 与当前 serialization fixtures；开发期不维护发布基线、旧 API 快照或 release notes。
-- JSON DTO/tag/省略规则变更先运行 `go test ./internal/arch -run '^TestWire'`；审阅当前 wire 合同后才用 `-update-wire-fixtures` 更新 fixture。新增 JSON struct 未登记 fixture coverage 会直接失败。
+- exported API 变更必须评估 provider/backend 爆炸半径，并同步 package docs、examples 与当前行为测试；开发期不维护发布基线、旧 API 快照或 release notes。
+- JSON DTO/tag/省略规则由所属 package 的 round-trip、malformed-input、omitempty 与 provider conformance 测试验证，不建立跨 package 的全局 wire 快照。
 
 ## 模块特有反向不变量
 

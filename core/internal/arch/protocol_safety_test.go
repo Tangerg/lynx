@@ -79,6 +79,19 @@ func wireFieldIgnored(field *ast.Field) bool {
 	return err == nil && reflect.StructTag(tag).Get("json") == "-"
 }
 
+func hasJSONTag(structure *ast.StructType) bool {
+	for _, field := range structure.Fields.List {
+		if field.Tag == nil {
+			continue
+		}
+		tag, err := strconv.Unquote(field.Tag.Value)
+		if err == nil && reflect.StructTag(tag).Get("json") != "" {
+			return true
+		}
+	}
+	return false
+}
+
 func containsArbitraryRuntimeValue(expression ast.Expr) bool {
 	found := false
 	ast.Inspect(expression, func(node ast.Node) bool {
