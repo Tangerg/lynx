@@ -1,34 +1,36 @@
 # otel
 
-`otel` 是 Scope 的官方 OpenTelemetry integration module。它从外层为
-Core 协议能力增加 traces/metrics，并提供把 OTel 三类信号写到
-`log/slog` 的开发态 exporter；Core 本身不 import OTel。
+`otel` is Scope's official OpenTelemetry integration. It adds traces and metrics
+to Core's capabilities from the outside, and provides development exporters that
+write all three OTel signals to `log/slog`. Core itself never imports OTel.
 
-能力适配器按被包装合同分包，避免一个通用配置或 magic map 混合不同
-生命周期：
+Adapters are split by the contract they wrap, so one generic config or magic map
+never mixes different lifecycles:
 
-| Package | 观察边界 | 组合入口 |
+| Package | Observed boundary | Composition entry |
 |---|---|---|
 | `otel/chat` | chat call / lazy stream | `Middleware.Call` / `Middleware.Stream` |
-| `otel/embedding` | embedding call 与 input/token 数量 | `Middleware.Wrap` |
+| `otel/embedding` | embedding call, input and token counts | `Middleware.Wrap` |
 | `otel/image` | image generation call | `Middleware.Wrap` |
-| `otel/moderation` | moderation call 与 input 数量 | `Middleware.Wrap` |
+| `otel/moderation` | moderation call and input count | `Middleware.Wrap` |
 | `otel/speech` | speech call / lazy stream | `Middleware.Wrap` / `Middleware.WrapStream` |
 | `otel/transcription` | transcription call | `Middleware.Wrap` |
 | `otel/eval` | generic evaluator result | `Middleware[T].Wrap` |
 | `otel/rag` | retrieval | `Middleware.Wrap` |
 | `otel/tool` | tool invocation | `Middleware.Wrap` |
-| `otel/history` | history store / listing | `Middleware.Store` / `Middleware.Conversations` |
+| `otel/history` | history store and listing | `Middleware.Store` / `Middleware.Conversations` |
 | `otel/vectorstore` | vector-store operations | capability-specific methods |
-| `otel/agent` | managed Process activation, Step and Effect | `Observer` |
+| `otel/agent` | managed Process activation, Step, and Effect | `Observer` |
 
-模型内容、query、document、音频、图像、transcript 和 evaluation subject
-均不进入 telemetry；adapter 只记录身份、数量、时延、结果与稳定错误分类。
+Model content, queries, documents, audio, images, transcripts, and evaluation
+subjects never enter telemetry. An adapter records identity, counts, latency,
+outcome, and a stable error classification only.
 
 ## Chat instrumentation
 
-`otel/chat` 提供不可变的 `Middleware`。provider identity 在组合根显式传入，
-不要求 `core/chat.Model` 增加 `Metadata`、默认配置或观测方法：
+`otel/chat` provides an immutable `Middleware`. Provider identity is passed
+explicitly at the composition root, so `core/chat.Model` is never asked to grow
+a `Metadata`, a default config, or an observation method:
 
 ```go
 import (
@@ -47,29 +49,32 @@ observedModel := chat.Wrap(providerModel, instrumentation.Call)
 observedStream := chat.WrapStream(providerStreamer, instrumentation.Stream)
 ```
 
-`Call` 和 `Stream` 保持为两个独立能力：call-only provider 不会因为观测
-而获得一个伪造的流式接口。wrapper 的行为包括：
+`Call` and `Stream` stay two independent capabilities: a call-only provider does
+not gain a fake streaming interface just by being observed. The wrapper:
 
-- 使用当前 OTel GenAI semconv 的 `gen_ai.provider.name`、operation、
-  request/response model、finish reason 和 usage 属性。
-- 发射 `gen_ai.client.operation.duration` 与
-  `gen_ai.client.token.usage` histogram。
-- stream 在真正迭代时才开始观测；第一个生成内容触发
-  `first_token_received` event。
-- provider error、部分 response 和 chunk 原样透传；观测聚合失败只记录
-  event，不转换成业务错误。
-- 调用方提前停止迭代时同步结束 span，并依靠底层 Streamer 同步释放资源。
+- uses the current OTel GenAI semconv attributes — `gen_ai.provider.name`,
+  operation, request and response model, finish reason, and usage;
+- emits the `gen_ai.client.operation.duration` and `gen_ai.client.token.usage`
+  histograms;
+- begins observing a stream only when it is actually iterated, and raises a
+  `first_token_received` event on the first generated content;
+- passes provider errors, partial responses, and chunks through unchanged — an
+  observation aggregation failure is recorded as an event, never converted into
+  a business error;
+- ends the span synchronously when the caller stops iterating early, relying on
+  the underlying `Streamer` to release resources synchronously.
 
-`chat.MiddlewareConfig.TracerProvider` 和 `MeterProvider` 可用于显式注入；为 nil 时在
-构造阶段取得官方全局 provider。没有安装 SDK provider 时，官方 provider
-为 noop，但 wrapper 自身仍会执行计时、属性读取和流式聚合。
+`MiddlewareConfig.TracerProvider` and `MeterProvider` allow explicit injection;
+when nil, the official global providers are resolved at construction. Without an
+installed SDK provider those are noop, but the wrapper still performs its
+timing, attribute reads, and stream aggregation.
 
 ## Agent instrumentation
 
-`otel/agent.Observer` 是 `agent.EventListener` 的官方反向集成：Agent Kernel
-只发布自校验的 typed fact，不 import OTel；Observer 把一次 start 或 restore
-到 terminal 的运行区间解释为一次 Process activation，并为其中的 Step 与 Effect
-建立子 span。
+`otel/agent.Observer` is the official reverse integration for
+`agent.EventListener`: the Agent kernel publishes self-validating typed facts and
+never imports OTel, and the Observer interprets one start-or-restore-to-terminal
+interval as a Process activation with child spans for its Steps and Effects.
 
 ```go
 observer, err := agentotel.NewObserver(agentotel.ObserverConfig{
@@ -86,43 +91,47 @@ engine, err := agent.NewEngine(agent.EngineConfig{
 })
 ```
 
-Observer 发射以下稳定 instrument；所有 duration 都使用秒：
+The Observer emits these stable instruments; every duration is in seconds:
 
-| Instrument | 类型 | 含义 |
+| Instrument | Type | Meaning |
 |---|---|---|
-| `agent.process.activations` | counter | started/restored runtime activation |
+| `agent.process.activations` | counter | started or restored runtime activation |
 | `agent.process.exits` | counter | terminal Process outcome |
-| `agent.process.activation.duration` | histogram | 当前 activation 到 terminal 的耗时 |
-| `agent.process.committed_steps` | histogram | terminal Framework Usage 中的 committed Steps |
-| `agent.process.prepared_effects` | histogram | terminal Framework Usage 中的 prepared Effects |
-| `agent.process.accepted_signals` | histogram | terminal Framework Usage 中的 accepted Signals |
-| `agent.step.duration` | histogram | Execution Step attempt 耗时 |
-| `agent.effect.duration` | histogram | Framework/Dispatcher Effect attempt 耗时 |
-| `agent.delta.dropped` | counter | 被有界 observation 路径丢弃的 Delta increment |
+| `agent.process.activation.duration` | histogram | this activation until terminal |
+| `agent.process.committed_steps` | histogram | committed Steps in the terminal Framework Usage |
+| `agent.process.prepared_effects` | histogram | prepared Effects in the terminal Framework Usage |
+| `agent.process.accepted_signals` | histogram | accepted Signals in the terminal Framework Usage |
+| `agent.step.duration` | histogram | Execution Step attempt |
+| `agent.effect.duration` | histogram | Framework or Dispatcher Effect attempt |
+| `agent.delta.dropped` | counter | Delta increments dropped by the bounded observation path |
 
-Process、Step 与 Effect span 携带 exact Process/tree、Deployment 和 activation
-归因；durable execution 额外携带 `agent.tree.incarnation_id`。metric 只使用
-Deployment name、activation、status/cause、Effect target/status 和稳定
-failure kind/code 等受控维度，不写入 raw payload、Input、Output 或产品身份。
-Process error outcome、失败的 Step attempt 和非成功 Effect settlement 同时设置
-span error status 并记录标准 OTel exception event；exception 由 typed fact 投影，
-不会伪造原始 stack，也不会重新引入 Failure message 或 opaque payload。
+Process, Step, and Effect spans carry exact Process/tree, Deployment, and
+activation attribution; durable execution additionally carries
+`agent.tree.incarnation_id`. Metrics use only controlled dimensions —
+Deployment name, activation, status and cause, Effect target and status, and a
+stable failure kind and code — never a raw payload, input, output, or product
+identity. A Process error outcome, a failed Step attempt, and a non-successful
+Effect settlement each set the span error status and record the standard OTel
+exception event, projected from the typed fact: no fabricated stack, and no
+reintroduced failure message or opaque payload.
 
-Observer 不保存 Event callback context，只保存仍在活动的 span。`Close` 先线性化
-拒绝新 observation，等待已经进入的 callback 完成，再以错误状态结束残留 span；
-因此可以安全地与 Engine shutdown 协调，也可以并发重复调用。
+The Observer retains no event callback context, only spans that are still
+active. `Close` first linearizes rejection of new observation, waits for
+callbacks already in flight, and then ends any residual span with an error
+status — so it coordinates safely with Engine shutdown and tolerates concurrent
+repeated calls.
 
 ## Development sinks
 
-`otel/slog` 提供三个官方 SDK 接口实现：
+`otel/slog` provides three implementations of the official SDK interfaces:
 
-| Exporter | 输入 | 输出 |
+| Exporter | Input | Output |
 |---|---|---|
 | `NewSpanExporter` | completed span | one `slog.Record` per span |
 | `NewMetricExporter` | metric batch | structured metric records |
 | `NewLogExporter` | OTel log record | one `slog.Record` per log |
 
-开发态 trace 示例：
+A development trace setup:
 
 ```go
 import (
@@ -142,8 +151,9 @@ otel.SetTracerProvider(provider)
 defer provider.Shutdown(context.Background())
 ```
 
-生产环境直接把 slog exporter 换成官方 OTLP exporter；业务 wrapper 和
-Core 协议代码不变。
+In production, swap the slog exporters for the official OTLP exporters. The
+wrappers and the Core protocol code do not change — that replaceability is the
+whole reason this goes through OTel instead of writing slog directly.
 
 ## Dependency direction
 
@@ -155,8 +165,13 @@ core/vectorstore  <-- otel/vectorstore  --> OpenTelemetry API
                        otel/slog         --> OpenTelemetry SDK --> log/slog
 ```
 
-- Core 用户不引入 `otel` 时，不承担任何 OTel 依赖。
-- `otel` 目录只是命名空间，不存在根包；各领域 wrapper 只调用官方 API。同一 module 内的 `otel/slog` 和
-  测试使用官方 SDK，因此该 module 的 `go.mod` 有 SDK requirement。
-- 本模块不定义 tracer、meter、registry 或 observation 自有抽象。
-- OTLP、Jaeger、Zipkin 等生产 exporter 使用官方实现，不在 Scope 中复制。
+- A Core user who does not import `otel` takes on no OTel dependency.
+- The `otel` directory is a namespace with no root package. Each domain wrapper
+  calls the official API only; `otel/slog` and the tests in the same module use
+  the official SDK, which is why this module's `go.mod` requires it.
+- This module defines no tracer, meter, registry, or observation abstraction of
+  its own.
+- Production exporters — OTLP, Jaeger, Zipkin — come from the official
+  implementations and are never duplicated in Scope.
+
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the invariants behind these rules.
