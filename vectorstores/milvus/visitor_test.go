@@ -2,6 +2,7 @@ package milvus_test
 
 import (
 	"math"
+	"strconv"
 	"testing"
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
@@ -42,5 +43,16 @@ func TestVisitor_HasUsesArrayContains(t *testing.T) {
 	}
 	if got := v.Result(); got != `ARRAY_CONTAINS(tags, "rag")` {
 		t.Fatalf("Result() = %q", got)
+	}
+}
+
+func TestVisitor_QuotesCompleteStringLiteral(t *testing.T) {
+	value := "line one\nline two\\path\"quoted"
+	visitor := milvus.NewVisitor()
+	if err := filter.EQ("value", value).Accept(visitor); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := visitor.Result(), "value == "+strconv.Quote(value); got != want {
+		t.Fatalf("Result() = %q, want %q", got, want)
 	}
 }
