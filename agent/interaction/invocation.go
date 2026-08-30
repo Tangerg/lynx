@@ -8,6 +8,7 @@ import (
 
 	agent "github.com/Tangerg/scope/agent"
 	"github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/tool"
 )
 
 type invocationContextKey uint8
@@ -128,11 +129,21 @@ func (t ToolInvocation) ModelResult(output chat.ToolOutput, cause error) (result
 	if _, inputRequired := errors.AsType[*ToolInputRequiredError](cause); inputRequired {
 		return chat.ToolResult{}, false
 	}
+	if errors.Is(cause, tool.ErrAuthorizationDenied) {
+		return rejectedToolResult(call, fmt.Sprintf("tool %q is not authorized", call.Name)), true
+	}
 	return chat.ToolResult{
 		ID: call.ID, Name: call.Name,
 		Output:  chat.NewTextToolOutput(fmt.Sprintf("error: tool %q failed: %s", call.Name, boundedDiagnostic(cause.Error()))),
 		IsError: true,
 	}, true
+}
+
+func rejectedToolResult(call chat.ToolCall, diagnostic string) chat.ToolResult {
+	return chat.ToolResult{
+		ID: call.ID, Name: call.Name, IsError: true,
+		Output: chat.NewTextToolOutput("error: " + diagnostic),
+	}
 }
 
 func (t ToolInvocation) Valid() bool {

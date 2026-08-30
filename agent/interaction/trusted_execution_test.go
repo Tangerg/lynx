@@ -115,6 +115,63 @@ func TestLengthTruncatedToolCallsNeverReachCapabilitiesOrExecution(t *testing.T)
 	}
 }
 
+func TestAuthorizationUsesManagedInvocationWithoutLeakingPolicyCause(t *testing.T) {
+	const policySecret = "workspace internal role billing-admin"
+	var calls atomic.Int32
+	var authorizations atomic.Int32
+	executable := &trustBoundaryTool{name: "inspect", calls: &calls, capabilities: new(atomic.Int32)}
+	guard, err := tool.NewGuard(tool.GuardConfig{
+		Tool: executable,
+		Authorizer: tool.AuthorizerFunc(func(ctx context.Context, authorization tool.Authorization) error {
+			authorizations.Add(1)
+			invocation, present := interaction.ToolInvocationFromContext(ctx)
+			if !present || invocation.ToolCall().ID != "call_denied" ||
+				invocation.ToolCall().Name != authorization.Definition().Name {
+				return errors.New("managed invocation attribution is unavailable")
+			}
+			return errors.New(policySecret)
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var modelCalls atomic.Int32
+	model := chat.ModelFunc(func(_ context.Context, request *chat.Request) (*chat.Response, error) {
+		switch modelCalls.Add(1) {
+		case 1:
+			return toolCallResponse(chat.ToolCall{ID: "call_denied", Name: "inspect", Arguments: `{}`}), nil
+		case 2:
+			message := request.Messages[len(request.Messages)-1]
+			if message.Role != chat.RoleTool || len(message.Parts) != 1 {
+				return nil, errors.New("authorization denial did not produce Tool feedback")
+			}
+			result := message.Parts[0].ToolResult
+			text, ok := toolResultText(result)
+			if result == nil || !ok || !result.IsError ||
+				!strings.Contains(text, "not authorized") || strings.Contains(text, policySecret) {
+				return nil, errors.New("authorization feedback leaked policy details")
+			}
+			return textResponse("done"), nil
+		default:
+			return nil, errors.New("unexpected model call")
+		}
+	})
+	process, engine := startConcurrentInteraction(t, model, []tool.Tool{guard}, 2)
+	result, err := process.Await(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if result.Status() != agent.StatusCompleted || authorizations.Load() != 1 || calls.Load() != 0 {
+		t.Fatalf(
+			"status = %s, authorizations = %d, tool calls = %d",
+			result.Status(), authorizations.Load(), calls.Load(),
+		)
+	}
+}
+
 type trustBoundaryTool struct {
 	name         string
 	calls        *atomic.Int32

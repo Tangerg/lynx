@@ -620,13 +620,6 @@ func (d *Dispatcher) prepareToolCalls(calls []chat.ToolCall) []preparedToolCall 
 	return prepared
 }
 
-func rejectedToolResult(call chat.ToolCall, diagnostic string) chat.ToolResult {
-	return chat.ToolResult{
-		ID: call.ID, Name: call.Name, IsError: true,
-		Output: chat.NewTextToolOutput("error: " + diagnostic),
-	}
-}
-
 func directResultCapability(executable tool.Tool) (direct bool, err error) {
 	defer func() {
 		if recovered := recover(); recovered != nil {
