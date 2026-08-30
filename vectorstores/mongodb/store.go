@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"maps"
 	"slices"
 
 	"go.mongodb.org/mongo-driver/v2/bson"
@@ -80,9 +79,8 @@ type StoreConfig struct {
 	ContentField string
 
 	// MetadataField is the sub-document field that holds metadata.
-	// Optional: defaults to [DefaultMetadataField]. Pass "" to flatten
-	// metadata onto the document root (filters then address top-level
-	// fields).
+	// Optional: defaults to [DefaultMetadataField]. Metadata is always isolated
+	// in this sub-document so user keys cannot collide with storage fields.
 	MetadataField string
 
 	// MetadataFieldsToFilter pre-declares the metadata keys that
@@ -133,6 +131,47 @@ func (s StoreConfig) Validate() error {
 	}
 	if !s.Similarity.Valid() {
 		return fmt.Errorf("mongodb: unsupported Similarity %q", s.Similarity)
+	}
+	if err := s.validateFieldLayout(); err != nil {
+		return err
+	}
+	if err := s.validateMetadataFields(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s StoreConfig) validateFieldLayout() error {
+	fields := []struct {
+		name  string
+		value string
+	}{
+		{name: "reserved _id", value: defaultIDField},
+		{name: "reserved query score", value: scoreField},
+		{name: "ContentField", value: s.ContentField},
+		{name: "EmbeddingPath", value: s.EmbeddingPath},
+		{name: "MetadataField", value: s.MetadataField},
+	}
+	seen := make(map[string]string, len(fields))
+	for _, field := range fields {
+		if owner, duplicate := seen[field.value]; duplicate {
+			return fmt.Errorf("mongodb: %s and %s both use field %q", owner, field.name, field.value)
+		}
+		seen[field.value] = field.name
+	}
+	return nil
+}
+
+func (s StoreConfig) validateMetadataFields() error {
+	seen := make(map[string]struct{}, len(s.MetadataFieldsToFilter))
+	for index, field := range s.MetadataFieldsToFilter {
+		if field == "" {
+			return fmt.Errorf("mongodb: MetadataFieldsToFilter[%d] must not be empty", index)
+		}
+		if _, duplicate := seen[field]; duplicate {
+			return fmt.Errorf("mongodb: MetadataFieldsToFilter[%d] duplicates %q", index, field)
+		}
+		seen[field] = struct{}{}
 	}
 	return nil
 }
@@ -244,13 +283,9 @@ func (s *Store) createSearchIndex(ctx context.Context) error {
 		},
 	}
 	for _, name := range s.metadataFieldsToFilter {
-		path := name
-		if s.metadataField != "" {
-			path = s.metadataField + "." + name
-		}
 		fields = append(fields, bson.M{
 			"type": "filter",
-			"path": path,
+			"path": s.metadataField + "." + name,
 		})
 	}
 
@@ -297,15 +332,10 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 				s.contentField:  doc.Text,
 				s.embeddingPath: embedding.Float32Vector(vectors[i]),
 			}
-			if s.metadataField != "" {
-				meta := metadataValues
-				if meta == nil {
-					meta = map[string]any{}
-				}
-				payload[s.metadataField] = meta
-			} else {
-				maps.Copy(payload, metadataValues)
+			if metadataValues == nil {
+				metadataValues = map[string]any{}
 			}
+			payload[s.metadataField] = metadataValues
 
 			writes = append(writes, mongo.NewReplaceOneModel().
 				SetFilter(bson.M{defaultIDField: id}).
@@ -466,39 +496,39 @@ func (s *Store) toMatch(raw bson.M) (*vectorstore.SearchResult, error) {
 	}
 	score := vectorstore.ScoreFromValue(rawScore)
 
-	if s.metadataField != "" {
-		switch meta := raw[s.metadataField].(type) {
-		case bson.M:
-			var err error
-			doc.Metadata, err = metadata.FromValues(map[string]any(meta))
-			if err != nil {
-				return nil, fmt.Errorf("mongodb: convert metadata: %w", err)
-			}
-		case map[string]any:
-			var err error
-			doc.Metadata, err = metadata.FromValues(meta)
-			if err != nil {
-				return nil, fmt.Errorf("mongodb: convert metadata: %w", err)
-			}
-		}
-	} else {
-		meta := make(map[string]any, len(raw))
-		for k, v := range raw {
-			switch k {
-			case defaultIDField, s.contentField, s.embeddingPath, scoreField:
-				continue
-			}
-			meta[k] = v
-		}
-		if len(meta) > 0 {
-			var err error
-			doc.Metadata, err = metadata.FromValues(meta)
-			if err != nil {
-				return nil, fmt.Errorf("mongodb: convert metadata: %w", err)
-			}
-		}
+	metadataValues, err := s.metadataValues(raw)
+	if err != nil {
+		return nil, err
+	}
+	doc.Metadata, err = metadata.FromValues(metadataValues)
+	if err != nil {
+		return nil, fmt.Errorf("mongodb: convert metadata: %w", err)
 	}
 	return &vectorstore.SearchResult{Document: doc, Score: score}, nil
+}
+
+func (s *Store) metadataValues(raw bson.M) (map[string]any, error) {
+	value, present := raw[s.metadataField]
+	if !present {
+		return nil, nil
+	}
+	switch value := value.(type) {
+	case bson.M:
+		return map[string]any(value), nil
+	case map[string]any:
+		return value, nil
+	case bson.D:
+		values := make(map[string]any, len(value))
+		for _, element := range value {
+			if _, duplicate := values[element.Key]; duplicate {
+				return nil, fmt.Errorf("mongodb: result metadata contains duplicate key %q", element.Key)
+			}
+			values[element.Key] = element.Value
+		}
+		return values, nil
+	default:
+		return nil, fmt.Errorf("mongodb: result field %q must be a document, got %T", s.metadataField, value)
+	}
 }
 
 func (s *Store) Close() error { return nil }
