@@ -3,7 +3,7 @@ module github.com/Tangerg/scope/historystores/mongodb
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/core v0.0.4-0.20260830034050-8cdd370cf840
+	github.com/Tangerg/scope/core v0.10.0
 	github.com/samber/lo v1.53.0
 	go.mongodb.org/mongo-driver/v2 v2.8.2
 )
