@@ -17,7 +17,7 @@ coverage_budget=(
   "./examples/workflow 67.6"
   "./examples/workflow_patterns 70.8"
   "./interaction 75.5"
-  "./planning 74.3"
+  "./planning 76.1"
   "./planning/goap 86.1"
   "./platform 87.0"
   "./workflow 78.4"
