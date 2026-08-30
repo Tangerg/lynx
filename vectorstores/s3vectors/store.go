@@ -1,8 +1,10 @@
 package s3vectors
 
 import (
+	"bytes"
 	"cmp"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"maps"
@@ -110,6 +112,7 @@ var (
 	_ vectorstore.Indexer       = (*Store)(nil)
 	_ vectorstore.Searcher      = (*Store)(nil)
 	_ vectorstore.FilterDeleter = (*Store)(nil)
+	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
 // Store implements vector-store capabilities with Amazon S3 Vectors.
@@ -170,6 +173,9 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 			metadataValues, err := doc.Metadata.Values()
 			if err != nil {
 				return fmt.Errorf("s3vectors: decode metadata for %s: %w", id, err)
+			}
+			if _, reserved := metadataValues[contentMetaKey]; reserved {
+				return fmt.Errorf("s3vectors: document %s metadata uses reserved key %q", id, contentMetaKey)
 			}
 			meta := make(map[string]any, len(metadataValues)+1)
 			maps.Copy(meta, metadataValues)
@@ -295,23 +301,49 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		if len(resp.Vectors) == 0 {
 			return nil
 		}
-		keys := make([]string, 0, len(resp.Vectors))
-		for _, v := range resp.Vectors {
-			if v.Key != nil {
-				keys = append(keys, *v.Key)
-			}
+		keys, err := queryVectorKeys(resp.Vectors)
+		if err != nil {
+			return err
 		}
-		if _, err := s.client.DeleteVectors(ctx, &s3vectors.DeleteVectorsInput{
-			VectorBucketName: aws.String(s.vectorBucketName),
-			IndexName:        aws.String(s.indexName),
-			Keys:             keys,
-		}); err != nil {
-			return fmt.Errorf("s3vectors: DeleteVectors: %w", err)
+		if err := s.DeleteIDs(ctx, keys); err != nil {
+			return err
 		}
 		if int32(len(resp.Vectors)) < pageSize {
 			return nil
 		}
 	}
+}
+
+// DeleteIDs removes vectors by key. An empty slice is a no-op; unknown keys are
+// ignored by S3 Vectors.
+func (s *Store) DeleteIDs(ctx context.Context, ids []string) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	for index, id := range ids {
+		if id == "" {
+			return fmt.Errorf("s3vectors: delete id[%d] must not be empty", index)
+		}
+	}
+	if _, err := s.client.DeleteVectors(ctx, &s3vectors.DeleteVectorsInput{
+		VectorBucketName: aws.String(s.vectorBucketName),
+		IndexName:        aws.String(s.indexName),
+		Keys:             ids,
+	}); err != nil {
+		return fmt.Errorf("s3vectors: DeleteVectors: %w", err)
+	}
+	return nil
+}
+
+func queryVectorKeys(vectors []types.QueryOutputVector) ([]string, error) {
+	keys := make([]string, len(vectors))
+	for index := range vectors {
+		if vectors[index].Key == nil || *vectors[index].Key == "" {
+			return nil, fmt.Errorf("s3vectors: query result[%d] is missing key", index)
+		}
+		keys[index] = *vectors[index].Key
+	}
+	return keys, nil
 }
 
 func (s *Store) buildFilter(filter filter.Predicate) (map[string]any, error) {
@@ -338,27 +370,43 @@ func (s *Store) toMatch(hit types.QueryOutputVector, minScore vectorstore.Score)
 		return nil, nil
 	}
 
-	if hit.Metadata != nil {
-		var meta map[string]any
-		if err := hit.Metadata.UnmarshalSmithyDocument(&meta); err != nil {
-			return nil, fmt.Errorf("s3vectors: decode metadata: %w", err)
-		}
-		if text, ok := meta[contentMetaKey].(string); ok {
-			doc.Text = text
-			delete(meta, contentMetaKey)
-		}
-		if len(meta) > 0 {
-			var err error
-			doc.Metadata, err = metadata.FromValues(meta)
-			if err != nil {
-				return nil, fmt.Errorf("s3vectors: convert metadata: %w", err)
-			}
-		}
+	text, documentMetadata, err := decodeDocumentMetadata(hit.Metadata)
+	if err != nil {
+		return nil, err
 	}
-	if doc.Text == "" {
-		return nil, errors.New("s3vectors: query result is missing document text metadata")
-	}
+	doc.Text = text
+	doc.Metadata = documentMetadata
 	return &vectorstore.SearchResult{Document: doc, Score: score}, nil
+}
+
+func decodeDocumentMetadata(raw s3vdoc.Interface) (string, metadata.Map, error) {
+	if raw == nil {
+		return "", nil, errors.New("s3vectors: query result is missing metadata")
+	}
+	encodedDocument, err := raw.MarshalSmithyDocument()
+	if err != nil {
+		return "", nil, fmt.Errorf("s3vectors: encode metadata document: %w", err)
+	}
+	var values map[string]any
+	decoder := json.NewDecoder(bytes.NewReader(encodedDocument))
+	decoder.UseNumber()
+	if decodeErr := decoder.Decode(&values); decodeErr != nil {
+		return "", nil, fmt.Errorf("s3vectors: decode metadata: %w", decodeErr)
+	}
+	rawText, present := values[contentMetaKey]
+	if !present {
+		return "", nil, fmt.Errorf("s3vectors: query result metadata is missing %q", contentMetaKey)
+	}
+	text, ok := rawText.(string)
+	if !ok || text == "" {
+		return "", nil, fmt.Errorf("s3vectors: query result metadata %q must be a non-empty string, got %T", contentMetaKey, rawText)
+	}
+	delete(values, contentMetaKey)
+	encoded, err := metadata.FromValues(values)
+	if err != nil {
+		return "", nil, fmt.Errorf("s3vectors: convert metadata: %w", err)
+	}
+	return text, encoded, nil
 }
 
 func (s *Store) Close() error { return nil }
