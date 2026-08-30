@@ -64,7 +64,7 @@ import (
 ctx := context.Background()
 
 client := sdkmcp.NewClient(&sdkmcp.Implementation{
-    Name: "scope-app", Version: "dev",
+    Name: "scope-app",
 }, nil)
 
 session, err := client.Connect(ctx, &sdkmcp.CommandTransport{
@@ -91,7 +91,7 @@ out, err := tools[0].Call(ctx, `{"name":"world"}`)
 
 ```go
 server := sdkmcp.NewServer(&sdkmcp.Implementation{
-    Name: "scope-bridge", Version: "dev",
+    Name: "scope-bridge",
 }, nil)
 
 if err := scopemcp.Register(server, myTools()...); err != nil {

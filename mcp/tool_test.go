@@ -19,7 +19,7 @@ func startServerWithFailing(t *testing.T, ctx context.Context) (*sdkmcp.ClientSe
 	t.Helper()
 	srvT, cliT := sdkmcp.NewInMemoryTransports()
 
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "fail-srv", Version: "dev"}, nil)
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "fail-srv"}, nil)
 	srv.AddTool(
 		&sdkmcp.Tool{Name: "boom", Description: "always fails", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
@@ -32,7 +32,7 @@ func startServerWithFailing(t *testing.T, ctx context.Context) (*sdkmcp.ClientSe
 	ss, err := srv.Connect(ctx, srvT, nil)
 	require.NoError(t, err)
 
-	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "fail-cli", Version: "dev"}, nil)
+	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "fail-cli"}, nil)
 	cs, err := cli.Connect(ctx, cliT, nil)
 	require.NoError(t, err)
 
@@ -100,7 +100,7 @@ func TestTool_MetaForwardedToServer(t *testing.T) {
 	srvT, cliT := sdkmcp.NewInMemoryTransports()
 
 	receivedMeta := make(chan map[string]any, 1)
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "meta-srv", Version: "dev"}, nil)
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "meta-srv"}, nil)
 	srv.AddTool(
 		&sdkmcp.Tool{Name: "snitch", Description: "reports meta", InputSchema: json.RawMessage(`{"type":"object"}`)},
 		func(ctx context.Context, req *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
@@ -112,7 +112,7 @@ func TestTool_MetaForwardedToServer(t *testing.T) {
 	require.NoError(t, err)
 	defer ss.Close()
 
-	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "meta-cli", Version: "dev"}, nil)
+	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "meta-cli"}, nil)
 	cs, err := cli.Connect(ctx, cliT, nil)
 	require.NoError(t, err)
 	defer cs.Close()

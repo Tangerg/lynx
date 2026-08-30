@@ -29,7 +29,7 @@ func startServerWithEcho(t *testing.T, ctx context.Context) (*sdkmcp.ClientSessi
 	t.Helper()
 	srvT, cliT := sdkmcp.NewInMemoryTransports()
 
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "dev"}, nil)
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server"}, nil)
 	srv.AddTool(
 		&sdkmcp.Tool{
 			Name:        "echo",
@@ -55,7 +55,7 @@ func startServerWithEcho(t *testing.T, ctx context.Context) (*sdkmcp.ClientSessi
 	ss, err := srv.Connect(ctx, srvT, nil)
 	require.NoError(t, err)
 
-	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "dev"}, nil)
+	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client"}, nil)
 	cs, err := cli.Connect(ctx, cliT, nil)
 	require.NoError(t, err)
 
@@ -84,7 +84,7 @@ func TestToolsDefaultNamingSanitizesForProviderCharset(t *testing.T) {
 	}
 	for _, c := range cases {
 		srvT, cliT := sdkmcp.NewInMemoryTransports()
-		srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server", Version: "dev"}, nil)
+		srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-server"}, nil)
 		srv.AddTool(&sdkmcp.Tool{Name: c.tool, InputSchema: json.RawMessage(`{"type":"object"}`)}, func(context.Context, *sdkmcp.CallToolRequest) (*sdkmcp.CallToolResult, error) {
 			return &sdkmcp.CallToolResult{}, nil
 		})
@@ -92,7 +92,7 @@ func TestToolsDefaultNamingSanitizesForProviderCharset(t *testing.T) {
 		require.NoError(t, err)
 		defer ss.Close()
 
-		cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client", Version: "dev"}, nil)
+		cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-client"}, nil)
 		cs, err := cli.Connect(t.Context(), cliT, nil)
 		require.NoError(t, err)
 		defer cs.Close()

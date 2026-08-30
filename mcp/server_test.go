@@ -68,7 +68,7 @@ func (t testTool) Call(ctx context.Context, invocation tool.Invocation) (corecha
 // and a cleanup func.
 func connectPair(t *testing.T, ctx context.Context, registered ...tool.Tool) (*sdkmcp.ClientSession, func()) {
 	t.Helper()
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "scope-srv", Version: "dev"}, nil)
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "scope-srv"}, nil)
 	require.NoError(t, scopemcp.Register(srv, registered...))
 	return connectServer(t, ctx, srv)
 }
@@ -80,7 +80,7 @@ func connectServer(t *testing.T, ctx context.Context, srv *sdkmcp.Server) (*sdkm
 	ss, err := srv.Connect(ctx, srvT, nil)
 	require.NoError(t, err)
 
-	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-cli", Version: "dev"}, nil)
+	cli := sdkmcp.NewClient(&sdkmcp.Implementation{Name: "test-cli"}, nil)
 	cs, err := cli.Connect(ctx, cliT, nil)
 	require.NoError(t, err)
 
@@ -146,7 +146,7 @@ func TestRegister_ErrorBecomesIsError(t *testing.T) {
 }
 
 func TestRegister_RejectsNilArgs(t *testing.T) {
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "dev"}, nil)
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x"}, nil)
 	require.ErrorIs(t, scopemcp.Register(nil, newEchoTool()), scopemcp.ErrNilServer)
 
 	for _, test := range []struct {
@@ -164,7 +164,7 @@ func TestRegister_RejectsNilArgs(t *testing.T) {
 }
 
 func TestRegister_RejectsInvalidSchema(t *testing.T) {
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "dev"}, nil)
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x"}, nil)
 	// NewTool always derives a valid schema, so an invalid one can only reach
 	// Register via a hand-rolled Tool — which is exactly what Register must reject.
 	require.Error(t, scopemcp.Register(srv, badSchemaTool{}))
@@ -192,7 +192,7 @@ func TestRegister_RefusesEverySchemaShapeTheServerCannotHold(t *testing.T) {
 		{name: "type is not a string", schema: `{"type":123}`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "dev"}, nil)
+			srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x"}, nil)
 			err := scopemcp.Register(srv, testTool{definition: corechat.ToolDefinition{
 				Name:        "shape",
 				InputSchema: json.RawMessage(test.schema),
@@ -205,7 +205,7 @@ func TestRegister_RefusesEverySchemaShapeTheServerCannotHold(t *testing.T) {
 }
 
 func TestRegister_RejectsDuplicateBatchAtomically(t *testing.T) {
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "dev"}, nil)
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x"}, nil)
 	err := scopemcp.Register(srv, newConstantTool("duplicate"), newConstantTool("duplicate"))
 	require.ErrorIs(t, err, tool.ErrDuplicateTool)
 
@@ -219,7 +219,7 @@ func TestRegister_RejectsDuplicateBatchAtomically(t *testing.T) {
 }
 
 func TestRegister_SnapshotsDefinitionOnce(t *testing.T) {
-	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x", Version: "dev"}, nil)
+	srv := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "x"}, nil)
 	tool := &definitionOnceTool{}
 	require.NoError(t, scopemcp.Register(srv, tool))
 

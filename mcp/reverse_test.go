@@ -43,11 +43,11 @@ func TestNotifyHelpers_Progress(t *testing.T) {
 	var mu sync.Mutex
 	var progress []sdkmcp.ProgressNotificationParams
 
-	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-srv", Version: "dev"}, nil)
+	server := sdkmcp.NewServer(&sdkmcp.Implementation{Name: "test-srv"}, nil)
 	require.NoError(t, mcp.Register(server, progressTool{}))
 
 	cli := sdkmcp.NewClient(
-		&sdkmcp.Implementation{Name: "test-cli", Version: "dev"},
+		&sdkmcp.Implementation{Name: "test-cli"},
 		&sdkmcp.ClientOptions{
 			ProgressNotificationHandler: func(_ context.Context, req *sdkmcp.ProgressNotificationClientRequest) {
 				mu.Lock()
