@@ -12,46 +12,59 @@ import (
 	"time"
 )
 
-func TestTreeSnapshotStrictlyRejectsUnknownFields(t *testing.T) {
+func TestParseTreeSnapshotClassifiesVersionBeforeCurrentWireShape(t *testing.T) {
 	tree := completedTreeSnapshot(t)
 	var fields map[string]json.RawMessage
 	if err := json.Unmarshal(tree.JSON(), &fields); err != nil {
 		t.Fatal(err)
 	}
-	fields["application_revision"] = json.RawMessage(`1`)
-	data, err := json.Marshal(fields)
-	if err != nil {
-		t.Fatal(err)
+	tests := []struct {
+		name        string
+		version     json.RawMessage
+		omitVersion bool
+		unknown     bool
+		malformed   json.RawMessage
+		unsupported bool
+	}{
+		{name: "missing version", omitVersion: true, unsupported: true},
+		{name: "foreign version", version: json.RawMessage(`2`), unsupported: true},
+		{
+			name: "foreign version with unknown member", version: json.RawMessage(`2`), unknown: true,
+			unsupported: true,
+		},
+		{name: "current version with unknown member", unknown: true},
+		{name: "malformed JSON", malformed: json.RawMessage(`{"version":1,"root_id":`)},
 	}
-	if _, err := ParseTreeSnapshot(data); err == nil {
-		t.Fatal("ParseTreeSnapshot accepted an unknown application field")
-	}
-}
-
-func TestTreeSnapshotRejectsUnsupportedVersionDistinctly(t *testing.T) {
-	tree := completedTreeSnapshot(t)
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(tree.JSON(), &fields); err != nil {
-		t.Fatal(err)
-	}
-	for name, version := range map[string]json.RawMessage{
-		"missing": nil,
-		"future":  json.RawMessage(`2`),
-	} {
-		t.Run(name, func(t *testing.T) {
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
 			candidate := maps.Clone(fields)
-			if version == nil {
+			if test.omitVersion {
 				delete(candidate, "version")
-			} else {
-				candidate["version"] = version
 			}
-			data, err := json.Marshal(candidate)
-			if err != nil {
-				t.Fatal(err)
+			if test.version != nil {
+				candidate["version"] = test.version
 			}
-			_, err = ParseTreeSnapshot(data)
-			if !errors.Is(err, ErrUnsupportedTreeSnapshotVersion) || errors.Is(err, ErrInvalidTreeSnapshot) {
-				t.Fatalf("ParseTreeSnapshot() error = %v", err)
+			if test.unknown {
+				candidate["future"] = json.RawMessage(`1`)
+			}
+			data := test.malformed
+			if data == nil {
+				var err error
+				data, err = json.Marshal(candidate)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			_, err := ParseTreeSnapshot(data)
+			want, other := ErrInvalidTreeSnapshot, ErrUnsupportedTreeSnapshotVersion
+			if test.unsupported {
+				want, other = other, want
+			}
+			if !errors.Is(err, want) {
+				t.Fatalf("ParseTreeSnapshot() error = %v, want %v", err, want)
+			}
+			if errors.Is(err, other) {
+				t.Fatalf("ParseTreeSnapshot() error = %v, also classified as %v", err, other)
 			}
 		})
 	}
