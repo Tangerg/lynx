@@ -22,6 +22,10 @@ correct behavior and left failing only if the report says so explicitly.
 
 ## Current status
 
+| Report | Status |
+|---|---|
+| [001 — testActiveChildLimit deadlocks the whole agent package](001-active-child-limit-test-deadlock.md) | Fixed in the test; no implementation change needed |
+
 No implementation defect has been found. Every gap closed in this pass was a
 missing test, not wrong behavior: the Core protocol wire paths, the MCP content
 mappings in both directions, the skills confinement and precedence rules, the
@@ -29,6 +33,11 @@ web freshness mappings, the tools concurrency declarations, the OTel error
 classifications, the ETL extraction boundaries, the RAG identity stages, the
 eval report boundaries, and the agent vocabulary and planning contracts all
 matched their documented behavior once exercised.
+
+One test defect was found and is filed as 001: a subtest waited on a dispatch
+that races against parent cancellation, so it deadlocked the whole package under
+`GOMAXPROCS=1`. The kernel behaved exactly as ARCHITECTURE.md specifies; the test
+relied on the race the architecture forbids relying on.
 
 One architecture violation was found and fixed at the source rather than filed:
 adding `core/doc.go` for a module overview created a Go package at a namespace

@@ -309,7 +309,13 @@ func testActiveChildLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	<-dispatcher.started
+	// The admission decision is what this test asserts, and the root output
+	// carries it deterministically. Whether the admitted child also reaches the
+	// blocking dispatcher is a race this Definition does not WaitForChildren on:
+	// once the root completes, the still-active child is canceled as a parent
+	// cancellation, so the dispatch may never happen. Waiting on it here — as
+	// this test used to — blocks forever whenever the root wins that race, which
+	// it always does under GOMAXPROCS=1.
 	output := childTestResult(t, mustAwait(t, root))
 	if len(output.ChildIDs) != 1 || output.Failures != 2 {
 		t.Fatalf("active-child-limited output = %#v", output)
