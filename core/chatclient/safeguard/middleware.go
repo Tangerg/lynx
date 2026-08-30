@@ -81,28 +81,42 @@ func (middleware *Middleware) scanOutput(ctx context.Context, response *chat.Res
 	return middleware.match(ctx, ScopeOutput, response.Output.Message.Text())
 }
 
+func (middleware *Middleware) inputError(ctx context.Context, request *chat.Request) error {
+	block, err := middleware.scanInput(ctx, request)
+	if err != nil {
+		return err
+	}
+	if block != nil {
+		return middleware.blocked(ctx, *block)
+	}
+	return nil
+}
+
+func (middleware *Middleware) outputError(ctx context.Context, response *chat.Response) error {
+	block, err := middleware.scanOutput(ctx, response)
+	if err != nil {
+		return err
+	}
+	if block != nil {
+		return middleware.blocked(ctx, *block)
+	}
+	return nil
+}
+
 // Call is a [chat.CallMiddleware]. Input is screened before the model runs;
 // output is screened before a response becomes visible to the caller.
 func (middleware *Middleware) Call(next chat.Model) chat.Model {
 	return chat.ModelFunc(func(ctx context.Context, request *chat.Request) (*chat.Response, error) {
-		block, err := middleware.scanInput(ctx, request)
-		if err != nil {
+		if err := middleware.inputError(ctx, request); err != nil {
 			return nil, err
-		}
-		if block != nil {
-			return nil, middleware.blocked(ctx, *block)
 		}
 
 		response, err := next.Call(ctx, request)
 		if err != nil {
 			return response, err
 		}
-		block, err = middleware.scanOutput(ctx, response)
-		if err != nil {
+		if err := middleware.outputError(ctx, response); err != nil {
 			return nil, err
-		}
-		if block != nil {
-			return nil, middleware.blocked(ctx, *block)
 		}
 		return response, nil
 	})
@@ -114,13 +128,8 @@ func (middleware *Middleware) Call(next chat.Model) chat.Model {
 func (middleware *Middleware) Stream(next chat.Streamer) chat.Streamer {
 	return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
 		return func(yield func(*chat.Response, error) bool) {
-			block, err := middleware.scanInput(ctx, request)
-			if err != nil {
+			if err := middleware.inputError(ctx, request); err != nil {
 				yield(nil, err)
-				return
-			}
-			if block != nil {
-				yield(nil, middleware.blocked(ctx, *block))
 				return
 			}
 
@@ -129,39 +138,42 @@ func (middleware *Middleware) Stream(next chat.Streamer) chat.Streamer {
 				yield(nil, ErrNilStream)
 				return
 			}
-			var accumulator chat.ResponseAccumulator
-			stopped := false
-			sequence(func(chunk *chat.Response, streamErr error) bool {
-				if stopped {
-					return false
-				}
-				if streamErr != nil {
-					stopped = true
-					yield(chunk, streamErr)
-					return false
-				}
-				if err := accumulator.Add(chunk); err != nil {
-					stopped = true
-					yield(nil, fmt.Errorf("safeguard: accumulate stream: %w", err))
-					return false
-				}
-				block, err := middleware.scanOutput(ctx, accumulator.Response())
-				if err != nil {
-					stopped = true
-					yield(nil, err)
-					return false
-				}
-				if block != nil {
-					stopped = true
-					yield(nil, middleware.blocked(ctx, *block))
-					return false
-				}
-				if !yield(chunk, nil) {
-					stopped = true
-					return false
-				}
-				return true
-			})
+			stream := safeguardStream{ctx: ctx, middleware: middleware, yield: yield}
+			sequence(stream.consume)
 		}
 	})
+}
+
+type safeguardStream struct {
+	ctx         context.Context
+	middleware  *Middleware
+	yield       func(*chat.Response, error) bool
+	accumulator chat.ResponseAccumulator
+	stopped     bool
+}
+
+func (s *safeguardStream) consume(chunk *chat.Response, streamErr error) bool {
+	if s.stopped {
+		return false
+	}
+	if streamErr != nil {
+		return s.stop(chunk, streamErr)
+	}
+	if err := s.accumulator.Add(chunk); err != nil {
+		return s.stop(nil, fmt.Errorf("safeguard: accumulate stream: %w", err))
+	}
+	if err := s.middleware.outputError(s.ctx, s.accumulator.Response()); err != nil {
+		return s.stop(nil, err)
+	}
+	if !s.yield(chunk, nil) {
+		s.stopped = true
+		return false
+	}
+	return true
+}
+
+func (s *safeguardStream) stop(response *chat.Response, err error) bool {
+	s.stopped = true
+	s.yield(response, err)
+	return false
 }

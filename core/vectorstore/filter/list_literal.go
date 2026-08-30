@@ -100,13 +100,27 @@ func (l *ListLiteral) Values() (any, error) {
 }
 
 func (l *ListLiteral) numberValues() (any, error) {
+	values, hasFloat, hasUint, err := l.decodeNumberValues()
+	if err != nil {
+		return nil, err
+	}
+	if hasFloat {
+		return decimalListValues(values)
+	}
+	if hasUint {
+		return unsignedListValues(values)
+	}
+	return signedListValues(values), nil
+}
+
+func (l *ListLiteral) decodeNumberValues() ([]any, bool, bool, error) {
 	values := make([]any, 0, len(l.values))
 	hasFloat := false
 	hasUint := false
 	for _, literal := range l.values {
 		value, err := literal.Value()
 		if err != nil {
-			return nil, err
+			return nil, false, false, err
 		}
 		values = append(values, value)
 		switch value.(type) {
@@ -116,48 +130,51 @@ func (l *ListLiteral) numberValues() (any, error) {
 			hasUint = true
 		}
 	}
+	return values, hasFloat, hasUint, nil
+}
 
-	if hasFloat {
-		const maxExactFloatInteger = int64(1 << 53)
-		out := make([]float64, 0, len(values))
-		for _, value := range values {
-			switch number := value.(type) {
-			case int64:
-				if number < -maxExactFloatInteger || number > maxExactFloatInteger {
-					return nil, fmt.Errorf("filter: integer %d loses precision in a decimal list", number)
-				}
-				out = append(out, float64(number))
-			case uint64:
-				if number > uint64(maxExactFloatInteger) {
-					return nil, fmt.Errorf("filter: integer %d loses precision in a decimal list", number)
-				}
-				out = append(out, float64(number))
-			case float64:
-				out = append(out, number)
+func decimalListValues(values []any) ([]float64, error) {
+	const maxExactFloatInteger = int64(1 << 53)
+	out := make([]float64, 0, len(values))
+	for _, value := range values {
+		switch number := value.(type) {
+		case int64:
+			if number < -maxExactFloatInteger || number > maxExactFloatInteger {
+				return nil, fmt.Errorf("filter: integer %d loses precision in a decimal list", number)
 			}
-		}
-		return out, nil
-	}
-
-	if hasUint {
-		out := make([]uint64, 0, len(values))
-		for _, value := range values {
-			switch number := value.(type) {
-			case int64:
-				if number < 0 {
-					return nil, errors.New("filter: numeric list spans signed and unsigned integer ranges")
-				}
-				out = append(out, uint64(number))
-			case uint64:
-				out = append(out, number)
+			out = append(out, float64(number))
+		case uint64:
+			if number > uint64(maxExactFloatInteger) {
+				return nil, fmt.Errorf("filter: integer %d loses precision in a decimal list", number)
 			}
+			out = append(out, float64(number))
+		case float64:
+			out = append(out, number)
 		}
-		return out, nil
 	}
+	return out, nil
+}
 
+func unsignedListValues(values []any) ([]uint64, error) {
+	out := make([]uint64, 0, len(values))
+	for _, value := range values {
+		switch number := value.(type) {
+		case int64:
+			if number < 0 {
+				return nil, errors.New("filter: numeric list spans signed and unsigned integer ranges")
+			}
+			out = append(out, uint64(number))
+		case uint64:
+			out = append(out, number)
+		}
+	}
+	return out, nil
+}
+
+func signedListValues(values []any) []int64 {
 	out := make([]int64, 0, len(values))
 	for _, value := range values {
 		out = append(out, value.(int64))
 	}
-	return out, nil
+	return out
 }

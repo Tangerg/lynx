@@ -93,23 +93,30 @@ func normalizeNumbers(value any) (any, error) {
 func normalizeNumber(number json.Number) (any, error) {
 	text := number.String()
 	if !strings.ContainsAny(text, ".eE") {
-		if strings.HasPrefix(text, "-") {
-			if value, err := strconv.ParseInt(text, 10, 64); err == nil {
-				return value, nil
-			}
-		} else if value, err := strconv.ParseUint(text, 10, 64); err == nil {
-			if value <= math.MaxInt64 {
-				return int64(value), nil
-			}
-			return value, nil
-		}
-		return number, nil
+		return normalizeInteger(number, text), nil
 	}
 	value, err := number.Float64()
 	if err != nil {
 		return nil, err
 	}
 	return value, nil
+}
+
+func normalizeInteger(number json.Number, text string) any {
+	if strings.HasPrefix(text, "-") {
+		if value, err := strconv.ParseInt(text, 10, 64); err == nil {
+			return value
+		}
+		return number
+	}
+	value, err := strconv.ParseUint(text, 10, 64)
+	if err != nil {
+		return number
+	}
+	if value <= math.MaxInt64 {
+		return int64(value)
+	}
+	return value
 }
 
 func (m *Map) Set(key string, value any) error {

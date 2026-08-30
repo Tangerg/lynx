@@ -111,114 +111,104 @@ func (p *parser) parsePredicate() (Predicate, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	if p.current.kind == tokenNot {
-		if err := p.advance(); err != nil {
-			return nil, err
-		}
-		if _, err := p.expect(tokenIn, "IN after NOT"); err != nil {
-			return nil, err
-		}
-		list, err := p.parseList()
-		if err != nil {
-			return nil, err
-		}
-		membership := &BinaryExpr{
-			left: left, operator: OpIn, right: list,
-			start: left.Start(), end: list.End(),
-		}
-		return &UnaryExpr{
-			operator: OpNot, right: membership,
-			start: left.Start(), end: list.End(),
-		}, nil
-	}
-
 	switch p.current.kind {
+	case tokenNot:
+		return p.parseNotIn(left)
 	case tokenEqual, tokenNotEqual, tokenLess, tokenLessEqual, tokenGreater, tokenGreaterEqual:
-		op := operatorForToken(p.current.kind)
-		if err := p.advance(); err != nil {
-			return nil, err
-		}
-		right, err := p.parseLiteral()
-		if err != nil {
-			return nil, err
-		}
-		return &BinaryExpr{
-			left: left, operator: op, right: right,
-			start: left.Start(), end: right.End(),
-		}, nil
-
+		return p.parseComparison(left)
 	case tokenIn:
-		if err := p.advance(); err != nil {
-			return nil, err
-		}
-		list, err := p.parseList()
-		if err != nil {
-			return nil, err
-		}
-		return &BinaryExpr{
-			left: left, operator: OpIn, right: list,
-			start: left.Start(), end: list.End(),
-		}, nil
-
+		return p.parseIn(left)
 	case tokenHas:
-		if err := p.advance(); err != nil {
-			return nil, err
-		}
-		right, err := p.parseLiteral()
-		if err != nil {
-			return nil, err
-		}
-		return &BinaryExpr{
-			left: left, operator: OpHas, right: right,
-			start: left.Start(), end: right.End(),
-		}, nil
-
+		return p.parseLiteralPredicate(left, OpHas)
 	case tokenLike:
-		if err := p.advance(); err != nil {
-			return nil, err
-		}
-		right, err := p.parseLiteral()
-		if err != nil {
-			return nil, err
-		}
-		return &BinaryExpr{
-			left: left, operator: OpLike, right: right,
-			start: left.Start(), end: right.End(),
-		}, nil
-
+		return p.parseLiteralPredicate(left, OpLike)
 	case tokenIs:
-		if err := p.advance(); err != nil {
-			return nil, err
-		}
-		negated := p.current.kind == tokenNot
-		if negated {
-			if err := p.advance(); err != nil {
-				return nil, err
-			}
-		}
-		nullToken, err := p.expect(tokenNull, "NULL after IS")
-		if err != nil {
-			return nil, err
-		}
-		null := &Literal{
-			kind: LiteralNull, text: string(LiteralNull),
-			start: nullToken.start, end: nullToken.end,
-		}
-		test := &BinaryExpr{
-			left: left, operator: OpIs, right: null,
-			start: left.Start(), end: null.End(),
-		}
-		if !negated {
-			return test, nil
-		}
-		return &UnaryExpr{
-			operator: OpNot, right: test,
-			start: left.Start(), end: null.End(),
-		}, nil
-
+		return p.parseNullPredicate(left)
 	default:
 		return nil, p.unexpected("comparison, IN, HAS, LIKE, or IS")
+	}
+}
+
+func (p *parser) parseNotIn(left Selector) (Predicate, error) {
+	if err := p.advance(); err != nil {
+		return nil, err
+	}
+	if _, err := p.expect(tokenIn, "IN after NOT"); err != nil {
+		return nil, err
+	}
+	membership, err := p.parseInList(left)
+	if err != nil {
+		return nil, err
+	}
+	return &UnaryExpr{
+		operator: OpNot, right: membership,
+		start: left.Start(), end: membership.End(),
+	}, nil
+}
+
+func (p *parser) parseComparison(left Selector) (Predicate, error) {
+	operator := operatorForToken(p.current.kind)
+	return p.parseLiteralPredicate(left, operator)
+}
+
+func (p *parser) parseLiteralPredicate(left Selector, operator Operator) (Predicate, error) {
+	if err := p.advance(); err != nil {
+		return nil, err
+	}
+	right, err := p.parseLiteral()
+	if err != nil {
+		return nil, err
+	}
+	return binaryPredicate(left, operator, right), nil
+}
+
+func (p *parser) parseIn(left Selector) (Predicate, error) {
+	if err := p.advance(); err != nil {
+		return nil, err
+	}
+	return p.parseInList(left)
+}
+
+func (p *parser) parseInList(left Selector) (*BinaryExpr, error) {
+	list, err := p.parseList()
+	if err != nil {
+		return nil, err
+	}
+	return binaryPredicate(left, OpIn, list), nil
+}
+
+func (p *parser) parseNullPredicate(left Selector) (Predicate, error) {
+	if err := p.advance(); err != nil {
+		return nil, err
+	}
+	negated := p.current.kind == tokenNot
+	if negated {
+		if err := p.advance(); err != nil {
+			return nil, err
+		}
+	}
+	nullToken, err := p.expect(tokenNull, "NULL after IS")
+	if err != nil {
+		return nil, err
+	}
+	null := &Literal{
+		kind: LiteralNull, text: string(LiteralNull),
+		start: nullToken.start, end: nullToken.end,
+	}
+	test := binaryPredicate(left, OpIs, null)
+	if !negated {
+		return test, nil
+	}
+	return &UnaryExpr{
+		operator: OpNot, right: test,
+		start: left.Start(), end: null.End(),
+	}, nil
+}
+
+func binaryPredicate(left Expr, operator Operator, right Expr) *BinaryExpr {
+	return &BinaryExpr{
+		left: left, operator: operator, right: right,
+		start: left.Start(), end: right.End(),
 	}
 }
 

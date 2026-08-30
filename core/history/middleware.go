@@ -61,58 +61,75 @@ func (m Middleware) Call(next chat.Model) chat.Model {
 func (m Middleware) Stream(next chat.Streamer) chat.Streamer {
 	return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
 		return func(yield func(*chat.Response, error) bool) {
-			conversationID, bound := ConversationIDFromContext(ctx)
-			if !bound {
-				m.forward(next.Stream(ctx, request), yield)
-				return
-			}
-
-			prepared, fresh, err := m.prepare(ctx, conversationID, request)
-			if err != nil {
-				yield(nil, err)
-				return
-			}
-			sequence := next.Stream(ctx, prepared)
-			if sequence == nil {
-				yield(nil, ErrNilStream)
-				return
-			}
-
-			var accumulator chat.ResponseAccumulator
-			natural := true
-			sequence(func(chunk *chat.Response, streamErr error) bool {
-				if !natural {
-					return false
-				}
-				if streamErr != nil {
-					natural = false
-					yield(chunk, streamErr)
-					return false
-				}
-				if err := accumulator.Add(chunk); err != nil {
-					natural = false
-					yield(nil, fmt.Errorf("history: middleware: accumulate stream: %w", err))
-					return false
-				}
-				if !yield(chunk, nil) {
-					natural = false
-					return false
-				}
-				return true
-			})
-			if !natural {
-				return
-			}
-
-			assistant, persist := m.persistableAssistant(accumulator.Response())
-			if !persist {
-				return
-			}
-			if err := m.persist(ctx, conversationID, fresh, assistant); err != nil {
-				yield(nil, err)
-			}
+			m.stream(ctx, next, request, yield)
 		}
 	})
+}
+
+func (m Middleware) stream(
+	ctx context.Context,
+	next chat.Streamer,
+	request *chat.Request,
+	yield func(*chat.Response, error) bool,
+) {
+	conversationID, bound := ConversationIDFromContext(ctx)
+	if !bound {
+		m.forward(next.Stream(ctx, request), yield)
+		return
+	}
+
+	prepared, fresh, err := m.prepare(ctx, conversationID, request)
+	if err != nil {
+		yield(nil, err)
+		return
+	}
+	sequence := next.Stream(ctx, prepared)
+	if sequence == nil {
+		yield(nil, ErrNilStream)
+		return
+	}
+
+	stream := historyStream{yield: yield, natural: true}
+	sequence(stream.consume)
+	if !stream.natural {
+		return
+	}
+	assistant, persist := m.persistableAssistant(stream.accumulator.Response())
+	if !persist {
+		return
+	}
+	if err := m.persist(ctx, conversationID, fresh, assistant); err != nil {
+		yield(nil, err)
+	}
+}
+
+type historyStream struct {
+	yield       func(*chat.Response, error) bool
+	accumulator chat.ResponseAccumulator
+	natural     bool
+}
+
+func (s *historyStream) consume(chunk *chat.Response, streamErr error) bool {
+	if !s.natural {
+		return false
+	}
+	if streamErr != nil {
+		return s.stop(chunk, streamErr)
+	}
+	if err := s.accumulator.Add(chunk); err != nil {
+		return s.stop(nil, fmt.Errorf("history: middleware: accumulate stream: %w", err))
+	}
+	if !s.yield(chunk, nil) {
+		s.natural = false
+		return false
+	}
+	return true
+}
+
+func (s *historyStream) stop(response *chat.Response, err error) bool {
+	s.natural = false
+	s.yield(response, err)
+	return false
 }
 
 func (m Middleware) prepare(

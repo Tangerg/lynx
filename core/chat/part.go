@@ -52,6 +52,17 @@ type Part struct {
 	Metadata      metadata.Map   `json:"metadata,omitzero"`
 }
 
+type partPayload uint8
+
+const (
+	payloadText partPayload = 1 << iota
+	payloadMedia
+	payloadSignature
+	payloadToolCall
+	payloadToolCallDelta
+	payloadToolResult
+)
+
 func (p Part) Clone() Part {
 	clone := p
 	clone.Signature = slices.Clone(p.Signature)
@@ -102,43 +113,78 @@ func (p Part) Validate() error {
 		return fmt.Errorf("%w: metadata: %w", ErrInvalidPart, err)
 	}
 
+	payload := p.payload()
 	switch p.Kind {
 	case PartText:
-		if (p.Text == "" && len(p.Metadata) == 0) || p.Media != nil || len(p.Signature) != 0 || p.ToolCall != nil || p.ToolCallDelta != nil || p.ToolResult != nil {
-			return fmt.Errorf("%w: kind %q requires text or metadata and no other payload", ErrInvalidPart, p.Kind)
-		}
+		return p.validateTextPayload(payload)
 	case PartMedia:
-		if p.Text != "" || p.Media == nil || len(p.Signature) != 0 || p.ToolCall != nil || p.ToolCallDelta != nil || p.ToolResult != nil {
-			return fmt.Errorf("%w: kind %q requires media and no other payload", ErrInvalidPart, p.Kind)
-		}
-		if err := p.Media.Validate(); err != nil {
-			return fmt.Errorf("%w: media: %w", ErrInvalidPart, err)
-		}
+		return p.validateMediaPayload(payload)
 	case PartReasoning:
-		if (p.Text == "" && len(p.Signature) == 0) || p.Media != nil || p.ToolCall != nil || p.ToolCallDelta != nil || p.ToolResult != nil {
-			return fmt.Errorf("%w: kind %q requires text or signature and no other payload", ErrInvalidPart, p.Kind)
-		}
+		return p.validateReasoningPayload(payload)
 	case PartToolCall:
-		if p.Text != "" || p.Media != nil || len(p.Signature) != 0 || p.ToolCall == nil || p.ToolCallDelta != nil || p.ToolResult != nil {
-			return fmt.Errorf("%w: kind %q requires a tool call and no other payload", ErrInvalidPart, p.Kind)
-		}
-		if err := p.ToolCall.Validate(); err != nil {
-			return fmt.Errorf("%w: %w", ErrInvalidPart, err)
-		}
+		return validatePartPayload(p.Kind, payload, payloadToolCall, func() error { return p.ToolCall.Validate() })
 	case PartToolCallDelta:
-		if p.Text != "" || p.Media != nil || len(p.Signature) != 0 || p.ToolCall != nil || p.ToolCallDelta == nil || p.ToolResult != nil {
-			return fmt.Errorf("%w: kind %q requires a tool call delta and no other payload", ErrInvalidPart, p.Kind)
-		}
-		if err := p.ToolCallDelta.Validate(); err != nil {
-			return fmt.Errorf("%w: %w", ErrInvalidPart, err)
-		}
+		return validatePartPayload(p.Kind, payload, payloadToolCallDelta, func() error { return p.ToolCallDelta.Validate() })
 	case PartToolResult:
-		if p.Text != "" || p.Media != nil || len(p.Signature) != 0 || p.ToolCall != nil || p.ToolCallDelta != nil || p.ToolResult == nil {
-			return fmt.Errorf("%w: kind %q requires a tool result and no other payload", ErrInvalidPart, p.Kind)
-		}
-		if err := p.ToolResult.Validate(); err != nil {
-			return fmt.Errorf("%w: %w", ErrInvalidPart, err)
-		}
+		return validatePartPayload(p.Kind, payload, payloadToolResult, func() error { return p.ToolResult.Validate() })
+	}
+	return nil
+}
+
+func (p Part) payload() partPayload {
+	var payload partPayload
+	if p.Text != "" {
+		payload |= payloadText
+	}
+	if p.Media != nil {
+		payload |= payloadMedia
+	}
+	if len(p.Signature) != 0 {
+		payload |= payloadSignature
+	}
+	if p.ToolCall != nil {
+		payload |= payloadToolCall
+	}
+	if p.ToolCallDelta != nil {
+		payload |= payloadToolCallDelta
+	}
+	if p.ToolResult != nil {
+		payload |= payloadToolResult
+	}
+	return payload
+}
+
+func (p Part) validateTextPayload(payload partPayload) error {
+	if payload == payloadText || payload == 0 && len(p.Metadata) > 0 {
+		return nil
+	}
+	return fmt.Errorf("%w: kind %q requires text or metadata and no other payload", ErrInvalidPart, p.Kind)
+}
+
+func (p Part) validateMediaPayload(payload partPayload) error {
+	if payload != payloadMedia {
+		return fmt.Errorf("%w: kind %q requires media and no other payload", ErrInvalidPart, p.Kind)
+	}
+	if err := p.Media.Validate(); err != nil {
+		return fmt.Errorf("%w: media: %w", ErrInvalidPart, err)
+	}
+	return nil
+}
+
+func (p Part) validateReasoningPayload(payload partPayload) error {
+	const allowed = payloadText | payloadSignature
+	if payload == 0 || payload&^allowed != 0 {
+		return fmt.Errorf("%w: kind %q requires text or signature and no other payload", ErrInvalidPart, p.Kind)
+	}
+	return nil
+}
+
+func validatePartPayload(kind PartKind, actual, required partPayload, validate func() error) error {
+	if actual != required {
+		return fmt.Errorf("%w: kind %q requires its matching payload and no other payload", ErrInvalidPart, kind)
+	}
+	if err := validate(); err != nil {
+		return fmt.Errorf("%w: %w", ErrInvalidPart, err)
 	}
 	return nil
 }
