@@ -80,8 +80,8 @@ type StoreConfig struct {
 
 	// MetadataPrefix is the property-name prefix used for metadata
 	// keys (so "metadata.author" instead of "author"). Optional:
-	// defaults to [DefaultMetadataPrefix]. Pass "" to write metadata
-	// keys as top-level properties.
+	// defaults to [DefaultMetadataPrefix]. The prefix is always present so
+	// metadata keys cannot collide with storage properties.
 	MetadataPrefix string
 
 	// EmbeddingModel produces vectors for the documents. Required.
@@ -133,7 +133,25 @@ func (s StoreConfig) validateIdentifiers() error {
 	if err := identifier(s.IDProperty).validate("IDProperty"); err != nil {
 		return err
 	}
-	return identifier(s.TextProperty).validate("TextProperty")
+	if err := identifier(s.TextProperty).validate("TextProperty"); err != nil {
+		return err
+	}
+	fields := []struct {
+		name  string
+		value string
+	}{
+		{name: "IDProperty", value: s.IDProperty},
+		{name: "TextProperty", value: s.TextProperty},
+		{name: "EmbeddingProperty", value: s.EmbeddingProperty},
+	}
+	seen := make(map[string]string, len(fields))
+	for _, field := range fields {
+		if owner, duplicate := seen[field.value]; duplicate {
+			return fmt.Errorf("neo4j: %s and %s both use property %q", owner, field.name, field.value)
+		}
+		seen[field.value] = field.name
+	}
+	return nil
 }
 
 // applyDefaults fills zero fields with documented defaults.
@@ -220,15 +238,16 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 		return errors.New("neo4j: Dimensions must be > 0")
 	}
 
-	constraintName := s.indexName + "_unique"
+	constraintName := quoteIdentifier(s.indexName + "_unique")
+	indexName := quoteIdentifier(s.indexName)
 	constraintStmt := fmt.Sprintf(
-		"CREATE CONSTRAINT `%s` IF NOT EXISTS FOR (n:`%s`) REQUIRE n.`%s` IS UNIQUE",
+		"CREATE CONSTRAINT %s IF NOT EXISTS FOR (n:`%s`) REQUIRE n.`%s` IS UNIQUE",
 		constraintName, s.label, s.idProperty,
 	)
 	indexStmt := fmt.Sprintf(
-		"CREATE VECTOR INDEX `%s` IF NOT EXISTS FOR (n:`%s`) ON (n.`%s`) "+
+		"CREATE VECTOR INDEX %s IF NOT EXISTS FOR (n:`%s`) ON (n.`%s`) "+
 			"OPTIONS {indexConfig: {`vector.dimensions`: %d, `vector.similarity_function`: '%s'}}",
-		s.indexName, s.label, s.embeddingProperty, s.dimensions, s.similarity,
+		indexName, s.label, s.embeddingProperty, s.dimensions, s.similarity,
 	)
 
 	return s.write(ctx, func(tx neo4j.ManagedTransaction) (any, error) {
@@ -276,7 +295,7 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 	upsertCypher := fmt.Sprintf(
 		"UNWIND $rows AS row "+
 			"MERGE (n:`%s` {`%s`: row.id}) "+
-			"SET n += row.properties "+
+			"SET n = row.properties "+
 			"WITH row, n "+
 			"CALL db.create.setNodeVectorProperty(n, $embeddingProperty, row.embedding) "+
 			"RETURN count(*)",
@@ -317,20 +336,18 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 	return nil
 }
 
-// documentProperties assembles the property map written onto the
-// upserted node — text plus metadata, with metadata keys optionally
-// flattened under the configured prefix.
+// documentProperties assembles the complete owned property map written onto
+// the upserted node. Replacing this map removes metadata keys that disappeared
+// when a document with the same ID is reindexed.
 func (s *Store) documentProperties(doc *document.Document) (map[string]any, error) {
 	metadataValues, err := doc.Metadata.Values()
 	if err != nil {
 		return nil, err
 	}
-	props := make(map[string]any, len(doc.Metadata)+1)
+	props := make(map[string]any, len(doc.Metadata)+2)
+	props[s.idProperty] = doc.ID
 	props[s.textProperty] = doc.Text
-	prefix := ""
-	if s.metadataPrefix != "" {
-		prefix = s.metadataPrefix + "."
-	}
+	prefix := s.metadataPrefix + "."
 	for k, v := range metadataValues {
 		props[prefix+k] = v
 	}
@@ -446,32 +463,27 @@ func (s *Store) recordToMatch(rec *neo4j.Record) (*vectorstore.SearchResult, err
 	}
 	doc := &document.Document{ID: id, Text: text}
 
-	if len(node.Props) > 0 {
-		prefix := ""
-		if s.metadataPrefix != "" {
-			prefix = s.metadataPrefix + "."
-		}
-		meta := make(map[string]any)
-		for k, v := range node.Props {
-			switch k {
-			case s.idProperty, s.textProperty, s.embeddingProperty:
-				continue
-			}
-			if prefix != "" && strings.HasPrefix(k, prefix) {
-				meta[strings.TrimPrefix(k, prefix)] = v
-			} else if prefix == "" {
-				meta[k] = v
-			}
-		}
-		if len(meta) > 0 {
-			var err error
-			doc.Metadata, err = metadata.FromValues(meta)
-			if err != nil {
-				return nil, fmt.Errorf("neo4j: convert metadata: %w", err)
-			}
+	metadataValues := s.metadataValues(node.Props)
+	encodedMetadata, err := metadata.FromValues(metadataValues)
+	if err != nil {
+		return nil, fmt.Errorf("neo4j: convert metadata: %w", err)
+	}
+	doc.Metadata = encodedMetadata
+	return &vectorstore.SearchResult{Document: doc, Score: score}, nil
+}
+
+func (s *Store) metadataValues(properties map[string]any) map[string]any {
+	prefix := s.metadataPrefix + "."
+	values := make(map[string]any)
+	for key, value := range properties {
+		if strings.HasPrefix(key, prefix) {
+			values[strings.TrimPrefix(key, prefix)] = value
 		}
 	}
-	return &vectorstore.SearchResult{Document: doc, Score: score}, nil
+	if len(values) == 0 {
+		return nil
+	}
+	return values
 }
 
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
