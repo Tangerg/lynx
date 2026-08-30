@@ -3,7 +3,7 @@
 > Extract external content into `core/document.Document`, then format, split,
 > assign IDs, batch, and load it with explicit strategies.
 
-Repository-wide rules live in [`../CLAUDE.md`](../CLAUDE.md). Parser libraries
+Repository-wide rules live in [`../AGENTS.md`](../AGENTS.md). Parser libraries
 and versions follow each module's `go.mod`; the usage entry point is
 [`README.md`](README.md).
 

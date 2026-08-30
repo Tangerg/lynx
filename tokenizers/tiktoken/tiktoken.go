@@ -1,5 +1,3 @@
-// Package tiktoken implements tokenizer capabilities with OpenAI's tiktoken
-// vocabularies.
 package tiktoken
 
 import (

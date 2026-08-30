@@ -2,7 +2,7 @@
 
 > The concrete tiktoken implementation of the `core/tokenizer` SPI.
 
-Repository-wide rules live in [`../../CLAUDE.md`](../../CLAUDE.md); the usage
+Repository-wide rules live in [`../../AGENTS.md`](../../AGENTS.md); the usage
 entry point is [`README.md`](README.md).
 
 ---

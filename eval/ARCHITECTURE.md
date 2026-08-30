@@ -4,7 +4,7 @@
 > particular, so a new domain arrives as a typed subject and an evaluator rather
 > than as a new root primitive.
 
-Repository-wide rules live in [`../CLAUDE.md`](../CLAUDE.md). The usage entry
+Repository-wide rules live in [`../AGENTS.md`](../AGENTS.md). The usage entry
 point is [`README.md`](README.md).
 
 ---

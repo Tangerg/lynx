@@ -2,7 +2,7 @@
 
 > Runnable demonstrations of Scope. Not a library, and never a dependency.
 
-Repository-wide rules live in [`../CLAUDE.md`](../CLAUDE.md); the usage entry
+Repository-wide rules live in [`../AGENTS.md`](../AGENTS.md); the usage entry
 point is [`README.md`](README.md).
 
 ---

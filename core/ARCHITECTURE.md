@@ -4,7 +4,7 @@
 > the pure composition that every provider shares.
 
 This document is the design contract for the `core` module. Repository-wide
-rules live in [`CLAUDE.md`](../CLAUDE.md),
+rules live in [`AGENTS.md`](../AGENTS.md),
 [`DESIGN_PHILOSOPHY.md`](../DESIGN_PHILOSOPHY.md), and
 [`REFACTORING.md`](../REFACTORING.md); the usage entry point is
 [`README.md`](README.md).

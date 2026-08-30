@@ -4,7 +4,7 @@
 > `SKILL.md` directories on demand. It is the backend tier of the two-tier tools
 > SPI, sitting alongside the shell and filesystem executors.
 
-Repository-wide rules live in [`../CLAUDE.md`](../CLAUDE.md). Field-level rules
+Repository-wide rules live in [`../AGENTS.md`](../AGENTS.md). Field-level rules
 follow the [agentskills.io](https://agentskills.io) specification; the usage
 entry point is [`README.md`](README.md).
 

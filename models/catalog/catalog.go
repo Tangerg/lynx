@@ -1,6 +1,3 @@
-// Package catalog exposes the embedded model catalog: model identity, pricing,
-// capabilities, modalities, and token limits. It is provider reference data,
-// independent from Core model invocation protocols.
 package catalog
 
 import (

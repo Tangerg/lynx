@@ -3,7 +3,7 @@
 本文定义 Agent Framework 的定位、领域语言、边界、结构和不可变量，不记录阶段进度、提交或临时实施细节。
 
 - 工程实施和代码质量标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
-- 上位约束见 [`../../CLAUDE.md`](../../CLAUDE.md)、[`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md) 和 [`../../REFACTORING.md`](../../REFACTORING.md)。
+- 上位约束见 [`../../AGENTS.md`](../../AGENTS.md)、[`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md) 和 [`../../REFACTORING.md`](../../REFACTORING.md)。
 
 代码与本文冲突时不得静默迁就：如果实现有误，修改实现；如果设计被事实推翻，同步修改本文和代码。仓库历史不是当前合同。
 

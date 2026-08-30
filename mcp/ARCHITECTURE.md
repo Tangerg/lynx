@@ -4,7 +4,7 @@
 > server, session, and transport come from the SDK; this module adds only the
 > Scope-facing edges.
 
-Repository-wide rules live in [`../CLAUDE.md`](../CLAUDE.md). The usage entry
+Repository-wide rules live in [`../AGENTS.md`](../AGENTS.md). The usage entry
 point is [`README.md`](README.md); the package-organization rationale is in
 [`DESIGN.md`](DESIGN.md).
 

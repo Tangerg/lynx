@@ -4,7 +4,7 @@
 > is optional and heavy.
 
 The ETL contract is [`../ARCHITECTURE.md`](../ARCHITECTURE.md); repository-wide
-rules are in [`../../CLAUDE.md`](../../CLAUDE.md). The usage entry point is
+rules are in [`../../AGENTS.md`](../../AGENTS.md). The usage entry point is
 [`README.md`](README.md).
 
 ---

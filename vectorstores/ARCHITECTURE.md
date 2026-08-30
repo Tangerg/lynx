@@ -5,7 +5,7 @@
 > capabilities it genuinely has, and compiles the stable filter `Predicate` into
 > its own query dialect.
 
-Repository-wide rules live in [`../CLAUDE.md`](../CLAUDE.md). The backend
+Repository-wide rules live in [`../AGENTS.md`](../AGENTS.md). The backend
 inventory, maturity, and dependency versions follow the code; this document
 states the shared contract every `vectorstores/<backend>` module obeys. The
 usage entry point is [`README.md`](README.md).

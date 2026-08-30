@@ -4,7 +4,7 @@
 > tools. The single-tool protocol, typed functions, and the instance registry
 > belong to `core/tool`; the schema contract belongs to `core/jsonschema` alone.
 
-Repository-wide rules live in [`../CLAUDE.md`](../CLAUDE.md). The tool inventory
+Repository-wide rules live in [`../AGENTS.md`](../AGENTS.md). The tool inventory
 and dependency list follow the code; this document states the boundaries only.
 
 ---

@@ -5,7 +5,7 @@
 > logs one development sink in `log/slog`. It invents no observation abstraction
 > of its own.
 
-Repository-wide rules live in [`../CLAUDE.md`](../CLAUDE.md). Symbols and
+Repository-wide rules live in [`../AGENTS.md`](../AGENTS.md). Symbols and
 dependency versions follow the code; the usage entry point is
 [`README.md`](README.md).
 

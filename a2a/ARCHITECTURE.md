@@ -4,7 +4,7 @@
 > AgentCard, transport, and task lifecycle belong to the SDK; this module adds
 > only the Scope-facing edges.
 
-Repository-wide rules live in [`../CLAUDE.md`](../CLAUDE.md). Symbols and SDK
+Repository-wide rules live in [`../AGENTS.md`](../AGENTS.md). Symbols and SDK
 versions follow the code; the usage entry point is [`README.md`](README.md).
 
 ---

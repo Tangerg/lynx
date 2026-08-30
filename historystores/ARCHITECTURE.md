@@ -4,7 +4,7 @@
 > implementation built on `core/chat.Message`. This namespace holds only the
 > external persistence providers.
 
-Repository-wide rules live in [`../CLAUDE.md`](../CLAUDE.md). The backend
+Repository-wide rules live in [`../AGENTS.md`](../AGENTS.md). The backend
 inventory and dependency versions follow the code; the usage entry point is
 [`README.md`](README.md).
 

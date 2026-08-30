@@ -1,7 +1,7 @@
 # DESIGN_PHILOSOPHY.md — scope 设计哲学（的"为什么"）
 
 > 定位：scope 的设计文档分三层，各回答一个问题 ——
-> - [`CLAUDE.md`](CLAUDE.md)：**速查红线**（法则 / 反向不变量 / 触发信号）—— "**能不能**这么写"；
+> - [`AGENTS.md`](AGENTS.md)：**速查红线**（法则 / 反向不变量 / 触发信号）—— "**能不能**这么写"；
 > - [`REFACTORING.md`](REFACTORING.md)：**重构标尺**（命名 / 注释 / 指针vs值 / nil 守卫 / 自由函数vs方法 / 卫语句 / 就近组织 / 节奏）—— 重构时"**改什么、怎么改**"；
 > - **本篇**：这些红线**背后的组织哲学** —— "**该不该**这么设计、为什么"。
 >
@@ -56,7 +56,7 @@ MCP Go SDK 把它写成需求清单的最后一条："the SDK should be **minima
 - 插槽多 = 表面积大 + 心智负担。MCP Go SDK 用一个 middleware、明确拒绝几十个 rarely-used hook，是同一取舍。
 
 ### 2.4 包大 ≠ god package
-- **固有内聚的大包不强拆**（执行引擎、解析器族这类天然就大）。判据：抽出去能**真正切断耦合**且**不破坏公开 API**才抽；否则保留 —— 为整洁而拆是负收益。拆包信号见 [`CLAUDE.md`](CLAUDE.md) / [`REFACTORING.md`](REFACTORING.md) 的触发信号。
+- **固有内聚的大包不强拆**（执行引擎、解析器族这类天然就大）。判据：抽出去能**真正切断耦合**且**不破坏公开 API**才抽；否则保留 —— 为整洁而拆是负收益。拆包信号见 [`AGENTS.md`](AGENTS.md) / [`REFACTORING.md`](REFACTORING.md) 的触发信号。
 
 ### 2.5 抽象越底层越宏观，具体度只向上层流动（已两次踩坑，单列成规）
 > **一个类型 / 接口 / 字段放哪一层，由"有多少层会用到它"决定，而非"它看起来该归属谁"。**
@@ -96,9 +96,9 @@ MCP Go SDK 把它写成需求清单的最后一条："the SDK should be **minima
 
 ---
 
-## 3. 编码规范（原则层 —— 强制红线见 [`CLAUDE.md`](CLAUDE.md)，落手细则见 [`REFACTORING.md`](REFACTORING.md)）
+## 3. 编码规范（原则层 —— 强制红线见 [`AGENTS.md`](AGENTS.md)，落手细则见 [`REFACTORING.md`](REFACTORING.md)）
 
-下面是**原则**（回答"为什么"），跨模块通用。强制红线（`errors.New` / `%w` / 无 Java 味 / 现代 Go / OTel logging…）在 CLAUDE.md；重构时怎么改成这样在 REFACTORING.md。本篇不复述，只给"为什么"，并标注与 MCP SDK 的同款印证。
+下面是**原则**（回答"为什么"），跨模块通用。强制红线（`errors.New` / `%w` / 无 Java 味 / 现代 Go / OTel logging…）在 AGENTS.md；重构时怎么改成这样在 REFACTORING.md。本篇不复述，只给"为什么"，并标注与 MCP SDK 的同款印证。
 
 | 原则 | 为什么 |
 |---|---|
@@ -115,7 +115,7 @@ MCP Go SDK 把它写成需求清单的最后一条："the SDK should be **minima
 
 ## 4. 原则冲突时（裁决）
 
-沿用 [`CLAUDE.md`](CLAUDE.md) "原则冲突时"，并补两条本篇相关的：
+沿用 [`AGENTS.md`](AGENTS.md) "原则冲突时"，并补两条本篇相关的：
 
 - **可发现性 vs 唯一入口**：优先保持语义 owner 和公共入口唯一；通过文档、examples 与命名提升可发现性，不以 façade re-export 制造第二套 API（§2.2）。
 

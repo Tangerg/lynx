@@ -1,13 +1,13 @@
 # REFACTORING.md — scope 重构标尺
 
-> 跨模块通用的**重构标尺 + 节奏**。设计哲学的"为什么"见 [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md)；项目级法则见 [`CLAUDE.md`](CLAUDE.md)。本文件是"重构时**改什么、怎么改、按什么节奏**"的泛化清单，适用**所有 sub-module**。**全部抽象表述、只宏观、不绑定任何具体实现** —— 遇到对应场景时按本则判断。
+> 跨模块通用的**重构标尺 + 节奏**。设计哲学的"为什么"见 [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md)；项目级法则见 [`AGENTS.md`](AGENTS.md)。本文件是"重构时**改什么、怎么改、按什么节奏**"的泛化清单，适用**所有 sub-module**。**全部抽象表述、只宏观、不绑定任何具体实现** —— 遇到对应场景时按本则判断。
 
 ---
 
 ## 0. 判据来源（用什么尺子）
 
 - 对标 **go-sdk（尤其 `design/`）+ Go 标准库**：minimal、idiomatic、*accept interfaces / return structs*、小接口、构造期 `Config` 值、零值可用。Core / A2A 等自有抽象的构造配置优先传 `Config` 结构体，不采用 `func(*T)` functional-options；底层 provider adapter 可以沿用其 SDK 的 functional-options，不把这种机制提升为跨 provider 公共心智。
-- **精修 ≠ 重写**：外科级、可逆、**在源头改对**，不在错的设计上叠补丁（治本，不治标 —— 见 [`CLAUDE.md`](CLAUDE.md) 第二法则）。参考业界只取思想、**不作命名锚**。
+- **精修 ≠ 重写**：外科级、可逆、**在源头改对**，不在错的设计上叠补丁（治本，不治标 —— 见 [`AGENTS.md`](AGENTS.md) 第二法则）。参考业界只取思想、**不作命名锚**。
 - **唯一允许背的"债"是"设计还没想清楚"本身**；绝不允许"明知更好、却为省事不改"。
 
 ## 1. 命名（名实相符）
@@ -109,4 +109,4 @@
 6. commit message 写清 **why**（含 audit 发现 + skip 理由）。
 7. **承认 audit 误报**：深入看发现是 false positive 就 skip 并记录理由 —— 正常，不是失败。
 
-> 触发信号、Fowler 式重构清单（死代码 / 卫语句 / 查表 / 接口收窄 / 性能扫描等）、小型 vs 大型重构两档节奏，详见 [`CLAUDE.md`](CLAUDE.md) 的「重构」段。
+> 触发信号、Fowler 式重构清单（死代码 / 卫语句 / 查表 / 接口收窄 / 性能扫描等）、小型 vs 大型重构两档节奏，详见 [`AGENTS.md`](AGENTS.md) 的「重构」段。

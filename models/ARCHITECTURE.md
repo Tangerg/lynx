@@ -4,7 +4,7 @@
 > provider is an independent leaf module implementing the `Model` contracts
 > defined by Core.
 
-Repository-wide rules live in [`../CLAUDE.md`](../CLAUDE.md). The provider
+Repository-wide rules live in [`../AGENTS.md`](../AGENTS.md). The provider
 inventory, maturity, and dependency versions follow the code; this document
 states the shared contract every `models/<provider>` module obeys. The usage
 entry point is [`README.md`](README.md).

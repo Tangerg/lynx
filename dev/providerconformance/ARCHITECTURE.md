@@ -3,7 +3,7 @@
 > Cross-provider construction and API consistency, checked where all providers
 > are visible at once.
 
-Repository-wide rules live in [`../../CLAUDE.md`](../../CLAUDE.md); the usage
+Repository-wide rules live in [`../../AGENTS.md`](../../AGENTS.md); the usage
 entry point is [`README.md`](README.md).
 
 ---

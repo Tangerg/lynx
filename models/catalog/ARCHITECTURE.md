@@ -4,7 +4,7 @@
 > modalities, and token limits — independent from any invocation protocol.
 
 The family contract is [`../ARCHITECTURE.md`](../ARCHITECTURE.md);
-repository-wide rules are in [`../../CLAUDE.md`](../../CLAUDE.md). The usage
+repository-wide rules are in [`../../AGENTS.md`](../../AGENTS.md). The usage
 entry point is [`README.md`](README.md).
 
 ---

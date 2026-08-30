@@ -3,7 +3,7 @@
 本文定义 Agent Framework 应当以什么技术标准实施。它不描述目标架构、不记录 ADR、不记录进度：
 
 - 目标架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)。
-- 仓库通用规则见 [`../../CLAUDE.md`](../../CLAUDE.md)、[`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md) 和 [`../../REFACTORING.md`](../../REFACTORING.md)。
+- 仓库通用规则见 [`../../AGENTS.md`](../../AGENTS.md)、[`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md) 和 [`../../REFACTORING.md`](../../REFACTORING.md)。
 
 本文比通用规则更具体，但不能放宽上位约束。发生冲突时，先按更严格且更接近根因的规则处理；仍无法裁决时，停止实现并先更新 `ARCHITECTURE.md` 的对应合同。
 

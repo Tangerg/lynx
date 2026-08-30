@@ -4,7 +4,7 @@
 > caller uses `Retriever` as the narrow waist and assembles exactly the
 > capability it needs.
 
-Repository-wide rules live in [`../CLAUDE.md`](../CLAUDE.md). Contracts,
+Repository-wide rules live in [`../AGENTS.md`](../AGENTS.md). Contracts,
 adapters, and dependency versions follow the code; this document states the
 boundaries only.
 
