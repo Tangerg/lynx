@@ -81,50 +81,64 @@ func TestProviderExtensionKeysAreSemanticAndNamespaced(t *testing.T) {
 		if entry.IsDir() || !strings.HasSuffix(filename, ".go") || strings.HasSuffix(filename, "_test.go") {
 			return nil
 		}
-		file, err := parser.ParseFile(fset, filename, nil, 0)
-		if err != nil {
-			return err
-		}
-		relative, err := filepath.Rel(root, filename)
-		if err != nil {
-			return err
-		}
-		provider := extensionProvider(relative)
-		prefix := provider + "/"
-		for _, declaration := range file.Decls {
-			general, ok := declaration.(*ast.GenDecl)
-			if !ok || general.Tok != token.CONST {
-				continue
-			}
-			for _, specification := range general.Specs {
-				values := specification.(*ast.ValueSpec)
-				for index, name := range values.Names {
-					if name.Name == "OptionsKey" {
-						t.Errorf("%s:%d use a modality-specific RequestExtensionKey name instead of OptionsKey", filepath.ToSlash(relative), fset.Position(name.Pos()).Line)
-						continue
-					}
-					if !strings.HasSuffix(name.Name, "ExtensionKey") || index >= len(values.Values) {
-						continue
-					}
-					literal, ok := values.Values[index].(*ast.BasicLit)
-					if !ok || literal.Kind != token.STRING {
-						t.Errorf("%s:%d %s must be a string literal", filepath.ToSlash(relative), fset.Position(name.Pos()).Line, name.Name)
-						continue
-					}
-					got, err := strconv.Unquote(literal.Value)
-					if err != nil || !strings.HasPrefix(got, prefix) {
-						t.Errorf("%s:%d %s = %q, want prefix %q", filepath.ToSlash(relative), fset.Position(name.Pos()).Line, name.Name, got, prefix)
-					}
-					if strings.HasSuffix(got, "/options") {
-						t.Errorf("%s:%d %s = %q is ambiguous; name the request modality", filepath.ToSlash(relative), fset.Position(name.Pos()).Line, name.Name, got)
-					}
-				}
-			}
-		}
-		return nil
+		return checkProviderExtensionKeys(t, root, fset, filename)
 	})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func checkProviderExtensionKeys(t *testing.T, root string, fset *token.FileSet, filename string) error {
+	t.Helper()
+	file, err := parser.ParseFile(fset, filename, nil, 0)
+	if err != nil {
+		return err
+	}
+	relative, err := filepath.Rel(root, filename)
+	if err != nil {
+		return err
+	}
+	prefix := extensionProvider(relative) + "/"
+	for _, declaration := range file.Decls {
+		general, ok := declaration.(*ast.GenDecl)
+		if !ok || general.Tok != token.CONST {
+			continue
+		}
+		for _, specification := range general.Specs {
+			checkExtensionValueSpec(t, fset, relative, prefix, specification.(*ast.ValueSpec))
+		}
+	}
+	return nil
+}
+
+func checkExtensionValueSpec(
+	t *testing.T,
+	fset *token.FileSet,
+	relative string,
+	prefix string,
+	values *ast.ValueSpec,
+) {
+	t.Helper()
+	for index, name := range values.Names {
+		if name.Name == "OptionsKey" {
+			t.Errorf("%s:%d use a modality-specific RequestExtensionKey name instead of OptionsKey", filepath.ToSlash(relative), fset.Position(name.Pos()).Line)
+			continue
+		}
+		if !strings.HasSuffix(name.Name, "ExtensionKey") || index >= len(values.Values) {
+			continue
+		}
+		literal, ok := values.Values[index].(*ast.BasicLit)
+		if !ok || literal.Kind != token.STRING {
+			t.Errorf("%s:%d %s must be a string literal", filepath.ToSlash(relative), fset.Position(name.Pos()).Line, name.Name)
+			continue
+		}
+		value, err := strconv.Unquote(literal.Value)
+		if err != nil || !strings.HasPrefix(value, prefix) {
+			t.Errorf("%s:%d %s = %q, want prefix %q", filepath.ToSlash(relative), fset.Position(name.Pos()).Line, name.Name, value, prefix)
+		}
+		if strings.HasSuffix(value, "/options") {
+			t.Errorf("%s:%d %s = %q is ambiguous; name the request modality", filepath.ToSlash(relative), fset.Position(name.Pos()).Line, name.Name, value)
+		}
 	}
 }
 

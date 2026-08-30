@@ -75,62 +75,98 @@ func TestProviderAPIsHideProtocolDetails(t *testing.T) {
 		if strings.HasSuffix(filename, "_test.go") {
 			continue
 		}
-		file, err := parser.ParseFile(fset, filename, nil, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
-		protocolAliases := make(map[string]struct{})
-		sharedProtocolAliases := make(map[string]struct{})
-		for _, imported := range file.Imports {
-			pathValue, err := strconv.Unquote(imported.Path.Value)
-			if err != nil || !strings.HasPrefix(pathValue, modelsImportPrefix) {
-				continue
-			}
-			relativeImport := strings.TrimPrefix(pathValue, modelsImportPrefix)
-			shared := strings.HasPrefix(relativeImport, "protocol/")
-			private := strings.Contains("/"+relativeImport+"/", "/internal/protocol/")
-			if !shared && !private {
-				continue
-			}
-			name := filepath.Base(pathValue)
-			if imported.Name != nil {
-				name = imported.Name.Name
-			}
-			protocolAliases[name] = struct{}{}
-			if shared {
-				sharedProtocolAliases[name] = struct{}{}
-			}
-		}
-		if len(protocolAliases) == 0 {
+		checkProviderAPIFile(t, fset, filename)
+	}
+}
+
+func checkProviderAPIFile(t *testing.T, fset *token.FileSet, filename string) {
+	t.Helper()
+	file, err := parser.ParseFile(fset, filename, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	protocolAliases, sharedProtocolAliases := protocolImportAliases(file)
+	if len(protocolAliases) == 0 {
+		return
+	}
+	for _, declaration := range file.Decls {
+		checkProtocolDeclaration(
+			t, fset, filename, declaration, protocolAliases, sharedProtocolAliases,
+		)
+	}
+}
+
+func protocolImportAliases(file *ast.File) (map[string]struct{}, map[string]struct{}) {
+	protocolAliases := make(map[string]struct{})
+	sharedProtocolAliases := make(map[string]struct{})
+	for _, imported := range file.Imports {
+		pathValue, err := strconv.Unquote(imported.Path.Value)
+		if err != nil || !strings.HasPrefix(pathValue, modelsImportPrefix) {
 			continue
 		}
-		for _, declaration := range file.Decls {
-			switch value := declaration.(type) {
-			case *ast.FuncDecl:
-				if value.Name.IsExported() {
-					rejectProtocolSelectors(t, fset, filename, value.Type, protocolAliases)
-				}
-			case *ast.GenDecl:
-				for _, specification := range value.Specs {
-					typeSpec, ok := specification.(*ast.TypeSpec)
-					if !ok || !typeSpec.Name.IsExported() {
-						continue
-					}
-					if typeSpec.Assign.IsValid() && isImportedSelector(typeSpec.Type, sharedProtocolAliases) {
-						continue
-					}
-					switch exportedType := typeSpec.Type.(type) {
-					case *ast.StructType:
-						for _, field := range exportedType.Fields.List {
-							if len(field.Names) == 0 || field.Names[0].IsExported() {
-								rejectProtocolSelectors(t, fset, filename, field.Type, protocolAliases)
-							}
-						}
-					default:
-						rejectProtocolSelectors(t, fset, filename, typeSpec.Type, protocolAliases)
-					}
-				}
+		relativeImport := strings.TrimPrefix(pathValue, modelsImportPrefix)
+		shared := strings.HasPrefix(relativeImport, "protocol/")
+		private := strings.Contains("/"+relativeImport+"/", "/internal/protocol/")
+		if !shared && !private {
+			continue
+		}
+		name := filepath.Base(pathValue)
+		if imported.Name != nil {
+			name = imported.Name.Name
+		}
+		protocolAliases[name] = struct{}{}
+		if shared {
+			sharedProtocolAliases[name] = struct{}{}
+		}
+	}
+	return protocolAliases, sharedProtocolAliases
+}
+
+func checkProtocolDeclaration(
+	t *testing.T,
+	fset *token.FileSet,
+	filename string,
+	declaration ast.Decl,
+	protocolAliases map[string]struct{},
+	sharedProtocolAliases map[string]struct{},
+) {
+	t.Helper()
+	switch value := declaration.(type) {
+	case *ast.FuncDecl:
+		if value.Name.IsExported() {
+			rejectProtocolSelectors(t, fset, filename, value.Type, protocolAliases)
+		}
+	case *ast.GenDecl:
+		for _, specification := range value.Specs {
+			typeSpec, ok := specification.(*ast.TypeSpec)
+			if ok {
+				checkProtocolType(t, fset, filename, typeSpec, protocolAliases, sharedProtocolAliases)
 			}
+		}
+	}
+}
+
+func checkProtocolType(
+	t *testing.T,
+	fset *token.FileSet,
+	filename string,
+	typeSpec *ast.TypeSpec,
+	protocolAliases map[string]struct{},
+	sharedProtocolAliases map[string]struct{},
+) {
+	t.Helper()
+	if !typeSpec.Name.IsExported() ||
+		(typeSpec.Assign.IsValid() && isImportedSelector(typeSpec.Type, sharedProtocolAliases)) {
+		return
+	}
+	structure, ok := typeSpec.Type.(*ast.StructType)
+	if !ok {
+		rejectProtocolSelectors(t, fset, filename, typeSpec.Type, protocolAliases)
+		return
+	}
+	for _, field := range structure.Fields.List {
+		if len(field.Names) == 0 || field.Names[0].IsExported() {
+			rejectProtocolSelectors(t, fset, filename, field.Type, protocolAliases)
 		}
 	}
 }

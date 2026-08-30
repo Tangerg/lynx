@@ -38,56 +38,76 @@ func TestSharedProtocolsArePromotedWithoutDelegatingWrappers(t *testing.T) {
 			return walkErr
 		}
 		if entry.IsDir() {
-			relative, err := filepath.Rel(root, path)
-			if err != nil {
-				return err
-			}
-			for segment := range strings.SplitSeq(filepath.ToSlash(relative), "/") {
-				if segment == "internal" || segment == "protocol" {
-					return filepath.SkipDir
-				}
-			}
-			return nil
+			return skipInternalOrProtocolDirectory(root, path)
 		}
 		if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-
-		fset := token.NewFileSet()
-		file, err := parser.ParseFile(fset, path, nil, 0)
-		if err != nil {
-			return err
-		}
-		protocols := sharedProtocolImportAliases(file)
-		if len(protocols) == 0 {
-			return nil
-		}
-		for _, declaration := range file.Decls {
-			general, ok := declaration.(*ast.GenDecl)
-			if !ok {
-				continue
-			}
-			for _, specification := range general.Specs {
-				typeSpec, ok := specification.(*ast.TypeSpec)
-				if !ok {
-					continue
-				}
-				structure, ok := typeSpec.Type.(*ast.StructType)
-				if !ok || len(structure.Fields.List) != 1 {
-					continue
-				}
-				field := structure.Fields.List[0]
-				if len(field.Names) != 1 || field.Names[0].Name != "protocol" || !pointsToImportedSelector(field.Type, protocols) {
-					continue
-				}
-				t.Errorf("%s:%d %s is a behaviorless shared-protocol wrapper; promote the protocol model with a type alias", filepath.ToSlash(path), fset.Position(typeSpec.Pos()).Line, typeSpec.Name.Name)
-			}
-		}
-		return nil
+		return checkSharedProtocolWrappers(t, path)
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
+}
+
+func skipInternalOrProtocolDirectory(root, path string) error {
+	relative, err := filepath.Rel(root, path)
+	if err != nil {
+		return err
+	}
+	for segment := range strings.SplitSeq(filepath.ToSlash(relative), "/") {
+		if segment == "internal" || segment == "protocol" {
+			return filepath.SkipDir
+		}
+	}
+	return nil
+}
+
+func checkSharedProtocolWrappers(t *testing.T, path string) error {
+	t.Helper()
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		return err
+	}
+	protocols := sharedProtocolImportAliases(file)
+	if len(protocols) == 0 {
+		return nil
+	}
+	for _, declaration := range file.Decls {
+		general, ok := declaration.(*ast.GenDecl)
+		if !ok {
+			continue
+		}
+		for _, specification := range general.Specs {
+			checkSharedProtocolType(t, fset, path, protocols, specification)
+		}
+	}
+	return nil
+}
+
+func checkSharedProtocolType(
+	t *testing.T,
+	fset *token.FileSet,
+	path string,
+	protocols map[string]struct{},
+	specification ast.Spec,
+) {
+	t.Helper()
+	typeSpec, ok := specification.(*ast.TypeSpec)
+	if !ok {
+		return
+	}
+	structure, ok := typeSpec.Type.(*ast.StructType)
+	if !ok || len(structure.Fields.List) != 1 {
+		return
+	}
+	field := structure.Fields.List[0]
+	if len(field.Names) != 1 || field.Names[0].Name != "protocol" ||
+		!pointsToImportedSelector(field.Type, protocols) {
+		return
+	}
+	t.Errorf("%s:%d %s is a behaviorless shared-protocol wrapper; promote the protocol model with a type alias", filepath.ToSlash(path), fset.Position(typeSpec.Pos()).Line, typeSpec.Name.Name)
 }
 
 // TestModelProvidersOwnTheirPublicSurface prevents provider facades from
@@ -197,30 +217,53 @@ func assertOwnedPublicSurface(t *testing.T, dir string, retired map[string]struc
 		}
 		thirdParty := thirdPartyImportAliases(file)
 		for _, declaration := range file.Decls {
-			switch value := declaration.(type) {
-			case *ast.FuncDecl:
-				if !value.Name.IsExported() || !receiverIsPublic(value.Recv) {
-					continue
-				}
-				rejectRetiredProviderSymbol(t, fset, path, value.Name, retired)
-				rejectThirdPartySelectors(t, fset, path, value.Type, thirdParty)
-			case *ast.GenDecl:
-				for _, specification := range value.Specs {
-					switch spec := specification.(type) {
-					case *ast.TypeSpec:
-						if !spec.Name.IsExported() {
-							continue
-						}
-						rejectRetiredProviderSymbol(t, fset, path, spec.Name, retired)
-						rejectThirdPartySelectors(t, fset, path, spec.Type, thirdParty)
-					case *ast.ValueSpec:
-						if spec.Type == nil || !hasExportedName(spec.Names) {
-							continue
-						}
-						rejectThirdPartySelectors(t, fset, path, spec.Type, thirdParty)
-					}
-				}
-			}
+			checkOwnedPublicDeclaration(t, fset, path, declaration, retired, thirdParty)
+		}
+	}
+}
+
+func checkOwnedPublicDeclaration(
+	t *testing.T,
+	fset *token.FileSet,
+	path string,
+	declaration ast.Decl,
+	retired map[string]struct{},
+	thirdParty map[string]struct{},
+) {
+	t.Helper()
+	switch value := declaration.(type) {
+	case *ast.FuncDecl:
+		if !value.Name.IsExported() || !receiverIsPublic(value.Recv) {
+			return
+		}
+		rejectRetiredProviderSymbol(t, fset, path, value.Name, retired)
+		rejectThirdPartySelectors(t, fset, path, value.Type, thirdParty)
+	case *ast.GenDecl:
+		for _, specification := range value.Specs {
+			checkOwnedPublicSpec(t, fset, path, specification, retired, thirdParty)
+		}
+	}
+}
+
+func checkOwnedPublicSpec(
+	t *testing.T,
+	fset *token.FileSet,
+	path string,
+	specification ast.Spec,
+	retired map[string]struct{},
+	thirdParty map[string]struct{},
+) {
+	t.Helper()
+	switch spec := specification.(type) {
+	case *ast.TypeSpec:
+		if !spec.Name.IsExported() {
+			return
+		}
+		rejectRetiredProviderSymbol(t, fset, path, spec.Name, retired)
+		rejectThirdPartySelectors(t, fset, path, spec.Type, thirdParty)
+	case *ast.ValueSpec:
+		if spec.Type != nil && hasExportedName(spec.Names) {
+			rejectThirdPartySelectors(t, fset, path, spec.Type, thirdParty)
 		}
 	}
 }
