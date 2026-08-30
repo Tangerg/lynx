@@ -10,7 +10,7 @@ import (
 	"testing"
 )
 
-func TestWorkflowExcludesHostLegacyAndSecondRuntimeAbstractions(t *testing.T) {
+func TestWorkflowExcludesHostStateAndSecondRuntimeAbstractions(t *testing.T) {
 	forbiddenNames := map[string]bool{
 		"Store": true, "Journal": true, "Registry": true, "Graph": true,
 		"Scheduler": true, "Repository": true, "Transaction": true, "Lease": true,
