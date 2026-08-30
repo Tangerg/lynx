@@ -133,9 +133,7 @@ func (s *Store) createIndex(ctx context.Context) error {
 	properties := map[string]any{
 		s.contentField:   textFieldMapping{Type: mappingTypeText},
 		s.embeddingField: embeddingMapping,
-	}
-	if s.metadataField != "" {
-		properties[s.metadataField] = objectFieldMapping{Type: mappingTypeObject, Dynamic: true}
+		s.metadataField:  objectFieldMapping{Type: mappingTypeObject, Dynamic: true},
 	}
 
 	body, err := encodeJSONRequest(createIndexRequest{
@@ -202,13 +200,7 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 			docBody := map[string]any{
 				s.contentField:   doc.Text,
 				s.embeddingField: embedding.Float32Vector(vectors[index]),
-			}
-			if s.metadataField != "" {
-				docBody[s.metadataField] = doc.Metadata
-			} else {
-				for k, v := range doc.Metadata {
-					docBody[k] = v
-				}
+				s.metadataField:  doc.Metadata,
 			}
 			docLine, encErr := json.Marshal(docBody)
 			if encErr != nil {
@@ -401,34 +393,27 @@ func (s *Store) toDocument(hit opensearchapi.SearchHit) (*document.Document, err
 	}
 	doc.Text = content
 
-	if s.metadataField != "" {
-		if rawMeta, ok := source[s.metadataField]; ok {
-			if m, ok := rawMeta.(map[string]any); ok {
-				var err error
-				doc.Metadata, err = metadata.FromValues(m)
-				if err != nil {
-					return nil, fmt.Errorf("opensearch: convert metadata: %w", err)
-				}
-			}
-		}
-	} else {
-		meta := make(map[string]any, len(source))
-		for k, v := range source {
-			switch k {
-			case s.contentField, s.embeddingField:
-				continue
-			}
-			meta[k] = v
-		}
-		if len(meta) > 0 {
-			var err error
-			doc.Metadata, err = metadata.FromValues(meta)
-			if err != nil {
-				return nil, fmt.Errorf("opensearch: convert metadata: %w", err)
-			}
-		}
+	metadataValues, err := s.metadataValues(hit.ID, source)
+	if err != nil {
+		return nil, err
+	}
+	doc.Metadata, err = metadata.FromValues(metadataValues)
+	if err != nil {
+		return nil, fmt.Errorf("opensearch: convert metadata: %w", err)
 	}
 	return doc, nil
+}
+
+func (s *Store) metadataValues(id string, source map[string]any) (map[string]any, error) {
+	raw, present := source[s.metadataField]
+	if !present {
+		return nil, nil
+	}
+	values, ok := raw.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("opensearch: search hit %s field %q must be an object, got %T", id, s.metadataField, raw)
+	}
+	return values, nil
 }
 
 func (s *Store) Close() error { return nil }

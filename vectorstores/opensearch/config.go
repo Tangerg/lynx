@@ -174,6 +174,25 @@ func (s StoreConfig) Validate() error {
 	if s.Engine == EngineLucene && (s.SpaceType == SpaceTypeL1 || s.SpaceType == SpaceTypeLInf) {
 		return fmt.Errorf("opensearch: Lucene does not support space type %q", s.SpaceType)
 	}
+	return s.validateFieldLayout()
+}
+
+func (s StoreConfig) validateFieldLayout() error {
+	fields := []struct {
+		name  string
+		value string
+	}{
+		{name: "ContentField", value: s.ContentField},
+		{name: "EmbeddingField", value: s.EmbeddingField},
+		{name: "MetadataField", value: s.MetadataField},
+	}
+	seen := make(map[string]string, len(fields))
+	for _, field := range fields {
+		if owner, duplicate := seen[field.value]; duplicate {
+			return fmt.Errorf("opensearch: %s and %s both use field %q", owner, field.name, field.value)
+		}
+		seen[field.value] = field.name
+	}
 	return nil
 }
 
