@@ -144,6 +144,9 @@ func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
+	if err := req.Validate(); err != nil {
+		return nil, err
+	}
 	effectiveOptions, apiRequest, err := a.prepareRequest(req)
 	if err != nil {
 		return nil, err
@@ -156,9 +159,6 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 }
 
 func (a *AudioTTSModel) prepareRequest(req *tts.Request) (tts.Options, *predictionRequest, error) {
-	if err := req.Validate(); err != nil {
-		return tts.Options{}, nil, err
-	}
 	effectiveOptions, err := a.defaultOptions.Resolve(req.Options)
 	if err != nil {
 		return tts.Options{}, nil, err
