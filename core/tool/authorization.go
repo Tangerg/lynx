@@ -21,13 +21,13 @@ type Authorization struct {
 
 // Definition is detached because policy implementations may retain or annotate
 // what they inspect without changing the executable contract.
-func (authorization Authorization) Definition() chat.ToolDefinition {
-	return authorization.definition.Clone()
+func (a Authorization) Definition() chat.ToolDefinition {
+	return a.definition.Clone()
 }
 
 // Arguments is detached for the same reason as Definition.
-func (authorization Authorization) Arguments() []byte {
-	return append([]byte(nil), authorization.arguments...)
+func (a Authorization) Arguments() []byte {
+	return append([]byte(nil), a.arguments...)
 }
 
 // Authorizer is deliberately smaller than an application permission system:
@@ -39,8 +39,8 @@ type Authorizer interface {
 
 type AuthorizerFunc func(context.Context, Authorization) error
 
-func (authorize AuthorizerFunc) Authorize(ctx context.Context, authorization Authorization) error {
-	return authorize(ctx, authorization)
+func (a AuthorizerFunc) Authorize(ctx context.Context, authorization Authorization) error {
+	return a(ctx, authorization)
 }
 
 type GuardConfig struct {
@@ -69,32 +69,32 @@ func NewGuard(config GuardConfig) (Guard, error) {
 	}, nil
 }
 
-func (guard Guard) Definition() chat.ToolDefinition {
-	return guard.definition.Clone()
+func (g Guard) Definition() chat.ToolDefinition {
+	return g.definition.Clone()
 }
 
-func (guard Guard) Call(ctx context.Context, invocation Invocation) (chat.ToolOutput, error) {
-	if lo.IsNil(guard.tool) || lo.IsNil(guard.authorizer) {
+func (g Guard) Call(ctx context.Context, invocation Invocation) (chat.ToolOutput, error) {
+	if lo.IsNil(g.tool) || lo.IsNil(g.authorizer) {
 		return chat.ToolOutput{}, fmt.Errorf("%w: authorization guard is zero", ErrInvalidTool)
 	}
 	if err := ctx.Err(); err != nil {
 		return chat.ToolOutput{}, err
 	}
 	authorization := Authorization{
-		definition: guard.definition.Clone(), arguments: invocation.Arguments(),
+		definition: g.definition.Clone(), arguments: invocation.Arguments(),
 	}
-	if err := guard.authorizer.Authorize(ctx, authorization); err != nil {
+	if err := g.authorizer.Authorize(ctx, authorization); err != nil {
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return chat.ToolOutput{}, err
 		}
 		return chat.ToolOutput{}, fmt.Errorf(
-			"%w: tool %q: %w", ErrAuthorizationDenied, guard.definition.Name, err,
+			"%w: tool %q: %w", ErrAuthorizationDenied, g.definition.Name, err,
 		)
 	}
-	return guard.tool.Call(ctx, invocation)
+	return g.tool.Call(ctx, invocation)
 }
 
-func (guard Guard) Unwrap() Tool { return guard.tool }
+func (g Guard) Unwrap() Tool { return g.tool }
 
 var _ Tool = Guard{}
 var _ WrappingTool = Guard{}

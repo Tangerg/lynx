@@ -45,17 +45,17 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
-	if c.Pool == nil {
+func (s StoreConfig) Validate() error {
+	if s.Pool == nil {
 		return errors.New("postgres: pool is required")
 	}
 	for _, identifier := range [...]struct {
 		name  string
 		value string
 	}{
-		{name: "schema name", value: c.SchemaName},
-		{name: "table name", value: c.TableName},
-		{name: "index name", value: c.IndexName},
+		{name: "schema name", value: s.SchemaName},
+		{name: "table name", value: s.TableName},
+		{name: "index name", value: s.IndexName},
 	} {
 		if identifier.value != "" && !validIdentifier(identifier.value) {
 			return fmt.Errorf("postgres: %s %q must be a valid unquoted identifier", identifier.name, identifier.value)

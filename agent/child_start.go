@@ -35,10 +35,10 @@ type childStartJobResult struct {
 	admitted   bool
 }
 
-func (r childStartJobResult) started() bool {
-	_, failed := r.result.Failure()
-	return !failed && r.deployment.Valid() && r.execution != nil &&
-		r.state.Valid() && !r.startedAt.IsZero()
+func (c childStartJobResult) started() bool {
+	_, failed := c.result.Failure()
+	return !failed && c.deployment.Valid() && c.execution != nil &&
+		c.state.Valid() && !c.startedAt.IsZero()
 }
 
 func (p *processState) prepareChildStart(
@@ -112,35 +112,35 @@ func (p *processState) prepareChildStart(
 	}}
 }
 
-func (p *childStartPlan) execute(ctx context.Context) childStartJobResult {
-	deployment, resolveErr := p.resolveDeployment()
+func (c *childStartPlan) execute(ctx context.Context) childStartJobResult {
+	deployment, resolveErr := c.resolveDeployment()
 	if resolveErr != nil {
 		return childStartJobResult{result: failedChildStart(
-			p.spec, FailureKindExternal, "engine.child.deployment_unavailable", resolveErr,
+			c.spec, FailureKindExternal, "engine.child.deployment_unavailable", resolveErr,
 		)}
 	}
-	if validateErr := deployment.Descriptor().ValidateInput(p.spec.Input); validateErr != nil {
+	if validateErr := deployment.Descriptor().ValidateInput(c.spec.Input); validateErr != nil {
 		return childStartJobResult{result: failedChildStart(
-			p.spec, FailureKindContract, "engine.child.input.invalid", validateErr,
+			c.spec, FailureKindContract, "engine.child.input.invalid", validateErr,
 		)}
 	}
-	admission := newProcessAdmission(p.relation, deployment, p.spec.Budget, p.spec.Capabilities)
-	if admissionErr := requestProcessAdmission(ctx, p.engine.admitter, admission); admissionErr != nil {
+	admission := newProcessAdmission(c.relation, deployment, c.spec.Budget, c.spec.Capabilities)
+	if admissionErr := requestProcessAdmission(ctx, c.engine.admitter, admission); admissionErr != nil {
 		return childStartJobResult{result: failedChildStart(
-			p.spec, FailureKindExternal, "engine.child.admission.rejected", admissionErr,
+			c.spec, FailureKindExternal, "engine.child.admission.rejected", admissionErr,
 		)}
 	}
 	startedAt := time.Now().Round(0).UTC()
-	execution, state, failure, err := initializeExecution(deployment.Definition(), p.spec.Input)
+	execution, state, failure, err := initializeExecution(deployment.Definition(), c.spec.Input)
 	if err != nil {
 		return childStartJobResult{
-			result:    failedChildStart(p.spec, failure.Kind(), failure.Code(), err),
+			result:    failedChildStart(c.spec, failure.Kind(), failure.Code(), err),
 			admission: admission, failure: failure, admitted: true,
 		}
 	}
 	return childStartJobResult{
 		result: ChildStartResult{
-			key: p.spec.Key, processID: p.childID, deploymentRef: p.spec.DeploymentRef,
+			key: c.spec.Key, processID: c.childID, deploymentRef: c.spec.DeploymentRef,
 		},
 		deployment: deployment, execution: execution, state: state, startedAt: startedAt,
 		admission: admission, admitted: true,
@@ -194,15 +194,15 @@ func (p *processState) effectiveReservedBudget() Budget {
 	return reserved
 }
 
-func (p *childStartPlan) resolveDeployment() (Deployment, error) {
-	reference := p.spec.DeploymentRef
-	if reference == p.parentDeployment.DeploymentRef() {
-		return p.parentDeployment, nil
+func (c *childStartPlan) resolveDeployment() (Deployment, error) {
+	reference := c.spec.DeploymentRef
+	if reference == c.parentDeployment.DeploymentRef() {
+		return c.parentDeployment, nil
 	}
-	if p.engine.resolver == nil {
+	if c.engine.resolver == nil {
 		return Deployment{}, fmt.Errorf("%w: no resolver for %s", ErrInvalidDeployment, reference.Name())
 	}
-	deployment, err := resolveDeployment(p.engine.resolver, reference)
+	deployment, err := resolveDeployment(c.engine.resolver, reference)
 	if err != nil {
 		return Deployment{}, err
 	}

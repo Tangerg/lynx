@@ -387,12 +387,12 @@ type bulkItem struct {
 	Delete *bulkItemResult `json:"delete"`
 }
 
-func (i bulkItem) result(operation bulkOperation) *bulkItemResult {
+func (b bulkItem) result(operation bulkOperation) *bulkItemResult {
 	switch operation {
 	case bulkOperationIndex:
-		return i.Index
+		return b.Index
 	case bulkOperationDelete:
-		return i.Delete
+		return b.Delete
 	default:
 		return nil
 	}
@@ -408,8 +408,8 @@ type bulkFailure struct {
 	Reason string `json:"reason"`
 }
 
-func (r bulkResponse) firstFailure(operation bulkOperation) *bulkItemResult {
-	for _, item := range r.Items {
+func (b bulkResponse) firstFailure(operation bulkOperation) *bulkItemResult {
+	for _, item := range b.Items {
 		result := item.result(operation)
 		if result != nil && result.Error != nil {
 			return result

@@ -662,12 +662,12 @@ type processFactError struct {
 	failureCode string
 }
 
-func (e processFactError) Error() string {
-	if e.failureCode != "" {
-		return "agent Process " + e.status.String() + ": " +
-			e.failureKind.String() + "/" + e.failureCode
+func (p processFactError) Error() string {
+	if p.failureCode != "" {
+		return "agent Process " + p.status.String() + ": " +
+			p.failureKind.String() + "/" + p.failureCode
 	}
-	return "agent Process " + e.status.String() + ": " + e.cause.String()
+	return "agent Process " + p.status.String() + ": " + p.cause.String()
 }
 
 type stepFactError struct{}

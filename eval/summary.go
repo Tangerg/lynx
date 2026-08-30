@@ -15,12 +15,12 @@ type CaseResult struct {
 	Err      error
 }
 
-func (result CaseResult) clone() CaseResult {
-	result.Metadata = result.Metadata.Clone()
-	if result.Err == nil {
-		result.Report = result.Report.cloneValid()
+func (c CaseResult) clone() CaseResult {
+	c.Metadata = c.Metadata.Clone()
+	if c.Err == nil {
+		c.Report = c.Report.cloneValid()
 	}
-	return result
+	return c
 }
 
 // Distribution summarizes one homogeneous numeric signal. Count distinguishes
@@ -65,13 +65,13 @@ type ExperimentReport struct {
 }
 
 // Cases returns owned results in Dataset order.
-func (report ExperimentReport) Cases() []CaseResult {
-	return cloneCaseResults(report.cases)
+func (e ExperimentReport) Cases() []CaseResult {
+	return cloneCaseResults(e.cases)
 }
 
 // Summary returns the owned aggregate calculated from Cases.
-func (report ExperimentReport) Summary() ExperimentSummary {
-	return cloneExperimentSummary(report.summary)
+func (e ExperimentReport) Summary() ExperimentSummary {
+	return cloneExperimentSummary(e.summary)
 }
 
 func newExperimentReport(cases []CaseResult, summary ExperimentSummary) ExperimentReport {

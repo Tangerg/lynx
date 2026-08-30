@@ -42,7 +42,7 @@ const (
 	operationList  historyOperation = "list"
 )
 
-func (o historyOperation) spanName() string { return "history." + string(o) }
+func (h historyOperation) spanName() string { return "history." + string(h) }
 
 var ErrInvalidConfig = errors.New("otel/history: invalid config")
 
@@ -54,8 +54,8 @@ type MiddlewareConfig struct {
 	MeterProvider  metric.MeterProvider
 }
 
-func (c MiddlewareConfig) Validate() error {
-	if strings.TrimSpace(c.System) == "" {
+func (m MiddlewareConfig) Validate() error {
+	if strings.TrimSpace(m.System) == "" {
 		return fmt.Errorf("%w: system is required", ErrInvalidConfig)
 	}
 	return nil
@@ -155,19 +155,19 @@ type historyObservation struct {
 	metricAttributes []attribute.KeyValue
 }
 
-func (observation historyObservation) finish(err error) {
-	metricAttributes := observation.metricAttributes
+func (h historyObservation) finish(err error) {
+	metricAttributes := h.metricAttributes
 	if err != nil {
 		errorType := historyErrorType(err)
-		observation.span.RecordError(err)
-		observation.span.SetStatus(codes.Error, err.Error())
-		observation.span.SetAttributes(errorType)
+		h.span.RecordError(err)
+		h.span.SetStatus(codes.Error, err.Error())
+		h.span.SetAttributes(errorType)
 		metricAttributes = append(metricAttributes, errorType)
 	}
-	observation.span.End()
-	observation.middleware.duration.Record(
-		observation.ctx,
-		time.Since(observation.startedAt).Seconds(),
+	h.span.End()
+	h.middleware.duration.Record(
+		h.ctx,
+		time.Since(h.startedAt).Seconds(),
 		metric.WithAttributes(metricAttributes...),
 	)
 }

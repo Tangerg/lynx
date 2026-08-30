@@ -59,12 +59,12 @@ type contextReader struct {
 	reader io.Reader
 }
 
-func (reader contextReader) Read(buffer []byte) (int, error) {
-	if err := context.Cause(reader.ctx); err != nil {
+func (c contextReader) Read(buffer []byte) (int, error) {
+	if err := context.Cause(c.ctx); err != nil {
 		return 0, err
 	}
-	read, err := reader.reader.Read(buffer)
-	if contextErr := context.Cause(reader.ctx); contextErr != nil {
+	read, err := c.reader.Read(buffer)
+	if contextErr := context.Cause(c.ctx); contextErr != nil {
 		return read, errors.Join(err, contextErr)
 	}
 	return read, err

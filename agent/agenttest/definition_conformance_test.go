@@ -67,21 +67,21 @@ type definitionConformanceExecution struct {
 	shared     *uint64
 }
 
-func (e *definitionConformanceExecution) Step(_ context.Context, _ []agent.Signal) (agent.Transition, error) {
-	if e.shared != nil {
-		*e.shared++
-	} else if e.definition.counter.Load() != 0 {
-		e.value = e.definition.counter.Add(1)
+func (d *definitionConformanceExecution) Step(_ context.Context, _ []agent.Signal) (agent.Transition, error) {
+	if d.shared != nil {
+		*d.shared++
+	} else if d.definition.counter.Load() != 0 {
+		d.value = d.definition.counter.Add(1)
 	} else {
-		e.value++
+		d.value++
 	}
 	return agent.Continue(0)
 }
 
-func (e *definitionConformanceExecution) Snapshot() (agent.ExecutionState, error) {
-	value := e.value
-	if e.shared != nil {
-		value = *e.shared
+func (d *definitionConformanceExecution) Snapshot() (agent.ExecutionState, error) {
+	value := d.value
+	if d.shared != nil {
+		value = *d.shared
 	}
 	payload, err := json.Marshal(definitionConformanceInput{Value: value})
 	if err != nil {

@@ -37,12 +37,12 @@ type Comparison struct {
 // Compare keeps the baseline authoritative: only reports over the same ordered
 // Dataset and Metric identities are comparable. Exact deltas avoid inventing
 // statistical significance or a synthetic score across unlike units.
-func (baseline ExperimentReport) Compare(candidate ExperimentReport) (Comparison, error) {
-	baselineCases, candidateCases := baseline.Cases(), candidate.Cases()
+func (e ExperimentReport) Compare(candidate ExperimentReport) (Comparison, error) {
+	baselineCases, candidateCases := e.Cases(), candidate.Cases()
 	if err := comparableCases(baselineCases, candidateCases); err != nil {
 		return Comparison{}, err
 	}
-	baselineSummary, candidateSummary := baseline.Summary(), candidate.Summary()
+	baselineSummary, candidateSummary := e.Summary(), candidate.Summary()
 	metricPairs, err := comparableMetrics(baselineSummary.Metrics, candidateSummary.Metrics)
 	if err != nil {
 		return Comparison{}, err

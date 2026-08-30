@@ -82,8 +82,8 @@ func NewMiddleware[T any](config MiddlewareConfig) (Middleware[T], error) {
 }
 
 // Wrap decorates one evaluator without observing or retaining its subject.
-func (middleware Middleware[T]) Wrap(next coreeval.Evaluator[T]) (coreeval.Evaluator[T], error) {
-	if lo.IsNil(middleware.tracer) || lo.IsNil(middleware.duration) {
+func (m Middleware[T]) Wrap(next coreeval.Evaluator[T]) (coreeval.Evaluator[T], error) {
+	if lo.IsNil(m.tracer) || lo.IsNil(m.duration) {
 		return nil, fmt.Errorf("%w: middleware must be constructed with NewMiddleware", ErrInvalidConfig)
 	}
 	if lo.IsNil(next) {
@@ -92,7 +92,7 @@ func (middleware Middleware[T]) Wrap(next coreeval.Evaluator[T]) (coreeval.Evalu
 	return coreeval.EvaluatorFunc[T](func(ctx context.Context, subject T) (coreeval.Report, error) {
 		startedAt := time.Now()
 		operation := attribute.String(operationAttribute, operationEvaluate)
-		spanCtx, span := middleware.tracer.Start(ctx, spanName,
+		spanCtx, span := m.tracer.Start(ctx, spanName,
 			trace.WithSpanKind(trace.SpanKindInternal),
 			trace.WithAttributes(operation),
 		)
@@ -110,7 +110,7 @@ func (middleware Middleware[T]) Wrap(next coreeval.Evaluator[T]) (coreeval.Evalu
 			attributes = append(attributes, errorType)
 		}
 		span.End()
-		middleware.duration.Record(
+		m.duration.Record(
 			spanCtx,
 			time.Since(startedAt).Seconds(),
 			metric.WithAttributes(attributes...),

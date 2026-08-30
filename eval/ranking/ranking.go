@@ -35,16 +35,16 @@ const (
 	judgmentField                 = "judgments"
 )
 
-func (metric Metric) Validate() error {
-	switch metric {
+func (m Metric) Validate() error {
+	switch m {
 	case MetricPrecision, MetricRecall, MetricReciprocalRank, MetricAveragePrecision, MetricNDCG:
 		return nil
 	default:
-		return fmt.Errorf("%w: unsupported ranking metric %q", eval.ErrInvalidMetric, metric)
+		return fmt.Errorf("%w: unsupported ranking metric %q", eval.ErrInvalidMetric, m)
 	}
 }
 
-func (metric Metric) reportMetric(cutoff int, threshold *eval.Score) (eval.Metric, error) {
+func (m Metric) reportMetric(cutoff int, threshold *eval.Score) (eval.Metric, error) {
 	parameters := metadata.Map{}
 	if err := parameters.Set(metricCutoffKey, cutoff); err != nil {
 		return eval.Metric{}, err
@@ -55,7 +55,7 @@ func (metric Metric) reportMetric(cutoff int, threshold *eval.Score) (eval.Metri
 		}
 	}
 	return eval.NewMetric(eval.MetricConfig{
-		Namespace: metricNamespace, Name: eval.MetricName(metric), Parameters: parameters,
+		Namespace: metricNamespace, Name: eval.MetricName(m), Parameters: parameters,
 	})
 }
 
@@ -81,19 +81,19 @@ func NewSample(ranking []string, judgments []Judgment) (Sample, error) {
 	return sample, nil
 }
 
-func (sample Sample) Clone() Sample {
-	sample.Ranking = slices.Clone(sample.Ranking)
-	sample.Judgments = slices.Clone(sample.Judgments)
-	return sample
+func (s Sample) Clone() Sample {
+	s.Ranking = slices.Clone(s.Ranking)
+	s.Judgments = slices.Clone(s.Judgments)
+	return s
 }
 
-func (sample Sample) Validate() error {
-	if err := validateIdentities(rankingField, sample.Ranking); err != nil {
+func (s Sample) Validate() error {
+	if err := validateIdentities(rankingField, s.Ranking); err != nil {
 		return err
 	}
-	seen := make(map[string]struct{}, len(sample.Judgments))
+	seen := make(map[string]struct{}, len(s.Judgments))
 	hasRelevant := false
-	for index, judgment := range sample.Judgments {
+	for index, judgment := range s.Judgments {
 		if err := validateIdentity(fmt.Sprintf("%s[%d].identity", judgmentField, index), judgment.Identity); err != nil {
 			return err
 		}
@@ -143,9 +143,9 @@ func newRelevanceSet(judgments []Judgment) relevanceSet {
 	return relevance
 }
 
-func (relevance relevanceSet) relevantCount() int {
+func (r relevanceSet) relevantCount() int {
 	count := 0
-	for _, grade := range relevance {
+	for _, grade := range r {
 		if grade > 0 {
 			count++
 		}
@@ -153,57 +153,57 @@ func (relevance relevanceSet) relevantCount() int {
 	return count
 }
 
-func (relevance relevanceSet) count(ranking []string) int {
+func (r relevanceSet) count(ranking []string) int {
 	count := 0
 	for _, identity := range ranking {
-		if relevance[identity] > 0 {
+		if r[identity] > 0 {
 			count++
 		}
 	}
 	return count
 }
 
-func (relevance relevanceSet) precisionAt(ranking []string, cutoff int) float64 {
-	return float64(relevance.count(ranking)) / float64(cutoff)
+func (r relevanceSet) precisionAt(ranking []string, cutoff int) float64 {
+	return float64(r.count(ranking)) / float64(cutoff)
 }
 
-func (relevance relevanceSet) recallAt(ranking []string) float64 {
-	return float64(relevance.count(ranking)) / float64(relevance.relevantCount())
+func (r relevanceSet) recallAt(ranking []string) float64 {
+	return float64(r.count(ranking)) / float64(r.relevantCount())
 }
 
-func (relevance relevanceSet) reciprocalRank(ranking []string) float64 {
+func (r relevanceSet) reciprocalRank(ranking []string) float64 {
 	for index, identity := range ranking {
-		if relevance[identity] > 0 {
+		if r[identity] > 0 {
 			return 1 / float64(index+1)
 		}
 	}
 	return 0
 }
 
-func (relevance relevanceSet) averagePrecisionAt(ranking []string, cutoff int) float64 {
+func (r relevanceSet) averagePrecisionAt(ranking []string, cutoff int) float64 {
 	hits := 0
 	total := 0.0
 	for index, identity := range ranking {
-		if relevance[identity] <= 0 {
+		if r[identity] <= 0 {
 			continue
 		}
 		hits++
 		total += float64(hits) / float64(index+1)
 	}
-	return total / float64(min(relevance.relevantCount(), cutoff))
+	return total / float64(min(r.relevantCount(), cutoff))
 }
 
 func discountedGain(relevance float64, rank int) float64 {
 	return relevance / math.Log2(float64(rank+1))
 }
 
-func (relevance relevanceSet) ndcgAt(ranking []string, cutoff int) float64 {
+func (r relevanceSet) ndcgAt(ranking []string, cutoff int) float64 {
 	dcg := 0.0
 	for index, identity := range ranking {
-		dcg += discountedGain(relevance[identity], index+1)
+		dcg += discountedGain(r[identity], index+1)
 	}
-	ideal := make([]float64, 0, len(relevance))
-	for _, grade := range relevance {
+	ideal := make([]float64, 0, len(r))
+	for _, grade := range r {
 		if grade > 0 {
 			ideal = append(ideal, grade)
 		}
@@ -224,8 +224,8 @@ func (relevance relevanceSet) ndcgAt(ranking []string, cutoff int) float64 {
 	return dcg / idcg
 }
 
-func (metric Metric) score(ranking []string, relevance relevanceSet, cutoff int) float64 {
-	switch metric {
+func (m Metric) score(ranking []string, relevance relevanceSet, cutoff int) float64 {
+	switch m {
 	case MetricPrecision:
 		return relevance.precisionAt(ranking, cutoff)
 	case MetricRecall:
@@ -249,21 +249,21 @@ type Config struct {
 	Threshold *eval.Score
 }
 
-func (config Config) validate() error {
-	if err := config.Metric.Validate(); err != nil {
+func (c Config) validate() error {
+	if err := c.Metric.Validate(); err != nil {
 		return fmt.Errorf("%w: metric: %w", eval.ErrInvalidEvaluatorConfig, err)
 	}
-	if config.Cutoff <= 0 {
+	if c.Cutoff <= 0 {
 		return fmt.Errorf("%w: cutoff must be positive", eval.ErrInvalidEvaluatorConfig)
 	}
 	return nil
 }
 
-func (config Config) threshold() (*eval.Score, error) {
-	if config.Threshold == nil {
+func (c Config) threshold() (*eval.Score, error) {
+	if c.Threshold == nil {
 		return nil, nil
 	}
-	threshold := *config.Threshold
+	threshold := *c.Threshold
 	if err := threshold.Validate(); err != nil {
 		return nil, fmt.Errorf("%w: threshold: %w", eval.ErrInvalidEvaluatorConfig, err)
 	}
@@ -295,7 +295,7 @@ func NewEvaluator(config Config) (*Evaluator, error) {
 	}, nil
 }
 
-func (evaluator *Evaluator) Evaluate(ctx context.Context, sample Sample) (eval.Report, error) {
+func (e *Evaluator) Evaluate(ctx context.Context, sample Sample) (eval.Report, error) {
 	if err := ctx.Err(); err != nil {
 		return eval.Report{}, err
 	}
@@ -304,20 +304,20 @@ func (evaluator *Evaluator) Evaluate(ctx context.Context, sample Sample) (eval.R
 	}
 
 	relevance := newRelevanceSet(sample.Judgments)
-	ranking := sample.Ranking[:min(evaluator.cutoff, len(sample.Ranking))]
-	value := evaluator.metric.score(ranking, relevance, evaluator.cutoff)
+	ranking := sample.Ranking[:min(e.cutoff, len(sample.Ranking))]
+	value := e.metric.score(ranking, relevance, e.cutoff)
 	score, err := eval.NewScore(value)
 	if err != nil {
-		return eval.Report{}, fmt.Errorf("eval/ranking: calculate %s: %w", evaluator.reportMetric, err)
+		return eval.Report{}, fmt.Errorf("eval/ranking: calculate %s: %w", e.reportMetric, err)
 	}
 	verdict := eval.VerdictUnspecified
-	if evaluator.threshold != nil {
-		verdict, err = score.Verdict(*evaluator.threshold)
+	if e.threshold != nil {
+		verdict, err = score.Verdict(*e.threshold)
 		if err != nil {
 			return eval.Report{}, fmt.Errorf("eval/ranking: verdict: %w", err)
 		}
 	}
-	report := eval.Report{Metric: evaluator.reportMetric.Clone(), Verdict: verdict, Score: &score}
+	report := eval.Report{Metric: e.reportMetric.Clone(), Verdict: verdict, Score: &score}
 	if err := report.Validate(); err != nil {
 		return eval.Report{}, err
 	}

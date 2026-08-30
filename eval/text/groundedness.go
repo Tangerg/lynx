@@ -52,11 +52,11 @@ func NewGroundednessEvaluator(config ModelEvaluatorConfig) (*GroundednessEvaluat
 	return &GroundednessEvaluator{evaluator: evaluator}, nil
 }
 
-func (evaluator *GroundednessEvaluator) Evaluate(ctx context.Context, sample GroundednessSample) (eval.Report, error) {
+func (g *GroundednessEvaluator) Evaluate(ctx context.Context, sample GroundednessSample) (eval.Report, error) {
 	if err := sample.Validate(); err != nil {
 		return eval.Report{}, err
 	}
-	return evaluator.evaluator.Evaluate(ctx, sample)
+	return g.evaluator.Evaluate(ctx, sample)
 }
 
 var _ eval.Evaluator[GroundednessSample] = (*GroundednessEvaluator)(nil)

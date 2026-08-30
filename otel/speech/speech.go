@@ -47,8 +47,8 @@ type MiddlewareConfig struct {
 }
 
 // Validate checks construction inputs without resolving global providers.
-func (config MiddlewareConfig) Validate() error {
-	if strings.TrimSpace(config.Provider) == "" {
+func (m MiddlewareConfig) Validate() error {
+	if strings.TrimSpace(m.Provider) == "" {
 		return fmt.Errorf("%w: provider is required", ErrInvalidConfig)
 	}
 	return nil
@@ -92,15 +92,15 @@ func NewMiddleware(config MiddlewareConfig) (Middleware, error) {
 }
 
 // Wrap decorates one synchronous speech Model.
-func (middleware Middleware) Wrap(next corespeech.Model) (corespeech.Model, error) {
-	if err := middleware.validate(); err != nil {
+func (m Middleware) Wrap(next corespeech.Model) (corespeech.Model, error) {
+	if err := m.validate(); err != nil {
 		return nil, err
 	}
 	if lo.IsNil(next) {
 		return nil, fmt.Errorf("%w: value must not be nil", ErrInvalidModel)
 	}
 	return corespeech.ModelFunc(func(ctx context.Context, request *corespeech.Request) (*corespeech.Response, error) {
-		ctx, observation := middleware.start(ctx, request)
+		ctx, observation := m.start(ctx, request)
 		response, err := next.Call(ctx, request)
 		observation.observeResponse(response)
 		observation.finish(err)
@@ -110,8 +110,8 @@ func (middleware Middleware) Wrap(next corespeech.Model) (corespeech.Model, erro
 
 // WrapStream decorates one streaming speech capability. Provider work remains
 // lazy and stopping iteration closes the observation synchronously.
-func (middleware Middleware) WrapStream(next corespeech.Streamer) (corespeech.Streamer, error) {
-	if err := middleware.validate(); err != nil {
+func (m Middleware) WrapStream(next corespeech.Streamer) (corespeech.Streamer, error) {
+	if err := m.validate(); err != nil {
 		return nil, err
 	}
 	if lo.IsNil(next) {
@@ -119,7 +119,7 @@ func (middleware Middleware) WrapStream(next corespeech.Streamer) (corespeech.St
 	}
 	return corespeech.StreamerFunc(func(ctx context.Context, request *corespeech.Request) iter.Seq2[*corespeech.Response, error] {
 		return func(yield func(*corespeech.Response, error) bool) {
-			spanCtx, observation := middleware.start(ctx, request)
+			spanCtx, observation := m.start(ctx, request)
 			var streamErr error
 			defer func() { observation.finish(streamErr) }()
 			for response, err := range next.Stream(spanCtx, request) {
@@ -134,22 +134,22 @@ func (middleware Middleware) WrapStream(next corespeech.Streamer) (corespeech.St
 	}), nil
 }
 
-func (middleware Middleware) validate() error {
-	if lo.IsNil(middleware.tracer) || lo.IsNil(middleware.duration) {
+func (m Middleware) validate() error {
+	if lo.IsNil(m.tracer) || lo.IsNil(m.duration) {
 		return fmt.Errorf("%w: middleware must be constructed with NewMiddleware", ErrInvalidConfig)
 	}
 	return nil
 }
 
-func (middleware Middleware) start(ctx context.Context, request *corespeech.Request) (context.Context, observation) {
+func (m Middleware) start(ctx context.Context, request *corespeech.Request) (context.Context, observation) {
 	startedAt := time.Now()
-	attributes := middleware.requestAttributes(request)
-	spanCtx, span := middleware.tracer.Start(ctx, middleware.spanName(request),
+	attributes := m.requestAttributes(request)
+	spanCtx, span := m.tracer.Start(ctx, m.spanName(request),
 		trace.WithSpanKind(trace.SpanKindClient),
 		trace.WithAttributes(attributes...),
 	)
 	return spanCtx, observation{
-		middleware: middleware,
+		middleware: m,
 		ctx:        spanCtx,
 		span:       span,
 		startedAt:  startedAt,
@@ -157,17 +157,17 @@ func (middleware Middleware) start(ctx context.Context, request *corespeech.Requ
 	}
 }
 
-func (middleware Middleware) spanName(request *corespeech.Request) string {
+func (m Middleware) spanName(request *corespeech.Request) string {
 	if request == nil || request.Options.Model == "" {
 		return operationName
 	}
 	return operationName + " " + request.Options.Model
 }
 
-func (middleware Middleware) requestAttributes(request *corespeech.Request) []attribute.KeyValue {
+func (m Middleware) requestAttributes(request *corespeech.Request) []attribute.KeyValue {
 	attributes := []attribute.KeyValue{
 		semconv.GenAIOperationNameKey.String(operationName),
-		semconv.GenAIProviderNameKey.String(middleware.provider),
+		semconv.GenAIProviderNameKey.String(m.provider),
 	}
 	if request != nil && request.Options.Model != "" {
 		attributes = append(attributes, semconv.GenAIRequestModel(request.Options.Model))
@@ -184,39 +184,39 @@ type observation struct {
 	responseModel string
 }
 
-func (observation *observation) observeResponse(response *corespeech.Response) {
+func (o *observation) observeResponse(response *corespeech.Response) {
 	if response != nil && response.Metadata != nil && response.Metadata.Model != "" {
-		observation.responseModel = response.Metadata.Model
+		o.responseModel = response.Metadata.Model
 	}
 }
 
-func (observation observation) finish(err error) {
-	attributes := observation.middleware.metricAttributes(observation.request, observation.responseModel)
-	if observation.responseModel != "" {
-		observation.span.SetAttributes(semconv.GenAIResponseModel(observation.responseModel))
+func (o observation) finish(err error) {
+	attributes := o.middleware.metricAttributes(o.request, o.responseModel)
+	if o.responseModel != "" {
+		o.span.SetAttributes(semconv.GenAIResponseModel(o.responseModel))
 	}
 	if err != nil {
 		errorType := errorTypeAttribute(err)
-		observation.span.RecordError(err)
-		observation.span.SetStatus(codes.Error, err.Error())
-		observation.span.SetAttributes(errorType)
+		o.span.RecordError(err)
+		o.span.SetStatus(codes.Error, err.Error())
+		o.span.SetAttributes(errorType)
 		attributes = append(attributes, errorType)
 	}
-	observation.span.End()
-	observation.middleware.duration.Record(
-		observation.ctx,
-		time.Since(observation.startedAt).Seconds(),
+	o.span.End()
+	o.middleware.duration.Record(
+		o.ctx,
+		time.Since(o.startedAt).Seconds(),
 		metric.WithAttributes(attributes...),
 	)
 }
 
-func (middleware Middleware) metricAttributes(
+func (m Middleware) metricAttributes(
 	request *corespeech.Request,
 	responseModel string,
 ) []attribute.KeyValue {
 	attributes := []attribute.KeyValue{
 		semconv.GenAIOperationNameKey.String(operationName),
-		semconv.GenAIProviderNameKey.String(middleware.provider),
+		semconv.GenAIProviderNameKey.String(m.provider),
 	}
 	if request != nil && request.Options.Model != "" {
 		attributes = append(attributes, semconv.GenAIRequestModel(request.Options.Model))

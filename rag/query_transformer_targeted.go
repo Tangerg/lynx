@@ -45,12 +45,12 @@ func newTargetedTextTransformer(
 	return targetedTextTransformer{prompt: prompt, target: target}, nil
 }
 
-func (transformer targetedTextTransformer) transform(ctx context.Context, query Query) (Query, error) {
+func (t targetedTextTransformer) transform(ctx context.Context, query Query) (Query, error) {
 	if err := query.Validate(); err != nil {
 		return Query{}, err
 	}
-	text, err := transformer.prompt.call(ctx, targetedPromptVariables{
-		Target: transformer.target,
+	text, err := t.prompt.call(ctx, targetedPromptVariables{
+		Target: t.target,
 		Query:  query.Text(),
 	})
 	if err != nil {

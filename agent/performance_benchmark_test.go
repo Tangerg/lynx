@@ -132,7 +132,7 @@ func newExecutionReplayBenchmarkDefinition(b *testing.B) executionReplayBenchmar
 	return executionReplayBenchmarkDefinition{descriptor: descriptor}
 }
 
-func (d executionReplayBenchmarkDefinition) Descriptor() Descriptor { return d.descriptor }
+func (e executionReplayBenchmarkDefinition) Descriptor() Descriptor { return e.descriptor }
 
 func (executionReplayBenchmarkDefinition) Start(input Input) (Execution, error) {
 	state, err := input.Decode[executionReplayBenchmarkState]()

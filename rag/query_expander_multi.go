@@ -48,14 +48,14 @@ type MultiQueryExpanderConfig struct {
 	PromptTemplate *chatclient.Template
 }
 
-func (c MultiQueryExpanderConfig) normalized() (MultiQueryExpanderConfig, error) {
-	if c.NumberOfQueries < 0 {
+func (m MultiQueryExpanderConfig) normalized() (MultiQueryExpanderConfig, error) {
+	if m.NumberOfQueries < 0 {
 		return MultiQueryExpanderConfig{}, errors.New("rag: number of expanded queries must not be negative")
 	}
-	if c.NumberOfQueries == 0 {
-		c.NumberOfQueries = DefaultMultiQueryCount
+	if m.NumberOfQueries == 0 {
+		m.NumberOfQueries = DefaultMultiQueryCount
 	}
-	return c, nil
+	return m, nil
 }
 
 var _ Expander = (*MultiQueryExpander)(nil)

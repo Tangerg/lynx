@@ -43,8 +43,8 @@ type MiddlewareConfig struct {
 }
 
 // Validate checks construction inputs without resolving global providers.
-func (config MiddlewareConfig) Validate() error {
-	if strings.TrimSpace(config.Provider) == "" {
+func (m MiddlewareConfig) Validate() error {
+	if strings.TrimSpace(m.Provider) == "" {
 		return fmt.Errorf("%w: provider is required", ErrInvalidConfig)
 	}
 	return nil
@@ -83,8 +83,8 @@ func NewMiddleware(config MiddlewareConfig) (Middleware, error) {
 }
 
 // Wrap decorates one image Model without observing prompts or generated media.
-func (middleware Middleware) Wrap(next coreimage.Model) (coreimage.Model, error) {
-	if lo.IsNil(middleware.tracer) || lo.IsNil(middleware.duration.Inst()) {
+func (m Middleware) Wrap(next coreimage.Model) (coreimage.Model, error) {
+	if lo.IsNil(m.tracer) || lo.IsNil(m.duration.Inst()) {
 		return nil, fmt.Errorf("%w: middleware must be constructed with NewMiddleware", ErrInvalidConfig)
 	}
 	if lo.IsNil(next) {
@@ -92,14 +92,14 @@ func (middleware Middleware) Wrap(next coreimage.Model) (coreimage.Model, error)
 	}
 	return coreimage.ModelFunc(func(ctx context.Context, request *coreimage.Request) (*coreimage.Response, error) {
 		startedAt := time.Now()
-		attributes := middleware.requestAttributes(request)
-		spanCtx, span := middleware.tracer.Start(ctx, middleware.spanName(request),
+		attributes := m.requestAttributes(request)
+		spanCtx, span := m.tracer.Start(ctx, m.spanName(request),
 			trace.WithSpanKind(trace.SpanKindClient),
 			trace.WithAttributes(attributes...),
 		)
 		response, err := next.Call(spanCtx, request)
 		defer span.End()
-		metricAttributes := middleware.metricAttributes(request)
+		metricAttributes := m.metricAttributes(request)
 		if err != nil {
 			errorType := errorTypeAttribute(err)
 			span.RecordError(err)
@@ -107,26 +107,26 @@ func (middleware Middleware) Wrap(next coreimage.Model) (coreimage.Model, error)
 			span.SetAttributes(errorType)
 			metricAttributes = append(metricAttributes, errorType)
 		}
-		middleware.duration.Record(spanCtx, time.Since(startedAt).Seconds(),
+		m.duration.Record(spanCtx, time.Since(startedAt).Seconds(),
 			genaiconv.OperationNameGenerateContent,
-			genaiconv.ProviderNameAttr(middleware.provider),
+			genaiconv.ProviderNameAttr(m.provider),
 			metricAttributes...,
 		)
 		return response, err
 	}), nil
 }
 
-func (middleware Middleware) spanName(request *coreimage.Request) string {
+func (m Middleware) spanName(request *coreimage.Request) string {
 	if request == nil || request.Options.Model == "" {
 		return operationName
 	}
 	return operationName + " " + request.Options.Model
 }
 
-func (middleware Middleware) requestAttributes(request *coreimage.Request) []attribute.KeyValue {
+func (m Middleware) requestAttributes(request *coreimage.Request) []attribute.KeyValue {
 	attributes := []attribute.KeyValue{
 		semconv.GenAIOperationNameGenerateContent,
-		semconv.GenAIProviderNameKey.String(middleware.provider),
+		semconv.GenAIProviderNameKey.String(m.provider),
 	}
 	if request != nil && request.Options.Model != "" {
 		attributes = append(attributes, semconv.GenAIRequestModel(request.Options.Model))
@@ -134,7 +134,7 @@ func (middleware Middleware) requestAttributes(request *coreimage.Request) []att
 	return attributes
 }
 
-func (middleware Middleware) metricAttributes(request *coreimage.Request) []attribute.KeyValue {
+func (m Middleware) metricAttributes(request *coreimage.Request) []attribute.KeyValue {
 	if request == nil || request.Options.Model == "" {
 		return nil
 	}

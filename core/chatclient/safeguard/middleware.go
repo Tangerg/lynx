@@ -36,18 +36,18 @@ func NewMiddleware(matcher Matcher, config MiddlewareConfig) (*Middleware, error
 	return &Middleware{matcher: matcher, config: config}, nil
 }
 
-func (middleware *Middleware) blocked(ctx context.Context, block Block) error {
-	if middleware.config.OnBlock != nil {
-		middleware.config.OnBlock(ctx, block)
+func (m *Middleware) blocked(ctx context.Context, block Block) error {
+	if m.config.OnBlock != nil {
+		m.config.OnBlock(ctx, block)
 	}
 	return &UnsafeError{Block: block}
 }
 
-func (middleware *Middleware) match(ctx context.Context, scope Scope, text string) (*Block, error) {
+func (m *Middleware) match(ctx context.Context, scope Scope, text string) (*Block, error) {
 	if text == "" {
 		return nil, nil
 	}
-	match, err := middleware.matcher.Match(ctx, text)
+	match, err := m.matcher.Match(ctx, text)
 	if err != nil {
 		return nil, fmt.Errorf("safeguard: match %s content: %w", scope, err)
 	}
@@ -57,8 +57,8 @@ func (middleware *Middleware) match(ctx context.Context, scope Scope, text strin
 	return &Block{Scope: scope, Term: match.Term}, nil
 }
 
-func (middleware *Middleware) scanInput(ctx context.Context, request *chat.Request) (*Block, error) {
-	if !middleware.config.Scope.inspects(ScopeInput) || request == nil {
+func (m *Middleware) scanInput(ctx context.Context, request *chat.Request) (*Block, error) {
+	if !m.config.Scope.inspects(ScopeInput) || request == nil {
 		return nil, nil
 	}
 	for index := range request.Messages {
@@ -66,7 +66,7 @@ func (middleware *Middleware) scanInput(ctx context.Context, request *chat.Reque
 		if message.Role != chat.RoleSystem && message.Role != chat.RoleUser {
 			continue
 		}
-		block, err := middleware.match(ctx, ScopeInput, message.Text())
+		block, err := m.match(ctx, ScopeInput, message.Text())
 		if err != nil || block != nil {
 			return block, err
 		}
@@ -74,40 +74,40 @@ func (middleware *Middleware) scanInput(ctx context.Context, request *chat.Reque
 	return nil, nil
 }
 
-func (middleware *Middleware) scanOutput(ctx context.Context, response *chat.Response) (*Block, error) {
-	if !middleware.config.Scope.inspects(ScopeOutput) || response == nil || response.Output == nil || response.Output.Message == nil {
+func (m *Middleware) scanOutput(ctx context.Context, response *chat.Response) (*Block, error) {
+	if !m.config.Scope.inspects(ScopeOutput) || response == nil || response.Output == nil || response.Output.Message == nil {
 		return nil, nil
 	}
-	return middleware.match(ctx, ScopeOutput, response.Output.Message.Text())
+	return m.match(ctx, ScopeOutput, response.Output.Message.Text())
 }
 
-func (middleware *Middleware) inputError(ctx context.Context, request *chat.Request) error {
-	block, err := middleware.scanInput(ctx, request)
+func (m *Middleware) inputError(ctx context.Context, request *chat.Request) error {
+	block, err := m.scanInput(ctx, request)
 	if err != nil {
 		return err
 	}
 	if block != nil {
-		return middleware.blocked(ctx, *block)
+		return m.blocked(ctx, *block)
 	}
 	return nil
 }
 
-func (middleware *Middleware) outputError(ctx context.Context, response *chat.Response) error {
-	block, err := middleware.scanOutput(ctx, response)
+func (m *Middleware) outputError(ctx context.Context, response *chat.Response) error {
+	block, err := m.scanOutput(ctx, response)
 	if err != nil {
 		return err
 	}
 	if block != nil {
-		return middleware.blocked(ctx, *block)
+		return m.blocked(ctx, *block)
 	}
 	return nil
 }
 
 // Call is a [chat.CallMiddleware]. Input is screened before the model runs;
 // output is screened before a response becomes visible to the caller.
-func (middleware *Middleware) Call(next chat.Model) chat.Model {
+func (m *Middleware) Call(next chat.Model) chat.Model {
 	return chat.ModelFunc(func(ctx context.Context, request *chat.Request) (*chat.Response, error) {
-		if err := middleware.inputError(ctx, request); err != nil {
+		if err := m.inputError(ctx, request); err != nil {
 			return nil, err
 		}
 
@@ -115,7 +115,7 @@ func (middleware *Middleware) Call(next chat.Model) chat.Model {
 		if err != nil {
 			return response, err
 		}
-		if err := middleware.outputError(ctx, response); err != nil {
+		if err := m.outputError(ctx, response); err != nil {
 			return nil, err
 		}
 		return response, nil
@@ -125,10 +125,10 @@ func (middleware *Middleware) Call(next chat.Model) chat.Model {
 // Stream is a [chat.StreamMiddleware]. Output chunks are accumulated before
 // screening so a term split across provider chunks is still detected. The
 // chunk that completes an unsafe match is not yielded.
-func (middleware *Middleware) Stream(next chat.Streamer) chat.Streamer {
+func (m *Middleware) Stream(next chat.Streamer) chat.Streamer {
 	return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
 		return func(yield func(*chat.Response, error) bool) {
-			if err := middleware.inputError(ctx, request); err != nil {
+			if err := m.inputError(ctx, request); err != nil {
 				yield(nil, err)
 				return
 			}
@@ -138,7 +138,7 @@ func (middleware *Middleware) Stream(next chat.Streamer) chat.Streamer {
 				yield(nil, ErrNilStream)
 				return
 			}
-			stream := safeguardStream{ctx: ctx, middleware: middleware, yield: yield}
+			stream := safeguardStream{ctx: ctx, middleware: m, yield: yield}
 			sequence(stream.consume)
 		}
 	})

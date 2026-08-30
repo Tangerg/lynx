@@ -12,6 +12,6 @@ type Evaluator[T any] interface {
 
 type EvaluatorFunc[T any] func(context.Context, T) (Report, error)
 
-func (evaluate EvaluatorFunc[T]) Evaluate(ctx context.Context, subject T) (Report, error) {
-	return evaluate(ctx, subject)
+func (e EvaluatorFunc[T]) Evaluate(ctx context.Context, subject T) (Report, error) {
+	return e(ctx, subject)
 }

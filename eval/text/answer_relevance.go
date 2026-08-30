@@ -52,11 +52,11 @@ func NewAnswerRelevanceEvaluator(config ModelEvaluatorConfig) (*AnswerRelevanceE
 	return &AnswerRelevanceEvaluator{evaluator: evaluator}, nil
 }
 
-func (evaluator *AnswerRelevanceEvaluator) Evaluate(ctx context.Context, sample AnswerRelevanceSample) (eval.Report, error) {
+func (a *AnswerRelevanceEvaluator) Evaluate(ctx context.Context, sample AnswerRelevanceSample) (eval.Report, error) {
 	if err := sample.Validate(); err != nil {
 		return eval.Report{}, err
 	}
-	return evaluator.evaluator.Evaluate(ctx, sample)
+	return a.evaluator.Evaluate(ctx, sample)
 }
 
 var _ eval.Evaluator[AnswerRelevanceSample] = (*AnswerRelevanceEvaluator)(nil)

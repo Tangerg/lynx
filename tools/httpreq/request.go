@@ -16,26 +16,26 @@ type Request struct {
 	TimeoutMS int               `json:"timeout_ms,omitempty" jsonschema:"minimum=1,maximum=120000" jsonschema_description:"Per-call timeout in milliseconds, from 1 to 120000. Omit to use the configured default."`
 }
 
-func (request *Request) prepare() (*Request, error) {
-	if request == nil {
+func (r *Request) prepare() (*Request, error) {
+	if r == nil {
 		return nil, ErrNilRequest
 	}
-	prepared := *request
-	prepared.URL = strings.TrimSpace(request.URL)
-	prepared.Method = request.Method.Normalize()
-	prepared.Headers = maps.Clone(request.Headers)
-	prepared.Query = maps.Clone(request.Query)
+	prepared := *r
+	prepared.URL = strings.TrimSpace(r.URL)
+	prepared.Method = r.Method.Normalize()
+	prepared.Headers = maps.Clone(r.Headers)
+	prepared.Query = maps.Clone(r.Query)
 	if err := prepared.Validate(); err != nil {
 		return nil, err
 	}
 	return &prepared, nil
 }
 
-func (request *Request) Validate() error {
-	if request == nil {
+func (r *Request) Validate() error {
+	if r == nil {
 		return ErrNilRequest
 	}
-	trimmedURL := strings.TrimSpace(request.URL)
+	trimmedURL := strings.TrimSpace(r.URL)
 	if trimmedURL == "" {
 		return ErrEmptyURL
 	}
@@ -43,10 +43,10 @@ func (request *Request) Validate() error {
 	if err != nil || parsed.Host == "" || (parsed.Scheme != "http" && parsed.Scheme != "https") {
 		return ErrInvalidURL
 	}
-	if err := request.Method.Validate(); err != nil {
+	if err := r.Method.Validate(); err != nil {
 		return err
 	}
-	if request.TimeoutMS < 0 || request.TimeoutMS > int(MaxRequestTimeout/time.Millisecond) {
+	if r.TimeoutMS < 0 || r.TimeoutMS > int(MaxRequestTimeout/time.Millisecond) {
 		return ErrInvalidRequestTimeout
 	}
 	return nil

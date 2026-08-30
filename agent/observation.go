@@ -49,12 +49,12 @@ type ObservationFailureCounts struct {
 	deltaListenerPanics uint64
 }
 
-func (c ObservationFailureCounts) EventListenerPanics() uint64 {
-	return c.eventListenerPanics
+func (o ObservationFailureCounts) EventListenerPanics() uint64 {
+	return o.eventListenerPanics
 }
 
-func (c ObservationFailureCounts) DeltaListenerPanics() uint64 {
-	return c.deltaListenerPanics
+func (o ObservationFailureCounts) DeltaListenerPanics() uint64 {
+	return o.deltaListenerPanics
 }
 
 type observationBus struct {

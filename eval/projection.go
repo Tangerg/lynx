@@ -29,13 +29,13 @@ func NewProjectionEvaluator[T, Subject any](
 	return &ProjectionEvaluator[T, Subject]{evaluator: evaluator, projection: projection}, nil
 }
 
-func (evaluator *ProjectionEvaluator[T, Subject]) Evaluate(ctx context.Context, value T) (Report, error) {
+func (p *ProjectionEvaluator[T, Subject]) Evaluate(ctx context.Context, value T) (Report, error) {
 	if err := ctx.Err(); err != nil {
 		return Report{}, err
 	}
-	subject, err := evaluator.projection(value)
+	subject, err := p.projection(value)
 	if err != nil {
 		return Report{}, fmt.Errorf("eval: project subject: %w", err)
 	}
-	return evaluator.evaluator.Evaluate(ctx, subject)
+	return p.evaluator.Evaluate(ctx, subject)
 }

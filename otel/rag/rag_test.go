@@ -24,9 +24,9 @@ type testRetriever struct {
 	observed   bool
 }
 
-func (r *testRetriever) Retrieve(ctx context.Context, _ corerag.Query) (corerag.Candidates, error) {
-	r.observed = trace.SpanFromContext(ctx).SpanContext().IsValid()
-	return r.candidates, r.err
+func (t *testRetriever) Retrieve(ctx context.Context, _ corerag.Query) (corerag.Candidates, error) {
+	t.observed = trace.SpanFromContext(ctx).SpanContext().IsValid()
+	return t.candidates, t.err
 }
 
 type telemetryRig struct {

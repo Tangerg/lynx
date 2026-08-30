@@ -37,11 +37,11 @@ type MiddlewareConfig struct {
 	Augmenter Augmenter
 }
 
-func (config MiddlewareConfig) validate() error {
-	if lo.IsNil(config.Retriever) {
+func (m MiddlewareConfig) validate() error {
+	if lo.IsNil(m.Retriever) {
 		return ErrNilRetriever
 	}
-	if lo.IsNil(config.Augmenter) {
+	if lo.IsNil(m.Augmenter) {
 		return ErrNilAugmenter
 	}
 	return nil
@@ -72,17 +72,17 @@ func newPreparedChatRequest(request *chat.Request) (preparedChatRequest, error) 
 	return preparedChatRequest{request: clone}, nil
 }
 
-func (prepared preparedChatRequest) finalUserText() (string, error) {
-	last := len(prepared.request.Messages) - 1
-	if last < 0 || prepared.request.Messages[last].Role != chat.RoleUser {
+func (p preparedChatRequest) finalUserText() (string, error) {
+	last := len(p.request.Messages) - 1
+	if last < 0 || p.request.Messages[last].Role != chat.RoleUser {
 		return "", ErrNoFinalUserMessage
 	}
-	return prepared.request.Messages[last].Text(), nil
+	return p.request.Messages[last].Text(), nil
 }
 
-func (prepared *preparedChatRequest) replaceFinalUserText(text string) {
-	index := len(prepared.request.Messages) - 1
-	original := prepared.request.Messages[index]
+func (p *preparedChatRequest) replaceFinalUserText(text string) {
+	index := len(p.request.Messages) - 1
+	original := p.request.Messages[index]
 	parts := make([]chat.Part, 0, len(original.Parts))
 	replaced := false
 	for partIndex := range original.Parts {
@@ -96,31 +96,31 @@ func (prepared *preparedChatRequest) replaceFinalUserText(text string) {
 			parts = append(parts, original.Parts[partIndex].Clone())
 		}
 	}
-	prepared.request.Messages[index] = chat.Message{
+	p.request.Messages[index] = chat.Message{
 		Role: chat.RoleUser, Parts: parts, Metadata: original.Metadata.Clone(),
 	}
 }
 
-func (prepared preparedChatRequest) history() []chat.Message {
-	history := make([]chat.Message, len(prepared.request.Messages)-1)
+func (p preparedChatRequest) history() []chat.Message {
+	history := make([]chat.Message, len(p.request.Messages)-1)
 	for index := range history {
-		history[index] = prepared.request.Messages[index].Clone()
+		history[index] = p.request.Messages[index].Clone()
 	}
 	return history
 }
 
-func (prepared preparedChatRequest) attachRetrievalMetadata(response *chat.Response) error {
+func (p preparedChatRequest) attachRetrievalMetadata(response *chat.Response) error {
 	if response.Metadata == nil {
 		response.Metadata = &chat.ResponseMetadata{}
 	}
-	if err := response.Metadata.Extra.Set(retrievedCandidatesMetadataKey, prepared.candidates); err != nil {
+	if err := response.Metadata.Extra.Set(retrievedCandidatesMetadataKey, p.candidates); err != nil {
 		return err
 	}
-	if len(prepared.citations) == 0 {
+	if len(p.citations) == 0 {
 		delete(response.Metadata.Extra, citationsMetadataKey)
 		return nil
 	}
-	return response.Metadata.Extra.Set(citationsMetadataKey, prepared.citations)
+	return response.Metadata.Extra.Set(citationsMetadataKey, p.citations)
 }
 
 // CandidatesFromResponse returns the candidates attached to response by
@@ -173,7 +173,7 @@ func NewMiddleware(config MiddlewareConfig) (*Middleware, error) {
 	return &Middleware{retriever: config.Retriever, augmenter: config.Augmenter}, nil
 }
 
-func (middleware *Middleware) prepare(ctx context.Context, request *chat.Request) (preparedChatRequest, error) {
+func (m *Middleware) prepare(ctx context.Context, request *chat.Request) (preparedChatRequest, error) {
 	prepared, err := newPreparedChatRequest(request)
 	if err != nil {
 		return preparedChatRequest{}, err
@@ -192,11 +192,11 @@ func (middleware *Middleware) prepare(ctx context.Context, request *chat.Request
 		return preparedChatRequest{}, fmt.Errorf("rag: attach chat history: %w", err)
 	}
 
-	candidates, err := Retrieve(ctx, middleware.retriever, query)
+	candidates, err := Retrieve(ctx, m.retriever, query)
 	if err != nil {
 		return preparedChatRequest{}, err
 	}
-	augmentation, err := augment(ctx, middleware.augmenter, query, candidates)
+	augmentation, err := augment(ctx, m.augmenter, query, candidates)
 	if err != nil {
 		return preparedChatRequest{}, err
 	}
@@ -206,8 +206,8 @@ func (middleware *Middleware) prepare(ctx context.Context, request *chat.Request
 	return prepared, nil
 }
 
-func (middleware *Middleware) call(ctx context.Context, request *chat.Request, next chat.Model) (*chat.Response, error) {
-	prepared, err := middleware.prepare(ctx, request)
+func (m *Middleware) call(ctx context.Context, request *chat.Request, next chat.Model) (*chat.Response, error) {
+	prepared, err := m.prepare(ctx, request)
 	if err != nil {
 		return nil, err
 	}
@@ -225,9 +225,9 @@ func (middleware *Middleware) call(ctx context.Context, request *chat.Request, n
 	return response, err
 }
 
-func (middleware *Middleware) stream(ctx context.Context, request *chat.Request, next chat.Streamer) iter.Seq2[*chat.Response, error] {
+func (m *Middleware) stream(ctx context.Context, request *chat.Request, next chat.Streamer) iter.Seq2[*chat.Response, error] {
 	return func(yield func(*chat.Response, error) bool) {
-		prepared, err := middleware.prepare(ctx, request)
+		prepared, err := m.prepare(ctx, request)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -262,20 +262,20 @@ func (middleware *Middleware) stream(ctx context.Context, request *chat.Request,
 	}
 }
 
-func (middleware *Middleware) Call(next chat.Model) chat.Model {
+func (m *Middleware) Call(next chat.Model) chat.Model {
 	if lo.IsNil(next) {
 		return nil
 	}
 	return chat.ModelFunc(func(ctx context.Context, request *chat.Request) (*chat.Response, error) {
-		return middleware.call(ctx, request, next)
+		return m.call(ctx, request, next)
 	})
 }
 
-func (middleware *Middleware) Stream(next chat.Streamer) chat.Streamer {
+func (m *Middleware) Stream(next chat.Streamer) chat.Streamer {
 	if lo.IsNil(next) {
 		return nil
 	}
 	return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
-		return middleware.stream(ctx, request, next)
+		return m.stream(ctx, request, next)
 	})
 }

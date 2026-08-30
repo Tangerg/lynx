@@ -50,8 +50,8 @@ func NewClient(config ClientConfig) (*Client, error) {
 
 // Do applies the frozen host, method, timeout, redirect, and response-size
 // policy before returning a model-facing response.
-func (client *Client) Do(ctx context.Context, request *Request) (*Response, error) {
-	if client == nil {
+func (c *Client) Do(ctx context.Context, request *Request) (*Response, error) {
+	if c == nil {
 		return nil, ErrNilClient
 	}
 	prepared, err := request.prepare()
@@ -59,7 +59,7 @@ func (client *Client) Do(ctx context.Context, request *Request) (*Response, erro
 		return nil, err
 	}
 	method := prepared.Method.Normalize()
-	if _, allowed := client.allowedMethods[method]; !allowed {
+	if _, allowed := c.allowedMethods[method]; !allowed {
 		return nil, fmt.Errorf("%w: %s", ErrMethodNotAllowed, method)
 	}
 
@@ -68,18 +68,18 @@ func (client *Client) Do(ctx context.Context, request *Request) (*Response, erro
 		return nil, fmt.Errorf("httpreq: parse validated request URL: %w", err)
 	}
 	host := parsedURL.Hostname()
-	if !client.allowedHosts.Allows(host) {
+	if !c.allowedHosts.Allows(host) {
 		return nil, fmt.Errorf("%w: %s", ErrHostNotAllowed, host)
 	}
 
-	timeout := client.defaultTimeout
+	timeout := c.defaultTimeout
 	if prepared.TimeoutMS > 0 {
 		timeout = time.Duration(prepared.TimeoutMS) * time.Millisecond
 	}
 	callContext, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	restyRequest := client.transport.R().
+	restyRequest := c.transport.R().
 		SetContext(callContext).
 		SetDoNotParseResponse(true)
 	for name, value := range prepared.Headers {
@@ -100,7 +100,7 @@ func (client *Client) Do(ctx context.Context, request *Request) (*Response, erro
 	}
 	bodyReader := response.RawBody()
 	defer bodyReader.Close()
-	body, truncated, err := readCapped(bodyReader, client.maxResponseBytes)
+	body, truncated, err := readCapped(bodyReader, c.maxResponseBytes)
 	if err != nil {
 		return nil, fmt.Errorf("httpreq: read response body from host %q: %w", host, err)
 	}

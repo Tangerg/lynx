@@ -25,12 +25,12 @@ const (
 	DirectionLowerIsBetter  Direction = "lower_is_better"
 )
 
-func (direction Direction) Validate() error {
-	switch direction {
+func (d Direction) Validate() error {
+	switch d {
 	case DirectionUnspecified, DirectionHigherIsBetter, DirectionLowerIsBetter:
 		return nil
 	default:
-		return fmt.Errorf("%w: unsupported direction %q", ErrInvalidMetric, direction)
+		return fmt.Errorf("%w: unsupported direction %q", ErrInvalidMetric, d)
 	}
 }
 
@@ -68,39 +68,39 @@ func NewMetric(config MetricConfig) (Metric, error) {
 	return metric, nil
 }
 
-func (metric Metric) Clone() Metric {
-	metric.Parameters = metric.Parameters.Clone()
-	return metric
+func (m Metric) Clone() Metric {
+	m.Parameters = m.Parameters.Clone()
+	return m
 }
 
-func (metric Metric) String() string {
-	if metric.Namespace == "" {
-		return string(metric.Name)
+func (m Metric) String() string {
+	if m.Namespace == "" {
+		return string(m.Name)
 	}
-	return metric.Namespace + "/" + string(metric.Name)
+	return m.Namespace + "/" + string(m.Name)
 }
 
-func (metric Metric) Validate() error {
-	if err := validateMetricPart("namespace", metric.Namespace, true); err != nil {
+func (m Metric) Validate() error {
+	if err := validateMetricPart("namespace", m.Namespace, true); err != nil {
 		return err
 	}
-	if err := validateMetricPart("name", string(metric.Name), false); err != nil {
+	if err := validateMetricPart("name", string(m.Name), false); err != nil {
 		return err
 	}
-	if metric.Unit != strings.TrimSpace(metric.Unit) {
+	if m.Unit != strings.TrimSpace(m.Unit) {
 		return fmt.Errorf("%w: unit must not contain surrounding whitespace", ErrInvalidMetric)
 	}
-	if err := metric.Direction.Validate(); err != nil {
+	if err := m.Direction.Validate(); err != nil {
 		return err
 	}
-	if err := metric.Parameters.Validate(); err != nil {
+	if err := m.Parameters.Validate(); err != nil {
 		return fmt.Errorf("%w: parameters: %w", ErrInvalidMetric, err)
 	}
 	return nil
 }
 
-func (metric Metric) identity() (string, error) {
-	encoded, err := json.Marshal(metric)
+func (m Metric) identity() (string, error) {
+	encoded, err := json.Marshal(m)
 	if err != nil {
 		return "", fmt.Errorf("%w: encode identity: %w", ErrInvalidMetric, err)
 	}

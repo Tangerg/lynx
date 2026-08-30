@@ -32,17 +32,17 @@ type ripgrepText struct {
 	Bytes *string `json:"bytes"`
 }
 
-func (t ripgrepText) decode() (string, error) {
-	if t.Text != nil && t.Bytes != nil {
+func (r ripgrepText) decode() (string, error) {
+	if r.Text != nil && r.Bytes != nil {
 		return "", errors.New("ripgrep text contains both text and bytes")
 	}
-	if t.Text != nil {
-		return *t.Text, nil
+	if r.Text != nil {
+		return *r.Text, nil
 	}
-	if t.Bytes == nil {
+	if r.Bytes == nil {
 		return "", errors.New("ripgrep text has no representation")
 	}
-	decoded, err := base64.StdEncoding.DecodeString(*t.Bytes)
+	decoded, err := base64.StdEncoding.DecodeString(*r.Bytes)
 	if err != nil {
 		return "", fmt.Errorf("decode ripgrep bytes: %w", err)
 	}

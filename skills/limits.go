@@ -24,17 +24,17 @@ type repositoryLimits struct {
 	maxSkillBytes       int64
 }
 
-func (config RepositoryConfig) resolve() (repositoryLimits, error) {
-	if config.MaxEntries < 0 || config.MaxFrontmatterBytes < 0 || config.MaxSkillBytes < 0 {
+func (r RepositoryConfig) resolve() (repositoryLimits, error) {
+	if r.MaxEntries < 0 || r.MaxFrontmatterBytes < 0 || r.MaxSkillBytes < 0 {
 		return repositoryLimits{}, fmt.Errorf("%w: repository limits must not be negative", ErrInvalidLimit)
 	}
-	if config.MaxFrontmatterBytes > maxBoundedReadBytes || config.MaxSkillBytes > maxBoundedReadBytes {
+	if r.MaxFrontmatterBytes > maxBoundedReadBytes || r.MaxSkillBytes > maxBoundedReadBytes {
 		return repositoryLimits{}, fmt.Errorf("%w: byte limits are too large", ErrInvalidLimit)
 	}
 	limits := repositoryLimits{
-		maxEntries:          config.MaxEntries,
-		maxFrontmatterBytes: config.MaxFrontmatterBytes,
-		maxSkillBytes:       config.MaxSkillBytes,
+		maxEntries:          r.MaxEntries,
+		maxFrontmatterBytes: r.MaxFrontmatterBytes,
+		maxSkillBytes:       r.MaxSkillBytes,
 	}
 	if limits.maxEntries == 0 {
 		limits.maxEntries = DefaultMaxRepositoryEntries

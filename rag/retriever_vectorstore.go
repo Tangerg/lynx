@@ -34,24 +34,24 @@ type VectorStoreRetrieverConfig struct {
 	FilterFunc func(ctx context.Context, query Query) (filter.Predicate, error)
 }
 
-func (c VectorStoreRetrieverConfig) normalized() (VectorStoreRetrieverConfig, error) {
-	if lo.IsNil(c.VectorStore) {
+func (v VectorStoreRetrieverConfig) normalized() (VectorStoreRetrieverConfig, error) {
+	if lo.IsNil(v.VectorStore) {
 		return VectorStoreRetrieverConfig{}, errors.New("rag: vector store is required")
 	}
-	if c.TopK < 0 {
+	if v.TopK < 0 {
 		return VectorStoreRetrieverConfig{}, errors.New("rag: vector-store top K must not be negative")
 	}
-	if c.MinScore < corevs.MinSimilarityScore || c.MinScore > corevs.MaxSimilarityScore {
+	if v.MinScore < corevs.MinSimilarityScore || v.MinScore > corevs.MaxSimilarityScore {
 		return VectorStoreRetrieverConfig{}, fmt.Errorf(
 			"rag: vector-store minimum score must be in [%.1f, %.1f]",
 			corevs.MinSimilarityScore,
 			corevs.MaxSimilarityScore,
 		)
 	}
-	if c.TopK == 0 {
-		c.TopK = corevs.DefaultTopK
+	if v.TopK == 0 {
+		v.TopK = corevs.DefaultTopK
 	}
-	return c, nil
+	return v, nil
 }
 
 var _ Retriever = (*VectorStoreRetriever)(nil)

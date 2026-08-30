@@ -16,8 +16,8 @@ const (
 	effectPhaseSettled effectPhase = "settled"
 )
 
-func (p effectPhase) valid() bool {
-	switch p {
+func (e effectPhase) valid() bool {
+	switch e {
 	case effectPhasePlanned, effectPhasePending, effectPhaseSettled:
 		return true
 	default:
@@ -25,7 +25,7 @@ func (p effectPhase) valid() bool {
 	}
 }
 
-func (p effectPhase) String() string { return string(p) }
+func (e effectPhase) String() string { return string(e) }
 
 func (p *preparedEffectWire) begin() error {
 	if p == nil || p.Phase != effectPhasePlanned || p.Settlement != nil {

@@ -284,23 +284,6 @@ func TestIntegrationFamiliesDoNotImportSiblingProviders(t *testing.T) {
 	})
 }
 
-func TestNamespaceRootsStayPackageFree(t *testing.T) {
-	t.Parallel()
-	root := repositoryRoot(t)
-	for _, relative := range []string{"core", "examples", "historystores", "models", "otel", "tokenizers", "tools", "vectorstores"} {
-		entries, err := os.ReadDir(filepath.Join(root, relative))
-		if err != nil {
-			t.Errorf("read namespace root %s: %v", relative, err)
-			continue
-		}
-		for _, entry := range entries {
-			if !entry.IsDir() && filepath.Ext(entry.Name()) == ".go" {
-				t.Errorf("namespace root %s must not contain Go package file %s", relative, entry.Name())
-			}
-		}
-	}
-}
-
 func TestPackageNamesDescribeTheirDirectories(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)

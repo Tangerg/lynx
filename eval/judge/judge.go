@@ -118,11 +118,11 @@ func configuredMetric(metric eval.Metric, threshold *eval.Score, samples int) (e
 	})
 }
 
-func (evaluator *Evaluator[T]) Evaluate(ctx context.Context, subject T) (eval.Report, error) {
+func (e *Evaluator[T]) Evaluate(ctx context.Context, subject T) (eval.Report, error) {
 	if err := ctx.Err(); err != nil {
 		return eval.Report{}, err
 	}
-	message, err := evaluator.prompt(subject)
+	message, err := e.prompt(subject)
 	if err != nil {
 		return eval.Report{}, fmt.Errorf("eval/judge: build prompt: %w", err)
 	}
@@ -130,9 +130,9 @@ func (evaluator *Evaluator[T]) Evaluate(ctx context.Context, subject T) (eval.Re
 		return eval.Report{}, fmt.Errorf("eval/judge: prompt: %w", err)
 	}
 
-	outputs := make([]modelReport, evaluator.samples)
-	for index := range evaluator.samples {
-		output, callErr := evaluator.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message.Clone()}})
+	outputs := make([]modelReport, e.samples)
+	for index := range e.samples {
+		output, callErr := e.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message.Clone()}})
 		if callErr != nil {
 			if errors.Is(callErr, chatclient.ErrInvalidOutput) {
 				return eval.Report{}, fmt.Errorf("%w: model output: %w", eval.ErrInvalidReport, callErr)
@@ -144,10 +144,10 @@ func (evaluator *Evaluator[T]) Evaluate(ctx context.Context, subject T) (eval.Re
 		}
 		outputs[index] = output
 	}
-	return evaluator.aggregate(outputs)
+	return e.aggregate(outputs)
 }
 
-func (evaluator *Evaluator[T]) aggregate(outputs []modelReport) (eval.Report, error) {
+func (e *Evaluator[T]) aggregate(outputs []modelReport) (eval.Report, error) {
 	slices.SortFunc(outputs, func(a, b modelReport) int {
 		if a.Score < b.Score {
 			return -1
@@ -175,15 +175,15 @@ func (evaluator *Evaluator[T]) aggregate(outputs []modelReport) (eval.Report, er
 		}
 	}
 	verdict := eval.VerdictUnspecified
-	if evaluator.threshold != nil {
-		decided, err := score.Verdict(*evaluator.threshold)
+	if e.threshold != nil {
+		decided, err := score.Verdict(*e.threshold)
 		if err != nil {
 			return eval.Report{}, fmt.Errorf("eval/judge: verdict: %w", err)
 		}
 		verdict = decided
 	}
 	report := eval.Report{
-		Metric: evaluator.metric.Clone(), Verdict: verdict, Score: &score,
+		Metric: e.metric.Clone(), Verdict: verdict, Score: &score,
 		Feedback: feedback, Metadata: reportMetadata,
 	}
 	if err := report.Validate(); err != nil {

@@ -31,17 +31,17 @@ type DescriptorConfig struct {
 	OutputSchema Schema
 }
 
-func (c DescriptorConfig) validate() error {
-	if !validQualifiedName(c.Name) {
+func (d DescriptorConfig) validate() error {
+	if !validQualifiedName(d.Name) {
 		return fmt.Errorf("%w: name must start with a lowercase letter and contain only lowercase letters, digits, '.', '_' or '-'", ErrInvalidDescriptor)
 	}
-	if c.Description == "" || strings.TrimSpace(c.Description) != c.Description || len(c.Description) > maxDescriptionBytes {
+	if d.Description == "" || strings.TrimSpace(d.Description) != d.Description || len(d.Description) > maxDescriptionBytes {
 		return fmt.Errorf("%w: description must be non-empty, trimmed, and at most %d bytes", ErrInvalidDescriptor, maxDescriptionBytes)
 	}
-	if !c.InputSchema.Valid() {
+	if !d.InputSchema.Valid() {
 		return fmt.Errorf("%w: input schema: %w", ErrInvalidDescriptor, ErrInvalidSchema)
 	}
-	if !c.OutputSchema.Valid() {
+	if !d.OutputSchema.Valid() {
 		return fmt.Errorf("%w: output schema: %w", ErrInvalidDescriptor, ErrInvalidSchema)
 	}
 	return nil

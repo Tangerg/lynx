@@ -66,9 +66,9 @@ type ToolDiscoveryConfig struct {
 // publicName returns the configured public name or a provider-safe default.
 // MCP itself permits names that model providers reject, while calls still need
 // to route by the unchanged raw MCP name.
-func (config ToolDiscoveryConfig) publicName(sourceName, remoteName string) string {
-	if config.PublicName != nil {
-		return config.PublicName(sourceName, remoteName)
+func (t ToolDiscoveryConfig) publicName(sourceName, remoteName string) string {
+	if t.PublicName != nil {
+		return t.PublicName(sourceName, remoteName)
 	}
 	if sourceName == "" {
 		return sanitizeToolName(remoteName)

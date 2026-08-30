@@ -55,11 +55,11 @@ func NewCorrectnessEvaluator(config ModelEvaluatorConfig) (*CorrectnessEvaluator
 	return &CorrectnessEvaluator{evaluator: evaluator}, nil
 }
 
-func (evaluator *CorrectnessEvaluator) Evaluate(ctx context.Context, sample CorrectnessSample) (eval.Report, error) {
+func (c *CorrectnessEvaluator) Evaluate(ctx context.Context, sample CorrectnessSample) (eval.Report, error) {
 	if err := sample.Validate(); err != nil {
 		return eval.Report{}, err
 	}
-	return evaluator.evaluator.Evaluate(ctx, sample)
+	return c.evaluator.Evaluate(ctx, sample)
 }
 
 var _ eval.Evaluator[CorrectnessSample] = (*CorrectnessEvaluator)(nil)

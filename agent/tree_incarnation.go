@@ -42,28 +42,28 @@ func newTreeIncarnationID() (TreeIncarnationID, error) {
 	return ParseTreeIncarnationID(treeIncarnationIDPrefix + hex.EncodeToString(random[:]))
 }
 
-func (i TreeIncarnationID) String() string { return i.value }
+func (t TreeIncarnationID) String() string { return t.value }
 
-func (i TreeIncarnationID) Valid() bool {
-	_, err := ParseTreeIncarnationID(i.value)
+func (t TreeIncarnationID) Valid() bool {
+	_, err := ParseTreeIncarnationID(t.value)
 	return err == nil
 }
 
-func (i TreeIncarnationID) MarshalText() ([]byte, error) {
-	if !i.Valid() {
+func (t TreeIncarnationID) MarshalText() ([]byte, error) {
+	if !t.Valid() {
 		return nil, ErrInvalidTreeIncarnationID
 	}
-	return []byte(i.value), nil
+	return []byte(t.value), nil
 }
 
-func (i *TreeIncarnationID) UnmarshalText(text []byte) error {
-	if i == nil {
+func (t *TreeIncarnationID) UnmarshalText(text []byte) error {
+	if t == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidTreeIncarnationID)
 	}
 	value, err := ParseTreeIncarnationID(string(text))
 	if err != nil {
 		return err
 	}
-	*i = value
+	*t = value
 	return nil
 }

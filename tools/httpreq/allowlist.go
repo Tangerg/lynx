@@ -30,12 +30,12 @@ func NewAllowlist(hosts []string) (Allowlist, error) {
 	return Allowlist{patterns: patterns}, nil
 }
 
-func (allowlist Allowlist) Allows(host string) bool {
+func (a Allowlist) Allows(host string) bool {
 	normalized, err := normalizeHost(host)
 	if err != nil {
 		return false
 	}
-	for _, pattern := range allowlist.patterns {
+	for _, pattern := range a.patterns {
 		if pattern.exact == normalized ||
 			(pattern.suffix != "" && strings.HasSuffix(normalized, pattern.suffix)) {
 			return true
@@ -44,7 +44,7 @@ func (allowlist Allowlist) Allows(host string) bool {
 	return false
 }
 
-func (policy clientPolicy) checkRedirect(request *http.Request, via []*http.Request) error {
+func (c clientPolicy) checkRedirect(request *http.Request, via []*http.Request) error {
 	if len(via) >= defaultRedirectLimit {
 		return fmt.Errorf("%w: limit %d", ErrRedirectLimitReached, defaultRedirectLimit)
 	}
@@ -55,11 +55,11 @@ func (policy clientPolicy) checkRedirect(request *http.Request, via []*http.Requ
 		return fmt.Errorf("httpreq: validate redirect target: %w", ErrInvalidURL)
 	}
 	host := request.URL.Hostname()
-	if !policy.allowedHosts.Allows(host) {
+	if !c.allowedHosts.Allows(host) {
 		return fmt.Errorf("%w: redirect target %q", ErrHostNotAllowed, host)
 	}
 	method := Method(request.Method).Normalize()
-	if _, allowed := policy.allowedMethods[method]; !allowed {
+	if _, allowed := c.allowedMethods[method]; !allowed {
 		return fmt.Errorf("%w: redirect method %s", ErrMethodNotAllowed, method)
 	}
 	return nil

@@ -12,15 +12,15 @@ const (
 	VerdictFail        Verdict = "fail"
 )
 
-func (verdict Verdict) Validate() error {
-	switch verdict {
+func (v Verdict) Validate() error {
+	switch v {
 	case VerdictUnspecified, VerdictPass, VerdictFail:
 		return nil
 	default:
-		return fmt.Errorf("%w: unsupported verdict %q", ErrInvalidReport, verdict)
+		return fmt.Errorf("%w: unsupported verdict %q", ErrInvalidReport, v)
 	}
 }
 
-func (verdict Verdict) Decided() bool {
-	return verdict == VerdictPass || verdict == VerdictFail
+func (v Verdict) Decided() bool {
+	return v == VerdictPass || v == VerdictFail
 }

@@ -18,16 +18,16 @@ const (
 )
 
 // Normalize applies the wire default and canonical HTTP casing.
-func (method Method) Normalize() Method {
-	normalized := Method(strings.ToUpper(strings.TrimSpace(string(method))))
+func (m Method) Normalize() Method {
+	normalized := Method(strings.ToUpper(strings.TrimSpace(string(m))))
 	if normalized == "" {
 		return MethodGET
 	}
 	return normalized
 }
 
-func (method Method) Validate() error {
-	switch method.Normalize() {
+func (m Method) Validate() error {
+	switch m.Normalize() {
 	case MethodGET, MethodHEAD, MethodPOST, MethodPUT, MethodPATCH, MethodDELETE:
 		return nil
 	default:

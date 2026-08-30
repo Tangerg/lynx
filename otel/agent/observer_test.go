@@ -508,9 +508,9 @@ type startsBlockingMeterProvider struct {
 	release <-chan struct{}
 }
 
-func (p startsBlockingMeterProvider) Meter(name string, options ...metric.MeterOption) metric.Meter {
+func (s startsBlockingMeterProvider) Meter(name string, options ...metric.MeterOption) metric.Meter {
 	return startsBlockingMeter{
-		Meter: p.MeterProvider.Meter(name, options...), entered: p.entered, release: p.release,
+		Meter: s.MeterProvider.Meter(name, options...), entered: s.entered, release: s.release,
 	}
 }
 
@@ -520,16 +520,16 @@ type startsBlockingMeter struct {
 	release <-chan struct{}
 }
 
-func (m startsBlockingMeter) Int64Counter(
+func (s startsBlockingMeter) Int64Counter(
 	name string,
 	options ...metric.Int64CounterOption,
 ) (metric.Int64Counter, error) {
-	counter, err := m.Meter.Int64Counter(name, options...)
+	counter, err := s.Meter.Int64Counter(name, options...)
 	if err != nil || name != "agent.process.activations" {
 		return counter, err
 	}
 	return &blockingCounter{
-		Int64Counter: counter, entered: m.entered, release: m.release,
+		Int64Counter: counter, entered: s.entered, release: s.release,
 	}, nil
 }
 
@@ -540,10 +540,10 @@ type blockingCounter struct {
 	release <-chan struct{}
 }
 
-func (c *blockingCounter) Add(ctx context.Context, value int64, options ...metric.AddOption) {
-	c.once.Do(func() { close(c.entered) })
-	<-c.release
-	c.Int64Counter.Add(ctx, value, options...)
+func (b *blockingCounter) Add(ctx context.Context, value int64, options ...metric.AddOption) {
+	b.once.Do(func() { close(b.entered) })
+	<-b.release
+	b.Int64Counter.Add(ctx, value, options...)
 }
 
 type testInput struct {
@@ -803,11 +803,11 @@ func metricByName(t *testing.T, metrics metricdata.ResourceMetrics, name string)
 	return metricdata.Metrics{}
 }
 
-func int64Sum(t *testing.T, metric metricdata.Metrics) int64 {
+func int64Sum(t *testing.T, metrics metricdata.Metrics) int64 {
 	t.Helper()
-	data, ok := metric.Data.(metricdata.Sum[int64])
+	data, ok := metrics.Data.(metricdata.Sum[int64])
 	if !ok {
-		t.Fatalf("metric %q data = %T, want int64 sum", metric.Name, metric.Data)
+		t.Fatalf("metric %q data = %T, want int64 sum", metrics.Name, metrics.Data)
 	}
 	var total int64
 	for _, point := range data.DataPoints {
@@ -816,11 +816,11 @@ func int64Sum(t *testing.T, metric metricdata.Metrics) int64 {
 	return total
 }
 
-func assertSumAttribute(t *testing.T, metric metricdata.Metrics, key, want string) {
+func assertSumAttribute(t *testing.T, metrics metricdata.Metrics, key, want string) {
 	t.Helper()
-	data, ok := metric.Data.(metricdata.Sum[int64])
+	data, ok := metrics.Data.(metricdata.Sum[int64])
 	if !ok {
-		t.Fatalf("metric %q data = %T, want int64 sum", metric.Name, metric.Data)
+		t.Fatalf("metric %q data = %T, want int64 sum", metrics.Name, metrics.Data)
 	}
 	for _, point := range data.DataPoints {
 		value, found := point.Attributes.Value(attribute.Key(key))
@@ -828,14 +828,14 @@ func assertSumAttribute(t *testing.T, metric metricdata.Metrics, key, want strin
 			return
 		}
 	}
-	t.Fatalf("metric %q attribute %s = %q is missing", metric.Name, key, want)
+	t.Fatalf("metric %q attribute %s = %q is missing", metrics.Name, key, want)
 }
 
-func histogramCount(t *testing.T, metric metricdata.Metrics) uint64 {
+func histogramCount(t *testing.T, metrics metricdata.Metrics) uint64 {
 	t.Helper()
-	data, ok := metric.Data.(metricdata.Histogram[float64])
+	data, ok := metrics.Data.(metricdata.Histogram[float64])
 	if !ok {
-		t.Fatalf("metric %q data = %T, want float64 histogram", metric.Name, metric.Data)
+		t.Fatalf("metric %q data = %T, want float64 histogram", metrics.Name, metrics.Data)
 	}
 	var total uint64
 	for _, point := range data.DataPoints {
@@ -844,26 +844,26 @@ func histogramCount(t *testing.T, metric metricdata.Metrics) uint64 {
 	return total
 }
 
-func assertInt64HistogramSum(t *testing.T, metric metricdata.Metrics, want int64) {
+func assertInt64HistogramSum(t *testing.T, metrics metricdata.Metrics, want int64) {
 	t.Helper()
-	data, ok := metric.Data.(metricdata.Histogram[int64])
+	data, ok := metrics.Data.(metricdata.Histogram[int64])
 	if !ok {
-		t.Fatalf("metric %q data = %T, want int64 histogram", metric.Name, metric.Data)
+		t.Fatalf("metric %q data = %T, want int64 histogram", metrics.Name, metrics.Data)
 	}
 	var total int64
 	for _, point := range data.DataPoints {
 		total += point.Sum
 	}
 	if total != want {
-		t.Fatalf("metric %q sum = %d, want %d", metric.Name, total, want)
+		t.Fatalf("metric %q sum = %d, want %d", metrics.Name, total, want)
 	}
 }
 
-func assertHistogramAttribute(t *testing.T, metric metricdata.Metrics, key, want string) {
+func assertHistogramAttribute(t *testing.T, metrics metricdata.Metrics, key, want string) {
 	t.Helper()
-	data, ok := metric.Data.(metricdata.Histogram[float64])
+	data, ok := metrics.Data.(metricdata.Histogram[float64])
 	if !ok {
-		t.Fatalf("metric %q data = %T, want float64 histogram", metric.Name, metric.Data)
+		t.Fatalf("metric %q data = %T, want float64 histogram", metrics.Name, metrics.Data)
 	}
 	for _, point := range data.DataPoints {
 		value, found := point.Attributes.Value(attribute.Key(key))
@@ -871,5 +871,5 @@ func assertHistogramAttribute(t *testing.T, metric metricdata.Metrics, key, want
 			return
 		}
 	}
-	t.Fatalf("metric %q attribute %s = %q is missing", metric.Name, key, want)
+	t.Fatalf("metric %q attribute %s = %q is missing", metrics.Name, key, want)
 }

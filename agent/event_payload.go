@@ -181,18 +181,18 @@ type ProcessFinishedFact struct {
 	usage       Usage
 }
 
-func (f ProcessFinishedFact) Status() Status { return f.status }
+func (p ProcessFinishedFact) Status() Status { return p.status }
 
-func (f ProcessFinishedFact) Cause() TerminationCause { return f.cause }
+func (p ProcessFinishedFact) Cause() TerminationCause { return p.cause }
 
-func (f ProcessFinishedFact) Failure() (FailureKind, string, bool) {
-	return f.failureKind, f.failureCode, f.status == StatusFailed
+func (p ProcessFinishedFact) Failure() (FailureKind, string, bool) {
+	return p.failureKind, p.failureCode, p.status == StatusFailed
 }
 
-func (f ProcessFinishedFact) Usage() Usage { return f.usage }
+func (p ProcessFinishedFact) Usage() Usage { return p.usage }
 
-func (f ProcessFinishedFact) Valid() bool {
-	return validProcessFinishedFact(f)
+func (p ProcessFinishedFact) Valid() bool {
+	return validProcessFinishedFact(p)
 }
 
 // SignalAcceptedFact is the immutable delivery identity carried by an accepted
@@ -202,12 +202,12 @@ type SignalAcceptedFact struct {
 	waitID   WaitID
 }
 
-func (f SignalAcceptedFact) SignalID() SignalID { return f.signalID }
+func (s SignalAcceptedFact) SignalID() SignalID { return s.signalID }
 
-func (f SignalAcceptedFact) WaitID() (WaitID, bool) { return f.waitID, f.waitID.Valid() }
+func (s SignalAcceptedFact) WaitID() (WaitID, bool) { return s.waitID, s.waitID.Valid() }
 
-func (f SignalAcceptedFact) Valid() bool {
-	return f.signalID.Valid() && (f.waitID == (WaitID{}) || f.waitID.Valid())
+func (s SignalAcceptedFact) Valid() bool {
+	return s.signalID.Valid() && (s.waitID == (WaitID{}) || s.waitID.Valid())
 }
 
 // StepFinishedFact is the immutable outcome of one Execution.Step attempt.
@@ -216,25 +216,25 @@ type StepFinishedFact struct {
 	duration time.Duration
 }
 
-func (f StepFinishedFact) Status() StepStatus { return f.status }
+func (s StepFinishedFact) Status() StepStatus { return s.status }
 
-func (f StepFinishedFact) Duration() time.Duration { return f.duration }
+func (s StepFinishedFact) Duration() time.Duration { return s.duration }
 
-func (f StepFinishedFact) Valid() bool { return f.status.Valid() && f.duration >= 0 }
+func (s StepFinishedFact) Valid() bool { return s.status.Valid() && s.duration >= 0 }
 
 // StepCommittedFact is the Process status installed by one committed Step.
 type StepCommittedFact struct{ status Status }
 
-func (f StepCommittedFact) Status() Status { return f.status }
+func (s StepCommittedFact) Status() Status { return s.status }
 
-func (f StepCommittedFact) Valid() bool { return f.status.Valid() && f.status != StatusNotStarted }
+func (s StepCommittedFact) Valid() bool { return s.status.Valid() && s.status != StatusNotStarted }
 
 // EffectStartedFact identifies the target of one Effect attempt.
 type EffectStartedFact struct{ target EffectTarget }
 
-func (f EffectStartedFact) Target() EffectTarget { return f.target }
+func (e EffectStartedFact) Target() EffectTarget { return e.target }
 
-func (f EffectStartedFact) Valid() bool { return f.target.Valid() }
+func (e EffectStartedFact) Valid() bool { return e.target.Valid() }
 
 // EffectFinishedFact is the immutable settlement observation for one Effect
 // attempt. It does not replace the durable Effect boundary.
@@ -244,23 +244,23 @@ type EffectFinishedFact struct {
 	duration   time.Duration
 }
 
-func (f EffectFinishedFact) Target() EffectTarget { return f.target }
+func (e EffectFinishedFact) Target() EffectTarget { return e.target }
 
-func (f EffectFinishedFact) SettlementStatus() SettlementStatus { return f.settlement }
+func (e EffectFinishedFact) SettlementStatus() SettlementStatus { return e.settlement }
 
-func (f EffectFinishedFact) Duration() time.Duration { return f.duration }
+func (e EffectFinishedFact) Duration() time.Duration { return e.duration }
 
-func (f EffectFinishedFact) Valid() bool {
-	return f.target.Valid() && f.settlement.Valid() && f.duration >= 0
+func (e EffectFinishedFact) Valid() bool {
+	return e.target.Valid() && e.settlement.Valid() && e.duration >= 0
 }
 
 // DeltaDroppedFact reports the number of increments rejected during one Effect
 // attempt because validation failed or the bounded observation queue was full.
 type DeltaDroppedFact struct{ count uint64 }
 
-func (f DeltaDroppedFact) Count() uint64 { return f.count }
+func (d DeltaDroppedFact) Count() uint64 { return d.count }
 
-func (f DeltaDroppedFact) Valid() bool { return f.count > 0 }
+func (d DeltaDroppedFact) Valid() bool { return d.count > 0 }
 
 func decodeProcessFinishedFact(payload json.RawMessage) (ProcessFinishedFact, error) {
 	wire, err := wireJSON.decode[processFinishedEventPayload](payload)

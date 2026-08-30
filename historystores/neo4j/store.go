@@ -41,12 +41,12 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
-	if lo.IsNil(c.Driver) {
+func (s StoreConfig) Validate() error {
+	if lo.IsNil(s.Driver) {
 		return errors.New("neo4j: driver is required")
 	}
-	if c.Label != "" && !validIdentifier(c.Label) {
-		return fmt.Errorf("neo4j: label %q must be a valid unquoted identifier", c.Label)
+	if s.Label != "" && !validIdentifier(s.Label) {
+		return fmt.Errorf("neo4j: label %q must be a valid unquoted identifier", s.Label)
 	}
 	return nil
 }

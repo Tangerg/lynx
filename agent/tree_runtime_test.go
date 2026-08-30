@@ -177,19 +177,19 @@ func newTreeRuntimeTestDeployment(t testing.TB) (Deployment, *treeRuntimeTestPro
 	return deployment, probe
 }
 
-func (d *treeRuntimeTestDefinition) Descriptor() Descriptor { return d.descriptor }
+func (t *treeRuntimeTestDefinition) Descriptor() Descriptor { return t.descriptor }
 
-func (d *treeRuntimeTestDefinition) Start(input Input) (Execution, error) {
+func (t *treeRuntimeTestDefinition) Start(input Input) (Execution, error) {
 	decoded, err := input.Decode[treeRuntimeTestInput]()
 	if err != nil {
 		return nil, err
 	}
 	return &treeRuntimeTestExecution{
-		definition: d, state: treeRuntimeTestState{Role: decoded.Role},
+		definition: t, state: treeRuntimeTestState{Role: decoded.Role},
 	}, nil
 }
 
-func (d *treeRuntimeTestDefinition) Restore(state ExecutionState) (Execution, error) {
+func (t *treeRuntimeTestDefinition) Restore(state ExecutionState) (Execution, error) {
 	if state.Kind() != treeRuntimeStateKind {
 		return nil, ErrInvalidExecutionState
 	}
@@ -197,7 +197,7 @@ func (d *treeRuntimeTestDefinition) Restore(state ExecutionState) (Execution, er
 	if err := json.Unmarshal(state.Payload(), &decoded); err != nil {
 		return nil, err
 	}
-	return &treeRuntimeTestExecution{definition: d, state: decoded}, nil
+	return &treeRuntimeTestExecution{definition: t, state: decoded}, nil
 }
 
 type treeRuntimeTestExecution struct {
@@ -205,37 +205,37 @@ type treeRuntimeTestExecution struct {
 	state      treeRuntimeTestState
 }
 
-func (e *treeRuntimeTestExecution) Step(ctx context.Context, signals []Signal) (Transition, error) {
-	switch e.state.Role {
+func (t *treeRuntimeTestExecution) Step(ctx context.Context, signals []Signal) (Transition, error) {
+	switch t.state.Role {
 	case treeRuntimeRoleRoot:
-		return e.stepRoot(signals)
+		return t.stepRoot(signals)
 	case treeRuntimeRoleFast:
-		if e.definition.probe.fastStepRelease != nil {
-			e.definition.probe.fastReadyOnce.Do(func() {
-				close(e.definition.probe.fastStepReady)
+		if t.definition.probe.fastStepRelease != nil {
+			t.definition.probe.fastReadyOnce.Do(func() {
+				close(t.definition.probe.fastStepReady)
 			})
 			select {
-			case <-e.definition.probe.fastStepRelease:
+			case <-t.definition.probe.fastStepRelease:
 			case <-ctx.Done():
 				return Transition{}, ctx.Err()
 			}
 		}
-		e.definition.probe.fastStartedOnce.Do(func() {
-			close(e.definition.probe.fastStepStarted)
+		t.definition.probe.fastStartedOnce.Do(func() {
+			close(t.definition.probe.fastStepStarted)
 		})
-		return e.complete()
+		return t.complete()
 	case treeRuntimeRoleBlocked:
-		return e.stepBlocked(ctx)
+		return t.stepBlocked(ctx)
 	default:
 		return Transition{}, ErrInvalidExecutionState
 	}
 }
 
-func (e *treeRuntimeTestExecution) stepRoot(signals []Signal) (Transition, error) {
-	if e.state.Phase > 0 {
+func (t *treeRuntimeTestExecution) stepRoot(signals []Signal) (Transition, error) {
+	if t.state.Phase > 0 {
 		return Pause(uint32(len(signals)), "keep root alive while children run")
 	}
-	e.state.Phase = 1
+	t.state.Phase = 1
 	roles := []string{treeRuntimeRoleBlocked, treeRuntimeRoleFast}
 	effects := make([]Effect, 0, len(roles))
 	for _, role := range roles {
@@ -243,7 +243,7 @@ func (e *treeRuntimeTestExecution) stepRoot(signals []Signal) (Transition, error
 		key, _ := ParseChildKey(role)
 		budget, _ := NewBudget(4, 4, 4)
 		effect, err := StartChild(ChildSpec{
-			Key: key, DeploymentRef: e.definition.reference, Input: input, Budget: budget,
+			Key: key, DeploymentRef: t.definition.reference, Input: input, Budget: budget,
 		})
 		if err != nil {
 			return Transition{}, err
@@ -253,31 +253,31 @@ func (e *treeRuntimeTestExecution) stepRoot(signals []Signal) (Transition, error
 	return Continue(0, effects...)
 }
 
-func (e *treeRuntimeTestExecution) stepBlocked(ctx context.Context) (Transition, error) {
+func (t *treeRuntimeTestExecution) stepBlocked(ctx context.Context) (Transition, error) {
 	_, hasDeadline := ctx.Deadline()
 	observation := treeRuntimeStepContext{
 		hasDeadline: hasDeadline,
 		hasValue:    ctx.Value(treeRuntimeContextKey{}) != nil,
 		cause:       context.Cause(ctx),
 	}
-	e.definition.probe.blockedStartedOnce.Do(func() {
-		e.definition.probe.blockedStepStarted <- observation
+	t.definition.probe.blockedStartedOnce.Do(func() {
+		t.definition.probe.blockedStepStarted <- observation
 	})
 	<-ctx.Done()
-	e.definition.probe.blockedCanceledOnce.Do(func() {
-		close(e.definition.probe.blockedStepCanceled)
+	t.definition.probe.blockedCanceledOnce.Do(func() {
+		close(t.definition.probe.blockedStepCanceled)
 	})
 	return Transition{}, ctx.Err()
 }
 
-func (e *treeRuntimeTestExecution) complete() (Transition, error) {
-	e.state.Phase++
-	output, _ := EncodeOutput(treeRuntimeTestOutput{Role: e.state.Role})
+func (t *treeRuntimeTestExecution) complete() (Transition, error) {
+	t.state.Phase++
+	output, _ := EncodeOutput(treeRuntimeTestOutput{Role: t.state.Role})
 	return Complete(0, output)
 }
 
-func (e *treeRuntimeTestExecution) Snapshot() (ExecutionState, error) {
-	payload, err := json.Marshal(e.state)
+func (t *treeRuntimeTestExecution) Snapshot() (ExecutionState, error) {
+	payload, err := json.Marshal(t.state)
 	if err != nil {
 		return ExecutionState{}, err
 	}

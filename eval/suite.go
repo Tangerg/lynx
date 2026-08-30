@@ -50,8 +50,8 @@ func NewSuiteEvaluator[T any](config SuiteConfig[T]) (*SuiteEvaluator[T], error)
 	return &SuiteEvaluator[T]{evaluators: evaluators, maxConcurrency: maxConcurrency}, nil
 }
 
-func (suite *SuiteEvaluator[T]) Evaluate(ctx context.Context, subject T) (Report, error) {
-	reports, err := evaluateAll(ctx, suite.evaluators, suite.maxConcurrency, subject)
+func (s *SuiteEvaluator[T]) Evaluate(ctx context.Context, subject T) (Report, error) {
+	reports, err := evaluateAll(ctx, s.evaluators, s.maxConcurrency, subject)
 	if err != nil {
 		return Report{}, err
 	}

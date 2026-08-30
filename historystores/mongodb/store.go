@@ -33,8 +33,8 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
-	if c.Collection == nil {
+func (s StoreConfig) Validate() error {
+	if s.Collection == nil {
 		return errors.New("mongodb: collection is required")
 	}
 	return nil

@@ -28,63 +28,63 @@ type Report struct {
 }
 
 // Clone validates the complete detail tree before allocating its detached copy.
-func (report Report) Clone() (Report, error) {
-	if err := report.Validate(); err != nil {
+func (r Report) Clone() (Report, error) {
+	if err := r.Validate(); err != nil {
 		return Report{}, err
 	}
-	return report.cloneValid(), nil
+	return r.cloneValid(), nil
 }
 
-func (report Report) cloneValid() Report {
-	report.Metric = report.Metric.Clone()
-	if report.Score != nil {
-		score := *report.Score
-		report.Score = &score
+func (r Report) cloneValid() Report {
+	r.Metric = r.Metric.Clone()
+	if r.Score != nil {
+		score := *r.Score
+		r.Score = &score
 	}
-	if report.Measurement != nil {
-		measurement := *report.Measurement
-		report.Measurement = &measurement
+	if r.Measurement != nil {
+		measurement := *r.Measurement
+		r.Measurement = &measurement
 	}
-	report.Metadata = report.Metadata.Clone()
-	report.Details = slices.Clone(report.Details)
-	for index := range report.Details {
-		report.Details[index] = report.Details[index].cloneValid()
+	r.Metadata = r.Metadata.Clone()
+	r.Details = slices.Clone(r.Details)
+	for index := range r.Details {
+		r.Details[index] = r.Details[index].cloneValid()
 	}
-	return report
+	return r
 }
 
-func (report Report) Validate() error {
-	return report.validate(1)
+func (r Report) Validate() error {
+	return r.validate(1)
 }
 
-func (report Report) validate(depth int) error {
+func (r Report) validate(depth int) error {
 	if depth > MaxReportDepth {
 		return fmt.Errorf("%w: detail depth exceeds %d", ErrInvalidReport, MaxReportDepth)
 	}
-	if err := report.Metric.Validate(); err != nil {
+	if err := r.Metric.Validate(); err != nil {
 		return fmt.Errorf("%w: metric: %w", ErrInvalidReport, err)
 	}
-	if err := report.Verdict.Validate(); err != nil {
+	if err := r.Verdict.Validate(); err != nil {
 		return err
 	}
-	if report.Score != nil {
-		if err := report.Score.Validate(); err != nil {
+	if r.Score != nil {
+		if err := r.Score.Validate(); err != nil {
 			return fmt.Errorf("%w: score: %w", ErrInvalidReport, err)
 		}
 	}
-	if report.Measurement != nil {
-		value := *report.Measurement
+	if r.Measurement != nil {
+		value := *r.Measurement
 		if math.IsNaN(value) || math.IsInf(value, 0) {
 			return fmt.Errorf("%w: measurement must be finite", ErrInvalidReport)
 		}
 	}
-	if err := report.Metadata.Validate(); err != nil {
+	if err := r.Metadata.Validate(); err != nil {
 		return fmt.Errorf("%w: metadata: %w", ErrInvalidReport, err)
 	}
-	if !report.hasOutcome() {
+	if !r.hasOutcome() {
 		return fmt.Errorf("%w: at least one verdict, score, measurement, feedback, metadata value, or detail is required", ErrInvalidReport)
 	}
-	for index, detail := range report.Details {
+	for index, detail := range r.Details {
 		if err := detail.validate(depth + 1); err != nil {
 			return fmt.Errorf("%w: details[%d]: %w", ErrInvalidReport, index, err)
 		}
@@ -92,16 +92,16 @@ func (report Report) validate(depth int) error {
 	return nil
 }
 
-func (report Report) MarshalJSON() ([]byte, error) {
-	if err := report.Validate(); err != nil {
+func (r Report) MarshalJSON() ([]byte, error) {
+	if err := r.Validate(); err != nil {
 		return nil, err
 	}
 	type wireReport Report
-	return json.Marshal(wireReport(report))
+	return json.Marshal(wireReport(r))
 }
 
-func (report *Report) UnmarshalJSON(data []byte) error {
-	if report == nil {
+func (r *Report) UnmarshalJSON(data []byte) error {
+	if r == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidReport)
 	}
 	type wireReport Report
@@ -113,11 +113,11 @@ func (report *Report) UnmarshalJSON(data []byte) error {
 	if err := candidate.Validate(); err != nil {
 		return err
 	}
-	*report = candidate
+	*r = candidate
 	return nil
 }
 
-func (report Report) hasOutcome() bool {
-	return report.Verdict.Decided() || report.Score != nil || report.Measurement != nil ||
-		strings.TrimSpace(report.Feedback) != "" || len(report.Metadata) > 0 || len(report.Details) > 0
+func (r Report) hasOutcome() bool {
+	return r.Verdict.Decided() || r.Score != nil || r.Measurement != nil ||
+		strings.TrimSpace(r.Feedback) != "" || len(r.Metadata) > 0 || len(r.Details) > 0
 }

@@ -53,16 +53,16 @@ type ObservationFailureCounts struct {
 	toolSettledPanics   uint64
 }
 
-func (c ObservationFailureCounts) ModelResponsePanics() uint64 {
-	return c.modelResponsePanics
+func (o ObservationFailureCounts) ModelResponsePanics() uint64 {
+	return o.modelResponsePanics
 }
 
-func (c ObservationFailureCounts) ToolStartedPanics() uint64 {
-	return c.toolStartedPanics
+func (o ObservationFailureCounts) ToolStartedPanics() uint64 {
+	return o.toolStartedPanics
 }
 
-func (c ObservationFailureCounts) ToolSettledPanics() uint64 {
-	return c.toolSettledPanics
+func (o ObservationFailureCounts) ToolSettledPanics() uint64 {
+	return o.toolSettledPanics
 }
 
 type observationFailureCounters struct {
@@ -71,11 +71,11 @@ type observationFailureCounters struct {
 	toolSettledPanics   atomic.Uint64
 }
 
-func (c *observationFailureCounters) snapshot() ObservationFailureCounts {
+func (o *observationFailureCounters) snapshot() ObservationFailureCounts {
 	return ObservationFailureCounts{
-		modelResponsePanics: c.modelResponsePanics.Load(),
-		toolStartedPanics:   c.toolStartedPanics.Load(),
-		toolSettledPanics:   c.toolSettledPanics.Load(),
+		modelResponsePanics: o.modelResponsePanics.Load(),
+		toolStartedPanics:   o.toolStartedPanics.Load(),
+		toolSettledPanics:   o.toolSettledPanics.Load(),
 	}
 }
 

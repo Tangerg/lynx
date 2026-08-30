@@ -19,15 +19,15 @@ const (
 	PassAtLeast PassPolicy = "at_least"
 )
 
-func (policy PassPolicy) resolve() PassPolicy {
-	if policy == "" {
+func (p PassPolicy) resolve() PassPolicy {
+	if p == "" {
 		return PassAll
 	}
-	return policy
+	return p
 }
 
-func (policy PassPolicy) minimum(componentCount, configured int) (int, error) {
-	switch policy.resolve() {
+func (p PassPolicy) minimum(componentCount, configured int) (int, error) {
+	switch p.resolve() {
 	case PassAll:
 		if configured != 0 {
 			return 0, fmt.Errorf("%w: minimum passed is only valid with the at_least policy", ErrInvalidEvaluatorConfig)
@@ -44,7 +44,7 @@ func (policy PassPolicy) minimum(componentCount, configured int) (int, error) {
 		}
 		return configured, nil
 	default:
-		return 0, fmt.Errorf("%w: unsupported pass policy %q", ErrInvalidEvaluatorConfig, policy)
+		return 0, fmt.Errorf("%w: unsupported pass policy %q", ErrInvalidEvaluatorConfig, p)
 	}
 }
 
@@ -114,12 +114,12 @@ func NewCompositeEvaluator[T any](config CompositeConfig[T]) (*CompositeEvaluato
 	}, nil
 }
 
-func (composite *CompositeEvaluator[T]) Evaluate(ctx context.Context, subject T) (Report, error) {
-	evaluators := make([]Evaluator[T], len(composite.components))
-	for index, component := range composite.components {
+func (c *CompositeEvaluator[T]) Evaluate(ctx context.Context, subject T) (Report, error) {
+	evaluators := make([]Evaluator[T], len(c.components))
+	for index, component := range c.components {
 		evaluators[index] = component.Evaluator
 	}
-	reports, err := evaluateAll(ctx, evaluators, composite.maxConcurrency, subject)
+	reports, err := evaluateAll(ctx, evaluators, c.maxConcurrency, subject)
 	if err != nil {
 		return Report{}, err
 	}
@@ -128,11 +128,11 @@ func (composite *CompositeEvaluator[T]) Evaluate(ctx context.Context, subject T)
 			return Report{}, fmt.Errorf("eval: component %d: %w: composite components require a score and verdict", index, ErrInvalidReport)
 		}
 	}
-	return composite.combine(reports)
+	return c.combine(reports)
 }
 
-func (composite *CompositeEvaluator[T]) combine(reports []Report) (Report, error) {
-	metric, err := composite.metricFor(reports)
+func (c *CompositeEvaluator[T]) combine(reports []Report) (Report, error) {
+	metric, err := c.metricFor(reports)
 	if err != nil {
 		return Report{}, err
 	}
@@ -142,7 +142,7 @@ func (composite *CompositeEvaluator[T]) combine(reports []Report) (Report, error
 	totalWeight := 0.0
 	weightedScore := 0.0
 	for index, report := range reports {
-		component := composite.components[index]
+		component := c.components[index]
 		if report.Verdict == VerdictPass {
 			passed++
 		} else if component.Required {
@@ -154,7 +154,7 @@ func (composite *CompositeEvaluator[T]) combine(reports []Report) (Report, error
 			feedback = append(feedback, report.Feedback)
 		}
 	}
-	if passed < composite.minimumPassed {
+	if passed < c.minimumPassed {
 		combined.Verdict = VerdictFail
 	}
 	score := Score(weightedScore / totalWeight)
@@ -178,18 +178,18 @@ type compositeMetricIdentity struct {
 	MinimumPassed int                 `json:"minimum_passed"`
 }
 
-func (composite *CompositeEvaluator[T]) metricFor(reports []Report) (Metric, error) {
+func (c *CompositeEvaluator[T]) metricFor(reports []Report) (Metric, error) {
 	components := make([]componentIdentity, len(reports))
 	for index, report := range reports {
 		components[index] = componentIdentity{
-			Metric: report.Metric.Clone(), Weight: composite.components[index].Weight,
-			Required: composite.components[index].Required,
+			Metric: report.Metric.Clone(), Weight: c.components[index].Weight,
+			Required: c.components[index].Required,
 		}
 	}
 	parameters := metadata.Map{}
 	identity := compositeMetricIdentity{
-		Components: components, PassPolicy: composite.passPolicy,
-		MinimumPassed: composite.minimumPassed,
+		Components: components, PassPolicy: c.passPolicy,
+		MinimumPassed: c.minimumPassed,
 	}
 	if err := parameters.Set(metricConfigurationKey, identity); err != nil {
 		return Metric{}, fmt.Errorf("eval: composite metric identity: %w", err)

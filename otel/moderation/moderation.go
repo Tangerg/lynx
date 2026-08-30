@@ -46,8 +46,8 @@ type MiddlewareConfig struct {
 }
 
 // Validate checks construction inputs without resolving global providers.
-func (config MiddlewareConfig) Validate() error {
-	if strings.TrimSpace(config.Provider) == "" {
+func (m MiddlewareConfig) Validate() error {
+	if strings.TrimSpace(m.Provider) == "" {
 		return fmt.Errorf("%w: provider is required", ErrInvalidConfig)
 	}
 	return nil
@@ -91,8 +91,8 @@ func NewMiddleware(config MiddlewareConfig) (Middleware, error) {
 }
 
 // Wrap decorates one moderation Model without changing its call semantics.
-func (middleware Middleware) Wrap(next coremoderation.Model) (coremoderation.Model, error) {
-	if lo.IsNil(middleware.tracer) || lo.IsNil(middleware.duration) {
+func (m Middleware) Wrap(next coremoderation.Model) (coremoderation.Model, error) {
+	if lo.IsNil(m.tracer) || lo.IsNil(m.duration) {
 		return nil, fmt.Errorf("%w: middleware must be constructed with NewMiddleware", ErrInvalidConfig)
 	}
 	if lo.IsNil(next) {
@@ -100,28 +100,28 @@ func (middleware Middleware) Wrap(next coremoderation.Model) (coremoderation.Mod
 	}
 	return coremoderation.ModelFunc(func(ctx context.Context, request *coremoderation.Request) (*coremoderation.Response, error) {
 		startedAt := time.Now()
-		attributes := middleware.requestAttributes(request)
-		spanCtx, span := middleware.tracer.Start(ctx, middleware.spanName(request),
+		attributes := m.requestAttributes(request)
+		spanCtx, span := m.tracer.Start(ctx, m.spanName(request),
 			trace.WithSpanKind(trace.SpanKindClient),
 			trace.WithAttributes(attributes...),
 		)
 		response, err := next.Call(spanCtx, request)
-		middleware.finish(spanCtx, span, request, response, err, time.Since(startedAt))
+		m.finish(spanCtx, span, request, response, err, time.Since(startedAt))
 		return response, err
 	}), nil
 }
 
-func (middleware Middleware) spanName(request *coremoderation.Request) string {
+func (m Middleware) spanName(request *coremoderation.Request) string {
 	if request == nil || request.Options.Model == "" {
 		return operationName
 	}
 	return operationName + " " + request.Options.Model
 }
 
-func (middleware Middleware) requestAttributes(request *coremoderation.Request) []attribute.KeyValue {
+func (m Middleware) requestAttributes(request *coremoderation.Request) []attribute.KeyValue {
 	attributes := []attribute.KeyValue{
 		semconv.GenAIOperationNameKey.String(operationName),
-		semconv.GenAIProviderNameKey.String(middleware.provider),
+		semconv.GenAIProviderNameKey.String(m.provider),
 	}
 	if request == nil {
 		return attributes
@@ -132,7 +132,7 @@ func (middleware Middleware) requestAttributes(request *coremoderation.Request) 
 	return append(attributes, attribute.Int(inputCountAttribute, len(request.Texts)))
 }
 
-func (middleware Middleware) finish(
+func (m Middleware) finish(
 	ctx context.Context,
 	span trace.Span,
 	request *coremoderation.Request,
@@ -141,7 +141,7 @@ func (middleware Middleware) finish(
 	elapsed time.Duration,
 ) {
 	defer span.End()
-	attributes := middleware.metricAttributes(request, response)
+	attributes := m.metricAttributes(request, response)
 	if response != nil && response.Metadata != nil && response.Metadata.Model != "" {
 		span.SetAttributes(semconv.GenAIResponseModel(response.Metadata.Model))
 	}
@@ -152,16 +152,16 @@ func (middleware Middleware) finish(
 		span.SetAttributes(errorType)
 		attributes = append(attributes, errorType)
 	}
-	middleware.duration.Record(ctx, elapsed.Seconds(), metric.WithAttributes(attributes...))
+	m.duration.Record(ctx, elapsed.Seconds(), metric.WithAttributes(attributes...))
 }
 
-func (middleware Middleware) metricAttributes(
+func (m Middleware) metricAttributes(
 	request *coremoderation.Request,
 	response *coremoderation.Response,
 ) []attribute.KeyValue {
 	attributes := []attribute.KeyValue{
 		semconv.GenAIOperationNameKey.String(operationName),
-		semconv.GenAIProviderNameKey.String(middleware.provider),
+		semconv.GenAIProviderNameKey.String(m.provider),
 	}
 	if request != nil && request.Options.Model != "" {
 		attributes = append(attributes, semconv.GenAIRequestModel(request.Options.Model))

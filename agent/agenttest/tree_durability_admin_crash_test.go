@@ -40,34 +40,34 @@ func newAdministrativeCommitGate(
 	return gate
 }
 
-func (g *administrativeCommitGate) commit() error {
-	g.store.mu.Lock()
-	head, exists := g.store.heads[g.prospective.RootID()]
-	incarnationID, durable := g.prospective.IncarnationID()
+func (a *administrativeCommitGate) commit() error {
+	a.store.mu.Lock()
+	head, exists := a.store.heads[a.prospective.RootID()]
+	incarnationID, durable := a.prospective.IncarnationID()
 	if !exists || !durable || head.incarnationID != incarnationID ||
-		head.digest != g.source {
-		g.store.mu.Unlock()
+		head.digest != a.source {
+		a.store.mu.Unlock()
 		return treeIncarnationConflict()
 	}
-	g.store.heads[g.prospective.RootID()] = memoryHead(g.prospective)
-	g.store.mu.Unlock()
-	close(g.reached)
-	return <-g.decision
+	a.store.heads[a.prospective.RootID()] = memoryHead(a.prospective)
+	a.store.mu.Unlock()
+	close(a.reached)
+	return <-a.decision
 }
 
-func (g *administrativeCommitGate) await(t *testing.T) {
+func (a *administrativeCommitGate) await(t *testing.T) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(t.Context(), conformanceStatusTimeout)
 	defer cancel()
 	select {
-	case <-g.reached:
+	case <-a.reached:
 	case <-ctx.Done():
 		t.Fatalf("administrative commit gate was not reached: %v", ctx.Err())
 	}
 }
 
-func (g *administrativeCommitGate) abort() {
-	g.resolve.Do(func() { g.decision <- errSimulatedHostCrash })
+func (a *administrativeCommitGate) abort() {
+	a.resolve.Do(func() { a.decision <- errSimulatedHostCrash })
 }
 
 type crashTreeRole string
@@ -78,8 +78,8 @@ const (
 	crashTreeRoleChild   crashTreeRole = "child"
 )
 
-func (r crashTreeRole) valid() bool {
-	return r == crashTreeRoleRoot || r == crashTreeRoleChild
+func (c crashTreeRole) valid() bool {
+	return c == crashTreeRoleRoot || c == crashTreeRoleChild
 }
 
 type crashTreePhase string
@@ -95,8 +95,8 @@ const (
 	crashTreePhaseFinished         crashTreePhase = "finished"
 )
 
-func (p crashTreePhase) valid() bool {
-	switch p {
+func (c crashTreePhase) valid() bool {
+	switch c {
 	case crashTreePhaseReady, crashTreePhaseChildStarting,
 		crashTreePhaseRootWaitOpening, crashTreePhaseRootWaiting,
 		crashTreePhaseChildWaitOpening, crashTreePhaseChildWaiting,
@@ -138,20 +138,20 @@ type crashTreeState struct {
 	WaitID  string         `json:"wait_id,omitempty"`
 }
 
-func (s crashTreeState) valid() bool {
-	if !s.Role.valid() || !s.Phase.valid() {
+func (c crashTreeState) valid() bool {
+	if !c.Role.valid() || !c.Phase.valid() {
 		return false
 	}
-	if s.Role == crashTreeRoleRoot {
-		switch s.Phase {
+	if c.Role == crashTreeRoleRoot {
+		switch c.Phase {
 		case crashTreePhaseReady, crashTreePhaseChildStarting:
-			return s.ChildID == "" && s.WaitID == ""
+			return c.ChildID == "" && c.WaitID == ""
 		case crashTreePhaseRootWaitOpening:
-			_, err := agent.ParseProcessID(s.ChildID)
-			return err == nil && s.WaitID == ""
+			_, err := agent.ParseProcessID(c.ChildID)
+			return err == nil && c.WaitID == ""
 		case crashTreePhaseRootWaiting:
-			_, childErr := agent.ParseProcessID(s.ChildID)
-			_, waitErr := agent.ParseWaitID(s.WaitID)
+			_, childErr := agent.ParseProcessID(c.ChildID)
+			_, waitErr := agent.ParseWaitID(c.WaitID)
 			return childErr == nil && waitErr == nil
 		case crashTreePhaseFinished:
 			return true
@@ -159,12 +159,12 @@ func (s crashTreeState) valid() bool {
 			return false
 		}
 	}
-	switch s.Phase {
+	switch c.Phase {
 	case crashTreePhaseReady, crashTreePhaseChildWaitOpening:
-		return s.ChildID == "" && s.WaitID == ""
+		return c.ChildID == "" && c.WaitID == ""
 	case crashTreePhaseChildWaiting:
-		_, err := agent.ParseWaitID(s.WaitID)
-		return err == nil && s.ChildID == ""
+		_, err := agent.ParseWaitID(c.WaitID)
+		return err == nil && c.ChildID == ""
 	case crashTreePhaseFinished:
 		return true
 	default:
@@ -177,9 +177,9 @@ type crashTreeDefinition struct {
 	reference  agent.DeploymentRef
 }
 
-func (d *crashTreeDefinition) Descriptor() agent.Descriptor { return d.descriptor }
+func (c *crashTreeDefinition) Descriptor() agent.Descriptor { return c.descriptor }
 
-func (d *crashTreeDefinition) Start(input agent.Input) (agent.Execution, error) {
+func (c *crashTreeDefinition) Start(input agent.Input) (agent.Execution, error) {
 	decoded, err := input.Decode[crashTreeInput]()
 	if err != nil {
 		return nil, err
@@ -188,11 +188,11 @@ func (d *crashTreeDefinition) Start(input agent.Input) (agent.Execution, error) 
 	if !state.valid() {
 		return nil, agent.ErrInvalidInput
 	}
-	return &crashTreeExecution{definition: d, state: state}, nil
+	return &crashTreeExecution{definition: c, state: state}, nil
 }
 
-func (d *crashTreeDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
-	if state.Kind() != d.descriptor.Name() {
+func (c *crashTreeDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
+	if state.Kind() != c.descriptor.Name() {
 		return nil, agent.ErrInvalidExecutionState
 	}
 	var decoded crashTreeState
@@ -202,7 +202,7 @@ func (d *crashTreeDefinition) Restore(state agent.ExecutionState) (agent.Executi
 	if !decoded.valid() {
 		return nil, agent.ErrInvalidExecutionState
 	}
-	return &crashTreeExecution{definition: d, state: decoded}, nil
+	return &crashTreeExecution{definition: c, state: decoded}, nil
 }
 
 type crashTreeExecution struct {
@@ -210,36 +210,36 @@ type crashTreeExecution struct {
 	state      crashTreeState
 }
 
-func (e *crashTreeExecution) Step(
+func (c *crashTreeExecution) Step(
 	_ context.Context,
 	signals []agent.Signal,
 ) (agent.Transition, error) {
-	if e.state.Role == crashTreeRoleRoot {
-		return e.stepRoot(signals)
+	if c.state.Role == crashTreeRoleRoot {
+		return c.stepRoot(signals)
 	}
-	return e.stepChild(signals)
+	return c.stepChild(signals)
 }
 
-func (e *crashTreeExecution) stepRoot(signals []agent.Signal) (agent.Transition, error) {
-	switch e.state.Phase {
+func (c *crashTreeExecution) stepRoot(signals []agent.Signal) (agent.Transition, error) {
+	switch c.state.Phase {
 	case crashTreePhaseReady:
-		return e.startRootChild(signals)
+		return c.startRootChild(signals)
 	case crashTreePhaseChildStarting:
-		return e.openRootChildWait(signals)
+		return c.openRootChildWait(signals)
 	case crashTreePhaseRootWaitOpening:
-		return e.enterRootChildWait(signals)
+		return c.enterRootChildWait(signals)
 	case crashTreePhaseRootWaiting:
-		return e.completeRoot(signals)
+		return c.completeRoot(signals)
 	default:
 		return agent.Transition{}, errors.New("agenttest: root cannot advance from its current phase")
 	}
 }
 
-func (e *crashTreeExecution) startRootChild(signals []agent.Signal) (agent.Transition, error) {
+func (c *crashTreeExecution) startRootChild(signals []agent.Signal) (agent.Transition, error) {
 	if len(signals) != 0 {
 		return agent.Transition{}, errors.New("agenttest: root received an unexpected initial Signal")
 	}
-	input, err := e.definition.descriptor.EncodeInput(crashTreeInput{Role: crashTreeRoleChild})
+	input, err := c.definition.descriptor.EncodeInput(crashTreeInput{Role: crashTreeRoleChild})
 	if err != nil {
 		return agent.Transition{}, err
 	}
@@ -252,17 +252,17 @@ func (e *crashTreeExecution) startRootChild(signals []agent.Signal) (agent.Trans
 		return agent.Transition{}, err
 	}
 	effect, err := agent.StartChild(agent.ChildSpec{
-		Key: key, DeploymentRef: e.definition.reference, Input: input,
+		Key: key, DeploymentRef: c.definition.reference, Input: input,
 		Budget: budget, Capabilities: agent.CapabilitySet{},
 	})
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	e.state.Phase = crashTreePhaseChildStarting
+	c.state.Phase = crashTreePhaseChildStarting
 	return agent.Continue(0, effect)
 }
 
-func (e *crashTreeExecution) openRootChildWait(signals []agent.Signal) (agent.Transition, error) {
+func (c *crashTreeExecution) openRootChildWait(signals []agent.Signal) (agent.Transition, error) {
 	if len(signals) != 1 {
 		return agent.Transition{}, errors.New("agenttest: child start result is missing")
 	}
@@ -284,12 +284,12 @@ func (e *crashTreeExecution) openRootChildWait(signals []agent.Signal) (agent.Tr
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	e.state.ChildID = childID.String()
-	e.state.Phase = crashTreePhaseRootWaitOpening
+	c.state.ChildID = childID.String()
+	c.state.Phase = crashTreePhaseRootWaitOpening
 	return agent.Continue(1, effect)
 }
 
-func (e *crashTreeExecution) enterRootChildWait(signals []agent.Signal) (agent.Transition, error) {
+func (c *crashTreeExecution) enterRootChildWait(signals []agent.Signal) (agent.Transition, error) {
 	if len(signals) != 1 {
 		return agent.Transition{}, errors.New("agenttest: child wait acknowledgement is missing")
 	}
@@ -297,19 +297,19 @@ func (e *crashTreeExecution) enterRootChildWait(signals []agent.Signal) (agent.T
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	e.state.WaitID = opened.WaitID().String()
-	e.state.Phase = crashTreePhaseRootWaiting
+	c.state.WaitID = opened.WaitID().String()
+	c.state.Phase = crashTreePhaseRootWaiting
 	return agent.Wait(1, opened.WaitID())
 }
 
-func (e *crashTreeExecution) completeRoot(signals []agent.Signal) (agent.Transition, error) {
+func (c *crashTreeExecution) completeRoot(signals []agent.Signal) (agent.Transition, error) {
 	if len(signals) != 1 {
 		return agent.Transition{}, errors.New("agenttest: child completion is missing")
 	}
 	if _, err := agent.ParseChildrenCompleted(signals[0]); err != nil {
 		return agent.Transition{}, err
 	}
-	e.state.Phase = crashTreePhaseFinished
+	c.state.Phase = crashTreePhaseFinished
 	output, err := agent.EncodeOutput(crashTreeOutput{Completed: true})
 	if err != nil {
 		return agent.Transition{}, err
@@ -317,8 +317,8 @@ func (e *crashTreeExecution) completeRoot(signals []agent.Signal) (agent.Transit
 	return agent.Complete(1, output)
 }
 
-func (e *crashTreeExecution) stepChild(signals []agent.Signal) (agent.Transition, error) {
-	switch e.state.Phase {
+func (c *crashTreeExecution) stepChild(signals []agent.Signal) (agent.Transition, error) {
+	switch c.state.Phase {
 	case crashTreePhaseReady:
 		if len(signals) != 0 {
 			return agent.Transition{}, errors.New("agenttest: child received an unexpected initial Signal")
@@ -337,7 +337,7 @@ func (e *crashTreeExecution) stepChild(signals []agent.Signal) (agent.Transition
 		if err != nil {
 			return agent.Transition{}, err
 		}
-		e.state.Phase = crashTreePhaseChildWaitOpening
+		c.state.Phase = crashTreePhaseChildWaitOpening
 		return agent.Continue(0, effect)
 	case crashTreePhaseChildWaitOpening:
 		if len(signals) != 1 {
@@ -347,14 +347,14 @@ func (e *crashTreeExecution) stepChild(signals []agent.Signal) (agent.Transition
 		if !addressed {
 			return agent.Transition{}, errors.New("agenttest: external wait acknowledgement has no WaitID")
 		}
-		e.state.WaitID = waitID.String()
-		e.state.Phase = crashTreePhaseChildWaiting
+		c.state.WaitID = waitID.String()
+		c.state.Phase = crashTreePhaseChildWaiting
 		return agent.Wait(1, waitID)
 	case crashTreePhaseChildWaiting:
 		if len(signals) != 1 {
 			return agent.Transition{}, errors.New("agenttest: external wait response is missing")
 		}
-		e.state.Phase = crashTreePhaseFinished
+		c.state.Phase = crashTreePhaseFinished
 		output, err := agent.EncodeOutput(crashTreeOutput{Completed: true})
 		if err != nil {
 			return agent.Transition{}, err
@@ -365,12 +365,12 @@ func (e *crashTreeExecution) stepChild(signals []agent.Signal) (agent.Transition
 	}
 }
 
-func (e *crashTreeExecution) Snapshot() (agent.ExecutionState, error) {
-	payload, err := json.Marshal(e.state)
+func (c *crashTreeExecution) Snapshot() (agent.ExecutionState, error) {
+	payload, err := json.Marshal(c.state)
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
-	return agent.NewExecutionState(e.definition.descriptor.Name(), payload)
+	return agent.NewExecutionState(c.definition.descriptor.Name(), payload)
 }
 
 type crashTreeDispatcher struct{}

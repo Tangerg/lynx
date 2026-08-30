@@ -34,8 +34,8 @@ const (
 	EffectBoundaryResolved EffectBoundaryKind = "resolved"
 )
 
-func (k EffectBoundaryKind) Valid() bool {
-	switch k {
+func (e EffectBoundaryKind) Valid() bool {
+	switch e {
 	case EffectBoundaryPending, EffectBoundarySettled, EffectBoundaryResolved:
 		return true
 	default:
@@ -43,11 +43,11 @@ func (k EffectBoundaryKind) Valid() bool {
 	}
 }
 
-func (k EffectBoundaryKind) String() string {
-	if !k.Valid() {
+func (e EffectBoundaryKind) String() string {
+	if !e.Valid() {
 		return invalidEnumName
 	}
-	return string(k)
+	return string(e)
 }
 
 // EffectBoundary is an immutable proposal to atomically advance one tree head
@@ -80,76 +80,76 @@ func newEffectBoundary(
 	return boundary, nil
 }
 
-func (b EffectBoundary) Kind() EffectBoundaryKind { return b.kind }
+func (e EffectBoundary) Kind() EffectBoundaryKind { return e.kind }
 
 // Request returns the exact immutable dispatch request represented by this
 // boundary.
-func (b EffectBoundary) Request() EffectRequest { return b.request.clone() }
+func (e EffectBoundary) Request() EffectRequest { return e.request.clone() }
 
 // Settlement returns the settlement introduced by a settled or resolved
 // boundary. Pending boundaries return false.
-func (b EffectBoundary) Settlement() (Settlement, bool) {
-	return b.settlement.clone(), b.hasSettlement
+func (e EffectBoundary) Settlement() (Settlement, bool) {
+	return e.settlement.clone(), e.hasSettlement
 }
 
-func (b EffectBoundary) PreviousTreeDigest() Digest { return b.previousTreeDigest }
+func (e EffectBoundary) PreviousTreeDigest() Digest { return e.previousTreeDigest }
 
-func (b EffectBoundary) TreeSnapshot() TreeSnapshot { return b.treeSnapshot }
+func (e EffectBoundary) TreeSnapshot() TreeSnapshot { return e.treeSnapshot }
 
-func (b EffectBoundary) Valid() bool {
-	if !b.kind.Valid() || !b.request.Valid() || !b.previousTreeDigest.Valid() ||
-		!b.treeSnapshot.Valid() || b.previousTreeDigest == b.treeSnapshot.Digest() ||
-		b.treeSnapshot.RootID() != b.request.Relation().RootID() {
+func (e EffectBoundary) Valid() bool {
+	if !e.kind.Valid() || !e.request.Valid() || !e.previousTreeDigest.Valid() ||
+		!e.treeSnapshot.Valid() || e.previousTreeDigest == e.treeSnapshot.Digest() ||
+		e.treeSnapshot.RootID() != e.request.Relation().RootID() {
 		return false
 	}
-	if _, durable := b.treeSnapshot.IncarnationID(); !durable {
+	if _, durable := e.treeSnapshot.IncarnationID(); !durable {
 		return false
 	}
-	if !b.matchesProspectiveTree() {
+	if !e.matchesProspectiveTree() {
 		return false
 	}
-	switch b.kind {
+	switch e.kind {
 	case EffectBoundaryPending:
-		return !b.hasSettlement && !b.settlement.Valid()
+		return !e.hasSettlement && !e.settlement.Valid()
 	case EffectBoundarySettled:
-		return b.hasSettlement && b.settlement.Valid() &&
-			b.settlement.EffectID() == b.request.ID()
+		return e.hasSettlement && e.settlement.Valid() &&
+			e.settlement.EffectID() == e.request.ID()
 	case EffectBoundaryResolved:
-		return b.hasSettlement && b.settlement.Valid() &&
-			b.settlement.Status() != SettlementStatusUnknown &&
-			b.settlement.EffectID() == b.request.ID()
+		return e.hasSettlement && e.settlement.Valid() &&
+			e.settlement.Status() != SettlementStatusUnknown &&
+			e.settlement.EffectID() == e.request.ID()
 	default:
 		return false
 	}
 }
 
-func (b EffectBoundary) matchesProspectiveTree() bool {
+func (e EffectBoundary) matchesProspectiveTree() bool {
 	var processSnapshot ProcessSnapshot
-	for _, candidate := range b.treeSnapshot.ProcessSnapshots() {
-		if candidate.ProcessID() == b.request.ProcessID() {
+	for _, candidate := range e.treeSnapshot.ProcessSnapshots() {
+		if candidate.ProcessID() == e.request.ProcessID() {
 			processSnapshot = candidate
 			break
 		}
 	}
-	if !processSnapshot.Valid() || processSnapshot.DeploymentRef() != b.request.DeploymentRef() ||
-		processSnapshot.Relation() != b.request.Relation() {
+	if !processSnapshot.Valid() || processSnapshot.DeploymentRef() != e.request.DeploymentRef() ||
+		processSnapshot.Relation() != e.request.Relation() {
 		return false
 	}
 	wire, err := processSnapshot.wire()
 	if err != nil || wire.Prepared == nil ||
-		wire.Prepared.StepSequence != b.request.StepSequence() ||
-		uint64(b.request.BatchIndex()) >= uint64(len(wire.Prepared.Effects)) {
+		wire.Prepared.StepSequence != e.request.StepSequence() ||
+		uint64(e.request.BatchIndex()) >= uint64(len(wire.Prepared.Effects)) {
 		return false
 	}
-	record := wire.Prepared.Effects[b.request.BatchIndex()]
-	if record.ID != b.request.ID() || !sameBoundaryEffect(record.Effect, b.request.Effect()) {
+	record := wire.Prepared.Effects[e.request.BatchIndex()]
+	if record.ID != e.request.ID() || !sameBoundaryEffect(record.Effect, e.request.Effect()) {
 		return false
 	}
-	if b.kind == EffectBoundaryPending {
+	if e.kind == EffectBoundaryPending {
 		return record.Phase == effectPhasePending && record.Settlement == nil
 	}
 	return record.Phase == effectPhaseSettled && record.Settlement != nil &&
-		sameBoundarySettlement(*record.Settlement, b.settlement)
+		sameBoundarySettlement(*record.Settlement, e.settlement)
 }
 
 func sameBoundaryEffect(left, right Effect) bool {
@@ -174,15 +174,15 @@ const (
 	TreeCheckpointTerminal TreeCheckpointKind = "terminal"
 )
 
-func (k TreeCheckpointKind) Valid() bool {
-	return k == TreeCheckpointParked || k == TreeCheckpointTerminal
+func (t TreeCheckpointKind) Valid() bool {
+	return t == TreeCheckpointParked || t == TreeCheckpointTerminal
 }
 
-func (k TreeCheckpointKind) String() string {
-	if !k.Valid() {
+func (t TreeCheckpointKind) String() string {
+	if !t.Valid() {
 		return invalidEnumName
 	}
-	return string(k)
+	return string(t)
 }
 
 // TreeCheckpoint is an immutable Runtime-owned proposal to persist a safe
@@ -207,24 +207,24 @@ func newTreeCheckpoint(
 	return checkpoint, nil
 }
 
-func (c TreeCheckpoint) Kind() TreeCheckpointKind { return c.kind }
+func (t TreeCheckpoint) Kind() TreeCheckpointKind { return t.kind }
 
-func (c TreeCheckpoint) PreviousTreeDigest() Digest { return c.previousTreeDigest }
+func (t TreeCheckpoint) PreviousTreeDigest() Digest { return t.previousTreeDigest }
 
-func (c TreeCheckpoint) TreeSnapshot() TreeSnapshot { return c.treeSnapshot }
+func (t TreeCheckpoint) TreeSnapshot() TreeSnapshot { return t.treeSnapshot }
 
-func (c TreeCheckpoint) Valid() bool {
-	if !c.kind.Valid() || !c.previousTreeDigest.Valid() || !c.treeSnapshot.Valid() ||
-		c.previousTreeDigest == c.treeSnapshot.Digest() {
+func (t TreeCheckpoint) Valid() bool {
+	if !t.kind.Valid() || !t.previousTreeDigest.Valid() || !t.treeSnapshot.Valid() ||
+		t.previousTreeDigest == t.treeSnapshot.Digest() {
 		return false
 	}
-	_, durable := c.treeSnapshot.IncarnationID()
-	return durable && c.matchesSafeCut()
+	_, durable := t.treeSnapshot.IncarnationID()
+	return durable && t.matchesSafeCut()
 }
 
-func (c TreeCheckpoint) matchesSafeCut() bool {
+func (t TreeCheckpoint) matchesSafeCut() bool {
 	allTerminal := true
-	for _, snapshot := range c.treeSnapshot.ProcessSnapshots() {
+	for _, snapshot := range t.treeSnapshot.ProcessSnapshots() {
 		if snapshot.Status().Terminal() {
 			continue
 		}
@@ -244,8 +244,8 @@ func (c TreeCheckpoint) matchesSafeCut() bool {
 			return false
 		}
 	}
-	return c.kind == TreeCheckpointTerminal && allTerminal ||
-		c.kind == TreeCheckpointParked && !allTerminal
+	return t.kind == TreeCheckpointTerminal && allTerminal ||
+		t.kind == TreeCheckpointParked && !allTerminal
 }
 
 // TreeActivation transfers active-writer authority from one durable snapshot
@@ -276,24 +276,24 @@ func newTreeActivation(
 	return activation, nil
 }
 
-func (a TreeActivation) PreviousIncarnationID() TreeIncarnationID {
-	return a.previousIncarnationID
+func (t TreeActivation) PreviousIncarnationID() TreeIncarnationID {
+	return t.previousIncarnationID
 }
 
-func (a TreeActivation) PreviousTreeDigest() Digest { return a.previousTreeDigest }
+func (t TreeActivation) PreviousTreeDigest() Digest { return t.previousTreeDigest }
 
-func (a TreeActivation) IncarnationID() TreeIncarnationID { return a.incarnationID }
+func (t TreeActivation) IncarnationID() TreeIncarnationID { return t.incarnationID }
 
-func (a TreeActivation) TreeSnapshot() TreeSnapshot { return a.treeSnapshot }
+func (t TreeActivation) TreeSnapshot() TreeSnapshot { return t.treeSnapshot }
 
-func (a TreeActivation) Valid() bool {
-	if !a.previousIncarnationID.Valid() || !a.previousTreeDigest.Valid() ||
-		!a.incarnationID.Valid() || a.previousIncarnationID == a.incarnationID ||
-		!a.treeSnapshot.Valid() {
+func (t TreeActivation) Valid() bool {
+	if !t.previousIncarnationID.Valid() || !t.previousTreeDigest.Valid() ||
+		!t.incarnationID.Valid() || t.previousIncarnationID == t.incarnationID ||
+		!t.treeSnapshot.Valid() {
 		return false
 	}
-	incarnationID, durable := a.treeSnapshot.IncarnationID()
-	return durable && incarnationID == a.incarnationID
+	incarnationID, durable := t.treeSnapshot.IncarnationID()
+	return durable && incarnationID == t.incarnationID
 }
 
 // TreeDurability is the complete Host port for active recovery. Every boundary

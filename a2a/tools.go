@@ -49,27 +49,27 @@ func OpenToolSet(ctx context.Context, endpoints ...Endpoint) (*ToolSet, error) {
 }
 
 // Tools returns a snapshot so callers cannot mutate the set's ordered view.
-func (s *ToolSet) Tools() []toolcontract.Tool {
-	if s == nil {
+func (t *ToolSet) Tools() []toolcontract.Tool {
+	if t == nil {
 		return nil
 	}
-	return slices.Clone(s.tools)
+	return slices.Clone(t.tools)
 }
 
 // Close releases every remote-agent client in reverse acquisition order. It
 // is nil-safe and idempotent so multiple shutdown paths can share the owner.
-func (s *ToolSet) Close() error {
-	if s == nil {
+func (t *ToolSet) Close() error {
+	if t == nil {
 		return nil
 	}
-	s.closeOnce.Do(func() {
+	t.closeOnce.Do(func() {
 		var errs []error
-		for _, client := range slices.Backward(s.clients) {
+		for _, client := range slices.Backward(t.clients) {
 			if err := client.Destroy(); err != nil {
 				errs = append(errs, err)
 			}
 		}
-		s.closeErr = errors.Join(errs...)
+		t.closeErr = errors.Join(errs...)
 	})
-	return s.closeErr
+	return t.closeErr
 }

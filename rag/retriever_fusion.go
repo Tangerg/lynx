@@ -21,14 +21,14 @@ type ReciprocalRankFusionConfig struct {
 	RankConstant int
 }
 
-func (c ReciprocalRankFusionConfig) normalized() (ReciprocalRankFusionConfig, error) {
-	if c.RankConstant < 0 {
+func (r ReciprocalRankFusionConfig) normalized() (ReciprocalRankFusionConfig, error) {
+	if r.RankConstant < 0 {
 		return ReciprocalRankFusionConfig{}, ErrInvalidRankConstant
 	}
-	if c.RankConstant == 0 {
-		c.RankConstant = DefaultReciprocalRankConstant
+	if r.RankConstant == 0 {
+		r.RankConstant = DefaultReciprocalRankConstant
 	}
-	return c, nil
+	return r, nil
 }
 
 // ReciprocalRankFusion returns a retriever that concurrently executes each

@@ -17,10 +17,10 @@ func NewScore(value float64) (Score, error) {
 	return score, nil
 }
 
-func (score Score) Float64() float64 { return float64(score) }
+func (s Score) Float64() float64 { return float64(s) }
 
-func (score Score) Validate() error {
-	value := score.Float64()
+func (s Score) Validate() error {
+	value := s.Float64()
 	if math.IsNaN(value) || math.IsInf(value, 0) || value < 0 || value > 1 {
 		return fmt.Errorf("%w: must be between 0 and 1", ErrInvalidScore)
 	}
@@ -28,14 +28,14 @@ func (score Score) Validate() error {
 }
 
 // Verdict returns the categorical judgment for a valid threshold.
-func (score Score) Verdict(threshold Score) (Verdict, error) {
-	if err := score.Validate(); err != nil {
+func (s Score) Verdict(threshold Score) (Verdict, error) {
+	if err := s.Validate(); err != nil {
 		return VerdictUnspecified, err
 	}
 	if err := threshold.Validate(); err != nil {
 		return VerdictUnspecified, fmt.Errorf("eval: threshold: %w", err)
 	}
-	if score >= threshold {
+	if s >= threshold {
 		return VerdictPass, nil
 	}
 	return VerdictFail, nil

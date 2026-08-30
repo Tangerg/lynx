@@ -11,10 +11,10 @@ import (
 // CaseID is a stable identity within one Dataset.
 type CaseID string
 
-func (id CaseID) String() string { return string(id) }
+func (c CaseID) String() string { return string(c) }
 
-func (id CaseID) Validate() error {
-	value := id.String()
+func (c CaseID) Validate() error {
+	value := c.String()
 	if value == "" || value != strings.TrimSpace(value) {
 		return fmt.Errorf("%w: id must be non-empty without surrounding whitespace", ErrInvalidCase)
 	}
@@ -28,19 +28,19 @@ type Case[T any] struct {
 	Metadata metadata.Map
 }
 
-func (caseValue Case[T]) Validate() error {
-	if err := caseValue.ID.Validate(); err != nil {
+func (c Case[T]) Validate() error {
+	if err := c.ID.Validate(); err != nil {
 		return err
 	}
-	if err := caseValue.Metadata.Validate(); err != nil {
+	if err := c.Metadata.Validate(); err != nil {
 		return fmt.Errorf("%w: metadata: %w", ErrInvalidCase, err)
 	}
 	return nil
 }
 
-func (caseValue Case[T]) clone() Case[T] {
-	caseValue.Metadata = caseValue.Metadata.Clone()
-	return caseValue
+func (c Case[T]) clone() Case[T] {
+	c.Metadata = c.Metadata.Clone()
+	return c
 }
 
 // Dataset is an immutable ordered set of uniquely identified cases. Evaluators
@@ -63,11 +63,11 @@ func NewDataset[T any](cases ...Case[T]) (Dataset[T], error) {
 	return Dataset[T]{cases: owned}, nil
 }
 
-func (dataset Dataset[T]) Len() int { return len(dataset.cases) }
+func (d Dataset[T]) Len() int { return len(d.cases) }
 
 // Cases returns an owned copy in deterministic declaration order.
-func (dataset Dataset[T]) Cases() []Case[T] {
-	cases := slices.Clone(dataset.cases)
+func (d Dataset[T]) Cases() []Case[T] {
+	cases := slices.Clone(d.cases)
 	for index := range cases {
 		cases[index] = cases[index].clone()
 	}

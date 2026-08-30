@@ -65,45 +65,45 @@ func newProcessSnapshot(wire processSnapshotWire) (ProcessSnapshot, error) {
 }
 
 // JSON returns an independently owned snapshot representation.
-func (s ProcessSnapshot) JSON() json.RawMessage { return bytes.Clone(s.data) }
+func (p ProcessSnapshot) JSON() json.RawMessage { return bytes.Clone(p.data) }
 
 // ProcessID returns the captured Process identity.
-func (s ProcessSnapshot) ProcessID() ProcessID { return s.processID }
+func (p ProcessSnapshot) ProcessID() ProcessID { return p.processID }
 
 // DeploymentRef returns the exact execution binding required for restoration.
-func (s ProcessSnapshot) DeploymentRef() DeploymentRef { return s.deploymentRef }
+func (p ProcessSnapshot) DeploymentRef() DeploymentRef { return p.deploymentRef }
 
 // Relation returns the immutable parent/root/depth location captured with the
 // Process.
-func (s ProcessSnapshot) Relation() ProcessRelation { return s.relation }
+func (p ProcessSnapshot) Relation() ProcessRelation { return p.relation }
 
 // Budget returns the Process work allocation captured by this snapshot.
-func (s ProcessSnapshot) Budget() Budget { return s.budget }
+func (p ProcessSnapshot) Budget() Budget { return p.budget }
 
 // Capabilities returns the Process authority set captured by this snapshot.
-func (s ProcessSnapshot) Capabilities() CapabilitySet { return s.capabilities }
+func (p ProcessSnapshot) Capabilities() CapabilitySet { return p.capabilities }
 
 // Status returns the captured common lifecycle state.
-func (s ProcessSnapshot) Status() Status { return s.status }
+func (p ProcessSnapshot) Status() Status { return p.status }
 
 // CommittedExecutionState returns the latest committed opaque Strategy state.
 // A prepared candidate, when present, remains an uncommitted Engine detail.
 // Only the owning Definition or its typed inspection helpers may interpret the
 // returned state's payload.
-func (s ProcessSnapshot) CommittedExecutionState() ExecutionState {
-	return s.executionState.clone()
+func (p ProcessSnapshot) CommittedExecutionState() ExecutionState {
+	return p.executionState.clone()
 }
 
 // WaitID returns the current Engine-minted wait identity and true when the
 // captured Process is Waiting.
-func (s ProcessSnapshot) WaitID() (WaitID, bool) {
-	return s.waitID, s.status == StatusWaiting && s.waitID.Valid()
+func (p ProcessSnapshot) WaitID() (WaitID, bool) {
+	return p.waitID, p.status == StatusWaiting && p.waitID.Valid()
 }
 
-func (s ProcessSnapshot) Valid() bool {
-	return len(s.data) > 0 && s.processID.Valid() && s.deploymentRef.Valid() &&
-		s.status.Valid() && s.executionState.Valid() && s.relation.Valid() &&
-		s.budget.Valid() && s.capabilities.Valid()
+func (p ProcessSnapshot) Valid() bool {
+	return len(p.data) > 0 && p.processID.Valid() && p.deploymentRef.Valid() &&
+		p.status.Valid() && p.executionState.Valid() && p.relation.Valid() &&
+		p.budget.Valid() && p.capabilities.Valid()
 }
 
 func mustProcessRelation(processID ProcessID, wire processRelationWire) ProcessRelation {
@@ -118,30 +118,30 @@ func snapshotWaitID(waitID *WaitID) WaitID {
 	return *waitID
 }
 
-func (s ProcessSnapshot) MarshalJSON() ([]byte, error) {
-	if !s.Valid() {
+func (p ProcessSnapshot) MarshalJSON() ([]byte, error) {
+	if !p.Valid() {
 		return nil, ErrInvalidSnapshot
 	}
-	return bytes.Clone(s.data), nil
+	return bytes.Clone(p.data), nil
 }
 
-func (s *ProcessSnapshot) UnmarshalJSON(data []byte) error {
-	if s == nil {
+func (p *ProcessSnapshot) UnmarshalJSON(data []byte) error {
+	if p == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidSnapshot)
 	}
 	value, err := ParseProcessSnapshot(data)
 	if err != nil {
 		return err
 	}
-	*s = value
+	*p = value
 	return nil
 }
 
-func (s ProcessSnapshot) wire() (processSnapshotWire, error) {
-	if !s.Valid() {
+func (p ProcessSnapshot) wire() (processSnapshotWire, error) {
+	if !p.Valid() {
 		return processSnapshotWire{}, ErrInvalidSnapshot
 	}
-	return decodeProcessSnapshot(s.data)
+	return decodeProcessSnapshot(p.data)
 }
 
 type preparedEffectWire struct {

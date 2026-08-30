@@ -57,8 +57,8 @@ type MiddlewareConfig struct {
 	MeterProvider  metric.MeterProvider
 }
 
-func (c MiddlewareConfig) Validate() error {
-	if strings.TrimSpace(c.System) == "" {
+func (m MiddlewareConfig) Validate() error {
+	if strings.TrimSpace(m.System) == "" {
 		return fmt.Errorf("%w: system is required", ErrInvalidConfig)
 	}
 	return nil
@@ -201,28 +201,28 @@ type vectorStoreObservation struct {
 	metricAttributes []attribute.KeyValue
 }
 
-func (observation vectorStoreObservation) finish(err error) {
-	metricAttributes := observation.metricAttributes
+func (v vectorStoreObservation) finish(err error) {
+	metricAttributes := v.metricAttributes
 	if err != nil {
 		errorType := vectorStoreErrorType(err)
-		observation.span.RecordError(err)
-		observation.span.SetStatus(codes.Error, err.Error())
-		observation.span.SetAttributes(errorType)
+		v.span.RecordError(err)
+		v.span.SetStatus(codes.Error, err.Error())
+		v.span.SetAttributes(errorType)
 		metricAttributes = append(metricAttributes, errorType)
 	}
-	observation.span.End()
-	observation.middleware.duration.Record(
-		observation.ctx,
-		time.Since(observation.startedAt).Seconds(),
+	v.span.End()
+	v.middleware.duration.Record(
+		v.ctx,
+		time.Since(v.startedAt).Seconds(),
 		metric.WithAttributes(metricAttributes...),
 	)
 }
 
-func (observation vectorStoreObservation) recordReturnedRows(count int) {
-	observation.middleware.searchRows.Record(
-		observation.ctx,
+func (v vectorStoreObservation) recordReturnedRows(count int) {
+	v.middleware.searchRows.Record(
+		v.ctx,
 		int64(count),
-		metric.WithAttributes(observation.metricAttributes...),
+		metric.WithAttributes(v.metricAttributes...),
 	)
 }
 

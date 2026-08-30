@@ -58,10 +58,10 @@ func newProviderReadOnlyTool[I, P, O any](
 	return bound, nil
 }
 
-func (t readOnlyTool) Definition() chat.ToolDefinition { return t.inner.Definition() }
+func (r readOnlyTool) Definition() chat.ToolDefinition { return r.inner.Definition() }
 
-func (t readOnlyTool) Call(ctx context.Context, invocation toolcontract.Invocation) (chat.ToolOutput, error) {
-	return t.inner.Call(ctx, invocation)
+func (r readOnlyTool) Call(ctx context.Context, invocation toolcontract.Invocation) (chat.ToolOutput, error) {
+	return r.inner.Call(ctx, invocation)
 }
 
 // Network reads have no local resource conflict, so independent calls may run

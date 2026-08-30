@@ -35,9 +35,9 @@ type crashCommitPoint struct {
 	phase crashCommitPhase
 }
 
-func (p crashCommitPoint) valid() bool {
-	return p.kind > crashCommitInvalid && p.kind <= crashCommitCheckpointTerminal &&
-		(p.phase == crashCommitBefore || p.phase == crashCommitAfter)
+func (c crashCommitPoint) valid() bool {
+	return c.kind > crashCommitInvalid && c.kind <= crashCommitCheckpointTerminal &&
+		(c.phase == crashCommitBefore || c.phase == crashCommitAfter)
 }
 
 type crashCommitObservation struct {
@@ -82,7 +82,7 @@ func newTreeDurabilityCommitGate(
 	return gate
 }
 
-func (g *treeDurabilityCommitGate) AcknowledgeProcessStartOutcome(
+func (t *treeDurabilityCommitGate) AcknowledgeProcessStartOutcome(
 	ctx context.Context,
 	outcome agent.ProcessStartOutcome,
 ) error {
@@ -96,13 +96,13 @@ func (g *treeDurabilityCommitGate) AcknowledgeProcessStartOutcome(
 	if outcome.Admission().Relation().IsRoot() {
 		kind = crashCommitRootOutcome
 	}
-	point := crashCommitPoint{kind: kind, phase: g.point.phase}
-	return g.around(point, observation, func() error {
-		return g.delegate.AcknowledgeProcessStartOutcome(ctx, outcome)
+	point := crashCommitPoint{kind: kind, phase: t.point.phase}
+	return t.around(point, observation, func() error {
+		return t.delegate.AcknowledgeProcessStartOutcome(ctx, outcome)
 	})
 }
 
-func (g *treeDurabilityCommitGate) ActivateTree(
+func (t *treeDurabilityCommitGate) ActivateTree(
 	ctx context.Context,
 	activation agent.TreeActivation,
 ) error {
@@ -111,13 +111,13 @@ func (g *treeDurabilityCommitGate) ActivateTree(
 		previousDigest: activation.PreviousTreeDigest(),
 		prospective:    activation.TreeSnapshot(),
 	}
-	point := crashCommitPoint{kind: crashCommitActivation, phase: g.point.phase}
-	return g.around(point, observation, func() error {
-		return g.delegate.ActivateTree(ctx, activation)
+	point := crashCommitPoint{kind: crashCommitActivation, phase: t.point.phase}
+	return t.around(point, observation, func() error {
+		return t.delegate.ActivateTree(ctx, activation)
 	})
 }
 
-func (g *treeDurabilityCommitGate) CommitEffect(
+func (t *treeDurabilityCommitGate) CommitEffect(
 	ctx context.Context,
 	boundary agent.EffectBoundary,
 ) error {
@@ -133,13 +133,13 @@ func (g *treeDurabilityCommitGate) CommitEffect(
 		previousDigest: boundary.PreviousTreeDigest(),
 		prospective:    boundary.TreeSnapshot(),
 	}
-	point := crashCommitPoint{kind: kind, phase: g.point.phase}
-	return g.around(point, observation, func() error {
-		return g.delegate.CommitEffect(ctx, boundary)
+	point := crashCommitPoint{kind: kind, phase: t.point.phase}
+	return t.around(point, observation, func() error {
+		return t.delegate.CommitEffect(ctx, boundary)
 	})
 }
 
-func (g *treeDurabilityCommitGate) CommitCheckpoint(
+func (t *treeDurabilityCommitGate) CommitCheckpoint(
 	ctx context.Context,
 	checkpoint agent.TreeCheckpoint,
 ) error {
@@ -155,68 +155,68 @@ func (g *treeDurabilityCommitGate) CommitCheckpoint(
 		previousDigest: checkpoint.PreviousTreeDigest(),
 		prospective:    checkpoint.TreeSnapshot(),
 	}
-	point := crashCommitPoint{kind: kind, phase: g.point.phase}
-	return g.around(point, observation, func() error {
-		return g.delegate.CommitCheckpoint(ctx, checkpoint)
+	point := crashCommitPoint{kind: kind, phase: t.point.phase}
+	return t.around(point, observation, func() error {
+		return t.delegate.CommitCheckpoint(ctx, checkpoint)
 	})
 }
 
-func (g *treeDurabilityCommitGate) around(
+func (t *treeDurabilityCommitGate) around(
 	point crashCommitPoint,
 	observation crashCommitObservation,
 	commit func() error,
 ) error {
-	if point.kind != g.point.kind {
+	if point.kind != t.point.kind {
 		return commit()
 	}
-	if point.phase == crashCommitBefore && g.claim() {
-		if err := g.cut(observation); err != nil {
+	if point.phase == crashCommitBefore && t.claim() {
+		if err := t.cut(observation); err != nil {
 			return err
 		}
 	}
 	if err := commit(); err != nil {
 		return err
 	}
-	if point.phase == crashCommitAfter && g.claim() {
-		return g.cut(observation)
+	if point.phase == crashCommitAfter && t.claim() {
+		return t.cut(observation)
 	}
 	return nil
 }
 
-func (g *treeDurabilityCommitGate) claim() bool {
-	g.mu.Lock()
-	defer g.mu.Unlock()
-	if g.claimed {
+func (t *treeDurabilityCommitGate) claim() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	if t.claimed {
 		return false
 	}
-	g.claimed = true
+	t.claimed = true
 	return true
 }
 
-func (g *treeDurabilityCommitGate) cut(observation crashCommitObservation) error {
-	g.reached <- observation
-	return <-g.decision
+func (t *treeDurabilityCommitGate) cut(observation crashCommitObservation) error {
+	t.reached <- observation
+	return <-t.decision
 }
 
-func (g *treeDurabilityCommitGate) await(t *testing.T) crashCommitObservation {
-	t.Helper()
-	ctx, cancel := context.WithTimeout(t.Context(), conformanceStatusTimeout)
+func (t *treeDurabilityCommitGate) await(test *testing.T) crashCommitObservation {
+	test.Helper()
+	ctx, cancel := context.WithTimeout(test.Context(), conformanceStatusTimeout)
 	defer cancel()
 	select {
-	case observation := <-g.reached:
+	case observation := <-t.reached:
 		return observation
 	case <-ctx.Done():
-		t.Fatalf("durability gate was not reached: %v", ctx.Err())
+		test.Fatalf("durability gate was not reached: %v", ctx.Err())
 		return crashCommitObservation{}
 	}
 }
 
-func (g *treeDurabilityCommitGate) continueCommit() {
-	g.resolve.Do(func() { g.decision <- nil })
+func (t *treeDurabilityCommitGate) continueCommit() {
+	t.resolve.Do(func() { t.decision <- nil })
 }
 
-func (g *treeDurabilityCommitGate) abort() {
-	g.resolve.Do(func() { g.decision <- errSimulatedHostCrash })
+func (t *treeDurabilityCommitGate) abort() {
+	t.resolve.Do(func() { t.decision <- errSimulatedHostCrash })
 }
 
 type crashStartResult struct {

@@ -23,8 +23,8 @@ type StoreConfig struct {
 	Container *azcosmos.ContainerClient
 }
 
-func (c StoreConfig) Validate() error {
-	if c.Container == nil {
+func (s StoreConfig) Validate() error {
+	if s.Container == nil {
 		return errors.New("cosmosdb: container is required")
 	}
 	return nil

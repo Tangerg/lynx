@@ -18,11 +18,11 @@ type AnswerRelevanceSample struct {
 	Output string `json:"output"`
 }
 
-func (sample AnswerRelevanceSample) Validate() error {
-	if strings.TrimSpace(sample.Input) == "" {
+func (a AnswerRelevanceSample) Validate() error {
+	if strings.TrimSpace(a.Input) == "" {
 		return fmt.Errorf("%w: input is required", ErrInvalidSample)
 	}
-	if strings.TrimSpace(sample.Output) == "" {
+	if strings.TrimSpace(a.Output) == "" {
 		return fmt.Errorf("%w: output is required", ErrInvalidSample)
 	}
 	return nil
@@ -33,14 +33,14 @@ type GroundednessSample struct {
 	Evidence []string `json:"evidence"`
 }
 
-func (sample GroundednessSample) Clone() GroundednessSample {
-	sample.Evidence = slices.Clone(sample.Evidence)
-	return sample
+func (g GroundednessSample) Clone() GroundednessSample {
+	g.Evidence = slices.Clone(g.Evidence)
+	return g
 }
 
-func (sample GroundednessSample) EvidenceText() string {
-	texts := make([]string, 0, len(sample.Evidence))
-	for _, text := range sample.Evidence {
+func (g GroundednessSample) EvidenceText() string {
+	texts := make([]string, 0, len(g.Evidence))
+	for _, text := range g.Evidence {
 		if strings.TrimSpace(text) != "" {
 			texts = append(texts, text)
 		}
@@ -48,11 +48,11 @@ func (sample GroundednessSample) EvidenceText() string {
 	return strings.Join(texts, evidenceSeparator)
 }
 
-func (sample GroundednessSample) Validate() error {
-	if strings.TrimSpace(sample.Output) == "" {
+func (g GroundednessSample) Validate() error {
+	if strings.TrimSpace(g.Output) == "" {
 		return fmt.Errorf("%w: output is required", ErrInvalidSample)
 	}
-	if sample.EvidenceText() == "" {
+	if g.EvidenceText() == "" {
 		return fmt.Errorf("%w: evidence is required", ErrInvalidSample)
 	}
 	return nil
@@ -64,14 +64,14 @@ type CorrectnessSample struct {
 	Reference string `json:"reference"`
 }
 
-func (sample CorrectnessSample) Validate() error {
-	if strings.TrimSpace(sample.Input) == "" {
+func (c CorrectnessSample) Validate() error {
+	if strings.TrimSpace(c.Input) == "" {
 		return fmt.Errorf("%w: input is required", ErrInvalidSample)
 	}
-	if strings.TrimSpace(sample.Output) == "" {
+	if strings.TrimSpace(c.Output) == "" {
 		return fmt.Errorf("%w: output is required", ErrInvalidSample)
 	}
-	if strings.TrimSpace(sample.Reference) == "" {
+	if strings.TrimSpace(c.Reference) == "" {
 		return fmt.Errorf("%w: reference is required", ErrInvalidSample)
 	}
 	return nil

@@ -48,21 +48,21 @@ type clientPolicy struct {
 	defaultTimeout   time.Duration
 }
 
-func (config ClientConfig) Validate() error {
-	_, err := config.compilePolicy()
+func (c ClientConfig) Validate() error {
+	_, err := c.compilePolicy()
 	return err
 }
 
-func (config ClientConfig) compilePolicy() (clientPolicy, error) {
-	if len(config.AllowedHosts) == 0 {
+func (c ClientConfig) compilePolicy() (clientPolicy, error) {
+	if len(c.AllowedHosts) == 0 {
 		return clientPolicy{}, fmt.Errorf("%w: %w", ErrInvalidClientConfig, ErrMissingAllowedHosts)
 	}
-	allowedHosts, err := NewAllowlist(config.AllowedHosts)
+	allowedHosts, err := NewAllowlist(c.AllowedHosts)
 	if err != nil {
 		return clientPolicy{}, fmt.Errorf("%w: allowed hosts: %w", ErrInvalidClientConfig, err)
 	}
 
-	methods := config.AllowedMethods
+	methods := c.AllowedMethods
 	if len(methods) == 0 {
 		methods = []Method{MethodGET, MethodHEAD}
 	}
@@ -82,18 +82,18 @@ func (config ClientConfig) compilePolicy() (clientPolicy, error) {
 		}
 		allowedMethods[method.Normalize()] = struct{}{}
 	}
-	if config.DefaultTimeout < 0 || config.DefaultTimeout > MaxRequestTimeout {
+	if c.DefaultTimeout < 0 || c.DefaultTimeout > MaxRequestTimeout {
 		return clientPolicy{}, fmt.Errorf("%w: default timeout must be between 0 and %s", ErrInvalidClientConfig, MaxRequestTimeout)
 	}
-	if config.MaxResponseBytes < 0 || config.MaxResponseBytes > maxSupportedResponseBytes {
+	if c.MaxResponseBytes < 0 || c.MaxResponseBytes > maxSupportedResponseBytes {
 		return clientPolicy{}, fmt.Errorf("%w: maximum response bytes must be between 0 and %d", ErrInvalidClientConfig, maxSupportedResponseBytes)
 	}
 
-	maxResponseBytes := config.MaxResponseBytes
+	maxResponseBytes := c.MaxResponseBytes
 	if maxResponseBytes == 0 {
 		maxResponseBytes = DefaultMaxResponseBytes
 	}
-	defaultTimeout := config.DefaultTimeout
+	defaultTimeout := c.DefaultTimeout
 	if defaultTimeout == 0 {
 		defaultTimeout = DefaultTimeout
 	}

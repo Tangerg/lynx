@@ -60,8 +60,8 @@ type MiddlewareConfig struct {
 	MeterProvider  metric.MeterProvider
 }
 
-func (c MiddlewareConfig) Validate() error {
-	if strings.TrimSpace(c.Provider) == "" {
+func (m MiddlewareConfig) Validate() error {
+	if strings.TrimSpace(m.Provider) == "" {
 		return fmt.Errorf("%w: provider is required", ErrInvalidConfig)
 	}
 	return nil

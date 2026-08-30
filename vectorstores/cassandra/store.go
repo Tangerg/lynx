@@ -462,16 +462,16 @@ const (
 	scanMetadataOffset
 )
 
-func (i *queryIterator) scan(destinations ...any) bool {
-	return !i.closed && i.value.Scan(destinations...)
+func (q *queryIterator) scan(destinations ...any) bool {
+	return !q.closed && q.value.Scan(destinations...)
 }
 
-func (i *queryIterator) close() error {
-	if i.closed {
+func (q *queryIterator) close() error {
+	if q.closed {
 		return nil
 	}
-	i.closed = true
-	return i.value.Close()
+	q.closed = true
+	return q.value.Close()
 }
 
 // gocql.Scan needs one pointer for every selected column, including the

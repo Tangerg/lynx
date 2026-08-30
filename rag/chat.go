@@ -85,8 +85,8 @@ func (m modelPrompt[T]) call(ctx context.Context, data any) (T, error) {
 	return m.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message}})
 }
 
-func (m textModelPrompt) call(ctx context.Context, data any) (string, error) {
-	text, err := m.modelPrompt.call(ctx, data)
+func (t textModelPrompt) call(ctx context.Context, data any) (string, error) {
+	text, err := t.modelPrompt.call(ctx, data)
 	if err != nil {
 		return "", err
 	}

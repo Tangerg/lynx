@@ -102,14 +102,14 @@ type fakeModel struct {
 	calls   int
 }
 
-func (model *fakeModel) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
-	model.mu.Lock()
-	defer model.mu.Unlock()
-	if model.calls >= len(model.replies) {
+func (f *fakeModel) Call(_ context.Context, _ *chat.Request) (*chat.Response, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.calls >= len(f.replies) {
 		return nil, errors.New("unexpected model call")
 	}
-	reply := model.replies[model.calls]
-	model.calls++
+	reply := f.replies[f.calls]
+	f.calls++
 	message := chat.NewAssistantMessage(chat.NewTextPart(reply))
 	return &chat.Response{Output: &chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}}, nil
 }

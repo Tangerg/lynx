@@ -17,15 +17,15 @@ const (
 	ErrorFailFast ErrorPolicy = "fail_fast"
 )
 
-func (policy ErrorPolicy) normalized() (ErrorPolicy, error) {
-	if policy == "" {
+func (e ErrorPolicy) normalized() (ErrorPolicy, error) {
+	if e == "" {
 		return ErrorCollect, nil
 	}
-	switch policy {
+	switch e {
 	case ErrorCollect, ErrorFailFast:
-		return policy, nil
+		return e, nil
 	default:
-		return "", fmt.Errorf("%w: unsupported error policy %q", ErrInvalidExperiment, policy)
+		return "", fmt.Errorf("%w: unsupported error policy %q", ErrInvalidExperiment, e)
 	}
 }
 
@@ -71,14 +71,14 @@ func NewExperiment[T any](config ExperimentConfig[T]) (Experiment[T], error) {
 	}, nil
 }
 
-func (experiment Experiment[T]) Run(ctx context.Context) (ExperimentReport, error) {
-	cases := experiment.dataset.Cases()
+func (e Experiment[T]) Run(ctx context.Context) (ExperimentReport, error) {
+	cases := e.dataset.Cases()
 	results := newCaseResults(cases)
 	if len(cases) == 0 {
 		return newExperimentReport(results, ExperimentSummary{}), nil
 	}
 
-	attempted, runErr := experiment.execute(ctx, cases, results)
+	attempted, runErr := e.execute(ctx, cases, results)
 	markUnevaluated(results, attempted, ctx.Err())
 	summary, summaryErr := summarize(results)
 	report := newExperimentReport(results, summary)
@@ -94,13 +94,13 @@ func (experiment Experiment[T]) Run(ctx context.Context) (ExperimentReport, erro
 	return report, nil
 }
 
-func (experiment Experiment[T]) execute(
+func (e Experiment[T]) execute(
 	ctx context.Context,
 	cases []Case[T],
 	results []CaseResult,
 ) ([]bool, error) {
 	group, groupContext := errgroup.WithContext(ctx)
-	group.SetLimit(min(experiment.maxConcurrency, len(cases)))
+	group.SetLimit(min(e.maxConcurrency, len(cases)))
 	attempted := make([]bool, len(cases))
 	for index, caseValue := range cases {
 		if groupContext.Err() != nil {
@@ -111,7 +111,7 @@ func (experiment Experiment[T]) execute(
 				return nil
 			}
 			attempted[index] = true
-			report, err := experiment.evaluator.Evaluate(groupContext, caseValue.Subject)
+			report, err := e.evaluator.Evaluate(groupContext, caseValue.Subject)
 			if err == nil {
 				err = report.Validate()
 			}
@@ -120,7 +120,7 @@ func (experiment Experiment[T]) execute(
 				return nil
 			}
 			results[index].Err = err
-			if experiment.errorPolicy == ErrorFailFast {
+			if e.errorPolicy == ErrorFailFast {
 				return fmt.Errorf("eval: case %q: %w", caseValue.ID, err)
 			}
 			return nil

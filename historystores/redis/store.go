@@ -40,11 +40,11 @@ type StoreConfig struct {
 	TTL time.Duration
 }
 
-func (c StoreConfig) Validate() error {
-	if lo.IsNil(c.Client) {
+func (s StoreConfig) Validate() error {
+	if lo.IsNil(s.Client) {
 		return errors.New("redis: client is required")
 	}
-	if c.TTL < 0 {
+	if s.TTL < 0 {
 		return errors.New("redis: TTL must not be negative")
 	}
 	return nil

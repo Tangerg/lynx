@@ -266,81 +266,81 @@ func newConformanceDurabilityProbe(
 	return &conformanceDurabilityProbe{durability: durability}
 }
 
-func (p *conformanceDurabilityProbe) AcknowledgeProcessStartOutcome(
+func (c *conformanceDurabilityProbe) AcknowledgeProcessStartOutcome(
 	ctx context.Context,
 	outcome agent.ProcessStartOutcome,
 ) error {
-	return p.retry(func() error {
-		return p.durability.AcknowledgeProcessStartOutcome(ctx, outcome)
+	return c.retry(func() error {
+		return c.durability.AcknowledgeProcessStartOutcome(ctx, outcome)
 	})
 }
 
-func (p *conformanceDurabilityProbe) ActivateTree(
+func (c *conformanceDurabilityProbe) ActivateTree(
 	ctx context.Context,
 	activation agent.TreeActivation,
 ) error {
-	return p.retry(func() error { return p.durability.ActivateTree(ctx, activation) })
+	return c.retry(func() error { return c.durability.ActivateTree(ctx, activation) })
 }
 
-func (p *conformanceDurabilityProbe) CommitEffect(
+func (c *conformanceDurabilityProbe) CommitEffect(
 	ctx context.Context,
 	boundary agent.EffectBoundary,
 ) error {
-	err := p.retry(func() error { return p.durability.CommitEffect(ctx, boundary) })
+	err := c.retry(func() error { return c.durability.CommitEffect(ctx, boundary) })
 	if err == nil {
-		p.mu.Lock()
-		p.effects = append(p.effects, boundary.Kind())
-		p.mu.Unlock()
+		c.mu.Lock()
+		c.effects = append(c.effects, boundary.Kind())
+		c.mu.Unlock()
 	}
 	return err
 }
 
-func (p *conformanceDurabilityProbe) CommitCheckpoint(
+func (c *conformanceDurabilityProbe) CommitCheckpoint(
 	ctx context.Context,
 	checkpoint agent.TreeCheckpoint,
 ) error {
-	err := p.retry(func() error {
-		return p.durability.CommitCheckpoint(ctx, checkpoint)
+	err := c.retry(func() error {
+		return c.durability.CommitCheckpoint(ctx, checkpoint)
 	})
 	if err == nil {
-		p.mu.Lock()
-		p.checkpoints = append(p.checkpoints, checkpoint.Kind())
-		p.mu.Unlock()
+		c.mu.Lock()
+		c.checkpoints = append(c.checkpoints, checkpoint.Kind())
+		c.mu.Unlock()
 	}
 	return err
 }
 
-func (p *conformanceDurabilityProbe) retry(commit func() error) error {
+func (c *conformanceDurabilityProbe) retry(commit func() error) error {
 	if err := commit(); err != nil {
 		return err
 	}
 	return commit()
 }
 
-func (p *conformanceDurabilityProbe) assertEffectLifecycle(t *testing.T) {
+func (c *conformanceDurabilityProbe) assertEffectLifecycle(t *testing.T) {
 	t.Helper()
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if len(p.effects) != 3 || p.effects[0] != agent.EffectBoundaryPending ||
-		p.effects[1] != agent.EffectBoundarySettled ||
-		p.effects[2] != agent.EffectBoundaryResolved {
-		t.Fatalf("Effect boundary order=%v", p.effects)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.effects) != 3 || c.effects[0] != agent.EffectBoundaryPending ||
+		c.effects[1] != agent.EffectBoundarySettled ||
+		c.effects[2] != agent.EffectBoundaryResolved {
+		t.Fatalf("Effect boundary order=%v", c.effects)
 	}
-	if len(p.checkpoints) == 0 ||
-		p.checkpoints[len(p.checkpoints)-1] != agent.TreeCheckpointTerminal {
-		t.Fatalf("checkpoint order=%v", p.checkpoints)
+	if len(c.checkpoints) == 0 ||
+		c.checkpoints[len(c.checkpoints)-1] != agent.TreeCheckpointTerminal {
+		t.Fatalf("checkpoint order=%v", c.checkpoints)
 	}
 }
 
-func (p *conformanceDurabilityProbe) assertSingleCheckpoint(
+func (c *conformanceDurabilityProbe) assertSingleCheckpoint(
 	t *testing.T,
 	want agent.TreeCheckpointKind,
 ) {
 	t.Helper()
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	if len(p.checkpoints) != 1 || p.checkpoints[0] != want {
-		t.Fatalf("checkpoint order=%v, want [%s]", p.checkpoints, want)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if len(c.checkpoints) != 1 || c.checkpoints[0] != want {
+		t.Fatalf("checkpoint order=%v, want [%s]", c.checkpoints, want)
 	}
 }
 
@@ -368,63 +368,63 @@ func newConformanceBlockingPendingDurability(
 	}
 }
 
-func (b *conformanceBlockingPendingDurability) AcknowledgeProcessStartOutcome(
+func (c *conformanceBlockingPendingDurability) AcknowledgeProcessStartOutcome(
 	ctx context.Context,
 	outcome agent.ProcessStartOutcome,
 ) error {
-	return b.durability.AcknowledgeProcessStartOutcome(ctx, outcome)
+	return c.durability.AcknowledgeProcessStartOutcome(ctx, outcome)
 }
 
-func (b *conformanceBlockingPendingDurability) ActivateTree(
+func (c *conformanceBlockingPendingDurability) ActivateTree(
 	ctx context.Context,
 	activation agent.TreeActivation,
 ) error {
-	return b.durability.ActivateTree(ctx, activation)
+	return c.durability.ActivateTree(ctx, activation)
 }
 
-func (b *conformanceBlockingPendingDurability) CommitEffect(
+func (c *conformanceBlockingPendingDurability) CommitEffect(
 	ctx context.Context,
 	boundary agent.EffectBoundary,
 ) error {
-	if boundary.Kind() == agent.EffectBoundaryPending && b.blockFirstPending() {
-		close(b.entered)
+	if boundary.Kind() == agent.EffectBoundaryPending && c.blockFirstPending() {
+		close(c.entered)
 		select {
-		case <-b.release:
+		case <-c.release:
 		case <-ctx.Done():
 			return ctx.Err()
 		}
 	}
-	return b.durability.CommitEffect(ctx, boundary)
+	return c.durability.CommitEffect(ctx, boundary)
 }
 
-func (b *conformanceBlockingPendingDurability) CommitCheckpoint(
+func (c *conformanceBlockingPendingDurability) CommitCheckpoint(
 	ctx context.Context,
 	checkpoint agent.TreeCheckpoint,
 ) error {
-	return b.durability.CommitCheckpoint(ctx, checkpoint)
+	return c.durability.CommitCheckpoint(ctx, checkpoint)
 }
 
-func (b *conformanceBlockingPendingDurability) blockFirstPending() bool {
-	b.mu.Lock()
-	defer b.mu.Unlock()
-	if b.blocked {
+func (c *conformanceBlockingPendingDurability) blockFirstPending() bool {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	if c.blocked {
 		return false
 	}
-	b.blocked = true
+	c.blocked = true
 	return true
 }
 
-func (b *conformanceBlockingPendingDurability) waitUntilPending(t *testing.T) {
+func (c *conformanceBlockingPendingDurability) waitUntilPending(t *testing.T) {
 	t.Helper()
 	select {
-	case <-b.entered:
+	case <-c.entered:
 	case <-time.After(conformanceStatusTimeout):
 		t.Fatal("pending Effect commit did not start")
 	}
 }
 
-func (b *conformanceBlockingPendingDurability) releasePending() {
-	b.released.Do(func() { close(b.release) })
+func (c *conformanceBlockingPendingDurability) releasePending() {
+	c.released.Do(func() { close(c.release) })
 }
 
 type conformanceMode uint8
@@ -500,21 +500,21 @@ func conformanceDeployment(t *testing.T, mode conformanceMode) agent.Deployment 
 	return deployment
 }
 
-func (d *conformanceDefinition) Descriptor() agent.Descriptor { return d.descriptor }
+func (c *conformanceDefinition) Descriptor() agent.Descriptor { return c.descriptor }
 
-func (d *conformanceDefinition) Start(input agent.Input) (agent.Execution, error) {
+func (c *conformanceDefinition) Start(input agent.Input) (agent.Execution, error) {
 	value, err := input.Decode[conformanceInput]()
 	if err != nil {
 		return nil, err
 	}
 	return &conformanceExecution{
-		definition: d,
+		definition: c,
 		state:      conformanceState{Phase: conformancePhaseReady, Value: value.Value},
 	}, nil
 }
 
-func (d *conformanceDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
-	if state.Kind() != d.descriptor.Name() {
+func (c *conformanceDefinition) Restore(state agent.ExecutionState) (agent.Execution, error) {
+	if state.Kind() != c.descriptor.Name() {
 		return nil, agent.ErrInvalidExecutionState
 	}
 	var value conformanceState
@@ -524,7 +524,7 @@ func (d *conformanceDefinition) Restore(state agent.ExecutionState) (agent.Execu
 	if !value.Phase.valid() {
 		return nil, agent.ErrInvalidExecutionState
 	}
-	return &conformanceExecution{definition: d, state: value}, nil
+	return &conformanceExecution{definition: c, state: value}, nil
 }
 
 type conformanceExecution struct {
@@ -532,32 +532,32 @@ type conformanceExecution struct {
 	state      conformanceState
 }
 
-func (e *conformanceExecution) Step(
+func (c *conformanceExecution) Step(
 	_ context.Context,
 	signals []agent.Signal,
 ) (agent.Transition, error) {
-	switch e.definition.mode {
+	switch c.definition.mode {
 	case conformanceModeEffect, conformanceModeUnknownEffect:
-		return e.stepEffect(signals)
+		return c.stepEffect(signals)
 	case conformanceModePause:
-		if e.state.Phase != conformancePhaseReady || len(signals) != 0 {
+		if c.state.Phase != conformancePhaseReady || len(signals) != 0 {
 			return agent.Transition{}, errors.New("agenttest: paused execution cannot advance")
 		}
-		e.state.Phase = conformancePhaseFinished
+		c.state.Phase = conformancePhaseFinished
 		return agent.Pause(0, "durability conformance parked state")
 	default:
 		return agent.Transition{}, errors.New("agenttest: invalid conformance mode")
 	}
 }
 
-func (e *conformanceExecution) stepEffect(signals []agent.Signal) (agent.Transition, error) {
-	switch e.state.Phase {
+func (c *conformanceExecution) stepEffect(signals []agent.Signal) (agent.Transition, error) {
+	switch c.state.Phase {
 	case conformancePhaseReady:
 		if len(signals) != 0 {
 			return agent.Transition{}, errors.New("agenttest: unexpected initial Signal")
 		}
-		e.state.Phase = conformancePhaseAwaitingEffect
-		payload, err := json.Marshal(conformanceInput{Value: e.state.Value})
+		c.state.Phase = conformancePhaseAwaitingEffect
+		payload, err := json.Marshal(conformanceInput{Value: c.state.Value})
 		if err != nil {
 			return agent.Transition{}, err
 		}
@@ -574,7 +574,7 @@ func (e *conformanceExecution) stepEffect(signals []agent.Signal) (agent.Transit
 		if err := json.Unmarshal(signals[0].Payload(), &output); err != nil {
 			return agent.Transition{}, err
 		}
-		e.state.Phase = conformancePhaseFinished
+		c.state.Phase = conformancePhaseFinished
 		encoded, err := agent.EncodeOutput(output)
 		if err != nil {
 			return agent.Transition{}, err
@@ -585,17 +585,17 @@ func (e *conformanceExecution) stepEffect(signals []agent.Signal) (agent.Transit
 	}
 }
 
-func (e *conformanceExecution) Snapshot() (agent.ExecutionState, error) {
-	payload, err := json.Marshal(e.state)
+func (c *conformanceExecution) Snapshot() (agent.ExecutionState, error) {
+	payload, err := json.Marshal(c.state)
 	if err != nil {
 		return agent.ExecutionState{}, err
 	}
-	return agent.NewExecutionState(e.definition.descriptor.Name(), payload)
+	return agent.NewExecutionState(c.definition.descriptor.Name(), payload)
 }
 
-func (p conformancePhase) valid() bool {
-	return p == conformancePhaseReady || p == conformancePhaseAwaitingEffect ||
-		p == conformancePhaseFinished
+func (c conformancePhase) valid() bool {
+	return c == conformancePhaseReady || c == conformancePhaseAwaitingEffect ||
+		c == conformancePhaseFinished
 }
 
 type conformanceDispatcher struct {

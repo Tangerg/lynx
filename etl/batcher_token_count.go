@@ -26,21 +26,21 @@ type TokenCountBatcherConfig struct {
 	Formatter Formatter
 }
 
-func (c TokenCountBatcherConfig) normalized() (TokenCountBatcherConfig, error) {
-	if lo.IsNil(c.Estimator) {
+func (t TokenCountBatcherConfig) normalized() (TokenCountBatcherConfig, error) {
+	if lo.IsNil(t.Estimator) {
 		return TokenCountBatcherConfig{}, errors.New("etl: token estimator is required")
 	}
-	if c.MaxTokens <= 0 {
+	if t.MaxTokens <= 0 {
 		return TokenCountBatcherConfig{}, errors.New("etl: maximum batch tokens must be positive")
 	}
-	if math.IsNaN(c.Reserve) || math.IsInf(c.Reserve, 0) || c.Reserve < 0 || c.Reserve >= 1 {
+	if math.IsNaN(t.Reserve) || math.IsInf(t.Reserve, 0) || t.Reserve < 0 || t.Reserve >= 1 {
 		return TokenCountBatcherConfig{}, errors.New("etl: token reserve must be in [0, 1)")
 	}
-	effective := c.MaxTokens
-	if c.Reserve > 0 {
-		usable := float64(c.MaxTokens) * (1 - c.Reserve)
-		if usable >= float64(c.MaxTokens) {
-			effective = c.MaxTokens - 1
+	effective := t.MaxTokens
+	if t.Reserve > 0 {
+		usable := float64(t.MaxTokens) * (1 - t.Reserve)
+		if usable >= float64(t.MaxTokens) {
+			effective = t.MaxTokens - 1
 		} else {
 			effective = int(math.Floor(usable))
 		}
@@ -48,13 +48,13 @@ func (c TokenCountBatcherConfig) normalized() (TokenCountBatcherConfig, error) {
 	if effective < 1 {
 		return TokenCountBatcherConfig{}, errors.New("etl: token reserve leaves no usable batch budget")
 	}
-	c.MaxTokens = effective
-	if c.Formatter == nil {
-		c.Formatter = TextFormatter{}
-	} else if lo.IsNil(c.Formatter) {
+	t.MaxTokens = effective
+	if t.Formatter == nil {
+		t.Formatter = TextFormatter{}
+	} else if lo.IsNil(t.Formatter) {
 		return TokenCountBatcherConfig{}, errors.New("etl: formatter must not be a typed nil")
 	}
-	return c, nil
+	return t, nil
 }
 
 // TokenCountBatcher carves a document slice into batches that fit

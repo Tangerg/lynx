@@ -38,15 +38,15 @@ type StoreConfig struct {
 	InitializeSchema bool
 }
 
-func (c StoreConfig) Validate() error {
-	if c.Session == nil {
+func (s StoreConfig) Validate() error {
+	if s.Session == nil {
 		return errors.New("cassandra: session is required")
 	}
-	if c.Keyspace != "" && !validIdentifier(c.Keyspace) {
-		return fmt.Errorf("cassandra: keyspace %q must be a valid unquoted identifier", c.Keyspace)
+	if s.Keyspace != "" && !validIdentifier(s.Keyspace) {
+		return fmt.Errorf("cassandra: keyspace %q must be a valid unquoted identifier", s.Keyspace)
 	}
-	if c.TableName != "" && !validIdentifier(c.TableName) {
-		return fmt.Errorf("cassandra: table name %q must be a valid unquoted identifier", c.TableName)
+	if s.TableName != "" && !validIdentifier(s.TableName) {
+		return fmt.Errorf("cassandra: table name %q must be a valid unquoted identifier", s.TableName)
 	}
 	return nil
 }
