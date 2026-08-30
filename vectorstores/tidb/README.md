@@ -1,0 +1,51 @@
+# tidb
+
+Package tidb exposes TiDB's native VECTOR column type through the Core vector-
+store capability interfaces. Documents live in a regular TiDB table (id /
+content / metadata JSON / embedding VECTOR) reached over the MySQL wire
+protocol via `database/sql` + go-sql-driver/mysql. Requirements: TiDB 8.4+
+(vector type GA) — TiDB Serverless supports it on every recent release. The
+HNSW vector index needs the function-expression form
+`((VEC_<metric>_DISTANCE(embedding))) USING HNSW` and is only available on
+TiKV-backed columnar storage in some deployments; the store creates it under
+StoreConfig.InitializeSchema = true and propagates any backend error so callers
+can react. Distance metrics — they map to TiDB's built-in functions: -
+DistanceCosine → `VEC_COSINE_DISTANCE` - DistanceL2 → `VEC_L2_DISTANCE` -
+DistanceNegativeIP → `VEC_NEGATIVE_INNER_PRODUCT` Vector binding. TiDB accepts
+`'[v1,v2,...]'` text literals directly — the store renders them and binds as a
+regular `?` parameter, so no special vector codec is needed. Filter visitor
+reaches into the JSON metadata column with `JSON_VALUE(metadata, '$.k')`,
+wrapping numeric / ordering comparisons in `CAST(... AS DOUBLE)`. See
+https://docs.pingcap.com/tidb/stable/vector-search-overview/ for the official
+reference.
+
+## Install
+
+```bash
+go get github.com/Tangerg/scope/vectorstores/tidb
+```
+
+## Constructors
+
+Every constructor validates its config and returns a value implementing
+the capability interfaces in `core/vectorstore`:
+
+- `NewStore`
+
+## Testing
+
+This module integrates a third-party service, so its tests cover what runs
+without live credentials: config validation, request and response mapping, and
+error classification. The shared conformance contract is
+`core/vectorstore/storetest` — this module runs it rather than copying it.
+
+An integration probe skips unless its credential environment variable is set,
+so `go test ./...` is always runnable offline.
+
+## Boundaries
+
+This is an independent leaf module: it carries only its own SDK dependency and
+never imports a sibling provider. The shared contract every module in this
+family obeys is in [`../ARCHITECTURE.md`](../ARCHITECTURE.md).
+
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for what this module owns.

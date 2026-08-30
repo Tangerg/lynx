@@ -1,0 +1,51 @@
+# azurecosmos
+
+Package azurecosmos exposes Azure Cosmos DB for NoSQL's VectorDistance()
+function through the Core vector-store capability interfaces. Documents are
+regular Cosmos items (`{id, content, metadata, embedding}`) and retrieval runs
+a parameterised SQL query that orders rows by VectorDistance. Requirements: a
+Cosmos DB account with vector search enabled (currently a feature flag on the
+NoSQL API; opt in from the portal). The container needs a vector embedding
+policy + indexing policy that match the configured DistanceFunction and the
+embedding model's dimensionality — the store assumes this is provisioned out of
+band (ARM / Terraform / Portal). Distance functions: DistanceCosine /
+DistanceDotProduct / DistanceEuclidean. The value passed at query time MUST
+match what the container's vector policy declares. Filter visitor produces
+Cosmos SQL — `c.metadata.key = @p1`, `c.metadata.year >= @p1`, `c.metadata.tag
+IN (@p1, @p2)`. Named parameters (`@pN`) are used to match Cosmos SDK's
+QueryParameter shape. LIKE maps to `CONTAINS(c.metadata.key, @p)` — the leading
+/ trailing `%` markers are stripped. Cross-partition queries are enabled by
+passing the canonical empty partition key to NewQueryItemsPager. Single-doc
+writes use the document's id as partition key (matches the default `/id`
+config). See https://learn.microsoft.com/azure/cosmos-db/nosql/vector-search.
+
+## Install
+
+```bash
+go get github.com/Tangerg/scope/vectorstores/azurecosmos
+```
+
+## Constructors
+
+Every constructor validates its config and returns a value implementing
+the capability interfaces in `core/vectorstore`:
+
+- `NewStore`
+
+## Testing
+
+This module integrates a third-party service, so its tests cover what runs
+without live credentials: config validation, request and response mapping, and
+error classification. The shared conformance contract is
+`core/vectorstore/storetest` — this module runs it rather than copying it.
+
+An integration probe skips unless its credential environment variable is set,
+so `go test ./...` is always runnable offline.
+
+## Boundaries
+
+This is an independent leaf module: it carries only its own SDK dependency and
+never imports a sibling provider. The shared contract every module in this
+family obeys is in [`../ARCHITECTURE.md`](../ARCHITECTURE.md).
+
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for what this module owns.
