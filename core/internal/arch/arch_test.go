@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 
@@ -154,6 +155,25 @@ func TestOtherModalitySPIsRemainMinimal(t *testing.T) {
 	}
 }
 
+func TestModalityErrorVocabularyRemainsUnified(t *testing.T) {
+	want := []string{"ErrInvalidOptions", "ErrInvalidRequest", "ErrInvalidResponse"}
+	for _, packageName := range []string{"embedding", "image", "moderation", "speech", "transcription"} {
+		t.Run(packageName, func(t *testing.T) {
+			got := exportedErrorSentinelNames(t, packageName)
+			if !slices.Equal(got, want) {
+				t.Fatalf("core/%s exported error sentinels = %v, want exactly %v", packageName, got, want)
+			}
+		})
+	}
+
+	chatErrors := exportedErrorSentinelNames(t, "chat")
+	for _, name := range want {
+		if !slices.Contains(chatErrors, name) {
+			t.Errorf("core/chat exported error sentinels = %v, missing %s", chatErrors, name)
+		}
+	}
+}
+
 func TestCoreDoesNotOwnProviderCatalogData(t *testing.T) {
 	root := filepath.Join(coreRoot(t), "chat")
 	forbidden := map[string]bool{
@@ -204,6 +224,28 @@ func assertMinimalModalityPackage(t *testing.T, packageName string) {
 		forbidden[name] = true
 	}
 	assertTopLevelNamesAbsent(t, packageName, forbidden)
+}
+
+func exportedErrorSentinelNames(t *testing.T, packageName string) []string {
+	t.Helper()
+	var names []string
+	for _, parsed := range parsePackageFiles(t, packageName) {
+		for _, declaration := range parsed.file.Decls {
+			general, ok := declaration.(*ast.GenDecl)
+			if !ok || general.Tok != token.VAR {
+				continue
+			}
+			for _, specification := range general.Specs {
+				for _, name := range specificationNames(specification) {
+					if ast.IsExported(name) && strings.HasPrefix(name, "Err") {
+						names = append(names, name)
+					}
+				}
+			}
+		}
+	}
+	slices.Sort(names)
+	return names
 }
 
 func TestFilterPublicFacadeKeepsFrontendInternalsPrivate(t *testing.T) {

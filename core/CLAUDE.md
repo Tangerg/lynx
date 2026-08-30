@@ -14,6 +14,7 @@
 
 - **扁平且语义分区**：协议包使用 `core/chat`、`core/embedding`、`core/image` 等领域名；紧邻协议的使用体验位于 `core/chatclient`、`core/embeddingclient`；跨协议基础能力位于 `core/jsonschema`、`core/tool`、`core/tokenizer`、`core/history`、`core/vectorstore`。目录层次表达语义或所有权，不用于装饰。
 - **最小能力接口**：每个 modality 的 `Model` 默认只有 `Call`；真实流能力以独立 `Streamer` 表达，需要发请求的维度探测归消费工作流，不伪装为 Core SPI。
+- **统一错误词汇**：每个 provider-facing modality 协议包都暴露 `ErrInvalidOptions`、`ErrInvalidRequest`、`ErrInvalidResponse`，作为 provider 与 integration 共享的稳定错误分类；Chat 可以在这组三元组上增加自身协议错误。
 - **协议值可序列化**：DTO 不携带闭包、reader、logger、tracer、registry、native client 或任意运行时对象；Metadata/Extensions 必须 JSON-safe，并在 I/O 边界显式 `Validate`。
 - **Tagged value，而非 sealed hierarchy**：Message/Part 使用公开 discriminator 与普通值；未知类型返回可诊断错误，不依赖未导出方法封口。
 - **流式使用 `iter.Seq2`**：不自定义 iterator，不用 channel 冒充拉模型；调用方提前停止、context cancel 和首错终止必须有测试。
