@@ -5,7 +5,10 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"maps"
+	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -15,8 +18,53 @@ var validatedModalityImports = map[string]struct{}{
 	"github.com/Tangerg/scope/core/embedding":     {},
 	"github.com/Tangerg/scope/core/image":         {},
 	"github.com/Tangerg/scope/core/moderation":    {},
+	"github.com/Tangerg/scope/core/rerank":        {},
 	"github.com/Tangerg/scope/core/speech":        {},
 	"github.com/Tangerg/scope/core/transcription": {},
+}
+
+func TestValidatedNonChatModalityImportsCoverEveryCoreModelSPI(t *testing.T) {
+	t.Parallel()
+
+	coreRoot := filepath.Join(repositoryRoot(t), "core")
+	entries, err := os.ReadDir(coreRoot)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := make([]string, 0, len(validatedModalityImports))
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == "internal" || entry.Name() == "chat" {
+			continue
+		}
+		for _, file := range parseImmediateProductionFiles(t, filepath.Join(coreRoot, entry.Name())) {
+			if publishesModelInterface(file) {
+				want = append(want, "github.com/Tangerg/scope/core/"+entry.Name())
+				break
+			}
+		}
+	}
+	slices.Sort(want)
+	got := slices.Sorted(maps.Keys(validatedModalityImports))
+	if !slices.Equal(got, want) {
+		t.Fatalf("validated modality imports = %v, Core Model SPI imports = %v", got, want)
+	}
+}
+
+func publishesModelInterface(file *ast.File) bool {
+	for _, declaration := range file.Decls {
+		general, ok := declaration.(*ast.GenDecl)
+		if !ok || general.Tok != token.TYPE {
+			continue
+		}
+		for _, specification := range general.Specs {
+			typeSpec := specification.(*ast.TypeSpec)
+			if typeSpec.Name.Name == "Model" {
+				_, isInterface := typeSpec.Type.(*ast.InterfaceType)
+				return isInterface
+			}
+		}
+	}
+	return false
 }
 
 // TestModalityModelBoundariesValidateRequests prevents adapters from

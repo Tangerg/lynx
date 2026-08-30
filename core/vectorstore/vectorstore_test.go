@@ -1,6 +1,7 @@
 package vectorstore_test
 
 import (
+	"errors"
 	"math"
 	"reflect"
 	"testing"
@@ -20,6 +21,9 @@ func TestSearchRequestValidate(t *testing.T) {
 		{"negative topk", vectorstore.SearchRequest{Query: "hi", Options: vectorstore.SearchOptions{TopK: -1}}, false},
 		{"out-of-range minscore", vectorstore.SearchRequest{Query: "hi", Options: vectorstore.SearchOptions{TopK: 5, MinScore: 1.5}}, false},
 		{"nan minscore", vectorstore.SearchRequest{Query: "hi", Options: vectorstore.SearchOptions{TopK: 5, MinScore: vectorstore.Score(math.NaN())}}, false},
+		{"unknown mode", vectorstore.SearchRequest{Query: "hi", Options: vectorstore.SearchOptions{Mode: "magic"}}, false},
+		{"hybrid threshold", vectorstore.SearchRequest{Query: "hi", Options: vectorstore.SearchOptions{Mode: vectorstore.SearchModeHybrid, MinScore: 0.5}}, false},
+		{"hybrid", vectorstore.SearchRequest{Query: "hi", Options: vectorstore.SearchOptions{Mode: vectorstore.SearchModeHybrid}}, true},
 		{"valid", vectorstore.SearchRequest{Query: "hi", Options: vectorstore.SearchOptions{TopK: 5, MinScore: 0.5}}, true},
 	}
 	for _, tc := range cases {
@@ -32,6 +36,23 @@ func TestSearchRequestValidate(t *testing.T) {
 				t.Fatal("expected error")
 			}
 		})
+	}
+}
+
+func TestSearchModeIsExplicitAndCapabilityChecked(t *testing.T) {
+	var options vectorstore.SearchOptions
+	if got := options.EffectiveMode(); got != vectorstore.SearchModeSemantic {
+		t.Fatalf("zero mode = %q, want semantic", got)
+	}
+	if options.EffectiveMode().String() != "semantic" {
+		t.Fatalf("semantic string = %q", options.EffectiveMode().String())
+	}
+	options.Mode = vectorstore.SearchModeHybrid
+	if err := options.RequireMode(vectorstore.SearchModeSemantic); !errors.Is(err, vectorstore.ErrUnsupportedSearchMode) {
+		t.Fatalf("RequireMode error = %v", err)
+	}
+	if err := options.RequireMode(vectorstore.SearchModeSemantic, vectorstore.SearchModeHybrid); err != nil {
+		t.Fatal(err)
 	}
 }
 

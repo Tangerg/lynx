@@ -1,9 +1,11 @@
 # cohere
 
-Package cohere wraps Cohere's v2 embedding API. Only the /v2/embed surface is
-exposed. Callers select the official input_type explicitly because query,
-document, classification, and clustering embeddings have different task
-semantics. See https://docs.cohere.com/ for the full API reference.
+Package cohere implements Scope's embedding and reranking protocols through
+Cohere's v2 API. Embedding callers select the official input type explicitly;
+reranking returns input indices and normalized relevance without duplicating
+documents. Cohere-specific token and priority controls use the provider-owned
+`RerankRequestOptions` extension rather than leaking the SDK request type. See
+https://docs.cohere.com/ for the provider reference.
 
 ## Install
 
@@ -17,6 +19,7 @@ Every constructor validates its config and returns a value implementing
 the `Model` contracts in `core`:
 
 - `NewEmbeddingModel`
+- `NewRerankModel`
 
 ## Testing
 

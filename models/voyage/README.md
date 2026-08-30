@@ -1,13 +1,10 @@
 # voyage
 
-Package voyage wraps Voyage AI's embedding API. Voyage publishes retrieval-
-tuned text and multimodal embedding models that consistently lead public
-retrieval benchmarks; the current voyage-4-large / voyage-4 / voyage-4-lite
-models support matryoshka-style output truncation via the output_dimension
-parameter. Voyage's /embeddings shape is bespoke (input_type, truncation,
-quantization knobs) and doesn't speak the OpenAI dialect — this package
-implements embedding.Model directly against the native API. See
-https://docs.voyageai.com/ for the full reference.
+Package voyage implements Scope's embedding and reranking protocols through
+Voyage AI's native API. Embedding exposes retrieval task and output-shape
+controls at the provider boundary; reranking exposes Voyage truncation through
+a typed extension while Core owns the result contract. See
+https://docs.voyageai.com/ for the provider reference.
 
 ## Install
 
@@ -21,6 +18,7 @@ Every constructor validates its config and returns a value implementing
 the `Model` contracts in `core`:
 
 - `NewEmbeddingModel`
+- `NewRerankModel`
 
 ## Testing
 

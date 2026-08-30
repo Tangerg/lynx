@@ -1,4 +1,4 @@
-// Package jina wraps Jina AI's native embedding API. It supports the dense
+// Package jina wraps Jina AI's native embedding and reranking APIs. Embedding supports the dense
 // float subset of current v5, v4, v3, CLIP, and code embedding models that
 // maps losslessly to core/embedding.
 //
@@ -11,7 +11,8 @@
 // Jina's /embeddings dialect partially overlaps OpenAI's but uses
 // "dimensions" rather than "output_dimension" and exposes the
 // task-conditioning field; this package implements [embedding.Model]
-// directly against the native API.
+// directly against the native API. Reranking returns indices into the
+// caller-owned document batch rather than provider-owned document copies.
 //
 // See https://jina.ai/embeddings/ for the full reference.
 package jina

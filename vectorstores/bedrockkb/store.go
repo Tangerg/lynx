@@ -20,7 +20,7 @@ const Provider = "BedrockKnowledgeBase"
 // StoreConfig contains configuration options for the AWS Bedrock
 // Knowledge Base vector store. Bedrock manages document ingestion
 // out of band (S3 data source + StartIngestionJob), so this store exposes only
-// semantic search.
+// retrieval.
 type StoreConfig struct {
 	// Client is the bedrockagentruntime client. Required.
 	Client *bedrockagentruntime.Client
@@ -28,10 +28,6 @@ type StoreConfig struct {
 	// KnowledgeBaseID identifies the knowledge base to query.
 	// Required.
 	KnowledgeBaseID string
-
-	// OverrideSearchType optionally selects semantic or hybrid retrieval. Amazon
-	// Bedrock chooses automatically when this is empty.
-	OverrideSearchType types.SearchType
 
 	// RerankingConfiguration and ImplicitFilterConfiguration expose Bedrock's
 	// provider-specific retrieval features without allowing them to override
@@ -47,11 +43,6 @@ func (s StoreConfig) Validate() error {
 	if s.KnowledgeBaseID == "" {
 		return errors.New("bedrockkb: KnowledgeBaseID is required")
 	}
-	switch s.OverrideSearchType {
-	case "", types.SearchTypeHybrid, types.SearchTypeSemantic:
-	default:
-		return fmt.Errorf("bedrockkb: unsupported OverrideSearchType %q", s.OverrideSearchType)
-	}
 	return nil
 }
 
@@ -62,7 +53,6 @@ var _ vectorstore.Searcher = (*Store)(nil)
 type Store struct {
 	client                      *bedrockagentruntime.Client
 	knowledgeBaseID             string
-	overrideSearchType          types.SearchType
 	rerankingConfiguration      *types.VectorSearchRerankingConfiguration
 	implicitFilterConfiguration *types.ImplicitFilterConfiguration
 }
@@ -74,7 +64,6 @@ func NewStore(config StoreConfig) (*Store, error) {
 	return &Store{
 		client:                      config.Client,
 		knowledgeBaseID:             config.KnowledgeBaseID,
-		overrideSearchType:          config.OverrideSearchType,
 		rerankingConfiguration:      config.RerankingConfiguration,
 		implicitFilterConfiguration: config.ImplicitFilterConfiguration,
 	}, nil
@@ -84,6 +73,9 @@ func NewStore(config StoreConfig) (*Store, error) {
 func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
 	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
+		return nil, fmt.Errorf("bedrockkb.Store.Search: %w", err)
+	}
+	if err = req.Options.RequireMode(vectorstore.SearchModeSemantic, vectorstore.SearchModeHybrid); err != nil {
 		return nil, fmt.Errorf("bedrockkb.Store.Search: %w", err)
 	}
 
@@ -132,9 +124,13 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 
 func (s *Store) vectorSearchConfig(req *vectorstore.SearchRequest) (*types.KnowledgeBaseVectorSearchConfiguration, error) {
 	topK := int32(req.Options.ResultLimit())
+	searchType := types.SearchTypeSemantic
+	if req.Options.EffectiveMode() == vectorstore.SearchModeHybrid {
+		searchType = types.SearchTypeHybrid
+	}
 	config := &types.KnowledgeBaseVectorSearchConfiguration{
 		NumberOfResults:             &topK,
-		OverrideSearchType:          s.overrideSearchType,
+		OverrideSearchType:          searchType,
 		RerankingConfiguration:      s.rerankingConfiguration,
 		ImplicitFilterConfiguration: s.implicitFilterConfiguration,
 	}

@@ -2,8 +2,11 @@
 
 Package weaviate exposes Weaviate through the Core vector-store capability
 interfaces. Documents are stored as objects in a Weaviate class (`{id, vector,
-properties}`); retrieval runs Weaviate's `nearVector` (or `nearText` when the
-class is configured with a vectorizer) query. Requirements: a reachable
+properties}`); semantic retrieval runs `nearVector`, while hybrid retrieval
+combines the supplied vector with lexical evidence from `content` through
+Weaviate's relative-score fusion. `StoreConfig.HybridAlpha` optionally controls
+the vector weight without changing the portable `SearchMode` contract.
+Requirements: a reachable
 Weaviate v5 server (self-hosted or Weaviate Cloud Services). The store uses the
 official weaviate-go-client/v5. Vector similarity functions: cosine / dot /
 l2-squared / hamming / manhattan. The chosen value is bound to the class's

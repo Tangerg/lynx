@@ -18,16 +18,21 @@ var vectorStoreFilterValueKey = mustValueKey[filter.Predicate]("vector store fil
 func VectorStoreFilterValueKey() ValueKey[filter.Predicate] { return vectorStoreFilterValueKey }
 
 type VectorStoreRetrieverConfig struct {
-	// VectorStore performs the actual similarity search. Required.
+	// VectorStore performs the actual relevance search. Required.
 	VectorStore corevs.Searcher
 
 	// TopK caps the number of returned documents. Zero uses
 	// [corevs.DefaultTopK]; negative values are invalid.
 	TopK int
 
-	// MinScore filters out matches below this similarity threshold.
+	// MinScore filters semantic matches below this relevance threshold. Hybrid
+	// mode requires zero because fusion scores are not portable across stores.
 	// Range [0.0, 1.0].
 	MinScore corevs.Score
+
+	// SearchMode selects semantic or native hybrid retrieval. The zero value is
+	// semantic; a store that cannot honor hybrid returns a typed error.
+	SearchMode corevs.SearchMode
 
 	// FilterFunc dynamically builds a metadata filter from the complete query.
 	// Optional; when [VectorStoreFilterValueKey] is set, the per-query filter wins.
@@ -41,12 +46,15 @@ func (v VectorStoreRetrieverConfig) normalized() (VectorStoreRetrieverConfig, er
 	if v.TopK < 0 {
 		return VectorStoreRetrieverConfig{}, errors.New("rag: vector-store top K must not be negative")
 	}
-	if v.MinScore < corevs.MinSimilarityScore || v.MinScore > corevs.MaxSimilarityScore {
+	if v.MinScore < corevs.MinRelevanceScore || v.MinScore > corevs.MaxRelevanceScore {
 		return VectorStoreRetrieverConfig{}, fmt.Errorf(
 			"rag: vector-store minimum score must be in [%.1f, %.1f]",
-			corevs.MinSimilarityScore,
-			corevs.MaxSimilarityScore,
+			corevs.MinRelevanceScore,
+			corevs.MaxRelevanceScore,
 		)
+	}
+	if err := (corevs.SearchOptions{MinScore: v.MinScore, Mode: v.SearchMode}).Validate(); err != nil {
+		return VectorStoreRetrieverConfig{}, fmt.Errorf("rag: vector-store search options: %w", err)
 	}
 	if v.TopK == 0 {
 		v.TopK = corevs.DefaultTopK
@@ -61,6 +69,7 @@ type VectorStoreRetriever struct {
 	vectorStore corevs.Searcher
 	topK        int
 	minScore    corevs.Score
+	searchMode  corevs.SearchMode
 	filterFunc  func(ctx context.Context, query Query) (filter.Predicate, error)
 }
 
@@ -74,11 +83,12 @@ func NewVectorStoreRetriever(config VectorStoreRetrieverConfig) (*VectorStoreRet
 		vectorStore: config.VectorStore,
 		topK:        config.TopK,
 		minScore:    config.MinScore,
+		searchMode:  config.SearchMode,
 		filterFunc:  config.FilterFunc,
 	}, nil
 }
 
-// Retrieve issues a similarity search via the underlying vector store.
+// Retrieve issues the configured relevance search via the underlying vector store.
 func (v *VectorStoreRetriever) Retrieve(ctx context.Context, query Query) (Candidates, error) {
 	if err := query.Validate(); err != nil {
 		return nil, err
@@ -92,7 +102,7 @@ func (v *VectorStoreRetriever) Retrieve(ctx context.Context, query Query) (Candi
 	request := &corevs.SearchRequest{
 		Query: query.Text(),
 		Options: corevs.SearchOptions{
-			TopK: v.topK, MinScore: v.minScore, Filter: expr,
+			TopK: v.topK, MinScore: v.minScore, Filter: expr, Mode: v.searchMode,
 		},
 	}
 	if validateErr := request.Validate(); validateErr != nil {

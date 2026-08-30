@@ -8,11 +8,13 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore"
 )
 
-// Capabilities is the exact vectorstore interface set a backend promises.
-// False means the backend must not accidentally satisfy that capability.
+// Capabilities is the exact interface and search-semantics set a backend
+// promises. A false interface flag forbids accidental implementation; a false
+// HybridSearch flag requires rejection before external I/O.
 type Capabilities struct {
 	Indexer       bool
 	Searcher      bool
+	HybridSearch  bool
 	IDDeleter     bool
 	FilterDeleter bool
 }
@@ -67,6 +69,16 @@ func Run(t *testing.T, store any, expected Capabilities) {
 				t.Fatal("Search(zero request) error = nil, want validation error")
 			}
 		})
+		if !expected.HybridSearch {
+			t.Run("SearchRejectsUnsupportedHybridBeforeIO", func(t *testing.T) {
+				request := &vectorstore.SearchRequest{
+					Query: "query", Options: vectorstore.SearchOptions{Mode: vectorstore.SearchModeHybrid},
+				}
+				if _, err := searcher.Search(ctx, request); !errors.Is(err, vectorstore.ErrUnsupportedSearchMode) {
+					t.Fatalf("Search(hybrid) error = %v, want %v", err, vectorstore.ErrUnsupportedSearchMode)
+				}
+			})
+		}
 	}
 	if expected.IDDeleter && hasIDDeleter {
 		t.Run("DeleteIDsTreatsEmptyInputAsNoop", func(t *testing.T) {

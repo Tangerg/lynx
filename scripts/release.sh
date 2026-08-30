@@ -225,7 +225,9 @@ if ((release_remote_count == release_module_count)); then
 fi
 
 printf 'release: running repository gates before freezing %s\n' "$release_version"
-scripts/check.sh build vet test race tidy lint
+# Tidy belongs to the dependency layer below: a new package in an internal
+# module cannot be resolved independently until that module's new tag exists.
+scripts/check.sh build vet test race lint
 [[ -z $(git status --porcelain) ]] || fail "repository gates changed the working tree"
 
 release_go() {
@@ -255,7 +257,7 @@ for ((release_layer = 0; release_layer <= release_max_layer; release_layer++)); 
 
     release_go -C "$release_module_dir" mod tidy
     release_go -C "$release_module_dir" mod tidy -diff
-    release_go -C "$release_module_dir" test -run '^$' ./...
+    release_go -C "$release_module_dir" test -count=1 ./...
 
     release_tag=$(tag_for "$release_module_path")
     if git rev-parse -q --verify "refs/tags/$release_tag" >/dev/null; then

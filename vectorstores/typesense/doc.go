@@ -1,4 +1,4 @@
-// Package typesense exposes Typesense's vector search
+// Package typesense exposes Typesense's semantic and hybrid search
 // through the Core vector-store capability interfaces. Documents are regular Typesense documents in
 // a collection with id / content / metadata (nested object) / embedding
 // (float[]) fields, reached through the official typesense-go v3
@@ -11,6 +11,9 @@
 // Distance metric: cosine only. Typesense's vector search always uses
 // cosine distance — the result `vector_distance` is in [0, 2] and the
 // store maps it onto a higher-is-better score in [0, 1].
+// Hybrid search supplies lexical and vector evidence together. Typesense owns
+// the fused ordering; [StoreConfig.HybridAlpha] optionally controls vector
+// weight, and Scope maps result rank to query-relative relevance.
 //
 // Schema bootstrap. When [StoreConfig.InitializeSchema] is true the
 // store probes for the collection and creates it with the right

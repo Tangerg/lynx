@@ -335,6 +335,9 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("oracle.Store.Search: %w", err)
 	}
+	if err = req.Options.RequireMode(vectorstore.SearchModeSemantic); err != nil {
+		return nil, fmt.Errorf("oracle.Store.Search: %w", err)
+	}
 
 	defer func() {
 		if err == nil {

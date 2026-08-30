@@ -21,6 +21,7 @@ import (
 	"github.com/Tangerg/scope/core/image"
 	"github.com/Tangerg/scope/core/metadata"
 	"github.com/Tangerg/scope/core/moderation"
+	"github.com/Tangerg/scope/core/rerank"
 	"github.com/Tangerg/scope/core/speech"
 	"github.com/Tangerg/scope/core/transcription"
 	"github.com/Tangerg/scope/core/vectorstore"
@@ -149,6 +150,7 @@ var modalitySPIs = map[string]map[reflect.Type]string{
 	"embedding":     {reflect.TypeFor[embedding.Model](): "Call"},
 	"image":         {reflect.TypeFor[image.Model](): "Call"},
 	"moderation":    {reflect.TypeFor[moderation.Model](): "Call"},
+	"rerank":        {reflect.TypeFor[rerank.Model](): "Call"},
 	"speech":        {reflect.TypeFor[speech.Model](): "Call", reflect.TypeFor[speech.Streamer](): "Stream"},
 	"transcription": {reflect.TypeFor[transcription.Model](): "Call"},
 }

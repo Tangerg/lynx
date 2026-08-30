@@ -1,4 +1,4 @@
-// Package voyage wraps Voyage AI's embedding API.
+// Package voyage implements Core embedding and reranking with Voyage AI.
 //
 // Voyage publishes retrieval-tuned text and multimodal embedding
 // models that consistently lead public retrieval benchmarks; the
@@ -9,7 +9,8 @@
 // Voyage's /embeddings shape is bespoke (input_type, truncation,
 // quantization knobs) and doesn't speak the OpenAI dialect — this
 // package implements [embedding.Model] directly against the native
-// API.
+// API. Reranking keeps truncation provider-specific while returning Core
+// document indices and normalized relevance scores.
 //
 // See https://docs.voyageai.com/ for the full reference.
 package voyage

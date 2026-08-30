@@ -50,6 +50,10 @@ boundaries only.
 - **Observation belongs to the integration.** RAG propagates `context.Context`
   and never imports OpenTelemetry. A composition root decorates the final
   `Retriever` — or a branch that needs separate attribution — with `otel/rag`.
+- **Reranking has one refinement boundary.** `Reranker` adapts the dedicated
+  Core rerank protocol, while `ChatReranker` is the explicitly generative
+  implementation. Both reduce to `Refiner`; neither introduces another
+  retrieval runtime or provider dependency.
 
 ## 3. Negative invariants
 

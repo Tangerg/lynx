@@ -13,6 +13,7 @@ never mixes different lifecycles:
 | `otel/embedding` | embedding call, input and token counts | `Middleware.Wrap` |
 | `otel/image` | image generation call | `Middleware.Wrap` |
 | `otel/moderation` | moderation call and input count | `Middleware.Wrap` |
+| `otel/rerank` | reranking call, document and token counts | `Middleware.Wrap` |
 | `otel/speech` | speech call / lazy stream | `Middleware.Wrap` / `Middleware.WrapStream` |
 | `otel/transcription` | transcription call | `Middleware.Wrap` |
 | `otel/eval` | generic evaluator result | `Middleware[T].Wrap` |

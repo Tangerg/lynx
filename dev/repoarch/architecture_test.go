@@ -117,6 +117,21 @@ func TestCoverageGatesTargetTheirOwningModules(t *testing.T) {
 			t.Errorf("CI gate %q does not select the %s module", gate, module)
 		}
 	}
+
+	gateIndex := strings.Index(text, "- name: Provider coverage budget")
+	if gateIndex < 0 {
+		t.Fatal("CI is missing Provider coverage budget")
+	}
+	nextStep := strings.Index(text[gateIndex+1:], "\n      - name:")
+	block := text[gateIndex:]
+	if nextStep >= 0 {
+		block = text[gateIndex : gateIndex+1+nextStep]
+	}
+	for _, family := range []string{"models/", "vectorstores/", "historystores/"} {
+		if !strings.Contains(block, "startsWith(matrix.module, '"+family+"')") {
+			t.Errorf("CI provider coverage gate does not select %s modules", family)
+		}
+	}
 }
 
 func TestProductModulesStayOutOfInternalDirectories(t *testing.T) {

@@ -1,8 +1,8 @@
-// Package cohere wraps Cohere's v2 embedding API.
+// Package cohere implements Core embedding and reranking with Cohere's v2 API.
 //
-// Only the /v2/embed surface is exposed. Callers select the official
-// input_type explicitly because query, document, classification, and
-// clustering embeddings have different task semantics.
+// Embedding callers select the official input_type explicitly because query,
+// document, classification, and clustering embeddings have different task
+// semantics. Reranking returns indices into the caller-owned document batch.
 //
 // See https://docs.cohere.com/ for the full API reference.
 package cohere

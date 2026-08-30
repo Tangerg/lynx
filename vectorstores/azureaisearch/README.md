@@ -8,9 +8,9 @@ Terraform / Portal / REST. The store does NOT create indexes — Azure AI Search
 index schemas are typed and declared at creation; scope assumes the configured
 ID / content / vector / metadata fields exist. Authentication: API key via the
 `api-key` header. For Managed Identity / OAuth, inject a bearer token through a
-custom http.Client. Search shape: POST /indexes/<index>/docs/search?api-
-version=2024-07-01 { "size": K, "top": K, "vectorQueries": [{"kind": "vector",
-"vector": [...], "k": K, "fields": "contentVector"}], "filter": "<odata>" }
+custom http.Client. Semantic search sends one vector query. Hybrid search sends
+the same vector query together with `search` and restricts lexical evidence to
+the configured content field; Azure performs its native result fusion.
 Filter visitor produces OData `$filter` syntax — metadata fields must exist as
 TOP-LEVEL index fields (Azure AI Search doesn't support nested-property paths
 in $filter). LIKE maps to `search.ismatch('pattern', 'field')`; IN maps to

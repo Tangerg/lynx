@@ -2,8 +2,8 @@
 
 `models` is the namespace holding one independent module per AI provider. Each
 one adapts a vendor SDK to the `Model` contracts defined by `core` — `chat`,
-`embedding`, `image`, `moderation`, `speech`, `transcription` — so a consumer
-depends on the protocol, never on a vendor's shape.
+`embedding`, `rerank`, `image`, `moderation`, `speech`, `transcription` — so a
+consumer depends on the protocol, never on a vendor's shape.
 
 There is no aggregate `models` module. Take only the providers you use:
 
@@ -38,7 +38,7 @@ as typed extensions rather than a manual type assertion.
 | OpenAI-compatible endpoints | `alibaba`, `azureopenai`, `deepseek`, `fireworks`, `groq`, `moonshot`, `openrouter`, `perplexity`, `together`, `xai` |
 | Managed platforms | `bedrock`, `huggingface`, `replicate` |
 | Local | `ollama` |
-| Embeddings | `jina`, `nomic`, `voyage` |
+| Retrieval models | `cohere`, `jina`, `nomic`, `voyage` |
 | Image | `blackforestlabs`, `luma`, `prodia`, `stability` |
 | Speech and transcription | `assemblyai`, `deepgram`, `elevenlabs`, `gladia`, `hume`, `lmnt`, `revai` |
 | Shared wire protocols | `protocol/openai`, `protocol/anthropic` |
@@ -60,7 +60,9 @@ These modules integrate third-party services and need credentials, so their
 tests focus on what can be checked without a live account: option and request
 mapping, wire round-trips, and error classification. The shared behavior suite
 is `core/modeltest`; cross-provider construction and API consistency is checked
-by `dev/providerconformance`. A provider module copies neither.
+by `dev/providerconformance`. A provider module copies neither. Statement
+coverage is ratcheted per independently versioned module by
+`scripts/check-provider-coverage.sh`.
 
 Integration probes skip unless the matching key is present:
 

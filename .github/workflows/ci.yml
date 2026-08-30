@@ -78,6 +78,10 @@ jobs:
         if: matrix.module == 'agent'
         run: scripts/check-agent-coverage.sh
 
+      - name: Provider coverage budget
+        if: startsWith(matrix.module, 'models/') || startsWith(matrix.module, 'vectorstores/') || startsWith(matrix.module, 'historystores/')
+        run: scripts/check-provider-coverage.sh '${{ matrix.module }}'
+
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:

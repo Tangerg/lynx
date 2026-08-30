@@ -63,12 +63,12 @@ func TestJSONRoundTripsVectorstoreModels(t *testing.T) {
 	searchRequest := &vectorstore.SearchRequest{
 		Query: "cat",
 		Options: vectorstore.SearchOptions{
-			TopK: 3, MinScore: 0.5, Filter: filter.EQ("kind", "animal"),
+			TopK: 3, MinScore: 0.5, Filter: filter.EQ("kind", "animal"), Mode: vectorstore.SearchModeSemantic,
 		},
 	}
 	var decodedRequest vectorstore.SearchRequest
 	roundTripJSON(t, searchRequest, &decodedRequest)
-	if decodedRequest.Query != "cat" || decodedRequest.Options.TopK != 3 || decodedRequest.Options.MinScore != 0.5 {
+	if decodedRequest.Query != "cat" || decodedRequest.Options.TopK != 3 || decodedRequest.Options.MinScore != 0.5 || decodedRequest.Options.Mode != vectorstore.SearchModeSemantic {
 		t.Fatalf("decoded search request = %#v", decodedRequest)
 	}
 	if decodedRequest.Options.Filter != nil {

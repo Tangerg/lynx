@@ -1,6 +1,6 @@
 # jina
 
-Package jina wraps Jina AI's native embedding API. It supports the dense float
+Package jina wraps Jina AI's native embedding and reranking APIs. Embedding supports the dense float
 subset of current v5, v4, v3, CLIP, and code embedding models that maps
 losslessly to core/embedding. Jina-specific knobs that don't fit the generic
 surface — task type ("retrieval.query" / "retrieval.passage" / "text-matching"
@@ -24,6 +24,7 @@ Every constructor validates its config and returns a value implementing
 the `Model` contracts in `core`:
 
 - `NewEmbeddingModel`
+- `NewRerankModel`
 
 ## Testing
 

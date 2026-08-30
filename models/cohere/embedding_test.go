@@ -1,11 +1,45 @@
 package cohere_test
 
-// Mock-based unit tests for Cohere are not provided in this package.
-//
-// The Cohere v2 Go SDK panics when its internal RequestOptions is
-// constructed without a fully initialized HTTPHeader — its
-// ToHeader / cloneHeader path nil-derefs when invoked against a bare
-// httptest.Server. The crash is inside the SDK and we can't reach
-// past it without monkey-patching. Until upstream is fixed, run the
-// integration test (chat_integration_test.go) against the real API
-// to exercise the path.
+import (
+	"testing"
+
+	cohere "github.com/cohere-ai/cohere-go/v2"
+
+	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/metadata"
+	"github.com/Tangerg/scope/core/modeltest"
+	scohere "github.com/Tangerg/scope/models/cohere"
+)
+
+const cohereEmbeddingResponseJSON = `{
+  "id": "embed-id",
+  "embeddings": {"float": [[0.1, 0.2], [0.3, 0.4]]},
+  "texts": ["foo", "bar"],
+  "meta": {"billed_units": {"input_tokens": 2}}
+}`
+
+func TestEmbeddingModel(t *testing.T) {
+	modeltest.RunEmbeddingContract(t, modeltest.EmbeddingContract{
+		ModelID:      "embed-english-v3.0",
+		Response:     cohereEmbeddingResponseJSON,
+		ExpectedPath: "/v2/embed",
+		Build: func(t *testing.T, baseURL string) embedding.Model {
+			t.Helper()
+			var extensions metadata.Extensions
+			if err := extensions.Set(scohere.EmbeddingRequestExtensionKey, cohere.V2EmbedRequest{InputType: cohere.EmbedInputTypeSearchDocument}); err != nil {
+				t.Fatal(err)
+			}
+			model, err := scohere.NewEmbeddingModel(scohere.EmbeddingModelConfig{
+				APIKey: "test-key",
+				DefaultOptions: embedding.Options{
+					Model: "embed-english-v3.0", Extensions: extensions,
+				},
+				BaseURL: baseURL,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			return model
+		},
+	})
+}

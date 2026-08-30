@@ -2,7 +2,9 @@ package modeltest_test
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"io"
 	"iter"
@@ -14,6 +16,7 @@ import (
 	"github.com/Tangerg/scope/core/chat"
 	"github.com/Tangerg/scope/core/embedding"
 	"github.com/Tangerg/scope/core/modeltest"
+	"github.com/Tangerg/scope/core/rerank"
 )
 
 func helloRequest(t *testing.T) *chat.Request {
@@ -221,6 +224,62 @@ func TestRunEmbeddingContract(t *testing.T) {
 				t.Fatal("contract passed an empty base URL")
 			}
 			return probeEmbedding{baseURL: baseURL}
+		},
+	})
+	if !built {
+		t.Fatal("contract never built the model")
+	}
+}
+
+func TestRunEmbeddingContractAllowsUnspecifiedPath(t *testing.T) {
+	modeltest.RunEmbeddingContract(t, modeltest.EmbeddingContract{
+		ModelID:  "embedding-model",
+		Response: `{"outputs":[]}`,
+		Build: func(*testing.T, string) embedding.Model {
+			return fakeEmbedding{}
+		},
+	})
+}
+
+type probeRerank struct{ baseURL string }
+
+func (p probeRerank) Call(ctx context.Context, request *rerank.Request) (*rerank.Response, error) {
+	wireRequest := struct {
+		Model     string   `json:"model"`
+		Query     string   `json:"query"`
+		Documents []string `json:"documents"`
+		TopN      int      `json:"top_n"`
+	}{
+		Model: "rerank-model", Query: request.Query, Documents: request.Documents, TopN: request.Options.TopK,
+	}
+	payload, err := json.Marshal(wireRequest)
+	if err != nil {
+		return nil, err
+	}
+	httpRequest, err := http.NewRequestWithContext(ctx, http.MethodPost, p.baseURL+"/rerank", bytes.NewReader(payload))
+	if err != nil {
+		return nil, err
+	}
+	httpResponse, err := http.DefaultClient.Do(httpRequest)
+	if err != nil {
+		return nil, err
+	}
+	defer httpResponse.Body.Close()
+	return rerank.NewResponse([]*rerank.Result{{Index: 0, Score: 0.9}, {Index: 1, Score: 0.8}}, nil)
+}
+
+func TestRunRerankContract(t *testing.T) {
+	built := false
+	modeltest.RunRerankContract(t, modeltest.RerankContract{
+		ModelID:      "rerank-model",
+		Response:     `{"results":[]}`,
+		ExpectedPath: "/rerank",
+		Build: func(t *testing.T, baseURL string) rerank.Model {
+			built = true
+			if baseURL == "" {
+				t.Fatal("contract passed an empty base URL")
+			}
+			return probeRerank{baseURL: baseURL}
 		},
 	})
 	if !built {
@@ -489,6 +548,49 @@ func TestRunIntegrationEmbeddingSkipsWithoutAKey(t *testing.T) {
 	}
 	if built {
 		t.Fatal("the probe built a model without a key")
+	}
+}
+
+func TestRunIntegrationRerankSkipsWithoutAKey(t *testing.T) {
+	t.Setenv("SCOPE_TEST_ABSENTRERANK_KEY", "")
+	built := false
+	skipped := t.Run("probe", func(t *testing.T) {
+		modeltest.RunIntegrationRerank(t, modeltest.IntegrationRerankProbe{
+			Provider: "absentrerank",
+			Build: func(*testing.T, string) rerank.Model {
+				built = true
+				return probeRerank{}
+			},
+		})
+	})
+	if !skipped {
+		t.Fatal("the probe failed instead of skipping")
+	}
+	if built {
+		t.Fatal("the probe built a model without a key")
+	}
+}
+
+func TestRunIntegrationRerankCallsTheConfiguredModel(t *testing.T) {
+	t.Setenv("SCOPE_TEST_RERANKPROBE_KEY", "secret")
+	built := false
+	called := false
+	modeltest.RunIntegrationRerank(t, modeltest.IntegrationRerankProbe{
+		Provider: "rerankprobe",
+		Build: func(_ *testing.T, key string) rerank.Model {
+			built = key == "secret"
+			return rerank.ModelFunc(func(_ context.Context, request *rerank.Request) (*rerank.Response, error) {
+				called = true
+				results := make([]*rerank.Result, len(request.Documents))
+				for index := range request.Documents {
+					results[index] = &rerank.Result{Index: index, Score: rerank.Score(1 - float64(index)/2)}
+				}
+				return rerank.NewResponse(results, nil)
+			})
+		},
+	})
+	if !built || !called {
+		t.Fatalf("integration probe = built:%t called:%t", built, called)
 	}
 }
 

@@ -38,6 +38,8 @@ func TestReleaseEntryDerivesModulesAndKeepsTagsImmutable(t *testing.T) {
 		"depth[path] + 0",
 		"release plan has invalid layer",
 		"release plan has no modules in layer",
+		"scripts/check.sh build vet test race lint",
+		"test -count=1 ./...",
 		"go clean -modcache",
 		"git tag -a",
 		"mod download -json",
@@ -47,7 +49,14 @@ func TestReleaseEntryDerivesModulesAndKeepsTagsImmutable(t *testing.T) {
 			t.Errorf("scripts/release.sh no longer contains required release boundary %q", required)
 		}
 	}
-	for _, forbidden := range []string{"tag -d", "--force", "push -f", "push --tags"} {
+	for _, forbidden := range []string{
+		"scripts/check.sh build vet test race tidy lint",
+		"test -run '^$' ./...",
+		"tag -d",
+		"--force",
+		"push -f",
+		"push --tags",
+	} {
 		if strings.Contains(script, forbidden) {
 			t.Errorf("scripts/release.sh contains mutable or aggregate tag operation %q", forbidden)
 		}

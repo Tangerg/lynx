@@ -11,24 +11,50 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-// Similarity-score range for [SearchOptions.MinScore] and search defaults.
+// Relevance-score range for [SearchOptions.MinScore] and search defaults.
 const (
 	// DefaultTopK is used when [SearchOptions.TopK] is zero.
 	DefaultTopK = 5
 
-	// MinSimilarityScore is the lowest valid score.
-	MinSimilarityScore = 0.0
+	// MinRelevanceScore is the lowest valid score.
+	MinRelevanceScore = 0.0
 
-	// MaxSimilarityScore is the highest valid score.
-	MaxSimilarityScore = 1.0
+	// MaxRelevanceScore is the highest valid score.
+	MaxRelevanceScore = 1.0
 )
 
-// SearchOptions owns the policies applied to a semantic search.
+// SearchMode selects the retrieval evidence used by a search operation.
+type SearchMode string
+
+const (
+	SearchModeSemantic SearchMode = "semantic"
+	SearchModeHybrid   SearchMode = "hybrid"
+)
+
+func (s SearchMode) Valid() bool {
+	switch s {
+	case "", SearchModeSemantic, SearchModeHybrid:
+		return true
+	default:
+		return false
+	}
+}
+
+func (s SearchMode) String() string {
+	if s == "" {
+		return string(SearchModeSemantic)
+	}
+	return string(s)
+}
+
+// SearchOptions owns the policies applied to a relevance search. Semantic is
+// the zero-value mode; hybrid combines semantic and lexical evidence.
 type SearchOptions struct {
 	// TopK limits the result count. Zero uses DefaultTopK.
 	TopK     int              `json:"top_k,omitempty"`
 	MinScore Score            `json:"min_score,omitempty"`
 	Filter   filter.Predicate `json:"-"`
+	Mode     SearchMode       `json:"mode,omitempty"`
 }
 
 func (s SearchOptions) Validate() error {
@@ -38,12 +64,39 @@ func (s SearchOptions) Validate() error {
 	if err := s.MinScore.Validate(); err != nil {
 		return fmt.Errorf("%w: minimum score: %w", ErrInvalidOptions, err)
 	}
+	if !s.Mode.Valid() {
+		return fmt.Errorf("%w: unknown search mode %q", ErrInvalidOptions, s.Mode)
+	}
+	if s.EffectiveMode() == SearchModeHybrid && s.MinScore != MinRelevanceScore {
+		return fmt.Errorf("%w: minimum score is not portable across hybrid fusion algorithms", ErrInvalidOptions)
+	}
 	if s.Filter != nil {
 		if err := s.Filter.Validate(); err != nil {
 			return fmt.Errorf("%w: filter: %w", ErrInvalidOptions, err)
 		}
 	}
 	return nil
+}
+
+// EffectiveMode returns semantic for the zero-value mode.
+func (s SearchOptions) EffectiveMode() SearchMode {
+	if s.Mode == "" {
+		return SearchModeSemantic
+	}
+	return s.Mode
+}
+
+// RequireMode rejects a valid request mode before provider I/O when the store
+// cannot implement it without changing its semantics.
+func (s SearchOptions) RequireMode(supported ...SearchMode) error {
+	if err := s.Validate(); err != nil {
+		return err
+	}
+	mode := s.EffectiveMode()
+	if slices.Contains(supported, mode) {
+		return nil
+	}
+	return fmt.Errorf("%w: %s", ErrUnsupportedSearchMode, mode)
 }
 
 // ResultLimit returns the explicit TopK or DefaultTopK when it is omitted.
@@ -79,7 +132,7 @@ func (s *SearchOptions) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// SearchRequest describes one semantic search and owns its input validation.
+// SearchRequest describes one relevance search and owns its input validation.
 type SearchRequest struct {
 	Query   string        `json:"query,omitempty"`
 	Options SearchOptions `json:"options"`
@@ -284,10 +337,9 @@ func (s *SearchResponse) Documents() []*document.Document {
 	return documents
 }
 
-// Searcher pulls documents similar to a query out of a vector store.
-// Results are ranked by similarity score in descending order.
+// Searcher retrieves documents ranked by query relevance in descending order.
 type Searcher interface {
-	// Search returns a response honoring the score threshold, metadata filter,
-	// and result cap owned by [SearchRequest.Options].
+	// Search returns a response honoring the mode, semantic score threshold,
+	// metadata filter, and result cap owned by [SearchRequest.Options].
 	Search(ctx context.Context, request *SearchRequest) (*SearchResponse, error)
 }

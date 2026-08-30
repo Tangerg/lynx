@@ -7,8 +7,8 @@ runtime or product platform.
 
 Scope is designed for libraries and Hosts that need explicit contracts:
 
-- Core protocols for chat, embeddings, images, speech, transcription,
-  moderation, tokenization, tools, history, and vector stores.
+- Core protocols for chat, embeddings, reranking, images, speech,
+  transcription, moderation, tokenization, tools, history, and vector stores.
 - Direct chat and embedding clients with immutable defaults and middleware.
 - Agent interaction, planning, workflows, lifecycle management, and durable
   tree execution contracts.
@@ -71,7 +71,19 @@ scripts/check.sh build vet test race tidy
 scripts/check.sh isolate
 scripts/check-core-coverage.sh
 scripts/check-agent-coverage.sh
+scripts/check-provider-coverage.sh
 ```
+
+## Compatibility and stability
+
+Scope follows semantic versioning independently for every Go module. While the
+modules remain below v1, a minor release may intentionally replace an exported
+API, protocol wire shape, or persistence contract when the existing design is
+wrong; no compatibility shim is kept. Patch releases do not intentionally make
+those breaking changes. The affected package and module documentation describes
+the current contract, and all modules require the Go version named by the
+workspace. Consumers that need source stability should pin an exact minor line
+and treat the next minor upgrade as an API review boundary.
 
 ## Releasing every module
 

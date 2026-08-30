@@ -271,12 +271,14 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 	return nil
 }
 
-// Search runs a hybrid vector query — the call is pure vector when
-// no filter is set, otherwise the filter rides along as the OData
-// `$filter` clause.
+// Search runs a semantic vector query or a native hybrid query that combines
+// the same vector with lexical evidence from the configured content field.
 func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
 	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
+		return nil, fmt.Errorf("azureaisearch.Store.Search: %w", err)
+	}
+	if err = req.Options.RequireMode(vectorstore.SearchModeSemantic, vectorstore.SearchModeHybrid); err != nil {
 		return nil, fmt.Errorf("azureaisearch.Store.Search: %w", err)
 	}
 
@@ -309,6 +311,10 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		"top":           req.Options.ResultLimit(),
 		"vectorQueries": []any{vectorQuery},
 	}
+	if req.Options.EffectiveMode() == vectorstore.SearchModeHybrid {
+		body["search"] = req.Query
+		body["searchFields"] = s.contentField
+	}
 	if filterStr != "" {
 		body["filter"] = filterStr
 	}
@@ -328,7 +334,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 
 	docs = make([]*vectorstore.SearchResult, 0, len(parsed.Value))
 	for _, row := range parsed.Value {
-		match, err := s.toMatch(row)
+		match, err := s.toMatch(row, req.Options.EffectiveMode())
 		if err != nil {
 			return nil, err
 		}
@@ -425,7 +431,7 @@ func (s *Store) buildFilter(expr filter.Predicate) (string, error) {
 	return v.snapshot(), nil
 }
 
-func (s *Store) toMatch(row map[string]any) (*vectorstore.SearchResult, error) {
+func (s *Store) toMatch(row map[string]any, mode vectorstore.SearchMode) (*vectorstore.SearchResult, error) {
 	doc := &document.Document{}
 	id, ok := row[s.idField].(string)
 	if !ok || id == "" {
@@ -441,7 +447,10 @@ func (s *Store) toMatch(row map[string]any) (*vectorstore.SearchResult, error) {
 	if !ok {
 		return nil, errors.New("azureaisearch: result is missing numeric @search.score")
 	}
-	score := s.similarityMetric.score(rawScore)
+	score := vectorstore.ScoreFromValue(rawScore)
+	if mode == vectorstore.SearchModeSemantic {
+		score = s.similarityMetric.score(rawScore)
+	}
 
 	// Metadata is everything except the reserved fields and the
 	// embedding vector itself.

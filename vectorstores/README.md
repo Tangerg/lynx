@@ -48,11 +48,18 @@ request.Options.Filter = predicate
 The AST is a general filter. Business identifiers travel in document metadata,
 never as an AST node.
 
-## Scores are normalized
+## Semantic and hybrid search
 
-Every database reports similarity differently. A provider interprets its raw
-value and constructs a Core `Score`, so `MinScore` means the same thing whichever
-backend is behind it.
+`SearchOptions.Mode` is the only portable strategy selector. Its zero value is
+semantic. Azure AI Search, Bedrock Knowledge Bases, Typesense, and Weaviate also
+implement native hybrid search. Every other backend returns
+`ErrUnsupportedSearchMode` before embedding or provider I/O; none silently
+falls back to vector-only search. Fusion weights and algorithms stay in provider
+configuration because their meanings are not portable.
+
+Every backend maps its native relevance into a Core `Score` in `[0, 1]` while
+preserving result order. Scores are query-relative and are not comparable across
+providers or modes. `MinScore` is available only for semantic search.
 
 ## Schema initialization
 
@@ -66,6 +73,7 @@ These modules integrate external databases, so their tests focus on what runs
 without a live server: request mapping, filter compilation, and score
 normalization. Each provider also runs the public
 `core/vectorstore/storetest` conformance suites, which check that capability
-traversal and filter shapes succeed rather than that output matches verbatim.
+traversal, filter shapes, and unsupported search modes are handled before I/O.
+The repository-wide provider coverage gate ratchets every module independently.
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the contract every backend obeys.

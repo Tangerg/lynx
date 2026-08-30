@@ -1,6 +1,6 @@
 # models architecture
 
-> One adaptation layer for every LLM, embedding, image, and audio provider. Each
+> One adaptation layer for every chat, embedding, rerank, image, and audio provider. Each
 > provider is an independent leaf module implementing the `Model` contracts
 > defined by Core.
 

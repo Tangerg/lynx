@@ -42,6 +42,11 @@ func TestNewVectorStoreRetrieverRejectsInvalidConfig(t *testing.T) {
 	}); err == nil {
 		t.Fatal("out-of-range MinScore must error")
 	}
+	if _, err := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{
+		VectorStore: &fakeVectorSearcher{}, SearchMode: vectorstore.SearchModeHybrid, MinScore: 0.5,
+	}); err == nil {
+		t.Fatal("hybrid MinScore must error")
+	}
 }
 
 func TestRetrieverAppliesTopKAndMinScore(t *testing.T) {
@@ -65,6 +70,23 @@ func TestRetrieverAppliesTopKAndMinScore(t *testing.T) {
 	}
 	if store.got.Options.MinScore != 0.42 {
 		t.Fatalf("MinScore = %f, want 0.42", store.got.Options.MinScore)
+	}
+}
+
+func TestRetrieverForwardsHybridMode(t *testing.T) {
+	store := &fakeVectorSearcher{}
+	retriever, err := rag.NewVectorStoreRetriever(rag.VectorStoreRetrieverConfig{
+		VectorStore: store, SearchMode: vectorstore.SearchModeHybrid,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	query, _ := rag.NewQuery("hi")
+	if _, err := retriever.Retrieve(t.Context(), query); err != nil {
+		t.Fatal(err)
+	}
+	if store.got.Options.EffectiveMode() != vectorstore.SearchModeHybrid {
+		t.Fatalf("search mode = %q, want hybrid", store.got.Options.EffectiveMode())
 	}
 }
 

@@ -56,6 +56,10 @@ type StoreConfig struct {
 	// InitializeSchema, when true, creates the collection with the
 	// right schema if it doesn't already exist.
 	InitializeSchema bool
+
+	// HybridAlpha controls the vector weight in Typesense's native hybrid
+	// fusion. Nil preserves the provider default; valid values are [0, 1].
+	HybridAlpha *float32
 }
 
 func (s StoreConfig) Validate() error {
@@ -74,6 +78,9 @@ func (s StoreConfig) Validate() error {
 	}
 	if !collectionNamePattern.MatchString(s.CollectionName) {
 		return fmt.Errorf("typesense: CollectionName=%q must be a safe identifier", s.CollectionName)
+	}
+	if s.HybridAlpha != nil && (*s.HybridAlpha < 0 || *s.HybridAlpha > 1) {
+		return fmt.Errorf("typesense: HybridAlpha must be between 0 and 1, got %v", *s.HybridAlpha)
 	}
 	return nil
 }
@@ -96,6 +103,7 @@ type Store struct {
 	embeddingClient embeddingclient.Client
 	documentBatcher vectorstore.Batcher
 	dimensions      int
+	hybridAlpha     *float32
 }
 
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
@@ -109,12 +117,18 @@ func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 		return nil, fmt.Errorf("typesense: create embedding client: %w", err)
 	}
 
+	var hybridAlpha *float32
+	if config.HybridAlpha != nil {
+		hybridAlpha = new(float32)
+		*hybridAlpha = *config.HybridAlpha
+	}
 	store := &Store{
 		client:          config.Client,
 		collectionName:  config.CollectionName,
 		embeddingClient: embeddingClient,
 		documentBatcher: config.DocumentBatcher,
 		dimensions:      config.Dimensions,
+		hybridAlpha:     hybridAlpha,
 	}
 
 	if err = store.initialize(ctx, config.InitializeSchema); err != nil {
@@ -211,10 +225,14 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 	return nil
 }
 
-// Search runs a vector search via the documents.Search API.
+// Search runs semantic vector search or native hybrid search via the
+// documents.Search API.
 func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
 	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
+		return nil, fmt.Errorf("typesense.Store.Search: %w", err)
+	}
+	if err = req.Options.RequireMode(vectorstore.SearchModeSemantic, vectorstore.SearchModeHybrid); err != nil {
 		return nil, fmt.Errorf("typesense.Store.Search: %w", err)
 	}
 
@@ -230,20 +248,9 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		return nil, fmt.Errorf("typesense: embed query: %w", err)
 	}
 	queryVec := embedding.Float32Vector(vector)
-	vectorQuery := formatVectorQuery(queryVec, req.Options.ResultLimit())
-
-	filterBy, err := s.buildFilter(req.Options.Filter)
+	params, err := s.searchParameters(req, queryVec)
 	if err != nil {
 		return nil, err
-	}
-
-	params := &api.SearchCollectionParams{
-		Q:           new("*"),
-		VectorQuery: new(vectorQuery),
-		PerPage:     new(req.Options.ResultLimit()),
-	}
-	if filterBy != "" {
-		params.FilterBy = new(filterBy)
 	}
 
 	result, err := s.client.Collection(s.collectionName).Documents().Search(ctx, params)
@@ -255,8 +262,8 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	}
 
 	docs = make([]*vectorstore.SearchResult, 0, len(*result.Hits))
-	for _, hit := range *result.Hits {
-		match, err := toMatch(hit)
+	for rank, hit := range *result.Hits {
+		match, err := toMatch(hit, req.Options.EffectiveMode(), rank)
 		if err != nil {
 			return nil, err
 		}
@@ -266,6 +273,32 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		docs = append(docs, match)
 	}
 	return &vectorstore.SearchResponse{Results: docs}, nil
+}
+
+func (s *Store) searchParameters(req *vectorstore.SearchRequest, queryVector []float32) (*api.SearchCollectionParams, error) {
+	var alpha *float32
+	if req.Options.EffectiveMode() == vectorstore.SearchModeHybrid {
+		alpha = s.hybridAlpha
+	}
+	vectorQuery := formatVectorQuery(queryVector, req.Options.ResultLimit(), alpha)
+	filterBy, err := s.buildFilter(req.Options.Filter)
+	if err != nil {
+		return nil, err
+	}
+
+	params := &api.SearchCollectionParams{
+		Q:           new("*"),
+		VectorQuery: new(vectorQuery),
+		PerPage:     new(req.Options.ResultLimit()),
+	}
+	if req.Options.EffectiveMode() == vectorstore.SearchModeHybrid {
+		params.Q = new(req.Query)
+		params.QueryBy = new(contentField)
+	}
+	if filterBy != "" {
+		params.FilterBy = new(filterBy)
+	}
+	return params, nil
 }
 
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {
@@ -302,11 +335,11 @@ func (s *Store) buildFilter(expr filter.Predicate) (string, error) {
 	return v.snapshot(), nil
 }
 
-func toMatch(hit api.SearchResultHit) (*vectorstore.SearchResult, error) {
+func toMatch(hit api.SearchResultHit, mode vectorstore.SearchMode, rank int) (*vectorstore.SearchResult, error) {
 	if hit.Document == nil {
 		return nil, errors.New("typesense: search hit is missing document")
 	}
-	if hit.VectorDistance == nil {
+	if mode == vectorstore.SearchModeSemantic && hit.VectorDistance == nil {
 		return nil, errors.New("typesense: search hit is missing vector distance")
 	}
 	raw := *hit.Document
@@ -326,15 +359,22 @@ func toMatch(hit api.SearchResultHit) (*vectorstore.SearchResult, error) {
 			return nil, fmt.Errorf("typesense: convert metadata: %w", err)
 		}
 	}
-	// Typesense returns distance in the cosine [0, 2] range; map
-	// onto a "higher = more similar" score in [0, 1].
-	matchScore := vectorstore.ScoreFromCosineDistance(float64(*hit.VectorDistance))
+	matchScore := scoreFromRank(rank)
+	if mode == vectorstore.SearchModeSemantic {
+		// Typesense returns distance in the cosine [0, 2] range; map
+		// onto a "higher = more similar" score in [0, 1].
+		matchScore = vectorstore.ScoreFromCosineDistance(float64(*hit.VectorDistance))
+	}
 	return &vectorstore.SearchResult{Document: doc, Score: matchScore}, nil
+}
+
+func scoreFromRank(rank int) vectorstore.Score {
+	return vectorstore.Score(1 / float64(rank+1))
 }
 
 // formatVectorQuery builds the Typesense `vector_query` string —
 // "embedding:([f1,f2,...], k: N)".
-func formatVectorQuery(vec []float32, topK int) string {
+func formatVectorQuery(vec []float32, topK int, alpha *float32) string {
 	var b strings.Builder
 	b.WriteString(embeddingField)
 	b.WriteString(":([")
@@ -346,6 +386,10 @@ func formatVectorQuery(vec []float32, topK int) string {
 	}
 	b.WriteString("], k: ")
 	b.WriteString(strconv.Itoa(topK))
+	if alpha != nil {
+		b.WriteString(", alpha: ")
+		b.WriteString(strconv.FormatFloat(float64(*alpha), 'f', -1, 32))
+	}
 	b.WriteByte(')')
 	return b.String()
 }

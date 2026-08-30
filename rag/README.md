@@ -40,6 +40,23 @@ An optional stage uses an explicit identity implementation —
 `IdentityTransformer`, `IdentityExpander`, `NopRetriever`, `IdentityRefiner`,
 `IdentityAugmenter` — never a silently skipped nil.
 
+## Reranking
+
+`Reranker` adapts a dedicated `core/rerank.Model` into the `Refiner` lifecycle.
+It formats each candidate once, sends one immutable indexed batch, then resolves
+the returned indices to independently owned candidates. `ChatReranker` is the
+separate generative implementation for a chat model with structured output;
+its name makes the different cost and failure semantics explicit.
+
+## Semantic and hybrid retrieval
+
+`VectorStoreRetrieverConfig.SearchMode` forwards Core's one retrieval-strategy
+contract. Its zero value is semantic. Hybrid asks a supporting backend to
+combine lexical and semantic evidence natively; an unsupported backend returns
+`vectorstore.ErrUnsupportedSearchMode` instead of silently falling back.
+`MinScore` is unavailable in hybrid mode because fused score scales are not
+portable across backend algorithms.
+
 ## What runs in parallel
 
 Only fan-out: multi-route retrieval and query expansion collect concurrently.

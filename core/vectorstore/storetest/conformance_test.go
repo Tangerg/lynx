@@ -14,8 +14,14 @@ type allCapabilities struct{}
 func (allCapabilities) Index(context.Context, *vectorstore.IndexRequest) error {
 	return vectorstore.ErrInvalidDocument
 }
-func (allCapabilities) Search(context.Context, *vectorstore.SearchRequest) (*vectorstore.SearchResponse, error) {
-	return nil, (&vectorstore.SearchRequest{}).Validate()
+func (allCapabilities) Search(_ context.Context, request *vectorstore.SearchRequest) (*vectorstore.SearchResponse, error) {
+	if err := request.Validate(); err != nil {
+		return nil, err
+	}
+	if err := request.Options.RequireMode(vectorstore.SearchModeSemantic); err != nil {
+		return nil, err
+	}
+	return &vectorstore.SearchResponse{}, nil
 }
 func (allCapabilities) DeleteIDs(context.Context, []string) error { return nil }
 func (allCapabilities) DeleteWhere(context.Context, filter.Predicate) error {

@@ -23,16 +23,17 @@ coverage_budget=(
   "./jsonschema 89.4"
   "./media 92.9"
   "./metadata 86.2"
-  "./modeltest 78.7"
+  "./modeltest 79.2"
   "./moderation 96.9"
+  "./rerank 92.8"
   "./speech 96.9"
   "./tokenizer none"
   "./tool 92.6"
   "./transcription 96.1"
-  "./vectorstore 85.7"
+  "./vectorstore 86.9"
   "./vectorstore/filter 84.2"
-  "./vectorstore/inmemory 88.3"
-  "./vectorstore/storetest 60.4"
+  "./vectorstore/inmemory 89.4"
+  "./vectorstore/storetest 62.8"
 )
 
 configured_packages=$(

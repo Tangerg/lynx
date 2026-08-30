@@ -3,6 +3,8 @@ package bedrockkb
 import (
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/service/bedrockagentruntime/types"
+
 	"github.com/Tangerg/scope/core/vectorstore"
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
@@ -23,6 +25,24 @@ func TestVectorSearchConfigKeepsRequestPolicyAuthoritative(t *testing.T) {
 	}
 	if config.Filter == nil {
 		t.Fatal("Filter = nil, want compiled request filter")
+	}
+	if config.OverrideSearchType != types.SearchTypeSemantic {
+		t.Fatalf("OverrideSearchType = %q, want SEMANTIC", config.OverrideSearchType)
+	}
+}
+
+func TestVectorSearchConfigMapsHybridMode(t *testing.T) {
+	t.Parallel()
+
+	store := &Store{}
+	config, err := store.vectorSearchConfig(&vectorstore.SearchRequest{
+		Query: "query", Options: vectorstore.SearchOptions{Mode: vectorstore.SearchModeHybrid},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if config.OverrideSearchType != types.SearchTypeHybrid {
+		t.Fatalf("OverrideSearchType = %q, want HYBRID", config.OverrideSearchType)
 	}
 }
 

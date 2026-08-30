@@ -77,13 +77,13 @@ func (d DistanceMetric) score(raw float64) vectorstore.Score {
 // direction, so Euclidean and Manhattan correctly use a maximum distance.
 func (d DistanceMetric) rawScoreThreshold(minScore vectorstore.Score) (float64, bool) {
 	value := minScore.Float64()
-	if value <= vectorstore.MinSimilarityScore {
+	if value <= vectorstore.MinRelevanceScore {
 		return 0, false
 	}
 
 	switch d {
 	case DistanceDot:
-		if value >= vectorstore.MaxSimilarityScore {
+		if value >= vectorstore.MaxRelevanceScore {
 			return stdmath.MaxFloat32, true
 		}
 		return stdmath.Log(value / (1 - value)), true
@@ -480,6 +480,9 @@ func (s *Store) buildDocumentsFromPoints(scoredPoints []*qdrant.ScoredPoint) ([]
 func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (response *vectorstore.SearchResponse, err error) {
 	var docs []*vectorstore.SearchResult
 	if err = req.Validate(); err != nil {
+		return nil, fmt.Errorf("qdrant.Store.Search: %w", err)
+	}
+	if err = req.Options.RequireMode(vectorstore.SearchModeSemantic); err != nil {
 		return nil, fmt.Errorf("qdrant.Store.Search: %w", err)
 	}
 

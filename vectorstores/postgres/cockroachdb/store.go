@@ -197,6 +197,9 @@ func (s *Store) Search(ctx context.Context, request *vectorstore.SearchRequest) 
 	if err := request.Validate(); err != nil {
 		return nil, fmt.Errorf("cockroachdb.Store.Search: %w", err)
 	}
+	if err := request.Options.RequireMode(vectorstore.SearchModeSemantic); err != nil {
+		return nil, fmt.Errorf("cockroachdb.Store.Search: %w", err)
+	}
 	return s.engine.Search(ctx, request)
 }
 

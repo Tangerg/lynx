@@ -11,16 +11,17 @@ const (
 	maximumCosineSimilarity = 1
 )
 
-// Score is a provider-neutral similarity value in [0, 1].
+// Score is a provider-neutral, query-relative relevance value in [0, 1]. Scores
+// preserve ordering but are not comparable across providers or search modes.
 type Score float64
 
 func (s Score) Float64() float64 { return float64(s) }
 
 func (s Score) Validate() error {
 	value := float64(s)
-	if math.IsNaN(value) || math.IsInf(value, 0) || value < MinSimilarityScore || value > MaxSimilarityScore {
+	if math.IsNaN(value) || math.IsInf(value, 0) || value < MinRelevanceScore || value > MaxRelevanceScore {
 		return fmt.Errorf("%w: must be finite and in [%.1f, %.1f], got %v",
-			ErrInvalidScore, MinSimilarityScore, MaxSimilarityScore, value)
+			ErrInvalidScore, MinRelevanceScore, MaxRelevanceScore, value)
 	}
 	return nil
 }
@@ -56,7 +57,7 @@ func ScoreFromValue(value float64) Score {
 	if math.IsNaN(value) || math.IsInf(value, 0) {
 		return Score(math.NaN())
 	}
-	return Score(min(MaxSimilarityScore, max(MinSimilarityScore, value)))
+	return Score(min(MaxRelevanceScore, max(MinRelevanceScore, value)))
 }
 
 // ScoreFromCosineSimilarity maps cosine similarity from [-1, 1] to [0, 1].

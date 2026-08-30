@@ -39,8 +39,8 @@ if reality has overtaken the design.
 ## 2. Mental model
 
 - **Flat, partitioned by meaning.** Protocol packages use domain names —
-  `chat`, `embedding`, `image`. The conveniences that sit next to a protocol
-  live in `chatclient` and `embeddingclient`. Cross-protocol capabilities live
+  `chat`, `embedding`, `image`, `rerank`. The conveniences that sit next to a
+  protocol live in `chatclient` and `embeddingclient`. Cross-protocol capabilities live
   in `jsonschema`, `tool`, `tokenizer`, `history`, and `vectorstore`. Directory
   depth expresses semantics or ownership, never decoration.
 - **Minimal capability interfaces.** Each modality's `Model` has only `Call` by
@@ -117,7 +117,14 @@ if reality has overtaken the design.
   the small `Indexer`, `Searcher`, `IDDeleter`, and `FilterDeleter` capabilities.
 - `IndexRequest` owns its indexing input and batching rules. `SearchRequest`,
   `SearchOptions`, `SearchResult`, and `SearchResponse` each own their own
-  invariants, and `Score` unifies the provider boundary.
+  invariants. `SearchMode` is the one portable strategy selector: semantic is
+  the zero value, hybrid combines semantic and lexical evidence, and a backend
+  that cannot preserve the requested semantics returns
+  `ErrUnsupportedSearchMode` before external I/O. Provider-specific fusion
+  controls remain provider configuration.
+- `Score` preserves relevance ordering in `[0, 1]`; values are intentionally not
+  comparable across providers or search modes. `MinScore` is therefore valid
+  only for semantic search, where each adapter owns its metric conversion.
 - `filter` publishes only an immutable AST, the visitor contract, and the
   semantic methods on its nodes. The scanner, analyzer, formatter, and optimizer
   stay private operation objects.

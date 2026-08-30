@@ -6,7 +6,8 @@ import (
 	"net/http"
 
 	cohere "github.com/cohere-ai/cohere-go/v2"
-	"github.com/cohere-ai/cohere-go/v2/core"
+	coherecore "github.com/cohere-ai/cohere-go/v2/core"
+	"github.com/cohere-ai/cohere-go/v2/option"
 	cohereclientv2 "github.com/cohere-ai/cohere-go/v2/v2"
 )
 
@@ -23,12 +24,7 @@ func (a apiConfig) validate() error {
 	return nil
 }
 
-// api wraps Cohere's v2 client. Only Embed is surfaced by design:
-// Cohere's chat ecosystem (documents, citations, web_search, ...) does
-// not map cleanly onto the OpenAI-shaped chat surface, and Cohere's
-// chat models lag behind OpenAI/Anthropic/Google in capability. For
-// embeddings — multilingual retrieval especially — Cohere remains
-// competitive, so that's the slice exposed here.
+// api wraps the Cohere v2 capabilities with provider-neutral Core protocols.
 type api struct {
 	v2 *cohereclientv2.Client
 }
@@ -38,16 +34,23 @@ func newAPI(config apiConfig) (*api, error) {
 		return nil, err
 	}
 
-	// v2 client takes a core.RequestOptions struct (not functional
-	// options). Build one with our token + caller-supplied BaseURL.
-	// Per-call options can still be passed at Embed time.
-	reqOpts := &core.RequestOptions{
-		Token:      config.APIKey,
-		BaseURL:    config.BaseURL,
-		HTTPClient: config.HTTPClient,
+	options := []coherecore.RequestOption{option.WithToken(config.APIKey)}
+	if config.BaseURL != "" {
+		options = append(options, option.WithBaseURL(config.BaseURL))
 	}
+	if config.HTTPClient != nil {
+		options = append(options, option.WithHTTPClient(config.HTTPClient))
+	}
+	reqOpts := coherecore.NewRequestOptions(options...)
 
 	return &api{v2: cohereclientv2.NewClient(reqOpts)}, nil
+}
+
+func (a *api) rerank(ctx context.Context, req *cohere.V2RerankRequest) (*cohere.V2RerankResponse, error) {
+	if req == nil {
+		return nil, errors.New("cohere: request must not be nil")
+	}
+	return a.v2.Rerank(ctx, req)
 }
 
 func (a *api) embed(ctx context.Context, req *cohere.V2EmbedRequest) (*cohere.EmbedByTypeResponse, error) {

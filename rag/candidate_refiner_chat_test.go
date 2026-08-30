@@ -10,9 +10,9 @@ import (
 	"github.com/Tangerg/scope/rag"
 )
 
-func TestModelRerankerUsesStructuredOutputAndOwnsScores(t *testing.T) {
+func TestChatRerankerUsesStructuredOutputAndOwnsScores(t *testing.T) {
 	model := newFakeChatModel(t, `{"scores":[{"index":0,"score":0.4},{"index":1,"score":0.9}]}`)
-	reranker, err := rag.NewModelReranker(rag.ModelRerankerConfig{Model: model})
+	reranker, err := rag.NewChatReranker(rag.ChatRerankerConfig{Model: model})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -43,7 +43,7 @@ func TestModelRerankerUsesStructuredOutputAndOwnsScores(t *testing.T) {
 	}
 }
 
-func TestModelRerankerValidatesCompleteRanking(t *testing.T) {
+func TestChatRerankerValidatesCompleteRanking(t *testing.T) {
 	first := identifiedDocument(t, "first", "first")
 	second := identifiedDocument(t, "second", "second")
 	input := []rag.Candidate{candidate(first), candidate(second)}
@@ -55,7 +55,7 @@ func TestModelRerankerValidatesCompleteRanking(t *testing.T) {
 		"invalid score":      `{"scores":[{"index":0,"score":1.1},{"index":1,"score":0.8}]}`,
 	} {
 		t.Run(name, func(t *testing.T) {
-			reranker, err := rag.NewModelReranker(rag.ModelRerankerConfig{Model: newFakeChatModel(t, reply)})
+			reranker, err := rag.NewChatReranker(rag.ChatRerankerConfig{Model: newFakeChatModel(t, reply)})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -66,9 +66,9 @@ func TestModelRerankerValidatesCompleteRanking(t *testing.T) {
 	}
 }
 
-func TestModelRerankerHandlesEmptyAndUnformattableCandidates(t *testing.T) {
+func TestChatRerankerHandlesEmptyAndUnformattableCandidates(t *testing.T) {
 	model := newFakeChatModel(t, `{"scores":[]}`)
-	reranker, err := rag.NewModelReranker(rag.ModelRerankerConfig{Model: model})
+	reranker, err := rag.NewChatReranker(rag.ChatRerankerConfig{Model: model})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +80,7 @@ func TestModelRerankerHandlesEmptyAndUnformattableCandidates(t *testing.T) {
 	}
 
 	blankFormatter := rag.DocumentFormatterFunc(func(*document.Document) (string, error) { return " ", nil })
-	reranker, err = rag.NewModelReranker(rag.ModelRerankerConfig{Model: model, Formatter: blankFormatter})
+	reranker, err = rag.NewChatReranker(rag.ChatRerankerConfig{Model: model, Formatter: blankFormatter})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -90,8 +90,8 @@ func TestModelRerankerHandlesEmptyAndUnformattableCandidates(t *testing.T) {
 	}
 }
 
-func TestNewModelRerankerRejectsMissingModel(t *testing.T) {
-	if _, err := rag.NewModelReranker(rag.ModelRerankerConfig{}); err == nil {
+func TestNewChatRerankerRejectsMissingModel(t *testing.T) {
+	if _, err := rag.NewChatReranker(rag.ChatRerankerConfig{}); err == nil {
 		t.Fatal("missing model must error")
 	}
 }

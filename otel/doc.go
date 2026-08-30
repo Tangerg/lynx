@@ -13,7 +13,7 @@
 // mixes different lifecycles:
 //
 //   - chat: chat call and lazy stream.
-//   - embedding, image, moderation, speech, transcription: one modality each.
+//   - embedding, image, moderation, rerank, speech, transcription: one modality each.
 //   - eval: a generic Evaluator result.
 //   - rag: retrieval.
 //   - tool: tool invocation.

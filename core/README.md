@@ -24,6 +24,7 @@ go get github.com/Tangerg/scope/core
 | `embeddingclient` | Direct embedding conveniences and dimension resolution |
 | `image` | Image-generation protocol |
 | `moderation` | Content-moderation protocol |
+| `rerank` | Query-to-document relevance-ranking protocol |
 | `speech` | Text-to-speech protocol and its independent `Streamer` |
 | `transcription` | Audio-to-text protocol |
 | `document` | The canonical `Document` content value |

@@ -10,6 +10,11 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
+const (
+	embeddingEndpointPath = "/embeddings"
+	rerankEndpointPath    = "/rerank"
+)
+
 type apiConfig struct {
 	APIKey     string
 	BaseURL    string
@@ -72,6 +77,25 @@ type embeddingResponse struct {
 	} `json:"usage"`
 }
 
+type rerankRequest struct {
+	Model           string   `json:"model"`
+	Query           string   `json:"query"`
+	Documents       []string `json:"documents"`
+	TopN            *int     `json:"top_n,omitempty"`
+	ReturnDocuments bool     `json:"return_documents"`
+}
+
+type rerankResponse struct {
+	Model   string `json:"model"`
+	Results []struct {
+		Index          int     `json:"index"`
+		RelevanceScore float64 `json:"relevance_score"`
+	} `json:"results"`
+	Usage struct {
+		TotalTokens int64 `json:"total_tokens"`
+	} `json:"usage"`
+}
+
 func (a *api) embedding(ctx context.Context, req *embeddingRequest) (*embeddingResponse, error) {
 	if req == nil {
 		return nil, errors.New("jina: request must not be nil")
@@ -85,7 +109,26 @@ func (a *api) embedding(ctx context.Context, req *embeddingRequest) (*embeddingR
 		SetContext(ctx).
 		SetBody(req).
 		SetResult(&out).
-		Post("/embeddings")
+		Post(embeddingEndpointPath)
+	if err != nil {
+		return nil, fmt.Errorf("jina: request failed: %w", err)
+	}
+	if !resp.IsSuccess() {
+		return nil, fmt.Errorf("jina: http %d: %s", resp.StatusCode(), resp.String())
+	}
+	return &out, nil
+}
+
+func (a *api) rerank(ctx context.Context, req *rerankRequest) (*rerankResponse, error) {
+	if req == nil {
+		return nil, errors.New("jina: request must not be nil")
+	}
+	var out rerankResponse
+	resp, err := a.http.R().
+		SetContext(ctx).
+		SetBody(req).
+		SetResult(&out).
+		Post(rerankEndpointPath)
 	if err != nil {
 		return nil, fmt.Errorf("jina: request failed: %w", err)
 	}

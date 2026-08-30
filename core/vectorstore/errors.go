@@ -20,6 +20,8 @@ var (
 	ErrDuplicateDocumentID = errors.New("vectorstore: duplicate document ID")
 
 	ErrMissingFilter = errors.New("vectorstore: filter is required")
+
+	ErrUnsupportedSearchMode = errors.New("vectorstore: unsupported search mode")
 )
 
 var ErrInvalidBatcherOutput = errors.New("vectorstore: invalid batcher output")

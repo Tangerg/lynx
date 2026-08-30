@@ -16,6 +16,7 @@
 //   - embedding: text-to-vector requests and vectors.
 //   - image: image generation.
 //   - moderation: content classification.
+//   - rerank: query-to-document relevance ranking.
 //   - speech: text-to-speech, with an independent Streamer.
 //   - transcription: audio-to-text.
 //

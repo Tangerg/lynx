@@ -8,15 +8,16 @@ import (
 	coheresdk "github.com/cohere-ai/cohere-go/v2"
 
 	"github.com/Tangerg/scope/core/embedding"
+	"github.com/Tangerg/scope/core/modeltest"
 	"github.com/Tangerg/scope/models/cohere"
 )
 
 func TestEmbeddingModel_Integration(t *testing.T) {
-	runIntegrationEmbedding(t, integrationEmbeddingProbe{
+	modeltest.RunIntegrationEmbedding(t, modeltest.IntegrationEmbeddingProbe{
 		Provider: "cohere",
 		Build: func(t *testing.T, key string) embedding.Model {
 			t.Helper()
-			modelID, _ := lookupEnv("SCOPE_TEST_COHERE_MODEL")
+			modelID, _ := modeltest.LookupEnv("SCOPE_TEST_COHERE_MODEL")
 			if modelID == "" {
 				modelID = "embed-v4.0"
 			}

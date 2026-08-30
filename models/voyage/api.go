@@ -10,6 +10,11 @@ import (
 	"github.com/go-resty/resty/v2"
 )
 
+const (
+	embeddingEndpointPath = "/embeddings"
+	rerankEndpointPath    = "/rerank"
+)
+
 type apiConfig struct {
 	APIKey     string
 	BaseURL    string
@@ -66,6 +71,27 @@ type embeddingResponse struct {
 	} `json:"usage"`
 }
 
+type rerankRequest struct {
+	Query           string   `json:"query"`
+	Documents       []string `json:"documents"`
+	Model           string   `json:"model"`
+	TopK            *int     `json:"top_k,omitempty"`
+	ReturnDocuments bool     `json:"return_documents"`
+	Truncation      *bool    `json:"truncation,omitempty"`
+}
+
+type rerankResponse struct {
+	Object string `json:"object"`
+	Data   []struct {
+		Index          int     `json:"index"`
+		RelevanceScore float64 `json:"relevance_score"`
+	} `json:"data"`
+	Model string `json:"model"`
+	Usage struct {
+		TotalTokens int64 `json:"total_tokens"`
+	} `json:"usage"`
+}
+
 func (a *api) embedding(ctx context.Context, req *embeddingRequest) (*embeddingResponse, error) {
 	if req == nil {
 		return nil, errors.New("voyage: request must not be nil")
@@ -76,7 +102,26 @@ func (a *api) embedding(ctx context.Context, req *embeddingRequest) (*embeddingR
 		SetContext(ctx).
 		SetBody(req).
 		SetResult(&out).
-		Post("/embeddings")
+		Post(embeddingEndpointPath)
+	if err != nil {
+		return nil, fmt.Errorf("voyage: request failed: %w", err)
+	}
+	if !resp.IsSuccess() {
+		return nil, fmt.Errorf("voyage: http %d: %s", resp.StatusCode(), resp.String())
+	}
+	return &out, nil
+}
+
+func (a *api) rerank(ctx context.Context, req *rerankRequest) (*rerankResponse, error) {
+	if req == nil {
+		return nil, errors.New("voyage: request must not be nil")
+	}
+	var out rerankResponse
+	resp, err := a.http.R().
+		SetContext(ctx).
+		SetBody(req).
+		SetResult(&out).
+		Post(rerankEndpointPath)
 	if err != nil {
 		return nil, fmt.Errorf("voyage: request failed: %w", err)
 	}

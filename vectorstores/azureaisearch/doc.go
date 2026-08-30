@@ -12,11 +12,15 @@
 // Identity / OAuth, inject a bearer token through a custom
 // [http.Client].
 //
-// Search shape:
+// Semantic search supplies one vector query. Hybrid search supplies the same
+// vector together with `search` and restricts lexical evidence to the
+// configured content field, leaving fusion to Azure AI Search.
+//
+// Vector request shape:
 //
 //	POST /indexes/<index>/docs/search?api-version=2024-07-01
 //	{
-//	  "size": K, "top": K,
+//	  "top": K,
 //	  "vectorQueries": [{"kind": "vector", "vector": [...],
 //	                     "k": K, "fields": "contentVector"}],
 //	  "filter": "<odata>"

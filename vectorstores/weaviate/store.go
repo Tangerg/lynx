@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/go-openapi/strfmt"
 	"github.com/google/uuid"
@@ -31,6 +32,7 @@ const (
 
 	additionalID       = "id"
 	additionalDistance = "distance"
+	additionalScore    = "score"
 )
 
 // DistanceMetric selects the distance function configured on the Weaviate
@@ -97,6 +99,10 @@ type StoreConfig struct {
 	// Valid values: "cosine" (default), "dot", "l2-squared", "hamming", "manhattan".
 	// Optional: defaults to "cosine".
 	DistanceMetric DistanceMetric
+
+	// HybridAlpha controls the relative weight of vector evidence in native
+	// hybrid search. Nil preserves Weaviate's default; valid values are [0, 1].
+	HybridAlpha *float32
 }
 
 func (s StoreConfig) Validate() error {
@@ -115,6 +121,9 @@ func (s StoreConfig) Validate() error {
 	}
 	if !s.DistanceMetric.Valid() {
 		return fmt.Errorf("weaviate: unsupported DistanceMetric %q", s.DistanceMetric)
+	}
+	if s.HybridAlpha != nil && (*s.HybridAlpha < 0 || *s.HybridAlpha > 1) {
+		return fmt.Errorf("weaviate: HybridAlpha must be between 0 and 1, got %v", *s.HybridAlpha)
 	}
 	return nil
 }
@@ -139,6 +148,7 @@ type Store struct {
 	documentBatcher  vectorstore.Batcher
 	className        string
 	distanceMetric   DistanceMetric
+	hybridAlpha      *float32
 	initializeSchema bool
 }
 
@@ -153,12 +163,18 @@ func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 		return nil, fmt.Errorf("weaviate: create embedding client: %w", err)
 	}
 
+	var hybridAlpha *float32
+	if config.HybridAlpha != nil {
+		hybridAlpha = new(float32)
+		*hybridAlpha = *config.HybridAlpha
+	}
 	store := &Store{
 		client:           config.Client,
 		embeddingClient:  embeddingClient,
 		documentBatcher:  config.DocumentBatcher,
 		className:        config.ClassName,
 		distanceMetric:   config.DistanceMetric,
+		hybridAlpha:      hybridAlpha,
 		initializeSchema: config.InitializeSchema,
 	}
 
@@ -299,6 +315,9 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	if err = req.Validate(); err != nil {
 		return nil, fmt.Errorf("weaviate.Store.Search: %w", err)
 	}
+	if err = req.Options.RequireMode(vectorstore.SearchModeSemantic, vectorstore.SearchModeHybrid); err != nil {
+		return nil, fmt.Errorf("weaviate.Store.Search: %w", err)
+	}
 
 	defer func() {
 		if err == nil {
@@ -312,6 +331,10 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		return nil, fmt.Errorf("weaviate: embed query: %w", err)
 	}
 
+	additionalRelevanceField := additionalDistance
+	if req.Options.EffectiveMode() == vectorstore.SearchModeHybrid {
+		additionalRelevanceField = additionalScore
+	}
 	fields := []graphql.Field{
 		{Name: fieldContent},
 		{Name: fieldMetadata},
@@ -319,7 +342,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 			Name: "_additional",
 			Fields: []graphql.Field{
 				{Name: additionalID},
-				{Name: additionalDistance},
+				{Name: additionalRelevanceField},
 			},
 		},
 	}
@@ -327,8 +350,20 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	getBuilder := s.client.GraphQL().Get().
 		WithClassName(s.className).
 		WithFields(fields...).
-		WithNearVector(s.buildNearVector(vector, req.Options.MinScore)).
 		WithLimit(req.Options.ResultLimit())
+	if req.Options.EffectiveMode() == vectorstore.SearchModeSemantic {
+		getBuilder = getBuilder.WithNearVector(s.buildNearVector(vector, req.Options.MinScore))
+	} else {
+		hybrid := s.client.GraphQL().HybridArgumentBuilder().
+			WithQuery(req.Query).
+			WithVector(models.C11yVector(embedding.Float32Vector(vector))).
+			WithProperties([]string{fieldContent}).
+			WithFusionType(graphql.RelativeScore)
+		if s.hybridAlpha != nil {
+			hybrid = hybrid.WithAlpha(*s.hybridAlpha)
+		}
+		getBuilder = getBuilder.WithHybrid(hybrid)
+	}
 
 	if req.Options.Filter != nil {
 		visitor := newVisitor()
@@ -347,7 +382,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		return nil, fmt.Errorf("weaviate: GraphQL query error: %v", result.Errors[0].Message)
 	}
 
-	docs, err = s.buildDocumentsFromResult(result, req.Options.MinScore)
+	docs, err = s.buildDocumentsFromResult(result, req.Options)
 	if err != nil {
 		return nil, fmt.Errorf("weaviate: build documents from results: %w", err)
 	}
@@ -357,7 +392,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 
 func (s *Store) buildDocumentsFromResult(
 	result *models.GraphQLResponse,
-	minScore vectorstore.Score,
+	options vectorstore.SearchOptions,
 ) ([]*vectorstore.SearchResult, error) {
 	if result == nil {
 		return nil, errors.New("weaviate: GraphQL response is nil")
@@ -400,12 +435,11 @@ func (s *Store) buildDocumentsFromResult(
 			return nil, errors.New("weaviate: result object is missing _additional.id")
 		}
 		doc.ID = id
-		distance, ok := additional[additionalDistance].(float64)
-		if !ok {
-			return nil, fmt.Errorf("weaviate: result distance has type %T, want number", additional[additionalDistance])
+		score, err := s.resultScore(additional, options.EffectiveMode())
+		if err != nil {
+			return nil, err
 		}
-		score := s.distanceMetric.score(distance)
-		if score < minScore {
+		if score < options.MinScore {
 			continue
 		}
 
@@ -425,6 +459,30 @@ func (s *Store) buildDocumentsFromResult(
 	}
 
 	return docs, nil
+}
+
+func (s *Store) resultScore(additional map[string]any, mode vectorstore.SearchMode) (vectorstore.Score, error) {
+	if mode == vectorstore.SearchModeSemantic {
+		distance, ok := additional[additionalDistance].(float64)
+		if !ok {
+			return 0, fmt.Errorf("weaviate: result distance has type %T, want number", additional[additionalDistance])
+		}
+		return s.distanceMetric.score(distance), nil
+	}
+
+	raw := additional[additionalScore]
+	switch score := raw.(type) {
+	case float64:
+		return vectorstore.ScoreFromValue(score), nil
+	case string:
+		value, err := strconv.ParseFloat(score, 64)
+		if err != nil {
+			return 0, fmt.Errorf("weaviate: parse hybrid result score %q: %w", score, err)
+		}
+		return vectorstore.ScoreFromValue(value), nil
+	default:
+		return 0, fmt.Errorf("weaviate: hybrid result score has type %T, want number or string", raw)
+	}
 }
 
 func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err error) {

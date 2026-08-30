@@ -45,7 +45,15 @@ usage entry point is [`README.md`](README.md).
   never intrude into a provider.
 - **Vector encoding and distance metrics differ per database.** A provider
   interprets the raw value and then constructs Core's `Score`, so a consumer
-  always receives a score in one range.
+  always receives a relevance value in one range. The value preserves ordering
+  but is not comparable across providers or search modes.
+- **Search mode is an exact capability.** Every `Searcher` validates
+  `SearchOptions.Mode` before embedding or external I/O. A backend either maps
+  semantic and hybrid to genuine provider operations or returns
+  `ErrUnsupportedSearchMode`; vector fallback is a contract violation. The
+  conformance suite asserts this negative capability. Provider-specific fusion
+  weights and pipeline names remain provider config rather than leaking into
+  Core.
 - **Schema initialization is an explicit switch.** On, it creates tables and
   indexes; off, it assumes the schema is already provisioned. It never silently
   runs `ALTER`.
@@ -57,7 +65,8 @@ usage entry point is [`README.md`](README.md).
   composed explicitly through hydration instead.
 - **Conformance coverage comes free.** Each provider package runs the public
   `core/vectorstore/storetest` capability and filter-shape suites, which verify
-  that traversal succeeds rather than that output matches verbatim.
+  traversal and the supported search-mode set before provider I/O. Statement
+  coverage is independently ratcheted by `scripts/check-provider-coverage.sh`.
 
 ## 3. Negative invariants
 

@@ -1,6 +1,6 @@
 # typesense
 
-Package typesense exposes Typesense's vector search through the Core vector-
+Package typesense exposes Typesense's semantic and hybrid search through the Core vector-
 store capability interfaces. Documents are regular Typesense documents in a
 collection with id / content / metadata (nested object) / embedding (float[])
 fields, reached through the official typesense-go v3 client. Requirements:
@@ -8,7 +8,10 @@ Typesense 0.25+ (vector search GA) — the store uses nested-object metadata
 which needs `enable_nested_fields=true` on the collection. Distance metric:
 cosine only. Typesense's vector search always uses cosine distance — the result
 `vector_distance` is in [0, 2] and the store maps it onto a higher-is-better
-score in [0, 1]. Schema bootstrap. When StoreConfig.InitializeSchema is true
+score in [0, 1]. Hybrid search supplies both `q`/`query_by` and `vector_query`;
+Typesense owns the fused ordering, which Scope maps to reciprocal-rank relevance
+because the SDK does not expose a portable fused score. `StoreConfig.HybridAlpha`
+optionally controls the vector weight. Schema bootstrap. When StoreConfig.InitializeSchema is true
 the store probes for the collection and creates it with the right fields +
 dimensionality if missing. Existing collections are trusted as-is. Filter
 visitor produces Typesense `filter_by` syntax — `metadata.k:= v`,

@@ -22,6 +22,7 @@ var targetPublicPackages = map[string]struct{}{
 	"metadata":              {},
 	"modeltest":             {},
 	"moderation":            {},
+	"rerank":                {},
 	"speech":                {},
 	"tokenizer":             {},
 	"tool":                  {},

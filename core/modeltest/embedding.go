@@ -30,9 +30,9 @@ type EmbeddingContract struct {
 func RunEmbeddingContract(t *testing.T, contract EmbeddingContract) {
 	t.Helper()
 	t.Run("Call_Mock", func(t *testing.T) {
-		var seenPath string
+		seenPath := make(chan string, 1)
 		server := JSONServer(http.StatusOK, contract.Response, func(request *http.Request) {
-			seenPath = request.URL.Path
+			seenPath <- request.URL.Path
 		})
 		t.Cleanup(server.Close)
 
@@ -46,8 +46,15 @@ func RunEmbeddingContract(t *testing.T, contract EmbeddingContract) {
 		if err != nil {
 			t.Fatalf("Call: %v", err)
 		}
-		if contract.ExpectedPath != "" && seenPath != contract.ExpectedPath {
-			t.Errorf("URL = %q; want %q", seenPath, contract.ExpectedPath)
+		if contract.ExpectedPath != "" {
+			select {
+			case path := <-seenPath:
+				if path != contract.ExpectedPath {
+					t.Errorf("URL = %q; want %q", path, contract.ExpectedPath)
+				}
+			default:
+				t.Fatal("provider sent no request")
+			}
 		}
 		if len(response.Outputs) != len(request.Texts) {
 			t.Fatalf("got %d outputs; want %d", len(response.Outputs), len(request.Texts))
