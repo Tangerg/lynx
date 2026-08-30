@@ -152,7 +152,7 @@ func TestReadTool_OmittedStartLineMeansFirstLine(t *testing.T) {
 	}
 }
 
-func TestReadTool_RejectsAmbiguousLegacyPaging(t *testing.T) {
+func TestReadTool_RejectsUnknownPagingArguments(t *testing.T) {
 	for _, arguments := range []string{
 		`{"path":"a.txt","offset":1}`,
 		`{"path":"a.txt","limit":20}`,
