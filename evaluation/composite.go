@@ -19,6 +19,35 @@ const (
 	PassAtLeast PassPolicy = "at_least"
 )
 
+func (policy PassPolicy) resolve() PassPolicy {
+	if policy == "" {
+		return PassAll
+	}
+	return policy
+}
+
+func (policy PassPolicy) minimum(componentCount, configured int) (int, error) {
+	switch policy.resolve() {
+	case PassAll:
+		if configured != 0 {
+			return 0, fmt.Errorf("%w: minimum passed is only valid with the at_least policy", ErrInvalidEvaluatorConfig)
+		}
+		return componentCount, nil
+	case PassAny:
+		if configured != 0 {
+			return 0, fmt.Errorf("%w: minimum passed is only valid with the at_least policy", ErrInvalidEvaluatorConfig)
+		}
+		return 1, nil
+	case PassAtLeast:
+		if configured <= 0 || configured > componentCount {
+			return 0, fmt.Errorf("%w: minimum passed must be between 1 and %d", ErrInvalidEvaluatorConfig, componentCount)
+		}
+		return configured, nil
+	default:
+		return 0, fmt.Errorf("%w: unsupported pass policy %q", ErrInvalidEvaluatorConfig, policy)
+	}
+}
+
 // Component assigns score weight and pass criticality to one evaluator.
 // A zero Weight selects 1. Required components must pass independently of the
 // aggregate pass policy.
@@ -66,28 +95,10 @@ func NewCompositeEvaluator[T any](config CompositeConfig[T]) (*CompositeEvaluato
 		components[index] = component
 	}
 
-	policy := config.PassPolicy
-	if policy == "" {
-		policy = PassAll
-	}
-	minimumPassed := config.MinimumPassed
-	switch policy {
-	case PassAll:
-		if minimumPassed != 0 {
-			return nil, fmt.Errorf("%w: minimum passed is only valid with the at_least policy", ErrInvalidEvaluatorConfig)
-		}
-		minimumPassed = len(components)
-	case PassAny:
-		if minimumPassed != 0 {
-			return nil, fmt.Errorf("%w: minimum passed is only valid with the at_least policy", ErrInvalidEvaluatorConfig)
-		}
-		minimumPassed = 1
-	case PassAtLeast:
-		if minimumPassed <= 0 || minimumPassed > len(components) {
-			return nil, fmt.Errorf("%w: minimum passed must be between 1 and %d", ErrInvalidEvaluatorConfig, len(components))
-		}
-	default:
-		return nil, fmt.Errorf("%w: unsupported pass policy %q", ErrInvalidEvaluatorConfig, policy)
+	policy := config.PassPolicy.resolve()
+	minimumPassed, err := policy.minimum(len(components), config.MinimumPassed)
+	if err != nil {
+		return nil, err
 	}
 
 	maxConcurrency := config.MaxConcurrency
@@ -161,6 +172,12 @@ type componentIdentity struct {
 	Required bool    `json:"required,omitzero"`
 }
 
+type compositeMetricIdentity struct {
+	Components    []componentIdentity `json:"components"`
+	PassPolicy    PassPolicy          `json:"pass_policy"`
+	MinimumPassed int                 `json:"minimum_passed"`
+}
+
 func (composite *CompositeEvaluator[T]) metricFor(reports []Report) (Metric, error) {
 	components := make([]componentIdentity, len(reports))
 	for index, report := range reports {
@@ -170,14 +187,12 @@ func (composite *CompositeEvaluator[T]) metricFor(reports []Report) (Metric, err
 		}
 	}
 	parameters := metadata.Map{}
-	for key, value := range map[string]any{
-		"components":     components,
-		"pass_policy":    composite.passPolicy,
-		"minimum_passed": composite.minimumPassed,
-	} {
-		if err := parameters.Set(key, value); err != nil {
-			return Metric{}, fmt.Errorf("evaluation: composite metric identity: %w", err)
-		}
+	identity := compositeMetricIdentity{
+		Components: components, PassPolicy: composite.passPolicy,
+		MinimumPassed: composite.minimumPassed,
+	}
+	if err := parameters.Set(metricConfigurationKey, identity); err != nil {
+		return Metric{}, fmt.Errorf("evaluation: composite metric identity: %w", err)
 	}
 	metric, err := NewMetric(MetricConfig{Name: MetricNameComposite, Parameters: parameters})
 	if err != nil {

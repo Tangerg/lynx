@@ -59,8 +59,15 @@ func TestCompositeUsesExplicitWeightsAndPassPolicy(t *testing.T) {
 		Weight   float64           `json:"weight"`
 		Required bool              `json:"required"`
 	}
-	identity, found, err := result.Metric.Parameters.Decode[[]componentIdentity]("components")
-	if err != nil || !found || len(identity) != 2 || identity[0].Metric.Name != "quality" || identity[0].Weight != 3 || !identity[0].Required {
+	type compositeIdentity struct {
+		Components    []componentIdentity   `json:"components"`
+		PassPolicy    evaluation.PassPolicy `json:"pass_policy"`
+		MinimumPassed int                   `json:"minimum_passed"`
+	}
+	identity, found, err := result.Metric.Parameters.Decode[compositeIdentity]("configuration")
+	if err != nil || !found || len(identity.Components) != 2 || identity.Components[0].Metric.Name != "quality" ||
+		identity.Components[0].Weight != 3 || !identity.Components[0].Required ||
+		identity.PassPolicy != evaluation.PassAtLeast || identity.MinimumPassed != 1 {
 		t.Fatalf("component identity = (%#v, %v, %v)", identity, found, err)
 	}
 	result.Details[0].Metadata["source"][1] = 'X'
@@ -154,7 +161,7 @@ func TestProjectionAdaptsAggregateCases(t *testing.T) {
 	}
 }
 
-func TestRunnerCollectsCasesAndBuildsDistribution(t *testing.T) {
+func TestExperimentCollectsCasesAndBuildsDistribution(t *testing.T) {
 	evaluator := evaluation.EvaluatorFunc[float64](func(_ context.Context, value float64) (evaluation.Report, error) {
 		if value < 0 {
 			return evaluation.Report{}, errors.New("invalid subject")
@@ -169,40 +176,48 @@ func TestRunnerCollectsCasesAndBuildsDistribution(t *testing.T) {
 		}
 		return evaluation.Report{Metric: testMetric("quality"), Verdict: verdict, Score: &score}, nil
 	})
-	runner, err := evaluation.NewRunner(evaluator, evaluation.RunnerConfig{MaxConcurrency: 2})
-	if err != nil {
-		t.Fatal(err)
-	}
 	cases := []evaluation.Case[float64]{
 		{ID: "good", Subject: 1},
 		{ID: "bad", Subject: 0},
 		{ID: "error", Subject: -1},
 	}
-	report, err := runner.Run(t.Context(), cases)
+	dataset, err := evaluation.NewDataset(cases...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := evaluation.Summary{
+	experiment, err := evaluation.NewExperiment(evaluation.ExperimentConfig[float64]{
+		Dataset: dataset, Evaluator: evaluator, MaxConcurrency: 2,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := experiment.Run(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := evaluation.ExperimentSummary{
 		Total: 3, Evaluated: 2, Passed: 1, Failed: 1, Errors: 1,
 		Metrics: []evaluation.MetricSummary{{
 			Metric: testMetric("quality"), Evaluated: 2, Passed: 1, Failed: 1,
 			Scores: evaluation.Distribution{Count: 2, Mean: 0.5, Minimum: 0, P10: 0, P50: 0, P90: 1, Maximum: 1},
 		}},
 	}
-	if !reflect.DeepEqual(report.Summary, want) {
-		t.Fatalf("summary = %#v, want %#v", report.Summary, want)
+	summary := report.Summary()
+	if !reflect.DeepEqual(summary, want) {
+		t.Fatalf("summary = %#v, want %#v", summary, want)
 	}
-	if report.Cases[0].ID != "good" || report.Cases[2].Err == nil {
-		t.Fatalf("case order/results = %#v", report.Cases)
+	results := report.Cases()
+	if results[0].ID != "good" || results[2].Err == nil {
+		t.Fatalf("case order/results = %#v", results)
 	}
 
 	duplicate := append(cases, evaluation.Case[float64]{ID: "good"})
-	if _, err := runner.Run(t.Context(), duplicate); !errors.Is(err, evaluation.ErrInvalidCase) {
-		t.Fatalf("duplicate case error = %v", err)
+	if _, err := evaluation.NewDataset(duplicate...); !errors.Is(err, evaluation.ErrInvalidDataset) {
+		t.Fatalf("duplicate dataset error = %v", err)
 	}
 }
 
-func TestRunnerFailFastPreservesCaseIdentityAndStopsScheduling(t *testing.T) {
+func TestExperimentFailFastPreservesCaseIdentityAndStopsScheduling(t *testing.T) {
 	firstErr := errors.New("first failed")
 	calls := 0
 	evaluator := evaluation.EvaluatorFunc[int](func(_ context.Context, value int) (evaluation.Report, error) {
@@ -212,38 +227,44 @@ func TestRunnerFailFastPreservesCaseIdentityAndStopsScheduling(t *testing.T) {
 		}
 		return scoredReport("quality", evaluation.VerdictPass, 1), nil
 	})
-	runner, err := evaluation.NewRunner(evaluator, evaluation.RunnerConfig{
-		MaxConcurrency: 1,
-		ErrorPolicy:    evaluation.ErrorFailFast,
+	dataset, err := evaluation.NewDataset(
+		evaluation.Case[int]{ID: "first", Subject: 1},
+		evaluation.Case[int]{ID: "second", Subject: 2},
+		evaluation.Case[int]{ID: "third", Subject: 3},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	experiment, err := evaluation.NewExperiment(evaluation.ExperimentConfig[int]{
+		Dataset: dataset, Evaluator: evaluator,
+		MaxConcurrency: 1, ErrorPolicy: evaluation.ErrorFailFast,
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	report, err := runner.Run(t.Context(), []evaluation.Case[int]{
-		{ID: "first", Subject: 1},
-		{ID: "second", Subject: 2},
-		{ID: "third", Subject: 3},
-	})
+	report, err := experiment.Run(t.Context())
 	if !errors.Is(err, firstErr) {
 		t.Fatalf("Run error = %v, want first failure", err)
 	}
 	if calls != 1 {
 		t.Fatalf("calls = %d, want 1", calls)
 	}
+	results := report.Cases()
 	for index, id := range []string{"first", "second", "third"} {
-		if report.Cases[index].ID != id || report.Cases[index].Err == nil {
-			t.Fatalf("cases[%d] = %#v", index, report.Cases[index])
+		if results[index].ID != evaluation.CaseID(id) || results[index].Err == nil {
+			t.Fatalf("cases[%d] = %#v", index, results[index])
 		}
 	}
-	if !errors.Is(report.Cases[1].Err, evaluation.ErrCaseNotEvaluated) || !errors.Is(report.Cases[2].Err, evaluation.ErrCaseNotEvaluated) {
-		t.Fatalf("pending case errors = (%v, %v)", report.Cases[1].Err, report.Cases[2].Err)
+	if !errors.Is(results[1].Err, evaluation.ErrCaseNotEvaluated) || !errors.Is(results[2].Err, evaluation.ErrCaseNotEvaluated) {
+		t.Fatalf("pending case errors = (%v, %v)", results[1].Err, results[2].Err)
 	}
-	if report.Summary.Total != 3 || report.Summary.Errors != 3 || report.Summary.Evaluated != 0 {
-		t.Fatalf("summary = %#v", report.Summary)
+	summary := report.Summary()
+	if summary.Total != 3 || summary.Errors != 3 || summary.Evaluated != 0 {
+		t.Fatalf("summary = %#v", summary)
 	}
 }
 
-func TestRunnerDefaultConcurrencyIsBounded(t *testing.T) {
+func TestExperimentDefaultConcurrencyIsBounded(t *testing.T) {
 	started := make(chan struct{}, evaluation.DefaultMaxConcurrency+1)
 	release := make(chan struct{})
 	evaluator := evaluation.EvaluatorFunc[int](func(_ context.Context, _ int) (evaluation.Report, error) {
@@ -251,17 +272,23 @@ func TestRunnerDefaultConcurrencyIsBounded(t *testing.T) {
 		<-release
 		return scoredReport("quality", evaluation.VerdictPass, 1), nil
 	})
-	runner, err := evaluation.NewRunner(evaluator, evaluation.RunnerConfig{})
+	cases := make([]evaluation.Case[int], evaluation.DefaultMaxConcurrency+1)
+	for index := range cases {
+		cases[index] = evaluation.Case[int]{ID: evaluation.CaseID(fmt.Sprintf("case-%d", index))}
+	}
+	dataset, err := evaluation.NewDataset(cases...)
 	if err != nil {
 		t.Fatal(err)
 	}
-	cases := make([]evaluation.Case[int], evaluation.DefaultMaxConcurrency+1)
-	for index := range cases {
-		cases[index] = evaluation.Case[int]{ID: fmt.Sprintf("case-%d", index)}
+	experiment, err := evaluation.NewExperiment(evaluation.ExperimentConfig[int]{
+		Dataset: dataset, Evaluator: evaluator,
+	})
+	if err != nil {
+		t.Fatal(err)
 	}
 	done := make(chan error, 1)
 	go func() {
-		_, runErr := runner.Run(t.Context(), cases)
+		_, runErr := experiment.Run(t.Context())
 		done <- runErr
 	}()
 	for range evaluation.DefaultMaxConcurrency {
@@ -278,7 +305,7 @@ func TestRunnerDefaultConcurrencyIsBounded(t *testing.T) {
 	}
 }
 
-func TestSuitePreservesHeterogeneousResultsAndRunnerSummarizesEachMetric(t *testing.T) {
+func TestSuitePreservesHeterogeneousResultsAndExperimentSummarizesEachMetric(t *testing.T) {
 	latencyMetric, err := evaluation.NewMetric(evaluation.MetricConfig{
 		Namespace: "runtime", Name: "latency", Unit: "ms", Direction: evaluation.DirectionLowerIsBetter,
 	})
@@ -307,24 +334,34 @@ func TestSuitePreservesHeterogeneousResultsAndRunnerSummarizesEachMetric(t *test
 	if report.Verdict != evaluation.VerdictPass || report.Score != nil || len(report.Details) != 2 {
 		t.Fatalf("suite report = %#v", report)
 	}
-	metrics, found, err := report.Metric.Parameters.Decode[[]evaluation.Metric]("metrics")
-	if err != nil || !found || len(metrics) != 2 || metrics[0].Name != "quality" || metrics[1].Name != "latency" {
-		t.Fatalf("suite metric identity = (%#v, %v, %v)", metrics, found, err)
+	type suiteIdentity struct {
+		Metrics []evaluation.Metric `json:"metrics"`
+	}
+	identity, found, err := report.Metric.Parameters.Decode[suiteIdentity]("configuration")
+	if err != nil || !found || len(identity.Metrics) != 2 || identity.Metrics[0].Name != "quality" || identity.Metrics[1].Name != "latency" {
+		t.Fatalf("suite metric identity = (%#v, %v, %v)", identity, found, err)
 	}
 
-	runner, err := evaluation.NewRunner(suite, evaluation.RunnerConfig{})
+	dataset, err := evaluation.NewDataset(evaluation.Case[string]{ID: "case", Subject: "subject"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	run, err := runner.Run(t.Context(), []evaluation.Case[string]{{ID: "case", Subject: "subject"}})
+	experiment, err := evaluation.NewExperiment(evaluation.ExperimentConfig[string]{
+		Dataset: dataset, Evaluator: suite,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if run.Summary.Total != 1 || run.Summary.Evaluated != 1 || run.Summary.Passed != 1 || len(run.Summary.Metrics) != 3 {
-		t.Fatalf("summary = %#v", run.Summary)
+	run, err := experiment.Run(t.Context())
+	if err != nil {
+		t.Fatal(err)
 	}
-	quality := run.Summary.Metrics[1]
-	latency := run.Summary.Metrics[2]
+	summary := run.Summary()
+	if summary.Total != 1 || summary.Evaluated != 1 || summary.Passed != 1 || len(summary.Metrics) != 3 {
+		t.Fatalf("summary = %#v", summary)
+	}
+	quality := summary.Metrics[1]
+	latency := summary.Metrics[2]
 	if quality.Metric.Name != "quality" || quality.Scores.Count != 1 || quality.Scores.Mean != 0.8 {
 		t.Fatalf("quality summary = %#v", quality)
 	}
@@ -390,6 +427,221 @@ func TestScoreMetricAndReportValidation(t *testing.T) {
 	if err := (evaluation.Report{Metric: testMetric("empty")}).Validate(); !errors.Is(err, evaluation.ErrInvalidReport) {
 		t.Fatalf("empty report error = %v", err)
 	}
+}
+
+func TestDatasetAndExperimentOwnTheirMetadata(t *testing.T) {
+	caseMetadata := metadata.Map{}
+	if err := caseMetadata.Set("source", "original"); err != nil {
+		t.Fatal(err)
+	}
+	dataset, err := evaluation.NewDataset(evaluation.Case[string]{
+		ID: "owned", Subject: "value", Metadata: caseMetadata,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	caseMetadata["source"][1] = 'X'
+	cases := dataset.Cases()
+	cases[0].Metadata["source"][1] = 'Y'
+	if got := string(dataset.Cases()[0].Metadata["source"]); got != `"original"` {
+		t.Fatalf("Dataset metadata = %s", got)
+	}
+
+	experiment, err := evaluation.NewExperiment(evaluation.ExperimentConfig[string]{
+		Dataset: dataset, Evaluator: validStringEvaluator(),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := experiment.Run(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	results := report.Cases()
+	results[0].Metadata["source"][1] = 'Z'
+	if got := string(report.Cases()[0].Metadata["source"]); got != `"original"` {
+		t.Fatalf("ExperimentReport metadata = %s", got)
+	}
+}
+
+func TestExperimentValidatesDatasetAndRuntimePolicy(t *testing.T) {
+	if _, err := evaluation.NewDataset(
+		evaluation.Case[int]{ID: "duplicate"},
+		evaluation.Case[int]{ID: "duplicate"},
+	); !errors.Is(err, evaluation.ErrInvalidDataset) {
+		t.Fatalf("duplicate Dataset error = %v", err)
+	}
+	dataset, err := evaluation.NewDataset(evaluation.Case[int]{ID: "case"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var typedNil *nilEvaluator
+	for _, config := range []evaluation.ExperimentConfig[int]{
+		{Dataset: dataset},
+		{Dataset: dataset, Evaluator: typedNil},
+		{Dataset: dataset, Evaluator: validIntEvaluator(), MaxConcurrency: -1},
+		{Dataset: dataset, Evaluator: validIntEvaluator(), ErrorPolicy: "unknown"},
+	} {
+		if _, err := evaluation.NewExperiment(config); !errors.Is(err, evaluation.ErrInvalidExperiment) {
+			t.Fatalf("NewExperiment(%#v) error = %v", config, err)
+		}
+	}
+}
+
+func TestExperimentCancellationPreservesCaseIdentity(t *testing.T) {
+	dataset, err := evaluation.NewDataset(
+		evaluation.Case[int]{ID: "first"},
+		evaluation.Case[int]{ID: "second"},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	calls := 0
+	experiment, err := evaluation.NewExperiment(evaluation.ExperimentConfig[int]{
+		Dataset: dataset,
+		Evaluator: evaluation.EvaluatorFunc[int](func(context.Context, int) (evaluation.Report, error) {
+			calls++
+			return scoredReport("quality", evaluation.VerdictPass, 1), nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	report, err := experiment.Run(ctx)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Run error = %v, want context cancellation", err)
+	}
+	if calls != 0 {
+		t.Fatalf("evaluator calls = %d, want 0", calls)
+	}
+	for index, result := range report.Cases() {
+		if !errors.Is(result.Err, context.Canceled) {
+			t.Fatalf("cases[%d] error = %v", index, result.Err)
+		}
+	}
+}
+
+func TestExperimentReportDoesNotExposeOwnedMetadata(t *testing.T) {
+	parameters := metadata.Map{}
+	if err := parameters.Set("rubric", "strict"); err != nil {
+		t.Fatal(err)
+	}
+	metric, err := evaluation.NewMetric(evaluation.MetricConfig{Name: "quality", Parameters: parameters})
+	if err != nil {
+		t.Fatal(err)
+	}
+	dataset, err := evaluation.NewDataset(evaluation.Case[int]{ID: "case"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	experiment, err := evaluation.NewExperiment(evaluation.ExperimentConfig[int]{
+		Dataset: dataset,
+		Evaluator: evaluation.EvaluatorFunc[int](func(context.Context, int) (evaluation.Report, error) {
+			score := evaluation.Score(1)
+			return evaluation.Report{Metric: metric, Score: &score}, nil
+		}),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	report, err := experiment.Run(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	cases := report.Cases()
+	cases[0].Report.Metric.Parameters["rubric"][1] = 'X'
+	summary := report.Summary()
+	summary.Metrics[0].Metric.Parameters["rubric"][1] = 'Y'
+	if got := string(report.Cases()[0].Report.Metric.Parameters["rubric"]); got != `"strict"` {
+		t.Fatalf("case metric parameters = %s", got)
+	}
+	if got := string(report.Summary().Metrics[0].Metric.Parameters["rubric"]); got != `"strict"` {
+		t.Fatalf("summary metric parameters = %s", got)
+	}
+}
+
+func TestCompareReportsExactDeltasWithoutInventingSignificance(t *testing.T) {
+	dataset, err := evaluation.NewDataset(
+		evaluation.Case[float64]{ID: "low", Subject: 0.2},
+		evaluation.Case[float64]{ID: "high", Subject: 0.6},
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	metric := testMetric("quality")
+	evaluator := func(increment float64) evaluation.Evaluator[float64] {
+		return evaluation.EvaluatorFunc[float64](func(_ context.Context, subject float64) (evaluation.Report, error) {
+			score := evaluation.Score(subject + increment)
+			verdict, verdictErr := score.Verdict(0.5)
+			if verdictErr != nil {
+				return evaluation.Report{}, verdictErr
+			}
+			return evaluation.Report{Metric: metric, Verdict: verdict, Score: &score}, nil
+		})
+	}
+	baselineExperiment, err := evaluation.NewExperiment(evaluation.ExperimentConfig[float64]{
+		Dataset: dataset, Evaluator: evaluator(0),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidateExperiment, err := evaluation.NewExperiment(evaluation.ExperimentConfig[float64]{
+		Dataset: dataset, Evaluator: evaluator(0.4),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	baseline, err := baselineExperiment.Run(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate, err := candidateExperiment.Run(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	comparison, err := baseline.Compare(candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if comparison.PassedDelta != 1 || comparison.FailedDelta != -1 || len(comparison.Metrics) != 1 {
+		t.Fatalf("Comparison = %#v", comparison)
+	}
+	delta := comparison.Metrics[0].ScoreDelta
+	if !delta.Present || math.Abs(delta.Mean-0.4) > 1e-12 || comparison.Metrics[0].MeasurementDelta.Present {
+		t.Fatalf("Metric delta = %#v", comparison.Metrics[0])
+	}
+
+	otherDataset, err := evaluation.NewDataset(evaluation.Case[float64]{ID: "other", Subject: 0.2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	otherExperiment, err := evaluation.NewExperiment(evaluation.ExperimentConfig[float64]{
+		Dataset: otherDataset, Evaluator: evaluator(0),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	other, err := otherExperiment.Run(t.Context())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := baseline.Compare(other); !errors.Is(err, evaluation.ErrInvalidComparison) {
+		t.Fatalf("mismatched Dataset comparison error = %v", err)
+	}
+}
+
+type nilEvaluator struct{}
+
+func (*nilEvaluator) Evaluate(context.Context, int) (evaluation.Report, error) {
+	return evaluation.Report{}, nil
+}
+
+func validIntEvaluator() evaluation.Evaluator[int] {
+	return evaluation.EvaluatorFunc[int](func(context.Context, int) (evaluation.Report, error) {
+		return scoredReport("valid", evaluation.VerdictPass, 1), nil
+	})
 }
 
 func validStringEvaluator() evaluation.Evaluator[string] {

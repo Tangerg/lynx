@@ -13,6 +13,8 @@ type MetricName string
 
 const MetricNameComposite MetricName = "composite"
 
+const metricConfigurationKey = "configuration"
+
 // Direction describes how a raw measurement relates to quality. It is kept
 // separate from Score, whose direction is always higher-is-better.
 type Direction string

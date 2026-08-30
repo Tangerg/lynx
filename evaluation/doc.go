@@ -3,10 +3,11 @@
 // measurement semantics, and Report independently represents an optional
 // verdict, normalized quality score, raw numeric measurement, feedback, and
 // child reports. SuiteEvaluator preserves heterogeneous results while
-// CompositeEvaluator explicitly aggregates comparable scored verdicts. Runner
-// executes identified cases with bounded concurrency and per-metric
-// distributions. ProjectionEvaluator adapts aggregate datasets to narrow
-// evaluator subjects without forcing a shared sample shape.
+// CompositeEvaluator explicitly aggregates comparable scored verdicts. Dataset
+// owns case identity, Experiment executes it with bounded concurrency, and
+// ExperimentReport.Compare reports exact aggregate deltas without inventing
+// statistical claims. ProjectionEvaluator adapts aggregate subjects to narrow
+// evaluator inputs.
 //
 // Domain vocabularies live outside the kernel: judge supplies generic
 // model-backed evaluation, text owns generated-text metrics, and ranking owns

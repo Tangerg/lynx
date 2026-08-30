@@ -17,7 +17,16 @@ import (
 	"github.com/Tangerg/scope/evaluation"
 )
 
+const (
+	metricJudgeConfigurationKey = "judge"
+	reportSampleScoresKey       = "sample_scores"
+)
+
 const outputName = "evaluation_report"
+
+type aggregation string
+
+const aggregationMedian aggregation = "median"
 
 type Prompt[T any] func(T) (chat.Message, error)
 
@@ -37,7 +46,7 @@ type modelReport struct {
 }
 
 type metricConfiguration struct {
-	Aggregation string            `json:"aggregation"`
+	Aggregation aggregation       `json:"aggregation"`
 	Samples     int               `json:"samples"`
 	Threshold   *evaluation.Score `json:"threshold,omitzero"`
 }
@@ -95,8 +104,8 @@ func NewEvaluator[T any](config Config[T]) (*Evaluator[T], error) {
 
 func configuredMetric(metric evaluation.Metric, threshold *evaluation.Score, samples int) (evaluation.Metric, error) {
 	parameters := metric.Parameters.Clone()
-	if err := parameters.Set("judge", metricConfiguration{
-		Aggregation: "median", Samples: samples, Threshold: threshold,
+	if err := parameters.Set(metricJudgeConfigurationKey, metricConfiguration{
+		Aggregation: aggregationMedian, Samples: samples, Threshold: threshold,
 	}); err != nil {
 		return evaluation.Metric{}, err
 	}
@@ -161,7 +170,7 @@ func (evaluator *Evaluator[T]) aggregate(outputs []modelReport) (evaluation.Repo
 		for index := range outputs {
 			scores[index] = outputs[index].Score
 		}
-		if err := reportMetadata.Set("sample_scores", scores); err != nil {
+		if err := reportMetadata.Set(reportSampleScoresKey, scores); err != nil {
 			return evaluation.Report{}, fmt.Errorf("evaluation/judge: sample metadata: %w", err)
 		}
 	}

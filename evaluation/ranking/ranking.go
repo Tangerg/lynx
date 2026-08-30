@@ -13,6 +13,12 @@ import (
 	"github.com/Tangerg/scope/evaluation"
 )
 
+const (
+	metricNamespace    = "ranking"
+	metricCutoffKey    = "cutoff"
+	metricThresholdKey = "threshold"
+)
+
 var ErrInvalidSample = errors.New("evaluation/ranking: invalid sample")
 
 // Metric selects a ranking-quality calculation evaluated at a configured
@@ -40,16 +46,16 @@ func (metric Metric) Validate() error {
 
 func (metric Metric) reportMetric(cutoff int, threshold *evaluation.Score) (evaluation.Metric, error) {
 	parameters := metadata.Map{}
-	if err := parameters.Set("cutoff", cutoff); err != nil {
+	if err := parameters.Set(metricCutoffKey, cutoff); err != nil {
 		return evaluation.Metric{}, err
 	}
 	if threshold != nil {
-		if err := parameters.Set("threshold", threshold); err != nil {
+		if err := parameters.Set(metricThresholdKey, threshold); err != nil {
 			return evaluation.Metric{}, err
 		}
 	}
 	return evaluation.NewMetric(evaluation.MetricConfig{
-		Namespace: "ranking", Name: evaluation.MetricName(metric), Parameters: parameters,
+		Namespace: metricNamespace, Name: evaluation.MetricName(metric), Parameters: parameters,
 	})
 }
 

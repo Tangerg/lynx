@@ -77,13 +77,17 @@ func (suite *SuiteEvaluator[T]) Evaluate(ctx context.Context, subject T) (Report
 	return result, nil
 }
 
+type suiteMetricIdentity struct {
+	Metrics []Metric `json:"metrics"`
+}
+
 func suiteMetric(reports []Report) (Metric, error) {
 	metrics := make([]Metric, len(reports))
 	for index, report := range reports {
 		metrics[index] = report.Metric.Clone()
 	}
 	parameters := metadata.Map{}
-	if err := parameters.Set("metrics", metrics); err != nil {
+	if err := parameters.Set(metricConfigurationKey, suiteMetricIdentity{Metrics: metrics}); err != nil {
 		return Metric{}, fmt.Errorf("evaluation: suite metric identity: %w", err)
 	}
 	metric, err := NewMetric(MetricConfig{Name: MetricNameSuite, Parameters: parameters})
