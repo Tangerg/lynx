@@ -38,6 +38,7 @@ func TestReleaseEntryDerivesModulesAndKeepsTagsImmutable(t *testing.T) {
 		"depth[path] + 0",
 		"release plan has invalid layer",
 		"release plan has no modules in layer",
+		"go clean -modcache",
 		"git tag -a",
 		"mod download -json",
 		"refs/tags/$release_tag:refs/tags/$release_tag",

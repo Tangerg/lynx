@@ -20,6 +20,11 @@ cleanup() {
   if [[ -n "${release_temporary_dir:-}" &&
     "$release_temporary_dir" == /tmp/scope-release.* &&
     -d "$release_temporary_dir" ]]; then
+    if [[ -n "${release_modcache:-}" &&
+      "$release_modcache" == "$release_temporary_dir/modcache" &&
+      -d "$release_modcache" ]]; then
+      env GOWORK=off GOMODCACHE="$release_modcache" go clean -modcache
+    fi
     rm -rf -- "$release_temporary_dir"
   fi
 }
