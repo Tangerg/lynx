@@ -93,11 +93,11 @@ type Response struct {
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-func NewResponse(output *Output, metadata *ResponseMetadata) (*Response, error) {
+func NewResponse(output *Output, responseMetadata *ResponseMetadata) (*Response, error) {
 	if output == nil {
 		return nil, fmt.Errorf("chat: create response: %w: output must not be nil", ErrInvalidResponse)
 	}
-	response := &Response{Output: output, Metadata: metadata}
+	response := &Response{Output: output, Metadata: responseMetadata}
 	if err := response.Validate(); err != nil {
 		return nil, fmt.Errorf("chat: create response: %w", err)
 	}

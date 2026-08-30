@@ -128,8 +128,8 @@ type Response struct {
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
-func NewResponse(outputs []*Output, metadata *ResponseMetadata) (*Response, error) {
-	response := &Response{Outputs: slices.Clone(outputs), Metadata: metadata}
+func NewResponse(outputs []*Output, responseMetadata *ResponseMetadata) (*Response, error) {
+	response := &Response{Outputs: slices.Clone(outputs), Metadata: responseMetadata}
 	if err := response.Validate(); err != nil {
 		return nil, fmt.Errorf("image: create response: %w", err)
 	}

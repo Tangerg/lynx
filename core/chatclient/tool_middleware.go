@@ -42,13 +42,13 @@ func NewToolMiddleware(executables ...tool.Tool) (chat.CallMiddleware, error) {
 	return middleware.wrap, nil
 }
 
-func (m *toolMiddleware) wrap(next chat.Model) chat.Model {
+func (t *toolMiddleware) wrap(next chat.Model) chat.Model {
 	return chat.ModelFunc(func(ctx context.Context, request *chat.Request) (*chat.Response, error) {
-		return m.call(ctx, next, request)
+		return t.call(ctx, next, request)
 	})
 }
 
-func (m *toolMiddleware) call(
+func (t *toolMiddleware) call(
 	ctx context.Context,
 	next chat.Model,
 	request *chat.Request,
@@ -60,7 +60,7 @@ func (m *toolMiddleware) call(
 		)
 	}
 	current := request.Clone()
-	current.Tools = m.cloneDefinitions()
+	current.Tools = t.cloneDefinitions()
 	for {
 		response, err := next.Call(ctx, current)
 		if err != nil {
@@ -73,7 +73,7 @@ func (m *toolMiddleware) call(
 		if len(calls) == 0 {
 			return response, nil
 		}
-		results, err := m.execute(ctx, calls)
+		results, err := t.execute(ctx, calls)
 		if err != nil {
 			return nil, err
 		}
@@ -85,10 +85,10 @@ func (m *toolMiddleware) call(
 	}
 }
 
-func (m *toolMiddleware) execute(ctx context.Context, calls []chat.ToolCall) ([]chat.ToolResult, error) {
+func (t *toolMiddleware) execute(ctx context.Context, calls []chat.ToolCall) ([]chat.ToolResult, error) {
 	results := make([]chat.ToolResult, 0, len(calls))
 	for index, call := range calls {
-		binding, exists := m.bindings[call.Name]
+		binding, exists := t.bindings[call.Name]
 		if !exists {
 			return nil, fmt.Errorf("chatclient: execute ToolCall[%d]: Tool %q is not bound", index, call.Name)
 		}
@@ -108,10 +108,10 @@ func (m *toolMiddleware) execute(ctx context.Context, calls []chat.ToolCall) ([]
 	return results, nil
 }
 
-func (m *toolMiddleware) cloneDefinitions() []chat.ToolDefinition {
-	definitions := make([]chat.ToolDefinition, len(m.definitions))
-	for index := range m.definitions {
-		definitions[index] = m.definitions[index].Clone()
+func (t *toolMiddleware) cloneDefinitions() []chat.ToolDefinition {
+	definitions := make([]chat.ToolDefinition, len(t.definitions))
+	for index := range t.definitions {
+		definitions[index] = t.definitions[index].Clone()
 	}
 	return definitions
 }

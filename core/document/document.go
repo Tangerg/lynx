@@ -36,14 +36,14 @@ func (d *Document) Clone() *Document {
 	return &clone
 }
 
-func NewDocument(text string, media *media.Media) (*Document, error) {
-	if text == "" && media == nil {
+func NewDocument(text string, payload *media.Media) (*Document, error) {
+	if text == "" && payload == nil {
 		return nil, fmt.Errorf("document: create: %w: text or media is required", ErrInvalidDocument)
 	}
 
 	doc := &Document{
 		Text:     text,
-		Media:    media,
+		Media:    payload,
 		Metadata: metadata.Map{},
 	}
 	if err := doc.Validate(); err != nil {

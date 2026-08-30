@@ -109,26 +109,26 @@ type historyStream struct {
 	natural     bool
 }
 
-func (s *historyStream) consume(chunk *chat.Response, streamErr error) bool {
-	if !s.natural {
+func (h *historyStream) consume(chunk *chat.Response, streamErr error) bool {
+	if !h.natural {
 		return false
 	}
 	if streamErr != nil {
-		return s.stop(chunk, streamErr)
+		return h.stop(chunk, streamErr)
 	}
-	if err := s.accumulator.Add(chunk); err != nil {
-		return s.stop(nil, fmt.Errorf("history: middleware: accumulate stream: %w", err))
+	if err := h.accumulator.Add(chunk); err != nil {
+		return h.stop(nil, fmt.Errorf("history: middleware: accumulate stream: %w", err))
 	}
-	if !s.yield(chunk, nil) {
-		s.natural = false
+	if !h.yield(chunk, nil) {
+		h.natural = false
 		return false
 	}
 	return true
 }
 
-func (s *historyStream) stop(response *chat.Response, err error) bool {
-	s.natural = false
-	s.yield(response, err)
+func (h *historyStream) stop(response *chat.Response, err error) bool {
+	h.natural = false
+	h.yield(response, err)
 	return false
 }
 

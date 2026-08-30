@@ -139,8 +139,8 @@ type SearchResult struct {
 	Score    Score              `json:"score"`
 }
 
-func NewSearchResult(document *document.Document, score Score) (*SearchResult, error) {
-	result := &SearchResult{Document: document, Score: score}
+func NewSearchResult(matched *document.Document, score Score) (*SearchResult, error) {
+	result := &SearchResult{Document: matched, Score: score}
 	if err := result.Validate(); err != nil {
 		return nil, fmt.Errorf("vectorstore: create search result: %w", err)
 	}

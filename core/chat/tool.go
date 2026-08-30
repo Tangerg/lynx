@@ -70,20 +70,20 @@ func NewJSONToolOutput(value json.RawMessage) (ToolOutput, error) {
 	return output, nil
 }
 
-func (o ToolOutput) Clone() ToolOutput {
-	clone := ToolOutput{Details: bytes.Clone(o.Details)}
-	if o.Content != nil {
-		clone.Content = make([]Part, len(o.Content))
-		for index := range o.Content {
-			clone.Content[index] = o.Content[index].Clone()
+func (t ToolOutput) Clone() ToolOutput {
+	clone := ToolOutput{Details: bytes.Clone(t.Details)}
+	if t.Content != nil {
+		clone.Content = make([]Part, len(t.Content))
+		for index := range t.Content {
+			clone.Content[index] = t.Content[index].Clone()
 		}
 	}
 	return clone
 }
 
-func (o ToolOutput) Validate() error {
-	for index := range o.Content {
-		part := o.Content[index]
+func (t ToolOutput) Validate() error {
+	for index := range t.Content {
+		part := t.Content[index]
 		if part.Kind != PartText && part.Kind != PartMedia {
 			return fmt.Errorf("tool output content[%d]: unsupported part kind %q", index, part.Kind)
 		}
@@ -91,7 +91,7 @@ func (o ToolOutput) Validate() error {
 			return fmt.Errorf("tool output content[%d]: %w", index, err)
 		}
 	}
-	if len(o.Details) != 0 && !jsontext.Value(o.Details).IsValid() {
+	if len(t.Details) != 0 && !jsontext.Value(t.Details).IsValid() {
 		return errors.New("tool output details must be one valid RFC 7493 JSON document")
 	}
 	return nil
@@ -101,16 +101,16 @@ func (o ToolOutput) Validate() error {
 // result protocol accepts only strings. It reports false when Content contains
 // media so adapters cannot silently discard it. Details is encoded only when
 // Content is empty.
-func (o ToolOutput) Text() (string, bool) {
-	if len(o.Content) == 0 {
-		return string(o.Details), true
+func (t ToolOutput) Text() (string, bool) {
+	if len(t.Content) == 0 {
+		return string(t.Details), true
 	}
 	var projected strings.Builder
-	for index := range o.Content {
-		if o.Content[index].Kind != PartText {
+	for index := range t.Content {
+		if t.Content[index].Kind != PartText {
 			return "", false
 		}
-		projected.WriteString(o.Content[index].Text)
+		projected.WriteString(t.Content[index].Text)
 	}
 	return projected.String(), true
 }

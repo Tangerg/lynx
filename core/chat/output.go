@@ -83,8 +83,8 @@ type Output struct {
 	Metadata     *OutputMetadata `json:"metadata,omitempty"`
 }
 
-func NewOutput(message *Message, finishReason FinishReason, metadata *OutputMetadata) (*Output, error) {
-	output := &Output{Message: message, FinishReason: finishReason, Metadata: metadata}
+func NewOutput(message *Message, finishReason FinishReason, outputMetadata *OutputMetadata) (*Output, error) {
+	output := &Output{Message: message, FinishReason: finishReason, Metadata: outputMetadata}
 	if err := output.Validate(); err != nil {
 		return nil, fmt.Errorf("chat: create output: %w", err)
 	}
