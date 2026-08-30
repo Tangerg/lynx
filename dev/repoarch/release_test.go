@@ -35,6 +35,9 @@ func TestReleaseEntryDerivesModulesAndKeepsTagsImmutable(t *testing.T) {
 	for _, required := range []string{
 		"go work edit -json",
 		"mod edit -json",
+		"depth[path] + 0",
+		"release plan has invalid layer",
+		"release plan has no modules in layer",
 		"git tag -a",
 		"mod download -json",
 		"refs/tags/$release_tag:refs/tags/$release_tag",

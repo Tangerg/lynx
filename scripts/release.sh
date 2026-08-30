@@ -111,10 +111,23 @@ awk -F '\t' '
       }
     }
     for (path in module) {
-      print depth[path] "\t" path "\t" directory[path]
+      print (depth[path] + 0) "\t" path "\t" directory[path]
     }
   }
 ' "$release_module_table" "$release_edge_table" | sort -t $'\t' -k1,1n -k2,2 >"$release_plan"
+
+release_plan_count=0
+while IFS=$'\t' read -r release_layer release_module_path release_module_dir; do
+  [[ "$release_layer" =~ ^[0-9]+$ ]] || fail "release plan has invalid layer: $release_layer"
+  [[ "$release_module_path" == "$release_module_prefix"* ]] ||
+    fail "release plan has invalid module: $release_module_path"
+  [[ "$release_module_dir" == "$release_root"/* && -f "$release_module_dir/go.mod" ]] ||
+    fail "release plan has invalid directory: $release_module_dir"
+  release_plan_count=$((release_plan_count + 1))
+done <"$release_plan"
+release_module_table_count=$(wc -l <"$release_module_table" | tr -d ' ')
+((release_plan_count == release_module_table_count)) ||
+  fail "release plan covers $release_plan_count of $release_module_table_count modules"
 
 version_greater_than() {
   local candidate=${1#v}
@@ -227,7 +240,7 @@ release_max_layer=$(awk -F '\t' 'END { print $1 }' "$release_plan")
 for ((release_layer = 0; release_layer <= release_max_layer; release_layer++)); do
   release_stage_paths=()
   while IFS=$'\t' read -r release_planned_layer release_module_path release_module_dir; do
-    ((release_planned_layer == release_layer)) || continue
+    [[ "$release_planned_layer" == "$release_layer" ]] || continue
     while IFS= read -r release_dependency; do
       [[ -n "$release_dependency" ]] || continue
       if awk -F '\t' -v dependency="$release_dependency" '$1 == dependency { found = 1 } END { exit !found }' "$release_module_table"; then
@@ -248,13 +261,14 @@ for ((release_layer = 0; release_layer <= release_max_layer; release_layer++)); 
     [[ -f "$release_module_dir/go.sum" ]] && release_stage_paths+=("$release_module_dir/go.sum")
   done <"$release_plan"
 
+  ((${#release_stage_paths[@]} > 0)) || fail "release plan has no modules in layer $release_layer"
   git add -- "${release_stage_paths[@]}"
   if ! git diff --cached --quiet; then
     git commit -m "chore(release): pin layer $release_layer modules to $release_version"
   fi
 
   while IFS=$'\t' read -r release_planned_layer release_module_path release_module_dir; do
-    ((release_planned_layer == release_layer)) || continue
+    [[ "$release_planned_layer" == "$release_layer" ]] || continue
     release_tag=$(tag_for "$release_module_path")
     if ! git rev-parse -q --verify "refs/tags/$release_tag" >/dev/null; then
       git tag -a "$release_tag" -m "Release $release_module_path $release_version"
