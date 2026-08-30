@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -136,42 +137,118 @@ func TestEmbeddingSPIRemainsMinimal(t *testing.T) {
 	assertTopLevelNamesAbsent(t, "embedding", forbidden)
 }
 
-func TestOtherModalitySPIsRemainMinimal(t *testing.T) {
-	want := map[reflect.Type]string{
-		reflect.TypeFor[image.Model]():         "Call",
-		reflect.TypeFor[transcription.Model](): "Call",
-		reflect.TypeFor[moderation.Model]():    "Call",
-		reflect.TypeFor[speech.Model]():        "Call",
-		reflect.TypeFor[speech.Streamer]():     "Stream",
-	}
-	for typ, method := range want {
-		if typ.NumMethod() != 1 || typ.Method(0).Name != method {
-			t.Errorf("%v methods changed: want only %s", typ, method)
-		}
-	}
+// modalitySPIs anchors every modality SPI at compile time so a removed or
+// renamed Model stops the build instead of silently dropping its package out of
+// the family rules. assertModalityInventoryIsComplete guards the other
+// direction: a newly added modality must appear here before it can be ignored.
+var modalitySPIs = map[string]map[reflect.Type]string{
+	"chat": {
+		reflect.TypeFor[chat.Model]():    "Call",
+		reflect.TypeFor[chat.Streamer](): "Stream",
+	},
+	"embedding":     {reflect.TypeFor[embedding.Model](): "Call"},
+	"image":         {reflect.TypeFor[image.Model](): "Call"},
+	"moderation":    {reflect.TypeFor[moderation.Model](): "Call"},
+	"speech":        {reflect.TypeFor[speech.Model](): "Call", reflect.TypeFor[speech.Streamer](): "Stream"},
+	"transcription": {reflect.TypeFor[transcription.Model](): "Call"},
+}
 
-	for _, packageName := range []string{"image", "transcription", "speech", "moderation"} {
+// modalitiesWithOwnProtocolErrors names the only modality allowed to extend the
+// shared error vocabulary, because its wire additionally models tool calls,
+// parts, and usage. Every other modality is bound to the exact triple by
+// default; exempting a new one requires naming it here.
+var modalitiesWithOwnProtocolErrors = map[string]bool{"chat": true}
+
+func TestModalitySPIsRemainMinimal(t *testing.T) {
+	assertModalityInventoryIsComplete(t)
+
+	for packageName, spis := range modalitySPIs {
+		for typ, method := range spis {
+			if typ.NumMethod() != 1 || typ.Method(0).Name != method {
+				t.Errorf("%v methods changed: want only %s", typ, method)
+			}
+		}
 		assertMinimalModalityPackage(t, packageName)
 	}
 }
 
 func TestModalityErrorVocabularyRemainsUnified(t *testing.T) {
-	want := []string{"ErrInvalidOptions", "ErrInvalidRequest", "ErrInvalidResponse"}
-	for _, packageName := range []string{"embedding", "image", "moderation", "speech", "transcription"} {
+	assertModalityInventoryIsComplete(t)
+
+	shared := []string{"ErrInvalidOptions", "ErrInvalidRequest", "ErrInvalidResponse"}
+	for _, packageName := range modalityPackages(t) {
 		t.Run(packageName, func(t *testing.T) {
 			got := exportedErrorSentinelNames(t, packageName)
-			if !slices.Equal(got, want) {
-				t.Fatalf("core/%s exported error sentinels = %v, want exactly %v", packageName, got, want)
+			if modalitiesWithOwnProtocolErrors[packageName] {
+				for _, name := range shared {
+					if !slices.Contains(got, name) {
+						t.Errorf("core/%s exported error sentinels = %v, missing %s", packageName, got, name)
+					}
+				}
+				return
+			}
+			if !slices.Equal(got, shared) {
+				t.Fatalf("core/%s exported error sentinels = %v, want exactly %v", packageName, got, shared)
 			}
 		})
 	}
+}
 
-	chatErrors := exportedErrorSentinelNames(t, "chat")
-	for _, name := range want {
-		if !slices.Contains(chatErrors, name) {
-			t.Errorf("core/chat exported error sentinels = %v, missing %s", chatErrors, name)
+// assertModalityInventoryIsComplete cross-checks the anchored inventory against
+// the packages that actually publish a Model SPI, so a new modality joins every
+// family rule by existing rather than by being remembered.
+func assertModalityInventoryIsComplete(t *testing.T) {
+	t.Helper()
+	anchored := slices.Sorted(maps.Keys(modalitySPIs))
+	published := modalityPackages(t)
+	if !slices.Equal(anchored, published) {
+		t.Fatalf(
+			"modality inventory is stale: anchored %v, packages publishing a Model SPI %v",
+			anchored, published,
+		)
+	}
+}
+
+// modalityPackages returns every Core package that publishes a Model SPI.
+func modalityPackages(t *testing.T) []string {
+	t.Helper()
+	entries, err := os.ReadDir(coreRoot(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == "internal" {
+			continue
+		}
+		if publishesModelSPI(t, entry.Name()) {
+			names = append(names, entry.Name())
 		}
 	}
+	slices.Sort(names)
+	return names
+}
+
+func publishesModelSPI(t *testing.T, packagePath string) bool {
+	t.Helper()
+	for _, parsed := range parsePackageFiles(t, packagePath) {
+		for _, declaration := range parsed.file.Decls {
+			general, ok := declaration.(*ast.GenDecl)
+			if !ok || general.Tok != token.TYPE {
+				continue
+			}
+			for _, specification := range general.Specs {
+				typeSpec, ok := specification.(*ast.TypeSpec)
+				if !ok || typeSpec.Name.Name != "Model" {
+					continue
+				}
+				if _, isInterface := typeSpec.Type.(*ast.InterfaceType); isInterface {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 func TestCoreDoesNotOwnProviderCatalogData(t *testing.T) {
