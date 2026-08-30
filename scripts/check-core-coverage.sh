@@ -8,7 +8,6 @@ set -euo pipefail
 cd "$(dirname "$0")/../core"
 
 coverage_budget=(
-  ". none"
   "./chat 89.2"
   "./chatclient 88.8"
   "./chatclient/safeguard 93.1"
