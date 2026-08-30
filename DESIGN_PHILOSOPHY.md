@@ -113,27 +113,15 @@ MCP Go SDK 把它写成需求清单的最后一条："the SDK should be **minima
 
 ---
 
-## 4. 生命周期视角：现在"破坏式改"，稳定后才上"永不破坏"技巧
-
-- **scope 当前 pre-1.0**：公开 API 可调，破坏性改动**咨询后直接换**、不写 legacy 兼容（见 CLAUDE.md）。所以下列"永不破坏"技巧**现在不需要**。
-- **稳定锁 API 时的现成模板**（post-stability 的 future-proof 套路）：
-  - 统一 spec-method 签名 `(ctx, *XxxParams) (*XxxResult, error)`，即使 Params 暂时多余也保留 —— spec 加字段不破坏调用方；
-  - `nil` 参数永远合法；
-  - options struct 加字段、单包避免重构。
-- **规范**：协议层将来锁定 wire 契约时，采纳"统一签名 + nil 友好 + options struct"，把破坏性挡在 spec 演进之外。别在 pre-1.0 提前付永不破坏的复杂度。
-
----
-
-## 5. 原则冲突时（裁决）
+## 4. 原则冲突时（裁决）
 
 沿用 [`CLAUDE.md`](CLAUDE.md) "原则冲突时"，并补两条本篇相关的：
 
-- **YAGNI vs future-proof**：pre-1.0 倾向"现在干净地破坏"；只有锁 API 后才值得上 §4 的 never-break 技巧。
 - **可发现性（单门面）vs 低耦合（多包分层）**：二者不矛盾 —— 内部保持多包 DAG（低耦合），用户面用门面 re-export（可发现）。冲突只在"要不要现在就门面化"，答案由消费者数量定（§2.2）。
 
 ---
 
-## 6. 设计自检清单（新能力 / 新包 / 改公开 API 前）
+## 5. 设计自检清单（新能力 / 新包 / 改公开 API 前）
 
 > 本节是**设计新东西**时的自检；**重构既有代码**另有清单（命名 / 注释 / 指针vs值 / nil 守卫 / 卫语句 / 就近组织 / 节奏），见 [`REFACTORING.md`](REFACTORING.md)。
 
@@ -143,7 +131,7 @@ MCP Go SDK 把它写成需求清单的最后一条："the SDK should be **minima
 - [ ] 扩展点是**一个同质机制**，还是又开了一个具名插槽？
 - [ ] 配置用 **options struct**，不是 variadic / builder 链？
 - [ ] 流式用 **iterator**，不是 channel？
-- [ ] 公开 API 改动：pre-1.0 可破坏，但**已咨询用户**？锁定后是否需要 §4 的 future-proof 形态？
+- [ ] 公开 API 改动已经咨询用户，并在同一批次迁移全部 workspace 消费方？
 - [ ] 这是真 DRY 还是虚假 DRY？抽象会让"两段因不同原因独立演化的代码"被迫同步吗？（宁可重复）
 - [ ] 收 / 内联 / 删一个 helper 前：指得出**具体冗余信号**吗（死 / 单用+冗余参 / 泛型重复 receiver 类型参 / 实现细节泄到包级）？指不出就别动 —— 别为"更少函数"把内聚的具名抽象内联回去（§2.6）。
 - [ ] 放在哪一层：**每个消费者都需要它，还是只有这一个消费方需要？**只有一个就别往底层抽象沉 —— 留在消费方那层（§2.5）。
@@ -152,4 +140,4 @@ MCP Go SDK 把它写成需求清单的最后一条："the SDK should be **minima
 
 ## 一句话收尾
 
-**scope 的设计不是个人趣味，是一套被 embabel（convergent）和 Go 团队 MCP SDK（authoritative）双重印证的组织原则：薄核 + 三形态变体 + 窄腰 + 一个扩展机制 + 基础能力优先库化 + 生命周期框架显式化。** 设计前用 §1 试金石与 §6 清单各过一遍（回答"该不该"），重构时对 [`REFACTORING.md`](REFACTORING.md)（回答"怎么改"），就不会偏。
+**scope 的设计不是个人趣味，是一套被 embabel（convergent）和 Go 团队 MCP SDK（authoritative）双重印证的组织原则：薄核 + 三形态变体 + 窄腰 + 一个扩展机制 + 基础能力优先库化 + 生命周期框架显式化。** 设计前用 §1 试金石与 §5 清单各过一遍（回答"该不该"），重构时对 [`REFACTORING.md`](REFACTORING.md)（回答"怎么改"），就不会偏。
