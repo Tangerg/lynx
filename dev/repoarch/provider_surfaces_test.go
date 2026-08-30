@@ -23,7 +23,7 @@ var retiredProviderSymbols = map[string]struct{}{
 }
 
 // TestSharedProtocolsArePromotedWithoutDelegatingWrappers keeps exact wire
-// compatibility honest. A provider that uses the shared OpenAI or Anthropic
+// ownership honest. A provider that uses the shared OpenAI or Anthropic
 // implementation owns its Config and constructor, but promotes the resulting
 // model type directly. A single-field wrapper adds no semantic boundary and
 // merely duplicates Call/Stream methods. Provider-private internal protocols
