@@ -5,6 +5,7 @@ go 1.27.0
 require (
 	github.com/Tangerg/scope/agent v0.2.1-0.20260830034050-8cdd370cf840
 	github.com/Tangerg/scope/core v0.0.4-0.20260830034050-8cdd370cf840
+	github.com/Tangerg/scope/eval v0.0.1
 	github.com/Tangerg/scope/rag v0.0.2-0.20260830034050-8cdd370cf840
 	github.com/samber/lo v1.53.0
 	go.opentelemetry.io/otel v1.46.0
