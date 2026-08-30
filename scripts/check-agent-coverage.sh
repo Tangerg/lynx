@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../agent"
 
 coverage_budget=(
-  ". 75.3"
+  ". 76.5"
   "./agenttest 76.8"
   "./examples/autonomous 67.8"
   "./examples/composition 71.3"

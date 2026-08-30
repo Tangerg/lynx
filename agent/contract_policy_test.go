@@ -23,8 +23,8 @@ func TestPublicInterfacesAreDocumentedAndParametersNamed(t *testing.T) {
 
 func TestManagedExecutionVocabularyIsUnambiguous(t *testing.T) {
 	paths := append(frameworkProductionGoFiles(t),
-		"doc/ARCHITECTURE.md",
-		"doc/ENGINEERING_STANDARDS.md",
+		"ARCHITECTURE.md",
+		"ENGINEERING_STANDARDS.md",
 	)
 	forbidden := []*regexp.Regexp{
 		regexp.MustCompile(`(?i)\bna` + `tive\b`),
