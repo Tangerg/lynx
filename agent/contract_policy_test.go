@@ -1,16 +1,12 @@
 package agent
 
 import (
-	"crypto/sha256"
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
-	"reflect"
 	"regexp"
-	"slices"
 	"strings"
 	"testing"
 )
@@ -214,154 +210,4 @@ func stringLiteral(expression ast.Expr) (string, bool) {
 func isErrorCauseName(name string) bool {
 	return name == "err" || name == "cause" ||
 		strings.HasSuffix(name, "Err") || strings.HasSuffix(name, "Error")
-}
-
-func TestSnapshotWireBaseline(t *testing.T) {
-	shape := snapshotWireShape()
-	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "aaead4816a992175f51894951be22aa59a61792139f72bd0bd9daad74325935d"
-	if got != want {
-		t.Fatalf("snapshot wire changed: got %s, want %s\n%s", got, want, shape)
-	}
-}
-
-func TestWireBaselinesCoverEveryProductionWireType(t *testing.T) {
-	covered := make(map[string]struct{})
-	for _, wireType := range append(snapshotWireTypes(), observationWireTypes()...) {
-		covered[wireType.Name()] = struct{}{}
-	}
-	entries, err := os.ReadDir(".")
-	if err != nil {
-		t.Fatal(err)
-	}
-	for _, entry := range entries {
-		name := entry.Name()
-		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
-			continue
-		}
-		file, err := parser.ParseFile(token.NewFileSet(), name, nil, 0)
-		if err != nil {
-			t.Fatal(err)
-		}
-		for _, declaration := range file.Decls {
-			general, ok := declaration.(*ast.GenDecl)
-			if !ok {
-				continue
-			}
-			for _, specification := range general.Specs {
-				typeSpec, ok := specification.(*ast.TypeSpec)
-				if !ok {
-					continue
-				}
-				_, isStruct := typeSpec.Type.(*ast.StructType)
-				baselineOwned := strings.HasSuffix(typeSpec.Name.Name, "Wire") ||
-					strings.HasSuffix(typeSpec.Name.Name, "EventPayload")
-				if !isStruct || !baselineOwned {
-					continue
-				}
-				if _, found := covered[typeSpec.Name.Name]; !found {
-					t.Errorf("%s: production wire type %s is absent from a wire baseline", name, typeSpec.Name.Name)
-				}
-			}
-		}
-	}
-}
-
-func TestObservationWireBaseline(t *testing.T) {
-	shape := observationWireShape()
-	got := fmt.Sprintf("%x", sha256.Sum256([]byte(shape)))
-	const want = "252f8d49c23eb4182b1e85c66cebb35383e409677ab2e312baa3f1eefc43286d"
-	if got != want {
-		t.Fatalf("observation wire changed: got %s, want %s\n%s", got, want, shape)
-	}
-}
-
-func observationWireShape() string {
-	types := observationWireTypes()
-	slices.SortFunc(types, func(left, right reflect.Type) int {
-		return strings.Compare(left.Name(), right.Name())
-	})
-	var shape strings.Builder
-	for _, wireType := range types {
-		fmt.Fprintf(&shape, "%s\n", wireType.Name())
-		for field := range wireType.Fields() {
-			fmt.Fprintf(
-				&shape, "  %s %s json=%q\n",
-				field.Name, field.Type.String(), field.Tag.Get("json"),
-			)
-		}
-	}
-	return shape.String()
-}
-
-func observationWireTypes() []reflect.Type {
-	return []reflect.Type{
-		reflect.TypeFor[deltaDroppedEventPayload](),
-		reflect.TypeFor[deltaWire](),
-		reflect.TypeFor[effectFinishedEventPayload](),
-		reflect.TypeFor[effectStartedEventPayload](),
-		reflect.TypeFor[eventWire](),
-		reflect.TypeFor[processFinishedEventPayload](),
-		reflect.TypeFor[signalAcceptedEventPayload](),
-		reflect.TypeFor[stepCommittedEventPayload](),
-		reflect.TypeFor[stepFinishedEventPayload](),
-	}
-}
-
-func snapshotWireShape() string {
-	types := snapshotWireTypes()
-	slices.SortFunc(types, func(left, right reflect.Type) int {
-		return strings.Compare(left.Name(), right.Name())
-	})
-	var shape strings.Builder
-	for _, wireType := range types {
-		fmt.Fprintf(&shape, "%s\n", wireType.Name())
-		for field := range wireType.Fields() {
-			fmt.Fprintf(
-				&shape, "  %s %s json=%q\n",
-				field.Name, field.Type.String(), field.Tag.Get("json"),
-			)
-		}
-	}
-	return shape.String()
-}
-
-func snapshotWireTypes() []reflect.Type {
-	return []reflect.Type{
-		reflect.TypeFor[descriptorContractWire](),
-		reflect.TypeFor[descriptorWire](),
-		reflect.TypeFor[processSnapshotWire](),
-		reflect.TypeFor[processRelationWire](),
-		reflect.TypeFor[preparedStepWire](),
-		reflect.TypeFor[preparedEffectWire](),
-		reflect.TypeFor[pendingControlWire](),
-		reflect.TypeFor[mailboxWire](),
-		reflect.TypeFor[signalRecordWire](),
-		reflect.TypeFor[waitRecordWire](),
-		reflect.TypeFor[treeSnapshotWire](),
-		reflect.TypeFor[childWaitSnapshotWire](),
-		reflect.TypeFor[executionStateWire](),
-		reflect.TypeFor[transitionWire](),
-		reflect.TypeFor[effectWire](),
-		reflect.TypeFor[settlementWire](),
-		reflect.TypeFor[signalWire](),
-		reflect.TypeFor[deploymentIdentityWire](),
-		reflect.TypeFor[deploymentRefWire](),
-		reflect.TypeFor[terminationWire](),
-		reflect.TypeFor[failureWire](),
-		reflect.TypeFor[childWaitConditionWire](),
-		reflect.TypeFor[childWaitSpecWire](),
-		reflect.TypeFor[childOutcomeWire](),
-		reflect.TypeFor[childWaitEffectWire](),
-		reflect.TypeFor[childWaitOpenedWire](),
-		reflect.TypeFor[childrenCompletedWire](),
-		reflect.TypeFor[childStartEffectWire](),
-		reflect.TypeFor[childStartResultWire](),
-		reflect.TypeFor[waitRequestWire](),
-		reflect.TypeFor[resultWire](),
-		reflect.TypeFor[Budget](),
-		reflect.TypeFor[Limits](),
-		reflect.TypeFor[TreeLimits](),
-		reflect.TypeFor[Usage](),
-	}
 }

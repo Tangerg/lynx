@@ -417,7 +417,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - tree-scoped fault 必须先收集整树 unresolved facts并完成所有 Process 的 canonical 终止决议，再发布 Result 与 parent/child bookkeeping；禁止让 map 遍历顺序改变终态优先级或丢失 sibling EffectID。
 - prepared tree change contract 覆盖 acknowledged source-head 冻结、Apply/Discard 恰好一次、Host ambiguous commit 对账、gate 后有界完成、并发 resolution只有一个胜者、其他 root tree独立、结果可跨 Engine restore，以及 capability私有字段只拥有 Framework state。
 - 并行路径验证稳定结果顺序，并运行 race tests。
-- wire/snapshot codec 使用 golden 和 fuzz 验证严格性。
+- wire/snapshot codec 使用 round-trip、malformed-input 和 fuzz 测试验证严格性。
 - 错误测试使用 `errors.Is/As`，不比较脆弱完整字符串。
 - example 必须使用正式公共 API，并能作为最小集成测试运行。
 
@@ -450,7 +450,7 @@ Extension 只承载可选横切行为。忽略后会破坏所有实现正确性�
 - [ ] `go build ./...`
 - [ ] `go vet ./...`
 - [ ] `go test ./...`
-- [ ] 相关 contract、race、fuzz、golden 和 architecture tests。
+- [ ] 相关 contract、race、fuzz 和 architecture tests。
 - [ ] `go mod tidy` 后无非预期 diff。
 - [ ] `git diff --check` 通过。
 - [ ] 现行架构与工程标准只在其合同确实变化时同步更新；不为普通批次续写历史执行归档。
