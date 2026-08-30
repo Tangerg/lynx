@@ -457,12 +457,12 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 }
 
 // buildFilter wraps the visitor.
-func (s *Store) buildFilter(filter filter.Predicate) (string, []any, error) {
-	if filter == nil {
+func (s *Store) buildFilter(expr filter.Predicate) (string, []any, error) {
+	if expr == nil {
 		return "", nil, nil
 	}
 	v := newVisitor(s.metadataColumn)
-	if err := filter.Accept(v); err != nil {
+	if err := expr.Accept(v); err != nil {
 		return "", nil, fmt.Errorf("mariadb: convert filter: %w", err)
 	}
 	predicate, args := v.snapshot()

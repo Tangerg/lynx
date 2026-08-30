@@ -8,17 +8,17 @@ type DocumentFormatter interface {
 	// returned text is inserted into model context, so implementations must be
 	// deterministic for the same document and return an error for unsupported
 	// media rather than silently dropping evidence.
-	Format(document *document.Document) (string, error)
+	Format(doc *document.Document) (string, error)
 }
 
 type DocumentFormatterFunc func(*document.Document) (string, error)
 
-func (d DocumentFormatterFunc) Format(document *document.Document) (string, error) {
-	return d(document)
+func (d DocumentFormatterFunc) Format(doc *document.Document) (string, error) {
+	return d(doc)
 }
 
 type textDocumentFormatter struct{}
 
-func (textDocumentFormatter) Format(document *document.Document) (string, error) {
-	return document.Text, nil
+func (textDocumentFormatter) Format(doc *document.Document) (string, error) {
+	return doc.Text, nil
 }

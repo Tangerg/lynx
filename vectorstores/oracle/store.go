@@ -476,12 +476,12 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 // continue from startIdx — Oracle uses positional `:N` bindings, so
 // the search path that prepends the query-vector parameter at `:1`
 // must skip ahead.
-func (s *Store) buildFilter(filter filter.Predicate, startIdx int) (string, []any, error) {
-	if filter == nil {
+func (s *Store) buildFilter(expr filter.Predicate, startIdx int) (string, []any, error) {
+	if expr == nil {
 		return "", nil, nil
 	}
 	v := newVisitor(s.metadataColumn)
-	if err := filter.Accept(v); err != nil {
+	if err := expr.Accept(v); err != nil {
 		return "", nil, fmt.Errorf("oracle: convert filter: %w", err)
 	}
 	predicate, args := v.snapshot()

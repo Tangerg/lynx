@@ -340,12 +340,12 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 	return nil
 }
 
-func (s *Store) buildFilter(filter filter.Predicate) (string, []NamedParam, error) {
-	if filter == nil {
+func (s *Store) buildFilter(expr filter.Predicate) (string, []NamedParam, error) {
+	if expr == nil {
 		return "", nil, nil
 	}
 	v := newVisitor(docAlias, s.metadataField)
-	if err := filter.Accept(v); err != nil {
+	if err := expr.Accept(v); err != nil {
 		return "", nil, fmt.Errorf("azurecosmos: convert filter: %w", err)
 	}
 	predicate, params := v.snapshot()

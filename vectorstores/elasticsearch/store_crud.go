@@ -288,12 +288,12 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 
 // buildFilterQuery converts the AST filter into a Lucene query string
 // for `query_string`. Returns "" when filter is nil.
-func (s *Store) buildFilterQuery(filter filter.Predicate) (string, error) {
-	if filter == nil {
+func (s *Store) buildFilterQuery(expr filter.Predicate) (string, error) {
+	if expr == nil {
 		return "", nil
 	}
 	v := newVisitor(s.metadataField)
-	if err := filter.Accept(v); err != nil {
+	if err := expr.Accept(v); err != nil {
 		return "", fmt.Errorf("elasticsearch: convert filter: %w", err)
 	}
 	return v.snapshot(), nil

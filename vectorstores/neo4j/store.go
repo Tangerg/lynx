@@ -538,12 +538,12 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 // buildPredicate converts the optional filter into a Cypher WHERE
 // fragment plus its parameter bindings. Returns ("", nil, nil) when
 // filter is nil.
-func (s *Store) buildPredicate(filter filter.Predicate) (string, map[string]any, error) {
-	if filter == nil {
+func (s *Store) buildPredicate(expr filter.Predicate) (string, map[string]any, error) {
+	if expr == nil {
 		return "", nil, nil
 	}
 	v := newVisitor("node", s.metadataPrefix)
-	if err := filter.Accept(v); err != nil {
+	if err := expr.Accept(v); err != nil {
 		return "", nil, fmt.Errorf("neo4j: convert filter: %w", err)
 	}
 	predicate, params := v.snapshot()

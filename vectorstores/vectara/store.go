@@ -298,12 +298,12 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 	}
 }
 
-func (s *Store) buildFilter(filter filter.Predicate) (string, error) {
-	if filter == nil {
+func (s *Store) buildFilter(expr filter.Predicate) (string, error) {
+	if expr == nil {
 		return "", nil
 	}
 	v := newVisitor(s.metadataPrefix)
-	if err := filter.Accept(v); err != nil {
+	if err := expr.Accept(v); err != nil {
 		return "", fmt.Errorf("vectara: convert filter: %w", err)
 	}
 	return v.snapshot(), nil

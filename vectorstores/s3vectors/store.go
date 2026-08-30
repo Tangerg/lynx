@@ -346,12 +346,12 @@ func queryVectorKeys(vectors []types.QueryOutputVector) ([]string, error) {
 	return keys, nil
 }
 
-func (s *Store) buildFilter(filter filter.Predicate) (map[string]any, error) {
-	if filter == nil {
+func (s *Store) buildFilter(expr filter.Predicate) (map[string]any, error) {
+	if expr == nil {
 		return nil, nil
 	}
 	v := newVisitor()
-	if err := filter.Accept(v); err != nil {
+	if err := expr.Accept(v); err != nil {
 		return nil, fmt.Errorf("s3vectors: convert filter: %w", err)
 	}
 	return v.snapshot(), nil

@@ -313,12 +313,12 @@ func (s *Store) DeleteIDs(ctx context.Context, ids []string) (err error) {
 // buildWhereClause converts the optional filter expression into a SQL
 // fragment (prefixed with " WHERE ") and the matching argument slice.
 // Returns ("", nil, nil) when filter is nil.
-func (s *Store) buildWhereClause(filter filter.Predicate) (string, []any, error) {
-	if filter == nil {
+func (s *Store) buildWhereClause(expr filter.Predicate) (string, []any, error) {
+	if expr == nil {
 		return "", nil, nil
 	}
 	compiler := pgfilter.NewCompiler(s.metadataColumn)
-	if err := filter.Accept(compiler); err != nil {
+	if err := expr.Accept(compiler); err != nil {
 		return "", nil, fmt.Errorf("%s: compile metadata filter: %w", s.provider, err)
 	}
 	fragment, args := compiler.Result()

@@ -291,12 +291,12 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 	return nil
 }
 
-func (s *Store) buildFilter(filter filter.Predicate) (string, error) {
-	if filter == nil {
+func (s *Store) buildFilter(expr filter.Predicate) (string, error) {
+	if expr == nil {
 		return "", nil
 	}
 	v := newVisitor(metadataField)
-	if err := filter.Accept(v); err != nil {
+	if err := expr.Accept(v); err != nil {
 		return "", fmt.Errorf("typesense: convert filter: %w", err)
 	}
 	return v.snapshot(), nil

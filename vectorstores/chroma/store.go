@@ -207,29 +207,29 @@ func metadataToMap(meta v2.DocumentMetadata) map[string]any {
 	return result
 }
 
-func metadataValue(metadata *v2.DocumentMetadataImpl, key string) (any, bool) {
-	if value, present := metadata.GetString(key); present {
+func metadataValue(values *v2.DocumentMetadataImpl, key string) (any, bool) {
+	if value, present := values.GetString(key); present {
 		return value, true
 	}
-	if value, present := metadata.GetInt(key); present {
+	if value, present := values.GetInt(key); present {
 		return value, true
 	}
-	if value, present := metadata.GetFloat(key); present {
+	if value, present := values.GetFloat(key); present {
 		return value, true
 	}
-	if value, present := metadata.GetBool(key); present {
+	if value, present := values.GetBool(key); present {
 		return value, true
 	}
-	if value, present := metadata.GetStringArray(key); present {
+	if value, present := values.GetStringArray(key); present {
 		return value, true
 	}
-	if value, present := metadata.GetIntArray(key); present {
+	if value, present := values.GetIntArray(key); present {
 		return value, true
 	}
-	if value, present := metadata.GetFloatArray(key); present {
+	if value, present := values.GetFloatArray(key); present {
 		return value, true
 	}
-	return metadata.GetBoolArray(key)
+	return values.GetBoolArray(key)
 }
 
 // buildAddOptions assembles the Upsert options for a single document batch
