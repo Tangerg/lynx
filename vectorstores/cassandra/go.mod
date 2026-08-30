@@ -3,7 +3,7 @@ module github.com/Tangerg/scope/vectorstores/cassandra
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/core v0.10.0
+	github.com/Tangerg/scope/core v0.11.0
 	github.com/gocql/gocql v1.7.0
 )
 
