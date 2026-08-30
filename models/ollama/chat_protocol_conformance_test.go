@@ -254,30 +254,50 @@ type protocolMessageWire struct {
 
 func assertProtocolRequestWire(t *testing.T, body protocolChatRequestWire) {
 	t.Helper()
+	assertProtocolRequestIdentity(t, body)
+	assertProtocolMessages(t, body.Messages)
+	assertProtocolTools(t, body)
+	assertProtocolOptions(t, body.Options)
+}
+
+func assertProtocolRequestIdentity(t *testing.T, body protocolChatRequestWire) {
+	t.Helper()
 	if body.Model != "qwen3:8b" || body.Stream == nil || body.Format != "json" || body.KeepAlive != "10m0s" || !body.Think {
 		t.Errorf("request identity/native config = %#v", body)
 	}
-	if len(body.Messages) != 4 || body.Messages[0].Role != "system" || body.Messages[1].Role != "user" || body.Messages[2].Role != "assistant" || body.Messages[3].Role != "tool" {
-		t.Fatalf("messages = %#v", body.Messages)
+}
+
+func assertProtocolMessages(t *testing.T, messages []protocolMessageWire) {
+	t.Helper()
+	if len(messages) != 4 || messages[0].Role != "system" || messages[1].Role != "user" || messages[2].Role != "assistant" || messages[3].Role != "tool" {
+		t.Fatalf("messages = %#v", messages)
 	}
-	if body.Messages[1].Content != "Describe this image." || len(body.Messages[1].Images) != 1 || body.Messages[1].Images[0] != "aW1hZ2U=" {
-		t.Errorf("user message = %#v", body.Messages[1])
+	if messages[1].Content != "Describe this image." || len(messages[1].Images) != 1 || messages[1].Images[0] != "aW1hZ2U=" {
+		t.Errorf("user message = %#v", messages[1])
 	}
-	assistant := body.Messages[2]
+	assistant := messages[2]
 	if assistant.Thinking != "inspect pixels" || assistant.Content != "I will inspect it." || len(assistant.ToolCalls) != 1 || assistant.ToolCalls[0].ID != "ollama/0/2" || assistant.ToolCalls[0].Function.Arguments["detail"] != true {
 		t.Errorf("assistant message = %#v", assistant)
 	}
-	tool := body.Messages[3]
+	tool := messages[3]
 	if tool.Content != "blue square" || tool.ToolName != "inspect" || tool.ToolCallID != "ollama/0/2" {
 		t.Errorf("tool message = %#v", tool)
 	}
+}
+
+func assertProtocolTools(t *testing.T, body protocolChatRequestWire) {
+	t.Helper()
 	if len(body.Tools) != 1 || body.Tools[0].Type != "function" || body.Tools[0].Function.Name != "inspect" || body.Tools[0].Function.Parameters.Type != "object" || len(body.Tools[0].Function.Parameters.Properties) != 1 {
 		t.Errorf("tools = %#v", body.Tools)
 	}
-	if body.Options["seed"] != float64(42) || body.Options["num_ctx"] != float64(8192) || body.Options["temperature"] != float64(0.5) ||
-		body.Options["num_predict"] != float64(256) || body.Options["top_k"] != float64(20) || body.Options["top_p"] != float64(0.8) ||
-		body.Options["frequency_penalty"] != float64(0.1) || body.Options["presence_penalty"] != float64(0.1) {
-		t.Errorf("options = %#v", body.Options)
+}
+
+func assertProtocolOptions(t *testing.T, options map[string]any) {
+	t.Helper()
+	if options["seed"] != float64(42) || options["num_ctx"] != float64(8192) || options["temperature"] != float64(0.5) ||
+		options["num_predict"] != float64(256) || options["top_k"] != float64(20) || options["top_p"] != float64(0.8) ||
+		options["frequency_penalty"] != float64(0.1) || options["presence_penalty"] != float64(0.1) {
+		t.Errorf("options = %#v", options)
 	}
 }
 
