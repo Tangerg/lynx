@@ -2,6 +2,7 @@ package evaluation_test
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -18,6 +19,40 @@ func testMetric(name string) evaluation.Metric {
 
 func scoredReport(name string, verdict evaluation.Verdict, score evaluation.Score) evaluation.Report {
 	return evaluation.Report{Metric: testMetric(name), Verdict: verdict, Score: &score}
+}
+
+func TestReportBoundsRecursiveDetails(t *testing.T) {
+	withinLimit := nestedReport(evaluation.MaxReportDepth)
+	if err := withinLimit.Validate(); err != nil {
+		t.Fatalf("Validate() within limit error = %v", err)
+	}
+	clone, err := withinLimit.Clone()
+	if err != nil {
+		t.Fatalf("Clone() within limit error = %v", err)
+	}
+	clone.Details[0].Metric.Name = "changed"
+	if withinLimit.Details[0].Metric.Name == "changed" {
+		t.Fatal("Clone() aliases detail tree")
+	}
+
+	overLimit := nestedReport(evaluation.MaxReportDepth + 1)
+	if err := overLimit.Validate(); !errors.Is(err, evaluation.ErrInvalidReport) {
+		t.Fatalf("Validate() over limit error = %v, want ErrInvalidReport", err)
+	}
+	if _, err := overLimit.Clone(); !errors.Is(err, evaluation.ErrInvalidReport) {
+		t.Fatalf("Clone() over limit error = %v, want ErrInvalidReport", err)
+	}
+	if _, err := json.Marshal(overLimit); !errors.Is(err, evaluation.ErrInvalidReport) {
+		t.Fatalf("Marshal() over limit error = %v, want ErrInvalidReport", err)
+	}
+}
+
+func nestedReport(depth int) evaluation.Report {
+	report := evaluation.Report{Metric: testMetric("nested"), Verdict: evaluation.VerdictPass}
+	for range depth - 1 {
+		report = evaluation.Report{Metric: testMetric("nested"), Details: []evaluation.Report{report}}
+	}
+	return report
 }
 
 func TestCompositeUsesExplicitWeightsAndPassPolicy(t *testing.T) {

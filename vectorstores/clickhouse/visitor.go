@@ -8,9 +8,9 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-// Visitor transforms AST filter expressions into a ClickHouse WHERE
+// visitor transforms AST filter expressions into a ClickHouse WHERE
 // fragment. Metadata is stored as a `Map(String, String)` column;
 // metadata keys are addressed with the map-subscript syntax
 // (metadata['key']).
@@ -21,28 +21,28 @@ var _ filter.Visitor = (*Visitor)(nil)
 //	year >= 2020                →  toFloat64OrZero(metadata['year']) >= ?
 //	tag IN ("a", "b")           →  metadata['tag'] IN (?, ?)
 //	NOT (author == "Alice")     →  NOT (metadata['author'] = ?)
-type Visitor struct {
+type visitor struct {
 	err            error
 	sql            strings.Builder
 	args           []any
 	metadataColumn string
 }
 
-func NewVisitor(metadataColumn string) *Visitor {
+func newVisitor(metadataColumn string) *visitor {
 	if metadataColumn == "" {
 		metadataColumn = "metadata"
 	}
-	return &Visitor{metadataColumn: metadataColumn}
+	return &visitor{metadataColumn: metadataColumn}
 }
 
-func (v *Visitor) Result() (string, []any) {
+func (v *visitor) snapshot() (string, []any) {
 	if v.err != nil {
 		return "", nil
 	}
 	return v.sql.String(), v.args
 }
 
-func (v *Visitor) Visit(expr filter.Predicate) error {
+func (v *visitor) Visit(expr filter.Predicate) error {
 	v.err = nil
 	v.sql.Reset()
 	v.args = nil
@@ -50,7 +50,7 @@ func (v *Visitor) Visit(expr filter.Predicate) error {
 	return v.err
 }
 
-func (v *Visitor) visit(expr filter.Expr) error {
+func (v *visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("clickhouse: cannot process nil expression")
 	}
@@ -70,7 +70,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
 	case expr.Operator().IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
@@ -88,7 +88,7 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	}
 }
 
-func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
+func (v *visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	if !expr.Operator().Is(filter.OpNot) {
 		return fmt.Errorf("clickhouse: unsupported unary '%s'", expr.Operator().String())
 	}
@@ -100,7 +100,7 @@ func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " AND "
 	if expr.Operator().Is(filter.OpOr) {
 		op = " OR "
@@ -117,7 +117,7 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	jsonPath, err := buildKeyPath(expr)
 	if err != nil {
 		return fmt.Errorf("clickhouse: %w (at %s)", err, expr.Start().String())
@@ -138,7 +138,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	jsonPath, err := buildKeyPath(expr)
 	if err != nil {
 		return fmt.Errorf("clickhouse: %w (at %s)", err, expr.Start().String())
@@ -170,7 +170,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	jsonPath, err := buildKeyPath(expr)
 	if err != nil {
 		return fmt.Errorf("clickhouse: %w (at %s)", err, expr.Start().String())
@@ -197,7 +197,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 // matches the inmemory reference semantics (a missing metadata key reads
 // as null). The negated `IS NOT NULL` arrives as NOT(… IS NULL) and is
 // rendered by visitUnaryExpr, so no separate handling is needed here.
-func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	key, err := buildKeyPath(expr)
 	if err != nil {
 		return fmt.Errorf("clickhouse: %w (at %s)", err, expr.Start().String())
@@ -213,7 +213,7 @@ func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 // appendMapAccess writes `metadata['key']`, wrapping the access in
 // `toFloat64OrZero(...)` when the comparison value implies numeric
 // semantics.
-func (v *Visitor) appendMapAccess(key string, value any, op filter.Operator) {
+func (v *visitor) appendMapAccess(key string, value any, op filter.Operator) {
 	switch value.(type) {
 	case float64, int64, uint64, int:
 		v.sql.WriteString("toFloat64OrZero(")
@@ -237,7 +237,7 @@ func (v *Visitor) appendMapAccess(key string, value any, op filter.Operator) {
 	}
 }
 
-func (v *Visitor) appendValuePlaceholder(value any) {
+func (v *visitor) appendValuePlaceholder(value any) {
 	if b, ok := value.(bool); ok {
 		// ClickHouse Map(String, String) — booleans render as text.
 		if b {

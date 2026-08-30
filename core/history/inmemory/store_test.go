@@ -51,7 +51,7 @@ func TestStoreOwnsMessages(t *testing.T) {
 }
 
 func TestStoreRejectsInvalidInputAndCancellation(t *testing.T) {
-	store := inmemory.New()
+	store := new(inmemory.Store)
 	if err := store.Write(t.Context(), "", chat.NewUserMessage(chat.NewTextPart("hello"))); !errors.Is(err, history.ErrInvalidConversationID) {
 		t.Fatalf("invalid conversation error = %v", err)
 	}

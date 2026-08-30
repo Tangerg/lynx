@@ -121,7 +121,7 @@ func normalizeDomain(raw string) (string, error) {
 	}
 	ascii, err := idna.Lookup.ToASCII(domain)
 	if err != nil {
-		return "", fmt.Errorf("%w: %q: %v", ErrInvalidDomain, raw, err)
+		return "", fmt.Errorf("%w: %q: %w", ErrInvalidDomain, raw, err)
 	}
 	ascii = strings.ToLower(strings.TrimSuffix(ascii, "."))
 	if len(ascii) > 253 {

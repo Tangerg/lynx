@@ -6,7 +6,6 @@ import (
 	"math"
 	"strings"
 
-	"github.com/Tangerg/scope/core/internal/extension"
 	"github.com/Tangerg/scope/core/metadata"
 )
 
@@ -28,27 +27,7 @@ type Options struct {
 
 	// Extensions carries JSON-safe provider-specific options unknown to this
 	// struct.
-	Extensions metadata.Map `json:"extensions,omitzero"`
-}
-
-func NewOptions(model string) (Options, error) {
-	if model == "" {
-		return Options{}, fmt.Errorf("speech: create options: %w: model id must not be empty", ErrInvalidOptions)
-	}
-	if strings.TrimSpace(model) != model {
-		return Options{}, fmt.Errorf("speech: create options: %w: model id must not have surrounding whitespace", ErrInvalidOptions)
-	}
-	return Options{Model: model}, nil
-}
-
-func (o *Options) SetExtension(key string, value any) error {
-	if o == nil {
-		return fmt.Errorf("speech: set options extension: %w: nil receiver", ErrInvalidOptions)
-	}
-	if err := extension.Set(&o.Extensions, key, value); err != nil {
-		return fmt.Errorf("speech: set options extension: %w: %w", ErrInvalidOptions, err)
-	}
-	return nil
+	Extensions metadata.Extensions `json:"extensions,omitzero"`
 }
 
 func (o Options) Validate() error {
@@ -58,7 +37,7 @@ func (o Options) Validate() error {
 	if math.IsNaN(o.Speed) || math.IsInf(o.Speed, 0) || o.Speed < 0 {
 		return fmt.Errorf("%w: speed must be finite and non-negative", ErrInvalidOptions)
 	}
-	if err := extension.Validate(o.Extensions); err != nil {
+	if err := o.Extensions.Validate(); err != nil {
 		return fmt.Errorf("%w: extensions: %w", ErrInvalidOptions, err)
 	}
 	return nil
@@ -98,7 +77,7 @@ func (o *Options) applyOverride(override Options) error {
 	if override.Speed != 0 {
 		o.Speed = override.Speed
 	}
-	if len(override.Extensions) > 0 {
+	if !override.Extensions.IsZero() {
 		if err := o.Extensions.Merge(override.Extensions); err != nil {
 			return fmt.Errorf("merge extensions: %w", err)
 		}

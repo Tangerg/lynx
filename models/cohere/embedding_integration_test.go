@@ -20,11 +20,12 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 			if modelID == "" {
 				modelID = "embed-v4.0"
 			}
-			opts, err := embedding.NewOptions(modelID)
+			opts := embedding.Options{Model: modelID}
+			err := opts.Validate()
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := opts.SetExtension(cohere.EmbeddingRequestExtensionKey, coheresdk.V2EmbedRequest{
+			if err := opts.Extensions.Set(cohere.EmbeddingRequestExtensionKey, coheresdk.V2EmbedRequest{
 				InputType: coheresdk.EmbedInputTypeSearchDocument,
 			}); err != nil {
 				t.Fatal(err)

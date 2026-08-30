@@ -17,7 +17,8 @@ func TestImageModel_Call_Integration(t *testing.T) {
 	if modelID == "" {
 		modelID = "dall-e-2" // cheaper than dall-e-3
 	}
-	opts, err := image.NewOptions(modelID)
+	opts := image.Options{Model: modelID}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

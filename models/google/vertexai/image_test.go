@@ -40,7 +40,8 @@ func TestImageModelUsesVertexGenerateContent(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	defaultOptions, err := image.NewOptions(vertexai.ModelGemini25FlashImage)
+	defaultOptions := image.Options{Model: vertexai.ModelGemini25FlashImage}
+	err := defaultOptions.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

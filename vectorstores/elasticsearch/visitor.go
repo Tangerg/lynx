@@ -9,9 +9,9 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-// Visitor transforms AST filter expressions into Elasticsearch
+// visitor transforms AST filter expressions into Elasticsearch
 // query-string syntax (Lucene). The output is meant to be plugged
 // into a `query_string.query` clause inside the KNN filter.
 //
@@ -29,31 +29,31 @@ var _ filter.Visitor = (*Visitor)(nil)
 //   - bare identifier      → <prefix>.<ident>
 //   - metadata['k']        → <prefix>.k
 //   - metadata['a']['b']   → <prefix>.a.b
-type Visitor struct {
+type visitor struct {
 	err            error
 	sql            strings.Builder
 	metadataPrefix string // e.g. "metadata"
 }
 
-func NewVisitor(metadataPrefix string) *Visitor {
-	return &Visitor{metadataPrefix: metadataPrefix}
+func newVisitor(metadataPrefix string) *visitor {
+	return &visitor{metadataPrefix: metadataPrefix}
 }
 
-func (v *Visitor) Result() string {
+func (v *visitor) snapshot() string {
 	if v.err != nil {
 		return ""
 	}
 	return v.sql.String()
 }
 
-func (v *Visitor) Visit(expr filter.Predicate) error {
+func (v *visitor) Visit(expr filter.Predicate) error {
 	v.err = nil
 	v.sql.Reset()
 	v.err = v.visit(expr)
 	return v.err
 }
 
-func (v *Visitor) visit(expr filter.Expr) error {
+func (v *visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("elasticsearch: cannot process nil expression")
 	}
@@ -83,7 +83,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 // visitHasExpr uses Lucene's exact field query. Elasticsearch applies a term
 // query to every value of a multi-valued field, so this is collection
 // membership rather than scalar coercion at the provider boundary.
-func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
@@ -98,7 +98,7 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
+func (v *visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	v.sql.WriteString("NOT (")
 	if err := v.visit(expr.Right()); err != nil {
 		return err
@@ -107,7 +107,7 @@ func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op, err := expr.Operator().LogicalString()
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w", err)
@@ -126,7 +126,7 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
@@ -169,7 +169,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
@@ -207,7 +207,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 // resulting `NOT (NOT _exists_:<path>)` is a double negation equivalent to
 // `_exists_:<path>` — the existence check — so no separate handling is
 // needed here.
-func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
@@ -219,7 +219,7 @@ func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 
 // visitLikeExpr maps LIKE onto Lucene wildcard syntax. Right operand
 // must be a string pattern — % is translated to *, _ to ?.
-func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("elasticsearch: %w (at %s)", err, expr.Start().String())
@@ -238,7 +238,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 
 // fieldPath assembles the dotted Elasticsearch field path for the
 // metadata key on the left side of a comparison.
-func (v *Visitor) fieldPath(expr *filter.BinaryExpr) (string, error) {
+func (v *visitor) fieldPath(expr *filter.BinaryExpr) (string, error) {
 	keys, err := expr.Path()
 	if err != nil {
 		return "", err

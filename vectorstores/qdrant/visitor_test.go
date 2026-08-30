@@ -1,4 +1,4 @@
-package qdrant_test
+package qdrant
 
 import (
 	"testing"
@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 	"github.com/Tangerg/scope/core/vectorstore/storetest"
-	"github.com/Tangerg/scope/vectorstores/qdrant"
 )
 
 func TestVisitor_Conformance(t *testing.T) {
@@ -17,7 +16,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			v := qdrant.NewVisitor()
+			v := newVisitor()
 			return expr.Accept(v)
 		},
 		storetest.Options{
@@ -34,11 +33,11 @@ func toFilter(t *testing.T, src string) *qdrantclient.Filter {
 	if err != nil {
 		t.Fatalf("parse %q: %v", src, err)
 	}
-	v := qdrant.NewVisitor()
+	v := newVisitor()
 	if err := expr.Accept(v); err != nil {
 		t.Fatalf("visit %q: %v", src, err)
 	}
-	return v.Result()
+	return v.snapshot()
 }
 
 func isNullKey(cond *qdrantclient.Condition) string {
@@ -104,7 +103,7 @@ func TestVisitor_RejectsFractionalMatchValues(t *testing.T) {
 		"membership": filter.In("score", []float64{1, 1.9}),
 	} {
 		t.Run(name, func(t *testing.T) {
-			visitor := qdrant.NewVisitor()
+			visitor := newVisitor()
 			if err := predicate.Accept(visitor); err == nil {
 				t.Fatal("Qdrant silently accepted a fractional integer match")
 			}
@@ -113,11 +112,11 @@ func TestVisitor_RejectsFractionalMatchValues(t *testing.T) {
 }
 
 func TestVisitor_LikeOnlyAcceptsExactPatterns(t *testing.T) {
-	visitor := qdrant.NewVisitor()
+	visitor := newVisitor()
 	if err := filter.Like("title", "guide").Accept(visitor); err != nil {
 		t.Fatalf("visit exact LIKE pattern: %v", err)
 	}
-	conditions := visitor.Result().GetMust()
+	conditions := visitor.snapshot().GetMust()
 	if len(conditions) != 1 || conditions[0].GetField().GetKey() != "title" ||
 		conditions[0].GetField().GetMatch().GetKeyword() != "guide" {
 		t.Fatalf("exact LIKE condition = %#v, want keyword title=guide", conditions)
@@ -125,7 +124,7 @@ func TestVisitor_LikeOnlyAcceptsExactPatterns(t *testing.T) {
 
 	for _, pattern := range []string{"guide%", "%guide", "g_ide"} {
 		t.Run(pattern, func(t *testing.T) {
-			if err := filter.Like("title", pattern).Accept(qdrant.NewVisitor()); err == nil {
+			if err := filter.Like("title", pattern).Accept(newVisitor()); err == nil {
 				t.Fatalf("Qdrant silently accepted inexact LIKE pattern %q", pattern)
 			}
 		})

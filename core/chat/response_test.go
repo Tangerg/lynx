@@ -99,7 +99,7 @@ func TestResultHelpersAndJSON(t *testing.T) {
 	if output.Text() != "hello" {
 		t.Fatalf("Text = %q", output.Text())
 	}
-	if err := output.Metadata.Set("openai/logprobs", []float64{-0.1}); err != nil {
+	if err := output.Metadata.Extra.Set("openai/logprobs", []float64{-0.1}); err != nil {
 		t.Fatal(err)
 	}
 	encoded, err := json.Marshal(output)
@@ -143,7 +143,7 @@ func TestResponseCloneOwnsNestedProtocolValues(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := response.Metadata.Set("test/value", map[string]int{"count": 1}); err != nil {
+	if err := response.Metadata.Extra.Set("test/value", map[string]int{"count": 1}); err != nil {
 		t.Fatal(err)
 	}
 
@@ -218,7 +218,7 @@ func TestResponseJSONRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if setErr := response.Metadata.Set("openai/system_fingerprint", "fp-1"); setErr != nil {
+	if setErr := response.Metadata.Extra.Set("openai/system_fingerprint", "fp-1"); setErr != nil {
 		t.Fatal(setErr)
 	}
 	encoded, err := json.Marshal(response)

@@ -21,7 +21,8 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	})
 	t.Cleanup(srv.Close)
 
-	opts, err := tts.NewOptions(hume.ModelOctave2)
+	opts := tts.Options{Model: hume.ModelOctave2}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +56,8 @@ func TestAudioTTSModel_Stream_Mock(t *testing.T) {
 	}})
 	t.Cleanup(srv.Close)
 
-	opts, err := tts.NewOptions(hume.ModelOctave2)
+	opts := tts.Options{Model: hume.ModelOctave2}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

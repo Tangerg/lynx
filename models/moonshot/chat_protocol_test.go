@@ -45,7 +45,7 @@ func TestOpenAIChatUsesCurrentKimiWireContract(t *testing.T) {
 		corechat.NewAssistantMessage(previousThinking, corechat.NewTextPart("previous answer")),
 		corechat.NewUserMessage(corechat.NewTextPart("again")),
 	}}
-	if setExtensionErr := request.Options.SetExtension(moonshot.RequestExtensionKey, moonshot.ChatRequestOptions{ReasoningEffort: moonshot.ReasoningEffortHigh}); setExtensionErr != nil {
+	if setExtensionErr := request.Options.Extensions.Set(moonshot.RequestExtensionKey, moonshot.ChatRequestOptions{ReasoningEffort: moonshot.ReasoningEffortHigh}); setExtensionErr != nil {
 		t.Fatalf("SetExtension: %v", setExtensionErr)
 	}
 	response, err := model.Call(t.Context(), request)
@@ -85,7 +85,7 @@ func TestOpenAIChatRejectsK2ThinkingOptionsForK3(t *testing.T) {
 		t.Fatalf("NewOpenAIChat: %v", err)
 	}
 	request := &corechat.Request{Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart("hello"))}}
-	if err := request.Options.SetExtension(moonshot.RequestExtensionKey, moonshot.ChatRequestOptions{
+	if err := request.Options.Extensions.Set(moonshot.RequestExtensionKey, moonshot.ChatRequestOptions{
 		Thinking: &moonshot.Thinking{Type: moonshot.ThinkingEnabled, Keep: moonshot.ThinkingKeepAll},
 	}); err != nil {
 		t.Fatalf("SetExtension: %v", err)

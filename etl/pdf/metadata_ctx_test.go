@@ -23,7 +23,7 @@ func TestRead_HonorsContextCancellation(t *testing.T) {
 	}
 	ctx, cancel := context.WithCancel(t.Context())
 	cancel()
-	if _, err := r.Read(ctx); err != context.Canceled {
+	if _, err := r.Read(ctx); !errors.Is(err, context.Canceled) {
 		t.Fatalf("canceled context: got %v, want context.Canceled", err)
 	}
 }

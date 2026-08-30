@@ -9,9 +9,9 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-// Visitor transforms AST filter expressions into Typesense `filter_by`
+// visitor transforms AST filter expressions into Typesense `filter_by`
 // syntax. The metadata field is a nested object on the collection
 // schema (enabled via EnableNestedFields=true), so metadata keys are
 // addressed under the configured `metadata.*` path.
@@ -26,31 +26,31 @@ var _ filter.Visitor = (*Visitor)(nil)
 //
 // Typesense `filter_by` doesn't have a standalone NOT operator — the
 // visitor rewrites `NOT (x op y)` into the operator's inverse.
-type Visitor struct {
+type visitor struct {
 	err            error
 	sql            strings.Builder
 	metadataPrefix string
 }
 
-func NewVisitor(metadataPrefix string) *Visitor {
-	return &Visitor{metadataPrefix: metadataPrefix}
+func newVisitor(metadataPrefix string) *visitor {
+	return &visitor{metadataPrefix: metadataPrefix}
 }
 
-func (v *Visitor) Result() string {
+func (v *visitor) snapshot() string {
 	if v.err != nil {
 		return ""
 	}
 	return v.sql.String()
 }
 
-func (v *Visitor) Visit(expr filter.Predicate) error {
+func (v *visitor) Visit(expr filter.Predicate) error {
 	v.err = nil
 	v.sql.Reset()
 	v.err = v.visit(expr)
 	return v.err
 }
 
-func (v *Visitor) visit(expr filter.Expr) error {
+func (v *visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("typesense: cannot process nil expression")
 	}
@@ -67,7 +67,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
 	case expr.Operator().IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
@@ -84,7 +84,7 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 
 // visitHasExpr uses Typesense's exact-match syntax. On an array field, an
 // exact scalar filter matches when any array element is equal to that value.
-func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return err
@@ -101,7 +101,7 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 
 // visitUnaryExpr maps NOT (op) onto the operator's inverse because
 // Typesense `filter_by` has no top-level NOT.
-func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
+func (v *visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	if !expr.Operator().Is(filter.OpNot) {
 		return fmt.Errorf("typesense: unsupported unary '%s'", expr.Operator().String())
 	}
@@ -124,7 +124,7 @@ func invertBinary(expr *filter.BinaryExpr) (*filter.BinaryExpr, error) {
 	return inverted, nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " && "
 	if expr.Operator().Is(filter.OpOr) {
 		op = " || "
@@ -141,7 +141,7 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return err
@@ -163,7 +163,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return err
@@ -191,7 +191,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) fieldPath(expr *filter.BinaryExpr) (string, error) {
+func (v *visitor) fieldPath(expr *filter.BinaryExpr) (string, error) {
 	keys, err := expr.Path()
 	if err != nil {
 		return "", err

@@ -8,9 +8,9 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-// Visitor transforms AST filter expressions into a Cosmos DB SQL
+// visitor transforms AST filter expressions into a Cosmos DB SQL
 // predicate fragment. Metadata keys live under c.metadata.* by default
 // (the document alias used in Search / DeleteWhere is `c`).
 //
@@ -21,7 +21,7 @@ var _ filter.Visitor = (*Visitor)(nil)
 //	category IN ("a", "b")   →  c.metadata.category IN (@p1, @p2)
 //	NOT (a == "x")           →  NOT (c.metadata.a = @p1)
 //	a == "x" AND b == "y"    →  (c.metadata.a = @p1 AND c.metadata.b = @p2)
-type Visitor struct {
+type visitor struct {
 	err            error
 	sql            strings.Builder
 	params         []NamedParam
@@ -36,21 +36,21 @@ type NamedParam struct {
 	Value any
 }
 
-func NewVisitor(alias, metadataPrefix string) *Visitor {
+func newVisitor(alias, metadataPrefix string) *visitor {
 	if alias == "" {
 		alias = "c"
 	}
-	return &Visitor{alias: alias, metadataPrefix: metadataPrefix}
+	return &visitor{alias: alias, metadataPrefix: metadataPrefix}
 }
 
-func (v *Visitor) Result() (string, []NamedParam) {
+func (v *visitor) snapshot() (string, []NamedParam) {
 	if v.err != nil {
 		return "", nil
 	}
 	return v.sql.String(), v.params
 }
 
-func (v *Visitor) Visit(expr filter.Predicate) error {
+func (v *visitor) Visit(expr filter.Predicate) error {
 	v.err = nil
 	v.sql.Reset()
 	v.params = nil
@@ -58,7 +58,7 @@ func (v *Visitor) Visit(expr filter.Predicate) error {
 	return v.err
 }
 
-func (v *Visitor) visit(expr filter.Expr) error {
+func (v *visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("azurecosmos: cannot process nil expression")
 	}
@@ -75,7 +75,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
 	case expr.Operator().IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
@@ -92,7 +92,7 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	}
 }
 
-func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return err
@@ -109,7 +109,7 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
+func (v *visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	if !expr.Operator().Is(filter.OpNot) {
 		return fmt.Errorf("azurecosmos: unsupported unary '%s'", expr.Operator().String())
 	}
@@ -121,7 +121,7 @@ func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " AND "
 	if expr.Operator().Is(filter.OpOr) {
 		op = " OR "
@@ -138,7 +138,7 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return err
@@ -160,7 +160,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return err
@@ -192,7 +192,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 // visitLikeExpr maps exactly representable SQL LIKE shapes onto Cosmos string
 // functions. Patterns with internal or single-character wildcards are rejected
 // instead of being approximated.
-func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return err
@@ -242,7 +242,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) fieldPath(expr *filter.BinaryExpr) (string, error) {
+func (v *visitor) fieldPath(expr *filter.BinaryExpr) (string, error) {
 	keys, err := expr.Path()
 	if err != nil {
 		return "", err
@@ -277,7 +277,7 @@ func sqlOpFor(kind filter.Operator) (string, error) {
 	}
 }
 
-func (v *Visitor) bindParam(value any) string {
+func (v *visitor) bindParam(value any) string {
 	name := fmt.Sprintf("@p%d", len(v.params)+1)
 	v.params = append(v.params, NamedParam{Name: name, Value: value})
 	return name

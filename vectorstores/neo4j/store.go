@@ -542,11 +542,11 @@ func (s *Store) buildPredicate(filter filter.Predicate) (string, map[string]any,
 	if filter == nil {
 		return "", nil, nil
 	}
-	v := NewVisitor("node", s.metadataPrefix)
+	v := newVisitor("node", s.metadataPrefix)
 	if err := filter.Accept(v); err != nil {
 		return "", nil, fmt.Errorf("neo4j: convert filter: %w", err)
 	}
-	predicate, params := v.Result()
+	predicate, params := v.snapshot()
 	return predicate, params, nil
 }
 

@@ -8,7 +8,6 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/Tangerg/scope/core/internal/extension"
 	"github.com/Tangerg/scope/core/internal/ptr"
 	"github.com/Tangerg/scope/core/metadata"
 )
@@ -29,38 +28,17 @@ const (
 // fields, merges namespaced extensions, snapshots mutable values, and leaves
 // both source values unchanged.
 type Options struct {
-	Model            string          `json:"model,omitempty"`
-	OutputFormat     *OutputFormat   `json:"output_format,omitempty"`
-	FrequencyPenalty *float64        `json:"frequency_penalty,omitempty"`
-	MaxTokens        *int64          `json:"max_tokens,omitempty"`
-	PresencePenalty  *float64        `json:"presence_penalty,omitempty"`
-	ReasoningEffort  ReasoningEffort `json:"reasoning_effort,omitempty"`
-	Stop             []string        `json:"stop,omitempty"`
-	Temperature      *float64        `json:"temperature,omitempty"`
-	TopK             *int64          `json:"top_k,omitempty"`
-	TopP             *float64        `json:"top_p,omitempty"`
-	Extensions       metadata.Map    `json:"extensions,omitzero"`
-}
-
-func NewOptions(model string) (Options, error) {
-	if model == "" {
-		return Options{}, fmt.Errorf("chat: create options: %w: model id must not be empty", ErrInvalidOptions)
-	}
-	options := Options{Model: model}
-	if err := options.Validate(); err != nil {
-		return Options{}, fmt.Errorf("chat: create options: %w", err)
-	}
-	return options, nil
-}
-
-func (o *Options) SetExtension(key string, value any) error {
-	if o == nil {
-		return fmt.Errorf("chat: set options extension: %w: nil receiver", ErrInvalidOptions)
-	}
-	if err := extension.Set(&o.Extensions, key, value); err != nil {
-		return fmt.Errorf("chat: set options extension: %w: %w", ErrInvalidOptions, err)
-	}
-	return nil
+	Model            string              `json:"model,omitempty"`
+	OutputFormat     *OutputFormat       `json:"output_format,omitempty"`
+	FrequencyPenalty *float64            `json:"frequency_penalty,omitempty"`
+	MaxTokens        *int64              `json:"max_tokens,omitempty"`
+	PresencePenalty  *float64            `json:"presence_penalty,omitempty"`
+	ReasoningEffort  ReasoningEffort     `json:"reasoning_effort,omitempty"`
+	Stop             []string            `json:"stop,omitempty"`
+	Temperature      *float64            `json:"temperature,omitempty"`
+	TopK             *int64              `json:"top_k,omitempty"`
+	TopP             *float64            `json:"top_p,omitempty"`
+	Extensions       metadata.Extensions `json:"extensions,omitzero"`
 }
 
 func (o Options) Clone() Options {
@@ -121,7 +99,7 @@ func (o *Options) applyOverride(override Options) error {
 	if override.TopP != nil {
 		o.TopP = ptr.Clone(override.TopP)
 	}
-	if len(override.Extensions) > 0 {
+	if !override.Extensions.IsZero() {
 		if err := o.Extensions.Merge(override.Extensions); err != nil {
 			return fmt.Errorf("merge extensions: %w", err)
 		}
@@ -164,7 +142,7 @@ func (o Options) Validate() error {
 	if err := validateFloat("top_p", o.TopP, minimumTopP, maximumTopP); err != nil {
 		return err
 	}
-	if err := extension.Validate(o.Extensions); err != nil {
+	if err := o.Extensions.Validate(); err != nil {
 		return fmt.Errorf("%w: extensions: %w", ErrInvalidOptions, err)
 	}
 	return nil

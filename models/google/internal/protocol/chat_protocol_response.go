@@ -37,7 +37,7 @@ func (p *protocolResponseMapper) mapResponse(requestModel string, response *gena
 	mapped := &corechat.Response{
 		Metadata: &corechat.ResponseMetadata{ID: response.ResponseID, Model: modelName},
 	}
-	if err := mapped.Metadata.Set(protocolKey(p.provider, "response"), response); err != nil {
+	if err := mapped.Metadata.Extra.Set(protocolKey(p.provider, "response"), response); err != nil {
 		return nil, fmt.Errorf("google: preserve native response: %w", err)
 	}
 	if len(response.Candidates) > 1 {
@@ -59,22 +59,22 @@ func (p *protocolResponseMapper) mapResponse(requestModel string, response *gena
 	}
 	if response.UsageMetadata != nil {
 		mapped.Metadata.Usage = mapProtocolUsage(response.UsageMetadata)
-		if err := mapped.Metadata.Set(protocolKey(p.provider, "usage"), protocolUsageExtensionFrom(response.UsageMetadata)); err != nil {
+		if err := mapped.Metadata.Extra.Set(protocolKey(p.provider, "usage"), protocolUsageExtensionFrom(response.UsageMetadata)); err != nil {
 			return nil, err
 		}
 		if response.UsageMetadata.ToolUsePromptTokenCount != 0 {
-			if err := mapped.Metadata.Set(protocolKey(p.provider, "tool_use_prompt_tokens"), int64(response.UsageMetadata.ToolUsePromptTokenCount)); err != nil {
+			if err := mapped.Metadata.Extra.Set(protocolKey(p.provider, "tool_use_prompt_tokens"), int64(response.UsageMetadata.ToolUsePromptTokenCount)); err != nil {
 				return nil, err
 			}
 		}
 	}
 	if response.ModelVersion != "" {
-		if err := mapped.Metadata.Set(protocolKey(p.provider, "model_version"), response.ModelVersion); err != nil {
+		if err := mapped.Metadata.Extra.Set(protocolKey(p.provider, "model_version"), response.ModelVersion); err != nil {
 			return nil, err
 		}
 	}
 	if response.PromptFeedback != nil {
-		if err := mapped.Metadata.Set(protocolKey(p.provider, "prompt_feedback"), response.PromptFeedback); err != nil {
+		if err := mapped.Metadata.Extra.Set(protocolKey(p.provider, "prompt_feedback"), response.PromptFeedback); err != nil {
 			return nil, err
 		}
 	}
@@ -90,17 +90,17 @@ func (p *protocolResponseMapper) mapCandidate(candidate *genai.Candidate) (*core
 		Metadata:     &corechat.OutputMetadata{},
 	}
 	if candidate.FinishReason != "" {
-		if err := output.Metadata.Set(protocolKey(p.provider, "native_finish_reason"), candidate.FinishReason); err != nil {
+		if err := output.Metadata.Extra.Set(protocolKey(p.provider, "native_finish_reason"), candidate.FinishReason); err != nil {
 			return nil, err
 		}
 	}
 	if len(candidate.SafetyRatings) > 0 {
-		if err := output.Metadata.Set(protocolKey(p.provider, "safety_ratings"), candidate.SafetyRatings); err != nil {
+		if err := output.Metadata.Extra.Set(protocolKey(p.provider, "safety_ratings"), candidate.SafetyRatings); err != nil {
 			return nil, err
 		}
 	}
 	if candidate.FinishMessage != "" {
-		if err := output.Metadata.Set(protocolKey(p.provider, "finish_message"), candidate.FinishMessage); err != nil {
+		if err := output.Metadata.Extra.Set(protocolKey(p.provider, "finish_message"), candidate.FinishMessage); err != nil {
 			return nil, err
 		}
 	}

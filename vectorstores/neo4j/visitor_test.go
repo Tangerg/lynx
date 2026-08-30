@@ -1,11 +1,10 @@
-package neo4j_test
+package neo4j
 
 import (
 	"strings"
 	"testing"
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
-	"github.com/Tangerg/scope/vectorstores/neo4j"
 )
 
 // build is the test driver — parse src, visit, return (cypher, params, err).
@@ -15,11 +14,11 @@ func build(t *testing.T, src string) (string, map[string]any, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	v := neo4j.NewVisitor("node", "metadata")
+	v := newVisitor("node", "metadata")
 	if err := expr.Accept(v); err != nil {
 		return "", nil, err
 	}
-	cypher, params := v.Result()
+	cypher, params := v.snapshot()
 	return cypher, params, nil
 }
 

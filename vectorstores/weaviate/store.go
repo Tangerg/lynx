@@ -331,11 +331,11 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		WithLimit(req.Options.ResultLimit())
 
 	if req.Options.Filter != nil {
-		visitor := NewVisitor()
+		visitor := newVisitor()
 		if acceptErr := req.Options.Filter.Accept(visitor); acceptErr != nil {
 			return nil, fmt.Errorf("weaviate: convert filter: %w", acceptErr)
 		}
-		getBuilder = getBuilder.WithWhere(visitor.Result())
+		getBuilder = getBuilder.WithWhere(visitor.snapshot())
 	}
 
 	result, err := getBuilder.Do(ctx)
@@ -435,14 +435,14 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return fmt.Errorf("weaviate.Store.DeleteWhere: %w", err)
 	}
 
-	visitor := NewVisitor()
+	visitor := newVisitor()
 	if err = expr.Accept(visitor); err != nil {
 		return fmt.Errorf("weaviate: convert filter: %w", err)
 	}
 
 	_, err = s.client.Batch().ObjectsBatchDeleter().
 		WithClassName(s.className).
-		WithWhere(visitor.Result()).
+		WithWhere(visitor.snapshot()).
 		Do(ctx)
 	if err != nil {
 		return fmt.Errorf("weaviate: delete from class %s: %w", s.className, err)

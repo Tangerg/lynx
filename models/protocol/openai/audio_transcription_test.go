@@ -11,7 +11,8 @@ import (
 )
 
 func TestAudioTextModels_Call_Mock(t *testing.T) {
-	opts, err := transcription.NewOptions("whisper-1")
+	opts := transcription.Options{Model: "whisper-1"}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

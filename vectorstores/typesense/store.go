@@ -295,11 +295,11 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, error) {
 	if filter == nil {
 		return "", nil
 	}
-	v := NewVisitor(metadataField)
+	v := newVisitor(metadataField)
 	if err := filter.Accept(v); err != nil {
 		return "", fmt.Errorf("typesense: convert filter: %w", err)
 	}
-	return v.Result(), nil
+	return v.snapshot(), nil
 }
 
 func toMatch(hit api.SearchResultHit) (*vectorstore.SearchResult, error) {

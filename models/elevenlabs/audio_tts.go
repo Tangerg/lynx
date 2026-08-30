@@ -146,21 +146,21 @@ func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Respo
 
 	responseMetadata := &tts.ResponseMetadata{}
 	if details.CharacterCost != "" {
-		if err := responseMetadata.Set(metadataCharacterCost, details.CharacterCost); err != nil {
+		if err := responseMetadata.Extra.Set(metadataCharacterCost, details.CharacterCost); err != nil {
 			return nil, err
 		}
 	}
 	if details.RequestID != "" {
-		if err := responseMetadata.Set(metadataRequestID, details.RequestID); err != nil {
+		if err := responseMetadata.Extra.Set(metadataRequestID, details.RequestID); err != nil {
 			return nil, err
 		}
 	}
 	if details.TraceID != "" {
-		if err := responseMetadata.Set(metadataTraceID, details.TraceID); err != nil {
+		if err := responseMetadata.Extra.Set(metadataTraceID, details.TraceID); err != nil {
 			return nil, err
 		}
 	}
-	if err := responseMetadata.Set(SpeechResponseExtensionKey, details); err != nil {
+	if err := responseMetadata.Extra.Set(SpeechResponseExtensionKey, details); err != nil {
 		return nil, err
 	}
 	return tts.NewResponse(output, responseMetadata)

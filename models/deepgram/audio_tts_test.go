@@ -22,7 +22,8 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	}})
 	t.Cleanup(srv.Close)
 
-	opts, err := tts.NewOptions("aura-asteria-en")
+	opts := tts.Options{Model: "aura-asteria-en"}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -61,7 +62,7 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 }
 
 func TestAudioTTSModelConfigRejectsNegativeResponseLimit(t *testing.T) {
-	opts, _ := tts.NewOptions("aura-asteria-en")
+	opts := tts.Options{Model: "aura-asteria-en"}
 	_, err := deepgram.NewAudioTTSModel(deepgram.AudioTTSModelConfig{
 		APIKey: "test-key", DefaultOptions: opts, MaxResponseBytes: -1,
 	})

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"encoding/json/jsontext"
+	"errors"
 	"fmt"
 	"strings"
 )
@@ -91,7 +92,7 @@ func (o ToolOutput) Validate() error {
 		}
 	}
 	if len(o.Details) != 0 && !jsontext.Value(o.Details).IsValid() {
-		return fmt.Errorf("tool output details must be one valid RFC 7493 JSON document")
+		return errors.New("tool output details must be one valid RFC 7493 JSON document")
 	}
 	return nil
 }

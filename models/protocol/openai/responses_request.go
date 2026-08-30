@@ -96,7 +96,7 @@ func projectResponsesInputTokenCount(params *responses.ResponseNewParams) (*resp
 	return &projected, nil
 }
 
-func rejectCoreOwnedResponsesExtension(extensions metadata.Map) error {
+func rejectCoreOwnedResponsesExtension(extensions metadata.Extensions) error {
 	fields, found, err := extensions.Decode[map[string]json.RawMessage](ResponsesRequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("openai responses: extension %q: %w", ResponsesRequestExtensionKey, err)

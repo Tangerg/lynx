@@ -350,11 +350,11 @@ func (s *Store) buildFilter(filter filter.Predicate) (map[string]any, error) {
 	if filter == nil {
 		return nil, nil
 	}
-	v := NewVisitor()
+	v := newVisitor()
 	if err := filter.Accept(v); err != nil {
 		return nil, fmt.Errorf("s3vectors: convert filter: %w", err)
 	}
-	return v.Result(), nil
+	return v.snapshot(), nil
 }
 
 func (s *Store) toMatch(hit types.QueryOutputVector, minScore vectorstore.Score) (*vectorstore.SearchResult, error) {

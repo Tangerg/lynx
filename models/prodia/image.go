@@ -129,7 +129,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	}
 
 	metadata := &image.ResponseMetadata{}
-	if err := metadata.Set("prodia/job_type", apiReq.Type); err != nil {
+	if err := metadata.Extra.Set("prodia/job_type", apiReq.Type); err != nil {
 		return nil, err
 	}
 	return image.NewResponse([]*image.Output{output}, metadata)

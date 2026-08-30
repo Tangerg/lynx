@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+# Keep every Agent package inside an explicit statement-coverage budget so new
+# execution surfaces cannot bypass the same regression gate as the kernel.
+set -euo pipefail
+
+cd "$(dirname "$0")/../agent"
+
+coverage_budget=(
+  ". 75.3"
+  "./agenttest 76.8"
+  "./examples/autonomous 67.8"
+  "./examples/composition 71.3"
+  "./examples/direct_vs_managed 67.4"
+  "./examples/embedded_vs_platform 75.5"
+  "./examples/evaluator_optimizer 72.6"
+  "./examples/orchestrator_workers 67.3"
+  "./examples/workflow 67.6"
+  "./examples/workflow_patterns 70.8"
+  "./interaction 75.5"
+  "./planning 74.3"
+  "./planning/goap 86.1"
+  "./platform 87.0"
+  "./workflow 78.4"
+)
+
+configured_packages=$(
+  for budget in "${coverage_budget[@]}"; do
+    read -r package _ <<<"$budget"
+    printf '%s\n' "$package"
+  done | sort
+)
+tracked_packages=$(go list ./... | sed 's#^github.com/Tangerg/scope/agent#.#' | sort)
+if [[ "$configured_packages" != "$tracked_packages" ]]; then
+  echo "Agent coverage budget package inventory is stale" >&2
+  diff -u <(printf '%s\n' "$configured_packages") <(printf '%s\n' "$tracked_packages") >&2 || true
+  exit 1
+fi
+
+failed=0
+for budget in "${coverage_budget[@]}"; do
+  read -r package minimum <<<"$budget"
+  if ! output=$(go test -count=1 -cover "$package" 2>&1); then
+    echo "$output" >&2
+    exit 1
+  fi
+  actual=$(printf '%s\n' "$output" | sed -n 's/.*coverage: \([0-9][0-9.]*\)% of statements.*/\1/p')
+  if [[ -z "$actual" ]]; then
+    echo "could not read coverage for $package from: $output" >&2
+    exit 1
+  fi
+  printf '%-43s %6s%% (minimum %s%%)\n' "$package" "$actual" "$minimum"
+  if ! awk -v actual="$actual" -v minimum="$minimum" 'BEGIN { exit !(actual + 0 >= minimum + 0) }'; then
+    failed=1
+  fi
+done
+
+if [[ $failed -ne 0 ]]; then
+  echo "Agent coverage budget failed" >&2
+  exit 1
+fi
+
+echo "Agent coverage budget passed"

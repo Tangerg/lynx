@@ -23,7 +23,8 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	}})
 	t.Cleanup(srv.Close)
 
-	opts, err := image.NewOptions(prodia.JobFluxFastSchnellTextToImage)
+	opts := image.Options{Model: prodia.JobFluxFastSchnellTextToImage}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

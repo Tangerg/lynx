@@ -11,16 +11,17 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
-func TestNewOptions(t *testing.T) {
-	options, err := chat.NewOptions("model")
+func TestOptionsModel(t *testing.T) {
+	options := chat.Options{Model: "model"}
+	err := options.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}
 	if options.Model != "model" {
 		t.Fatalf("Model = %q", options.Model)
 	}
-	if _, err := chat.NewOptions(""); !errors.Is(err, chat.ErrInvalidOptions) {
-		t.Fatalf("NewOptions empty model error = %v", err)
+	if err := (chat.Options{Model: " model "}).Validate(); !errors.Is(err, chat.ErrInvalidOptions) {
+		t.Fatalf("Options model error = %v", err)
 	}
 }
 
@@ -83,10 +84,10 @@ func TestOptionsClone(t *testing.T) {
 		Temperature:      new(0.3),
 		TopK:             new(int64(4)),
 		TopP:             new(0.9),
-		Extensions:       metadata.Map{},
+		Extensions:       metadata.Extensions{},
 	}
-	if err := options.SetExtension("test/value", "original"); err != nil {
-		t.Fatal(err)
+	if setErr := options.Extensions.Set("test/value", "original"); setErr != nil {
+		t.Fatal(setErr)
 	}
 	clone := options.Clone()
 
@@ -98,7 +99,9 @@ func TestOptionsClone(t *testing.T) {
 	*clone.Temperature = 1
 	*clone.TopK = 8
 	*clone.TopP = 0.5
-	clone.Extensions["test/value"][0] = 'x'
+	if setErr := clone.Extensions.Set("test/value", "changed"); setErr != nil {
+		t.Fatal(setErr)
+	}
 
 	if *options.FrequencyPenalty != 0.1 ||
 		options.OutputFormat.Schema[0] != '{' ||
@@ -107,9 +110,12 @@ func TestOptionsClone(t *testing.T) {
 		options.Stop[0] != "END" ||
 		*options.Temperature != 0.3 ||
 		*options.TopK != 4 ||
-		*options.TopP != 0.9 ||
-		options.Extensions["test/value"][0] == 'x' {
+		*options.TopP != 0.9 {
 		t.Fatalf("clone mutated source options: %+v", options)
+	}
+	value, found, err := options.Extensions.Decode[string]("test/value")
+	if err != nil || !found || value != "original" {
+		t.Fatalf("clone mutated source extension: %q, %v, %v", value, found, err)
 	}
 }
 
@@ -176,21 +182,17 @@ func TestOptionsResolve(t *testing.T) {
 	}
 }
 
-func TestOptionsSetExtension(t *testing.T) {
+func TestOptionsExtensions(t *testing.T) {
 	var options chat.Options
-	if err := options.SetExtension("openai/response_format", map[string]string{"type": "json_object"}); err != nil {
+	if err := options.Extensions.Set("openai/response_format", map[string]string{"type": "json_object"}); err != nil {
 		t.Fatal(err)
 	}
 	value, ok, err := options.Extensions.Decode[map[string]string]("openai/response_format")
 	if err != nil || !ok || value["type"] != "json_object" {
 		t.Fatalf("Decode extension = (%v, %v, %v)", value, ok, err)
 	}
-	if err := options.SetExtension("not-namespaced", 1); !errors.Is(err, chat.ErrInvalidOptions) {
+	if err := options.Extensions.Set("not-namespaced", 1); err == nil {
 		t.Fatalf("unscoped key error = %v", err)
-	}
-	var nilOptions *chat.Options
-	if err := nilOptions.SetExtension("openai/key", 1); !errors.Is(err, chat.ErrInvalidOptions) {
-		t.Fatalf("nil options error = %v", err)
 	}
 }
 

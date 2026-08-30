@@ -9,9 +9,9 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-// Visitor transforms AST filter expressions into a RediSearch query
+// visitor transforms AST filter expressions into a RediSearch query
 // fragment. The output is meant to be wrapped in parentheses and
 // composed with a KNN vector tail by [Store].
 //
@@ -29,31 +29,31 @@ var _ filter.Visitor = (*Visitor)(nil)
 // Field types come from [Store.fields] — keyed by metadata-field name —
 // so the same operator dispatches to TAG / NUMERIC / TEXT syntax
 // depending on the declared field kind.
-type Visitor struct {
+type visitor struct {
 	err    error
 	sql    strings.Builder
 	fields map[string]MetadataFieldType
 }
 
-func NewVisitor(fields map[string]MetadataFieldType) *Visitor {
-	return &Visitor{fields: fields}
+func newVisitor(fields map[string]MetadataFieldType) *visitor {
+	return &visitor{fields: fields}
 }
 
-func (v *Visitor) Result() string {
+func (v *visitor) snapshot() string {
 	if v.err != nil {
 		return ""
 	}
 	return v.sql.String()
 }
 
-func (v *Visitor) Visit(expr filter.Predicate) error {
+func (v *visitor) Visit(expr filter.Predicate) error {
 	v.err = nil
 	v.sql.Reset()
 	v.err = v.visit(expr)
 	return v.err
 }
 
-func (v *Visitor) visit(expr filter.Expr) error {
+func (v *visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("redis: cannot process nil expression")
 	}
@@ -77,12 +77,12 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 }
 
-func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	return fmt.Errorf("redis: HAS is not supported because the configured metadata schema exposes scalar TAG, NUMERIC, or TEXT fields (at %s)",
 		expr.Start().String())
 }
 
-func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
+func (v *visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	v.sql.WriteString("-(")
 	if err := v.visit(expr.Right()); err != nil {
 		return err
@@ -95,7 +95,7 @@ func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 // pipe (` | `) for OR — not the verbatim "AND"/"OR" strings other
 // vendors emit. We don't call Operator.LogicalString here because
 // of that mapping difference.
-func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	sep := " "
 	if expr.Operator().Is(filter.OpOr) {
 		sep = " | "
@@ -116,7 +116,7 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 //   - TAG fields handle == and != (via NOT wrap)
 //   - NUMERIC fields handle the full ordering set
 //   - TEXT fields only support equality via the (value) syntax
-func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	field, kind, err := v.resolveFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
@@ -184,7 +184,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitTextFieldExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitTextFieldExpr(expr *filter.BinaryExpr) error {
 	field, kind, err := v.resolveFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
@@ -230,7 +230,7 @@ func redisWildcardPattern(pattern string) string {
 	return out.String()
 }
 
-func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	field, kind, err := v.resolveFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("redis: %w (at %s)", err, expr.Start().String())
@@ -283,7 +283,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 // of a comparison and looks up its declared kind. Returns the bare
 // identifier (no @prefix) so the caller controls the surrounding
 // syntax.
-func (v *Visitor) resolveFieldKey(expr filter.Expr) (string, MetadataFieldType, error) {
+func (v *visitor) resolveFieldKey(expr filter.Expr) (string, MetadataFieldType, error) {
 	var field string
 	var fieldType MetadataFieldType
 	switch node := expr.(type) {

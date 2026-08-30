@@ -30,7 +30,7 @@ func mapProtocolConverseResponse(model string, output *bedrockruntime.ConverseOu
 	}
 	if modelOutput.FinishReason == corechat.FinishReasonOther {
 		modelOutput.Metadata = &corechat.OutputMetadata{}
-		if err := modelOutput.Metadata.Set(chatNativeFinishReasonKey, string(output.StopReason)); err != nil {
+		if err := modelOutput.Metadata.Extra.Set(chatNativeFinishReasonKey, string(output.StopReason)); err != nil {
 			return nil, err
 		}
 	}
@@ -38,7 +38,7 @@ func mapProtocolConverseResponse(model string, output *bedrockruntime.ConverseOu
 		Output:   modelOutput,
 		Metadata: &corechat.ResponseMetadata{Model: model, Usage: mapProtocolUsage(output.Usage)},
 	}
-	if err := response.Metadata.Set(ChatResponseExtensionKey, output); err != nil {
+	if err := response.Metadata.Extra.Set(ChatResponseExtensionKey, output); err != nil {
 		return nil, fmt.Errorf("bedrock: preserve native response: %w", err)
 	}
 	if err := response.Validate(); err != nil {

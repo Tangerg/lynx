@@ -10,7 +10,7 @@ import (
 )
 
 func TestJSONBoundaries(t *testing.T) {
-	if _, err := transcription.NewOptions(""); !errors.Is(err, transcription.ErrInvalidOptions) {
+	if err := (transcription.Options{Model: " model "}).Validate(); !errors.Is(err, transcription.ErrInvalidOptions) {
 		t.Fatalf("NewOptions error = %v", err)
 	}
 	if _, err := transcription.NewRequest(nil); !errors.Is(err, transcription.ErrInvalidRequest) {
@@ -20,7 +20,7 @@ func TestJSONBoundaries(t *testing.T) {
 		t.Fatalf("NewResponse error = %v", err)
 	}
 	var extensionOptions transcription.Options
-	if err := extensionOptions.SetExtension("invalid", true); !errors.Is(err, transcription.ErrInvalidOptions) {
+	if err := extensionOptions.Extensions.Set("invalid", true); err == nil {
 		t.Fatalf("SetExtension error = %v", err)
 	}
 

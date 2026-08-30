@@ -24,7 +24,8 @@ func TestEmbeddingModel(t *testing.T) {
 		Response: alibabaEmbedResponseJSON,
 		Build: func(t *testing.T, baseURL string) embedding.Model {
 			t.Helper()
-			opts, err := embedding.NewOptions(alibaba.ModelEmbeddingV4)
+			opts := embedding.Options{Model: alibaba.ModelEmbeddingV4}
+			err := opts.Validate()
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}

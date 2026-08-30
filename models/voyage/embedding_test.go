@@ -25,7 +25,8 @@ func TestEmbeddingModel(t *testing.T) {
 		ExpectedPath: "/embeddings",
 		Build: func(t *testing.T, baseURL string) embedding.Model {
 			t.Helper()
-			opts, err := embedding.NewOptions("voyage-3-large")
+			opts := embedding.Options{Model: "voyage-3-large"}
+			err := opts.Validate()
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}

@@ -11,21 +11,21 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-// Visitor compiles Scope filter expressions into Bedrock retrieval filters.
+// visitor compiles Scope filter expressions into Bedrock retrieval filters.
 // Bedrock Knowledge Bases address metadata keys directly by name; nested paths
 // are not supported, so the left operand must be a bare identifier.
-type Visitor struct {
+type visitor struct {
 	result types.RetrievalFilter
 }
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-func NewVisitor() *Visitor {
-	return &Visitor{}
+func newVisitor() *visitor {
+	return &visitor{}
 }
 
 // Visit compiles the complete expression tree rooted at predicate.
-func (v *Visitor) Visit(predicate filter.Predicate) error {
+func (v *visitor) Visit(predicate filter.Predicate) error {
 	v.result = nil
 	result, err := convertExpr(predicate)
 	if err != nil {
@@ -35,8 +35,8 @@ func (v *Visitor) Visit(predicate filter.Predicate) error {
 	return nil
 }
 
-// Result returns the filter produced by the most recent successful Visit.
-func (v *Visitor) Result() types.RetrievalFilter {
+// Failed compilation clears the prior value so a reused compiler cannot leak a stale filter.
+func (v *visitor) snapshot() types.RetrievalFilter {
 	return v.result
 }
 

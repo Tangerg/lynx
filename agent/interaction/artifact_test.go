@@ -115,7 +115,7 @@ func validateArtifactPayload(artifact interaction.Artifact) error {
 		Other string `json:"other"`
 	}]()
 	if !errors.Is(mismatchErr, interaction.ErrInvalidArtifact) || !errors.Is(mismatchErr, agent.ErrInvalidOutput) {
-		return fmt.Errorf("wrong typed decode error = %v", mismatchErr)
+		return fmt.Errorf("wrong typed decode error: %w", mismatchErr)
 	}
 	return nil
 }

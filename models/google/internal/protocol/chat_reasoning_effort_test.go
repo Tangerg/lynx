@@ -11,7 +11,7 @@ import (
 
 func TestProtocolRequestMapsCoreReasoningEffort(t *testing.T) {
 	request := validReasoningRequest(t, "high")
-	if err := request.Options.SetExtension(RequestExtensionKey, map[string]any{
+	if err := request.Options.Extensions.Set(RequestExtensionKey, map[string]any{
 		"thinkingConfig": map[string]any{"includeThoughts": true},
 	}); err != nil {
 		t.Fatal(err)
@@ -27,7 +27,7 @@ func TestProtocolRequestMapsCoreReasoningEffort(t *testing.T) {
 
 func TestProtocolRequestRejectsDuplicateOrUnknownReasoningEffort(t *testing.T) {
 	request := validReasoningRequest(t, "high")
-	if err := request.Options.SetExtension(RequestExtensionKey, map[string]any{
+	if err := request.Options.Extensions.Set(RequestExtensionKey, map[string]any{
 		"thinkingConfig": map[string]any{"thinkingLevel": "LOW"},
 	}); err != nil {
 		t.Fatal(err)

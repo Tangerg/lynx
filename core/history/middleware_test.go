@@ -193,7 +193,7 @@ func TestCallSnapshotsAllRequestReferences(t *testing.T) {
 	request := mustRequest(t, user)
 	request.Tools = []chat.ToolDefinition{{Name: "weather", InputSchema: []byte(`{"type":"object"}`)}}
 	request.Options = chat.Options{Temperature: &temperature, Stop: []string{"END"}}
-	if setExtensionErr := request.Options.SetExtension("test/value", "original"); setExtensionErr != nil {
+	if setExtensionErr := request.Options.Extensions.Set("test/value", "original"); setExtensionErr != nil {
 		t.Fatal(setExtensionErr)
 	}
 
@@ -205,13 +205,16 @@ func TestCallSnapshotsAllRequestReferences(t *testing.T) {
 		got.Tools[0].InputSchema[0] = '['
 		*got.Options.Temperature = 1.5
 		got.Options.Stop[0] = "MUTATED"
-		got.Options.Extensions["test/value"][1] = 'X'
+		if setErr := got.Options.Extensions.Set("test/value", "changed"); setErr != nil {
+			return nil, setErr
+		}
 		return response(chat.NewAssistantMessage(chat.NewTextPart("answer"))), nil
 	})).Call(boundContext(t), request)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(request.Messages[0].Metadata["turn"]) != "1" || request.Messages[0].Parts[0].Media.Source.Bytes[0] != 1 || request.Tools[0].InputSchema[0] != '{' || *request.Options.Temperature != 0.5 || request.Options.Stop[0] != "END" || string(request.Options.Extensions["test/value"]) != `"original"` {
+	extension, found, decodeErr := request.Options.Extensions.Decode[string]("test/value")
+	if decodeErr != nil || !found || string(request.Messages[0].Metadata["turn"]) != "1" || request.Messages[0].Parts[0].Media.Source.Bytes[0] != 1 || request.Tools[0].InputSchema[0] != '{' || *request.Options.Temperature != 0.5 || request.Options.Stop[0] != "END" || extension != "original" {
 		t.Fatalf("caller request was mutated: %#v", request)
 	}
 	writes := store.writesSnapshot()
@@ -405,7 +408,7 @@ func TestStreamReportsWriteFailureAndNilSequence(t *testing.T) {
 }
 
 func TestMiddlewarePreservesContextCancellation(t *testing.T) {
-	store := inmemory.New()
+	store := new(inmemory.Store)
 	middleware := mustMiddleware(t, store)
 	ctx, cancel := context.WithCancel(boundContext(t))
 	cancel()

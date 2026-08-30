@@ -8,9 +8,9 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-// Visitor transforms AST filter expressions into a TiDB WHERE
+// visitor transforms AST filter expressions into a TiDB WHERE
 // fragment. TiDB stores metadata as JSON and the visitor reaches
 // into it with JSON_VALUE + per-type casts so numeric / boolean
 // comparisons happen in the right SQL type.
@@ -20,28 +20,28 @@ var _ filter.Visitor = (*Visitor)(nil)
 //	author == "Alice"        →  JSON_VALUE(metadata, '$.author') = ?
 //	year >= 2020             →  CAST(JSON_VALUE(metadata, '$.year') AS DOUBLE) >= ?
 //	tag IN ("a", "b")        →  JSON_VALUE(metadata, '$.tag') IN (?, ?)
-type Visitor struct {
+type visitor struct {
 	err            error
 	sql            strings.Builder
 	args           []any
 	metadataColumn string
 }
 
-func NewVisitor(metadataColumn string) *Visitor {
+func newVisitor(metadataColumn string) *visitor {
 	if metadataColumn == "" {
 		metadataColumn = "metadata"
 	}
-	return &Visitor{metadataColumn: metadataColumn}
+	return &visitor{metadataColumn: metadataColumn}
 }
 
-func (v *Visitor) Result() (string, []any) {
+func (v *visitor) snapshot() (string, []any) {
 	if v.err != nil {
 		return "", nil
 	}
 	return v.sql.String(), v.args
 }
 
-func (v *Visitor) Visit(expr filter.Predicate) error {
+func (v *visitor) Visit(expr filter.Predicate) error {
 	v.err = nil
 	v.sql.Reset()
 	v.args = nil
@@ -49,7 +49,7 @@ func (v *Visitor) Visit(expr filter.Predicate) error {
 	return v.err
 }
 
-func (v *Visitor) visit(expr filter.Expr) error {
+func (v *visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("tidb: cannot process nil expression")
 	}
@@ -69,7 +69,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
 	case expr.Operator().IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
@@ -86,7 +86,7 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	}
 }
 
-func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	jsonPath, err := buildJSONPath(expr)
 	if err != nil {
 		return fmt.Errorf("tidb: %w (at %s)", err, expr.Start().String())
@@ -108,7 +108,7 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 
 // appendJSONScalar writes a value as JSON_ARRAY input. Booleans stay JSON
 // booleans instead of the strings returned by JSON_VALUE comparisons.
-func (v *Visitor) appendJSONScalar(value any) {
+func (v *visitor) appendJSONScalar(value any) {
 	if boolean, ok := value.(bool); ok {
 		if boolean {
 			v.sql.WriteString("true")
@@ -121,7 +121,7 @@ func (v *Visitor) appendJSONScalar(value any) {
 	v.sql.WriteByte('?')
 }
 
-func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
+func (v *visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	if !expr.Operator().Is(filter.OpNot) {
 		return fmt.Errorf("tidb: unsupported unary '%s'", expr.Operator().String())
 	}
@@ -133,7 +133,7 @@ func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " AND "
 	if expr.Operator().Is(filter.OpOr) {
 		op = " OR "
@@ -150,7 +150,7 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	jsonPath, err := buildJSONPath(expr)
 	if err != nil {
 		return fmt.Errorf("tidb: %w (at %s)", err, expr.Start().String())
@@ -171,7 +171,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	jsonPath, err := buildJSONPath(expr)
 	if err != nil {
 		return fmt.Errorf("tidb: %w (at %s)", err, expr.Start().String())
@@ -203,7 +203,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	jsonPath, err := buildJSONPath(expr)
 	if err != nil {
 		return fmt.Errorf("tidb: %w (at %s)", err, expr.Start().String())
@@ -228,7 +228,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 // semantics. No bound parameter is needed. The negated `IS NOT NULL`
 // arrives as NOT(… IS NULL) and is rendered by visitUnaryExpr, so no
 // separate handling is needed here.
-func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	jsonPath, err := buildJSONPath(expr)
 	if err != nil {
 		return fmt.Errorf("tidb: %w (at %s)", err, expr.Start().String())
@@ -241,7 +241,7 @@ func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) appendJSONExtraction(jsonPath string, value any, op filter.Operator) {
+func (v *visitor) appendJSONExtraction(jsonPath string, value any, op filter.Operator) {
 	switch value.(type) {
 	case float64, int64, uint64, int:
 		v.sql.WriteString("CAST(JSON_VALUE(")
@@ -266,7 +266,7 @@ func (v *Visitor) appendJSONExtraction(jsonPath string, value any, op filter.Ope
 	}
 }
 
-func (v *Visitor) appendValuePlaceholder(value any) {
+func (v *visitor) appendValuePlaceholder(value any) {
 	if b, ok := value.(bool); ok {
 		if b {
 			v.sql.WriteString("'true'")

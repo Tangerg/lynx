@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"maps"
 	"slices"
 	"testing"
 	"testing/synctest"
@@ -27,6 +28,35 @@ func TestTreeSnapshotStrictlyRejectsUnknownFields(t *testing.T) {
 	}
 }
 
+func TestTreeSnapshotRejectsUnsupportedVersionDistinctly(t *testing.T) {
+	tree := completedTreeSnapshot(t)
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(tree.JSON(), &fields); err != nil {
+		t.Fatal(err)
+	}
+	for name, version := range map[string]json.RawMessage{
+		"missing": nil,
+		"future":  json.RawMessage(`2`),
+	} {
+		t.Run(name, func(t *testing.T) {
+			candidate := maps.Clone(fields)
+			if version == nil {
+				delete(candidate, "version")
+			} else {
+				candidate["version"] = version
+			}
+			data, err := json.Marshal(candidate)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = ParseTreeSnapshot(data)
+			if !errors.Is(err, ErrUnsupportedTreeSnapshotVersion) || errors.Is(err, ErrInvalidTreeSnapshot) {
+				t.Fatalf("ParseTreeSnapshot() error = %v", err)
+			}
+		})
+	}
+}
+
 func TestTreeSnapshotDigestIsCanonicalAndStable(t *testing.T) {
 	tree := completedTreeSnapshot(t)
 	parsed, err := ParseTreeSnapshot(tree.JSON())
@@ -35,6 +65,9 @@ func TestTreeSnapshotDigestIsCanonicalAndStable(t *testing.T) {
 	}
 	if tree.Digest() != parsed.Digest() || tree.Digest() != ComputeDigest(tree.JSON()) {
 		t.Fatalf("digest changed across canonical round trip: %s != %s", tree.Digest(), parsed.Digest())
+	}
+	if tree.Version() != CurrentTreeSnapshotVersion || parsed.Version() != CurrentTreeSnapshotVersion {
+		t.Fatalf("versions = %d, %d", tree.Version(), parsed.Version())
 	}
 	if _, durable := tree.IncarnationID(); durable {
 		t.Fatal("ephemeral capture unexpectedly contains a TreeIncarnationID")
@@ -415,7 +448,8 @@ func TestTreeRestoreValidatesTerminalOutputAgainstExactDeployment(t *testing.T) 
 		t.Fatal(err)
 	}
 	tree, err := newTreeSnapshot(treeSnapshotWire{
-		RootID: forged.ProcessID(), ProcessSnapshots: []ProcessSnapshot{forged},
+		Version: CurrentTreeSnapshotVersion,
+		RootID:  forged.ProcessID(), ProcessSnapshots: []ProcessSnapshot{forged},
 	})
 	if err != nil {
 		t.Fatal(err)

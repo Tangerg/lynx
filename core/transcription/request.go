@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/Tangerg/scope/core/internal/extension"
 	"github.com/Tangerg/scope/core/media"
 	"github.com/Tangerg/scope/core/metadata"
 )
@@ -23,27 +22,7 @@ type Options struct {
 
 	// Extensions carries JSON-safe provider-specific options unknown to this
 	// struct.
-	Extensions metadata.Map `json:"extensions,omitzero"`
-}
-
-func NewOptions(model string) (Options, error) {
-	if model == "" {
-		return Options{}, fmt.Errorf("transcription: create options: %w: model id must not be empty", ErrInvalidOptions)
-	}
-	if strings.TrimSpace(model) != model {
-		return Options{}, fmt.Errorf("transcription: create options: %w: model id must not have surrounding whitespace", ErrInvalidOptions)
-	}
-	return Options{Model: model}, nil
-}
-
-func (o *Options) SetExtension(key string, value any) error {
-	if o == nil {
-		return fmt.Errorf("transcription: set options extension: %w: nil receiver", ErrInvalidOptions)
-	}
-	if err := extension.Set(&o.Extensions, key, value); err != nil {
-		return fmt.Errorf("transcription: set options extension: %w: %w", ErrInvalidOptions, err)
-	}
-	return nil
+	Extensions metadata.Extensions `json:"extensions,omitzero"`
 }
 
 func (o Options) Clone() Options {
@@ -72,7 +51,7 @@ func (o *Options) applyOverride(override Options) error {
 	if override.Language != "" {
 		o.Language = override.Language
 	}
-	if len(override.Extensions) > 0 {
+	if !override.Extensions.IsZero() {
 		if err := o.Extensions.Merge(override.Extensions); err != nil {
 			return fmt.Errorf("merge extensions: %w", err)
 		}
@@ -87,7 +66,7 @@ func (o Options) Validate() error {
 	if o.Language != "" && strings.TrimSpace(o.Language) != o.Language {
 		return fmt.Errorf("%w: language must not have surrounding whitespace", ErrInvalidOptions)
 	}
-	if err := extension.Validate(o.Extensions); err != nil {
+	if err := o.Extensions.Validate(); err != nil {
 		return fmt.Errorf("%w: extensions: %w", ErrInvalidOptions, err)
 	}
 	return nil

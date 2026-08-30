@@ -9,7 +9,7 @@ import (
 )
 
 func TestJSONBoundaries(t *testing.T) {
-	if _, err := moderation.NewOptions(""); !errors.Is(err, moderation.ErrInvalidOptions) {
+	if err := (moderation.Options{Model: " model "}).Validate(); !errors.Is(err, moderation.ErrInvalidOptions) {
 		t.Fatalf("NewOptions error = %v", err)
 	}
 	if _, err := moderation.NewRequest(nil); !errors.Is(err, moderation.ErrInvalidRequest) {
@@ -19,7 +19,7 @@ func TestJSONBoundaries(t *testing.T) {
 		t.Fatalf("NewResponse error = %v", err)
 	}
 	var extensionOptions moderation.Options
-	if err := extensionOptions.SetExtension("invalid", true); !errors.Is(err, moderation.ErrInvalidOptions) {
+	if err := extensionOptions.Extensions.Set("invalid", true); err == nil {
 		t.Fatalf("SetExtension error = %v", err)
 	}
 

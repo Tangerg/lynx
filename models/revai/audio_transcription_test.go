@@ -42,7 +42,8 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	)
 	t.Cleanup(srv.Close)
 
-	opts, err := transcription.NewOptions(revai.ModelMachine)
+	opts := transcription.Options{Model: revai.ModelMachine}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

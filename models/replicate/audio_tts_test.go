@@ -55,7 +55,8 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	t.Cleanup(srv.Close)
 	audioURL = srv.URL + "/audio.bin"
 
-	opts, err := tts.NewOptions(replicate.ModelXTTSV2)
+	opts := tts.Options{Model: replicate.ModelXTTSV2}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

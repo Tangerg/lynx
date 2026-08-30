@@ -12,15 +12,23 @@ import (
 // Strategy reduction and external dispatch run as jobs; only their fenced
 // completions may re-enter this owner line.
 type treeRuntime struct {
-	engine            *Engine
-	rootID            ProcessID
-	incarnation       TreeIncarnationID
-	headDigest        Digest
-	inflight          atomic.Int64
-	freezeHeld        atomic.Bool
-	context           context.Context
-	commands          chan treeCommand
-	completions       chan treeJobCompletion
+	// Tree identity is fixed at publication; incarnation and head form the fence
+	// carried by every later durability transition.
+	engine      *Engine
+	rootID      ProcessID
+	incarnation TreeIncarnationID
+	headDigest  Digest
+
+	// These atomics are the only state read outside the owner line. Commands and
+	// completions are the sole mutation entrances back into that line.
+	inflight    atomic.Int64
+	freezeHeld  atomic.Bool
+	context     context.Context
+	commands    chan treeCommand
+	completions chan treeJobCompletion
+
+	// Everything below is owner-line state. Keeping it lock-free makes commit,
+	// scheduling, freeze, and checkpoint order a single explicit state machine.
 	processes         map[ProcessID]*processState
 	childWaits        map[WaitID]*childWaitRegistration
 	runnable          []ProcessID

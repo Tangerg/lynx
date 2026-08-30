@@ -125,7 +125,7 @@ func (a *AudioTranscriptionModel) buildTranscriptionResponse(apiResp *genai.Gene
 	}
 
 	meta := &transcription.ResponseMetadata{Model: apiResp.ModelVersion}
-	if err := meta.Set(protocolKey(a.provider, "transcription_response"), apiResp); err != nil {
+	if err := meta.Extra.Set(protocolKey(a.provider, "transcription_response"), apiResp); err != nil {
 		return nil, err
 	}
 

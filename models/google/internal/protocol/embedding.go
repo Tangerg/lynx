@@ -126,14 +126,14 @@ func (e *EmbeddingModel) buildResponse(modelName string, apiResp *genai.EmbedCon
 	meta := &embedding.ResponseMetadata{
 		Model: modelName,
 	}
-	if err := meta.Set(protocolKey(e.provider, "embedding_response"), apiResp); err != nil {
+	if err := meta.Extra.Set(protocolKey(e.provider, "embedding_response"), apiResp); err != nil {
 		return nil, err
 	}
 	if apiResp.Metadata != nil {
 		// Gemini does not report per-modality prompt tokens; surface the
 		// billable character count instead so callers can still cost the
 		// call.
-		if err := meta.Set(protocolKey(e.provider, "billable_character_count"), apiResp.Metadata.BillableCharacterCount); err != nil {
+		if err := meta.Extra.Set(protocolKey(e.provider, "billable_character_count"), apiResp.Metadata.BillableCharacterCount); err != nil {
 			return nil, err
 		}
 	}

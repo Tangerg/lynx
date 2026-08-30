@@ -29,7 +29,7 @@ func mapProtocolMessage(message *anthropicsdk.Message, provider string) (*corech
 		FinishReason: normalizeProtocolStopReason(message.StopReason),
 		Metadata:     &corechat.OutputMetadata{},
 	}
-	if err := output.Metadata.Set(protocolNativeStopReasonKey, message.StopReason); err != nil {
+	if err := output.Metadata.Extra.Set(protocolNativeStopReasonKey, message.StopReason); err != nil {
 		return nil, err
 	}
 	if len(parts) > 0 {
@@ -43,15 +43,15 @@ func mapProtocolMessage(message *anthropicsdk.Message, provider string) (*corech
 			Usage: mapProtocolUsage(message.Usage),
 		},
 	}
-	if err := response.Metadata.Set(protocolResponseExtensionKey(provider), message); err != nil {
+	if err := response.Metadata.Extra.Set(protocolResponseExtensionKey(provider), message); err != nil {
 		return nil, err
 	}
 	if message.StopSequence != "" {
-		if err := response.Metadata.Set(protocolStopSequenceKey, message.StopSequence); err != nil {
+		if err := response.Metadata.Extra.Set(protocolStopSequenceKey, message.StopSequence); err != nil {
 			return nil, err
 		}
 	}
-	if err := response.Metadata.Set(protocolUsageKey, message.Usage); err != nil {
+	if err := response.Metadata.Extra.Set(protocolUsageKey, message.Usage); err != nil {
 		return nil, err
 	}
 	if err := response.Validate(); err != nil {
@@ -182,7 +182,7 @@ func newProtocolStreamState(provider string) *protocolStreamState {
 
 func (p *protocolStreamState) mapEvent(event anthropicsdk.MessageStreamEventUnion) (*corechat.Response, error) {
 	response := &corechat.Response{Metadata: &corechat.ResponseMetadata{ID: p.id, Model: p.model}}
-	if err := response.Metadata.Set(p.streamEventKey, event); err != nil {
+	if err := response.Metadata.Extra.Set(p.streamEventKey, event); err != nil {
 		return nil, err
 	}
 	output, err := p.mapEventOutput(event, response)
@@ -220,7 +220,7 @@ func (p *protocolStreamState) mapMessageStart(event anthropicsdk.MessageStartEve
 	response.Metadata.ID = p.id
 	response.Metadata.Model = p.model
 	p.usage = mapProtocolUsage(event.Message.Usage)
-	if err := response.Metadata.Set(protocolUsageKey, event.Message.Usage); err != nil {
+	if err := response.Metadata.Extra.Set(protocolUsageKey, event.Message.Usage); err != nil {
 		return nil, err
 	}
 	parts, err := mapProtocolContent(event.Message.Content, p.provider)
@@ -250,7 +250,7 @@ func (p *protocolStreamState) mapBlockDeltaOutput(event anthropicsdk.ContentBloc
 		return nil, nil
 	}
 	output := &corechat.Output{Metadata: &corechat.OutputMetadata{}}
-	if err := output.Metadata.Set(protocolCitationDeltaKey, extension); err != nil {
+	if err := output.Metadata.Extra.Set(protocolCitationDeltaKey, extension); err != nil {
 		return nil, err
 	}
 	return output, nil
@@ -260,16 +260,16 @@ func (p *protocolStreamState) mapMessageDelta(event anthropicsdk.MessageDeltaEve
 	output := &corechat.Output{FinishReason: normalizeProtocolStopReason(event.Delta.StopReason)}
 	if event.Delta.StopReason != "" {
 		output.Metadata = &corechat.OutputMetadata{}
-		if err := output.Metadata.Set(protocolNativeStopReasonKey, event.Delta.StopReason); err != nil {
+		if err := output.Metadata.Extra.Set(protocolNativeStopReasonKey, event.Delta.StopReason); err != nil {
 			return nil, err
 		}
 	}
 	p.mergeDeltaUsage(event.Usage)
-	if err := response.Metadata.Set(protocolUsageKey, event.Usage); err != nil {
+	if err := response.Metadata.Extra.Set(protocolUsageKey, event.Usage); err != nil {
 		return nil, err
 	}
 	if event.Delta.StopSequence != "" {
-		if err := response.Metadata.Set(protocolStopSequenceKey, event.Delta.StopSequence); err != nil {
+		if err := response.Metadata.Extra.Set(protocolStopSequenceKey, event.Delta.StopSequence); err != nil {
 			return nil, err
 		}
 	}

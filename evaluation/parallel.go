@@ -9,8 +9,11 @@ import (
 
 func evaluateAll[T any](ctx context.Context, evaluators []Evaluator[T], maxConcurrency int, subject T) ([]Report, error) {
 	reports := make([]Report, len(evaluators))
+	if len(evaluators) == 0 {
+		return reports, nil
+	}
 	group, groupContext := errgroup.WithContext(ctx)
-	group.SetLimit(maxConcurrency)
+	group.SetLimit(min(max(1, maxConcurrency), len(evaluators)))
 	for index, evaluator := range evaluators {
 		group.Go(func() error {
 			report, err := evaluator.Evaluate(groupContext, subject)
@@ -20,7 +23,7 @@ func evaluateAll[T any](ctx context.Context, evaluators []Evaluator[T], maxConcu
 			if err := report.Validate(); err != nil {
 				return fmt.Errorf("evaluation: evaluator %d: %w", index, err)
 			}
-			reports[index] = report.Clone()
+			reports[index] = report.cloneValid()
 			return nil
 		})
 	}

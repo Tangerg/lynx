@@ -17,7 +17,9 @@ type CaseResult struct {
 
 func (result CaseResult) clone() CaseResult {
 	result.Metadata = result.Metadata.Clone()
-	result.Report = result.Report.Clone()
+	if result.Err == nil {
+		result.Report = result.Report.cloneValid()
+	}
 	return result
 }
 
@@ -159,6 +161,9 @@ func summarize(results []CaseResult) (ExperimentSummary, error) {
 		if result.Err != nil {
 			summary.Errors++
 			continue
+		}
+		if err := result.Report.Validate(); err != nil {
+			return ExperimentSummary{}, fmt.Errorf("evaluation: summarize case %q: %w", result.ID, err)
 		}
 		summary.Evaluated++
 		switch result.Report.Verdict {

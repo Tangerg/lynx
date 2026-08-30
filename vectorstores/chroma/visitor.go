@@ -10,14 +10,14 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-// Visitor compiles Scope filter expressions into Chroma WhereClause values. A
+// visitor compiles Scope filter expressions into Chroma WhereClause values. A
 // value is reusable: Visit replaces the previous result. Chroma exposes no
 // standalone NOT or metadata LIKE operation, represents nested selectors as
 // flat dotted keys, and accepts numbers only through int or float32 APIs;
 // compilation rejects every unsupported or lossy mapping.
-type Visitor struct {
+type visitor struct {
 	result v2.WhereClause
 }
 
@@ -27,15 +27,15 @@ type chromaNumber struct {
 	isInteger bool
 }
 
-func NewVisitor() *Visitor {
-	return &Visitor{}
+func newVisitor() *visitor {
+	return &visitor{}
 }
 
-func (v *Visitor) Result() v2.WhereClause {
+func (v *visitor) snapshot() v2.WhereClause {
 	return v.result
 }
 
-func (v *Visitor) Visit(predicate filter.Predicate) error {
+func (v *visitor) Visit(predicate filter.Predicate) error {
 	v.result = nil
 	result, err := compilePredicate(predicate)
 	if err != nil {

@@ -14,7 +14,8 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	srv := modeltest.JSONServer(http.StatusOK, `{"text":"hello world"}`)
 	t.Cleanup(srv.Close)
 
-	opts, err := transcription.NewOptions("whisper-deployment")
+	opts := transcription.Options{Model: "whisper-deployment"}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

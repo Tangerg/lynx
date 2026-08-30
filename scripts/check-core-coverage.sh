@@ -18,7 +18,6 @@ coverage_budget=(
   "./history/inmemory 93.8"
   "./history/storetest 84.3"
   "./image 63.4"
-  "./internal/extension 83.0"
   "./internal/ptr 100.0"
   "./jsonschema 73.0"
   "./media 91.9"
@@ -46,7 +45,7 @@ tracked_packages=$(
     go list ./... |
       sed 's#^github.com/Tangerg/scope/core#.#' |
       awk '$0 !~ /\/internal(\/|$)/'
-    printf '%s\n' ./internal/extension ./internal/ptr
+    printf '%s\n' ./internal/ptr
   } | sort
 )
 if [[ "$configured_packages" != "$tracked_packages" ]]; then

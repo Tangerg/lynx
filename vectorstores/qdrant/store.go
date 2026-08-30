@@ -361,11 +361,11 @@ func (s *Store) buildQueryPoints(ctx context.Context, req *vectorstore.SearchReq
 	}
 
 	if req.Options.Filter != nil {
-		visitor := NewVisitor()
+		visitor := newVisitor()
 		if err := req.Options.Filter.Accept(visitor); err != nil {
 			return nil, fmt.Errorf("qdrant: convert filter: %w", err)
 		}
-		queryPoints.Filter = visitor.Result()
+		queryPoints.Filter = visitor.snapshot()
 	}
 
 	vector, err := s.embeddingClient.EmbedText(ctx, req.Query)
@@ -517,14 +517,14 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return fmt.Errorf("qdrant.Store.DeleteWhere: %w", err)
 	}
 
-	visitor := NewVisitor()
+	visitor := newVisitor()
 	if err = expr.Accept(visitor); err != nil {
 		return fmt.Errorf("qdrant: convert filter: %w", err)
 	}
 
 	_, err = s.client.Delete(ctx, &qdrant.DeletePoints{
 		CollectionName: s.collectionName,
-		Points:         qdrant.NewPointsSelectorFilter(visitor.Result()),
+		Points:         qdrant.NewPointsSelectorFilter(visitor.snapshot()),
 	})
 	if err != nil {
 		return fmt.Errorf("qdrant: delete points from collection %s: %w", s.collectionName, err)

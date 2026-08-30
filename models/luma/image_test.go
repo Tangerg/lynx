@@ -43,7 +43,8 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	)
 	t.Cleanup(server.Close)
 
-	opts, err := image.NewOptions(luma.ModelUni1)
+	opts := image.Options{Model: luma.ModelUni1}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -84,7 +85,7 @@ func TestImageModel_Call_Mock(t *testing.T) {
 }
 
 func TestImageModelConfigRejectsNegativeOutputLimit(t *testing.T) {
-	opts, _ := image.NewOptions(luma.ModelUni1)
+	opts := image.Options{Model: luma.ModelUni1}
 	_, err := luma.NewImageModel(luma.ImageModelConfig{
 		APIKey: "test-key", DefaultOptions: opts, MaxOutputBytes: -1,
 	})

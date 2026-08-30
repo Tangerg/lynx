@@ -378,11 +378,11 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, error) {
 	if filter == nil {
 		return "", nil
 	}
-	v := NewVisitor("")
+	v := newVisitor("")
 	if err := filter.Accept(v); err != nil {
 		return "", fmt.Errorf("vespa: convert filter: %w", err)
 	}
-	return v.Result(), nil
+	return v.snapshot(), nil
 }
 
 func (s *Store) toDocument(rawID string, fields map[string]any) (*document.Document, error) {

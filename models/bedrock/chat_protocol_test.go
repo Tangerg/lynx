@@ -39,7 +39,7 @@ func TestChatBuildConverseInput(t *testing.T) {
 		}},
 		Options: corechat.Options{Temperature: &temperature},
 	}
-	if setExtensionErr := request.Options.SetExtension(ChatRequestExtensionKey, ChatRequestOptions{
+	if setExtensionErr := request.Options.Extensions.Set(ChatRequestExtensionKey, ChatRequestOptions{
 		AdditionalModelRequestFields: map[string]any{"thinking": true},
 		RequestMetadata:              map[string]string{"tenant": "test"},
 	}); setExtensionErr != nil {

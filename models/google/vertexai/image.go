@@ -206,7 +206,7 @@ func (i *ImageModel) buildResponse(apiResp *genai.GenerateContentResponse) (*ima
 	if !apiResp.CreateTime.IsZero() {
 		metadata.Created = apiResp.CreateTime.Unix()
 	}
-	if err := metadata.Set(ImageResponseExtensionKey, apiResp); err != nil {
+	if err := metadata.Extra.Set(ImageResponseExtensionKey, apiResp); err != nil {
 		return nil, err
 	}
 	return image.NewResponse(outputs, metadata)

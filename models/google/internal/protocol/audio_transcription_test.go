@@ -22,7 +22,8 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	srv := modeltest.JSONServer(http.StatusOK, body)
 	t.Cleanup(srv.Close)
 
-	opts, err := transcription.NewOptions(protocol.ModelGemini36Flash)
+	opts := transcription.Options{Model: protocol.ModelGemini36Flash}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

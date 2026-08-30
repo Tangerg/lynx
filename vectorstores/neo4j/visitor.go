@@ -8,9 +8,9 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-// Visitor transforms AST filter expressions into a Cypher predicate
+// visitor transforms AST filter expressions into a Cypher predicate
 // string plus the matching parameter map. The output is intended to
 // follow a `WHERE` clause in the search / delete statement.
 //
@@ -26,7 +26,7 @@ var _ filter.Visitor = (*Visitor)(nil)
 // Property paths follow convention: metadata keys are
 // stored as flat node properties named `metadata.<key>` and addressed
 // with backtick-quoted Cypher identifiers.
-type Visitor struct {
+type visitor struct {
 	err            error
 	sql            strings.Builder
 	params         map[string]any
@@ -34,25 +34,25 @@ type Visitor struct {
 	metadataPrefix string
 }
 
-func NewVisitor(nodeAlias, metadataPrefix string) *Visitor {
+func newVisitor(nodeAlias, metadataPrefix string) *visitor {
 	if nodeAlias == "" {
 		nodeAlias = "node"
 	}
-	return &Visitor{
+	return &visitor{
 		nodeAlias:      nodeAlias,
 		metadataPrefix: metadataPrefix,
 		params:         make(map[string]any),
 	}
 }
 
-func (v *Visitor) Result() (string, map[string]any) {
+func (v *visitor) snapshot() (string, map[string]any) {
 	if v.err != nil {
 		return "", nil
 	}
 	return v.sql.String(), v.params
 }
 
-func (v *Visitor) Visit(expr filter.Predicate) error {
+func (v *visitor) Visit(expr filter.Predicate) error {
 	v.err = nil
 	v.sql.Reset()
 	v.params = make(map[string]any)
@@ -60,7 +60,7 @@ func (v *Visitor) Visit(expr filter.Predicate) error {
 	return v.err
 }
 
-func (v *Visitor) visit(expr filter.Expr) error {
+func (v *visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("neo4j: cannot process nil expression")
 	}
@@ -78,7 +78,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
 	case expr.Operator().IsNullOperator():
 		return v.visitNullTestExpr(expr)
@@ -98,7 +98,7 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	}
 }
 
-func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	prop, err := v.propertyAccess(expr)
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
@@ -114,7 +114,7 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
+func (v *visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	if !expr.Operator().Is(filter.OpNot) {
 		return fmt.Errorf("neo4j: unsupported unary operator '%s' at %s",
 			expr.Operator().String(), expr.Start().String())
@@ -127,7 +127,7 @@ func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " AND "
 	if expr.Operator().Is(filter.OpOr) {
 		op = " OR "
@@ -144,7 +144,7 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	prop, err := v.propertyAccess(expr)
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
@@ -167,7 +167,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	prop, err := v.propertyAccess(expr)
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
@@ -201,7 +201,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 
 // visitLikeExpr maps LIKE onto Cypher's regex operator =~. SQL
 // wildcards translate to regex equivalents and the match is anchored.
-func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	prop, err := v.propertyAccess(expr)
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
@@ -245,7 +245,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 // visitUnaryExpr as `NOT (… IS NULL)`, which Cypher treats as
 // equivalent, so no separate handling is needed here. No bound
 // parameter — `IS NULL` is inline in Cypher.
-func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	prop, err := v.propertyAccess(expr)
 	if err != nil {
 		return fmt.Errorf("neo4j: %w (at %s)", err, expr.Start().String())
@@ -258,7 +258,7 @@ func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 
 // propertyAccess assembles the Cypher property accessor for the left
 // side of a comparison, e.g. “node.`metadata.foo` “.
-func (v *Visitor) propertyAccess(expr *filter.BinaryExpr) (string, error) {
+func (v *visitor) propertyAccess(expr *filter.BinaryExpr) (string, error) {
 	keys, err := expr.Path()
 	if err != nil {
 		return "", err
@@ -296,7 +296,7 @@ func cypherOpFor(kind filter.Operator) (string, error) {
 	}
 }
 
-func (v *Visitor) bindParam(value any) string {
+func (v *visitor) bindParam(value any) string {
 	name := fmt.Sprintf("p%d", len(v.params)+1)
 	v.params[name] = value
 	return "$" + name

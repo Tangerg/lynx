@@ -137,10 +137,10 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	}
 
 	meta := &transcription.ResponseMetadata{Model: jobOpts.Transcriber}
-	if err := meta.Set("revai/job_id", final.ID); err != nil {
+	if err := meta.Extra.Set("revai/job_id", final.ID); err != nil {
 		return nil, err
 	}
-	if err := meta.Set(ResponseExtensionKey, final); err != nil {
+	if err := meta.Extra.Set(ResponseExtensionKey, final); err != nil {
 		return nil, err
 	}
 	return transcription.NewResponse(output, meta)

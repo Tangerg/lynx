@@ -17,11 +17,11 @@ func TestAzureWildcardPattern(t *testing.T) {
 func TestCollectionMembershipUsesODataAny(t *testing.T) {
 	t.Parallel()
 
-	visitor := NewVisitor()
+	visitor := newVisitor()
 	if err := filter.Has("visible_to", "user-42").Accept(visitor); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := visitor.Result(), `visible_to/any(element: element eq 'user-42')`; got != want {
+	if got, want := visitor.snapshot(), `visible_to/any(element: element eq 'user-42')`; got != want {
 		t.Fatalf("Result() = %q, want %q", got, want)
 	}
 }

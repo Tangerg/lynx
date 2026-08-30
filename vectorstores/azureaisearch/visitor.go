@@ -9,9 +9,9 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-// Visitor transforms AST filter expressions into Azure AI Search OData
+// visitor transforms AST filter expressions into Azure AI Search OData
 // `$filter` syntax. Metadata is treated as flat top-level fields on
 // the indexed document — Azure AI Search doesn't support nested
 // metadata in $filter expressions, so each filterable key must exist
@@ -23,28 +23,28 @@ var _ filter.Visitor = (*Visitor)(nil)
 //	year >= 2020               →  year ge 2020
 //	category IN ("a", "b")     →  search.in(category, 'a,b', ',')
 //	NOT (year >= 2020)         →  not (year ge 2020)
-type Visitor struct {
+type visitor struct {
 	err error
 	sql strings.Builder
 }
 
-func NewVisitor() *Visitor { return &Visitor{} }
+func newVisitor() *visitor { return &visitor{} }
 
-func (v *Visitor) Result() string {
+func (v *visitor) snapshot() string {
 	if v.err != nil {
 		return ""
 	}
 	return v.sql.String()
 }
 
-func (v *Visitor) Visit(expr filter.Predicate) error {
+func (v *visitor) Visit(expr filter.Predicate) error {
 	v.err = nil
 	v.sql.Reset()
 	v.err = v.visit(expr)
 	return v.err
 }
 
-func (v *Visitor) visit(expr filter.Expr) error {
+func (v *visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("azureaisearch: cannot process nil expression")
 	}
@@ -61,7 +61,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
 	case expr.Operator().IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
@@ -78,7 +78,7 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	}
 }
 
-func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	field, err := fieldName(expr.Left())
 	if err != nil {
 		return err
@@ -94,7 +94,7 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
+func (v *visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	if !expr.Operator().Is(filter.OpNot) {
 		return fmt.Errorf("azureaisearch: unsupported unary '%s'", expr.Operator().String())
 	}
@@ -106,7 +106,7 @@ func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " and "
 	if expr.Operator().Is(filter.OpOr) {
 		op = " or "
@@ -123,7 +123,7 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	field, err := fieldName(expr.Left())
 	if err != nil {
 		return err
@@ -144,7 +144,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	field, err := fieldName(expr.Left())
 	if err != nil {
 		return err
@@ -179,7 +179,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 // visitLikeExpr maps LIKE onto Azure AI Search's wildcard syntax via
 // search.ismatch. The full Lucene wildcard syntax `*` / `?` is what
 // AI Search expects; SQL's `%` / `_` are forwarded accordingly.
-func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	field, err := fieldName(expr.Left())
 	if err != nil {
 		return err

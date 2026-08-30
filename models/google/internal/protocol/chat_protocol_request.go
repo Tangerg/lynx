@@ -120,7 +120,10 @@ func mapProtocolOutputFormat(format *corechat.OutputFormat, config *genai.Genera
 
 func decodeProtocolConfig(provider string, req *corechat.Request) (*genai.GenerateContentConfig, error) {
 	extensionKey := protocolKey(provider, "request")
-	raw, found := req.Options.Extensions[extensionKey]
+	raw, found, err := req.Options.Extensions.Decode[json.RawMessage](extensionKey)
+	if err != nil {
+		return nil, fmt.Errorf("google: extension %q: %w", extensionKey, err)
+	}
 	if !found {
 		return &genai.GenerateContentConfig{}, nil
 	}

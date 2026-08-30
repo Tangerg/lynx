@@ -425,7 +425,7 @@ func (i *ImageModel) buildResponse(apiResp *imageInteractionResponse) (*image.Re
 		}
 		meta.Created = created.Unix()
 	}
-	if err := meta.Set(ImageResponseExtensionKey, apiResp.Raw); err != nil {
+	if err := meta.Extra.Set(ImageResponseExtensionKey, apiResp.Raw); err != nil {
 		return nil, err
 	}
 	return image.NewResponse(outputs, meta)

@@ -85,8 +85,8 @@ func TestNewRejectsInvalidConstruction(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			client, err := New(test.model, test.config)
-			if err == nil || client != nil {
-				t.Fatalf("New() = (%v, %v), want nil client and error", client, err)
+			if err == nil || client.valid() {
+				t.Fatalf("New() = (%v, %v), want zero client and error", client, err)
 			}
 			if test.want != nil && !errors.Is(err, test.want) {
 				t.Fatalf("New() error = %v, want errors.Is(_, %v)", err, test.want)
@@ -199,7 +199,9 @@ func mutateRequestReferences(received *chat.Request) {
 	received.Messages[1].Parts[1].ToolCall.Name = "mutated"
 	received.Messages[2].Parts[0].ToolResult.Output.Content[0].Text = "mutated"
 	received.Tools[0].InputSchema[2] = 'X'
-	received.Options.Extensions["test/value"][1] = 'X'
+	if err := received.Options.Extensions.Set("test/value", "changed"); err != nil {
+		panic(err)
+	}
 	*received.Options.MaxTokens = 8
 	*received.Options.Temperature = 2
 }
@@ -227,8 +229,9 @@ func assertCallerRequestUnchanged(t *testing.T, request *chat.Request, callerMax
 	if got := string(request.Tools[0].InputSchema); got != `{"type":"object"}` {
 		t.Fatalf("caller schema mutated: %s", got)
 	}
-	if got := request.Options.Extensions["test/value"]; string(got) != `"caller"` {
-		t.Fatalf("caller extension mutated: %s", got)
+	got, found, err := request.Options.Extensions.Decode[string]("test/value")
+	if err != nil || !found || got != "caller" {
+		t.Fatalf("caller extension = %q, %v, %v", got, found, err)
 	}
 	if callerMaxTokens != 7 {
 		t.Fatalf("caller max tokens mutated: %d", callerMaxTokens)

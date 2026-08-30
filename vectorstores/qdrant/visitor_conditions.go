@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("extract field key from left operand of '%s' at %s: %w",
@@ -42,7 +42,7 @@ func (v *Visitor) visitEqualityExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("extract collection field at %s: %w", expr.Start().String(), err)
@@ -59,7 +59,7 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) buildMatchCondition(fieldKey string, fieldValue any) (*qdrant.Condition, error) {
+func (v *visitor) buildMatchCondition(fieldKey string, fieldValue any) (*qdrant.Condition, error) {
 	switch v := fieldValue.(type) {
 	case string:
 		return qdrant.NewMatchKeyword(fieldKey, v), nil
@@ -79,7 +79,7 @@ func (v *Visitor) buildMatchCondition(fieldKey string, fieldValue any) (*qdrant.
 	}
 }
 
-func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("extract field key from left operand of '%s' at %s: %w",
@@ -122,7 +122,7 @@ func (v *Visitor) visitOrderingExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("extract field key from left operand of 'IN' at %s: %w",
@@ -185,7 +185,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	fieldKey, err := v.extractFieldKey(expr.Left())
 	if err != nil {
 		return fmt.Errorf("qdrant: extract field key from left operand of LIKE at %s: %w",
@@ -214,11 +214,11 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) buildNestedCondition(expr filter.Expr) (*qdrant.Condition, error) {
+func (v *visitor) buildNestedCondition(expr filter.Expr) (*qdrant.Condition, error) {
 	switch node := expr.(type) {
 	case *filter.BinaryExpr,
 		*filter.UnaryExpr:
-		nestedConv := NewVisitor()
+		nestedConv := newVisitor()
 		err := nestedConv.visit(node)
 		if err != nil {
 			return nil, err
@@ -230,7 +230,7 @@ func (v *Visitor) buildNestedCondition(expr filter.Expr) (*qdrant.Condition, err
 	}
 }
 
-func (v *Visitor) extractFieldKey(expr filter.Expr) (string, error) {
+func (v *visitor) extractFieldKey(expr filter.Expr) (string, error) {
 	savedFieldKey := v.currentFieldKey
 	v.currentFieldKey = ""
 
@@ -250,7 +250,7 @@ func (v *Visitor) extractFieldKey(expr filter.Expr) (string, error) {
 	return extractedKey, nil
 }
 
-func (v *Visitor) extractFieldValue(expr filter.Expr) (any, error) {
+func (v *visitor) extractFieldValue(expr filter.Expr) (any, error) {
 	savedFieldValue := v.currentFieldValue
 	v.currentFieldValue = nil
 
@@ -270,7 +270,7 @@ func (v *Visitor) extractFieldValue(expr filter.Expr) (any, error) {
 	return extractedValue, nil
 }
 
-func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
+func (v *visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 	var pathParts []string
 
 	currentExpr := expr
@@ -293,7 +293,7 @@ func (v *Visitor) buildIndexedFieldKey(expr *filter.IndexExpr) (string, error) {
 	}
 }
 
-func (v *Visitor) literalToValue(lit *filter.Literal) (any, error) {
+func (v *visitor) literalToValue(lit *filter.Literal) (any, error) {
 	if lit.IsString() {
 		return lit.AsString()
 	}

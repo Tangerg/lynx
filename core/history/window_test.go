@@ -18,13 +18,13 @@ func TestNewWindowStoreValidatesConstruction(t *testing.T) {
 	if _, err := history.NewWindowStore(typedNil, 1); !errors.Is(err, history.ErrNilStore) {
 		t.Fatalf("typed-nil store error = %v", err)
 	}
-	if _, err := history.NewWindowStore(inmemory.New(), 0); !errors.Is(err, history.ErrInvalidWindow) {
+	if _, err := history.NewWindowStore(new(inmemory.Store), 0); !errors.Is(err, history.ErrInvalidWindow) {
 		t.Fatalf("invalid limit error = %v", err)
 	}
 }
 
 func TestWindowStoreMergesSystemAndKeepsRecentMessages(t *testing.T) {
-	base := inmemory.New()
+	base := new(inmemory.Store)
 	firstSystem := chat.NewSystemMessage("first")
 	firstSystem.Metadata = metadata.Map{}
 	if err := firstSystem.Metadata.Set("shared", "first"); err != nil {
@@ -59,7 +59,7 @@ func TestWindowStoreMergesSystemAndKeepsRecentMessages(t *testing.T) {
 }
 
 func TestWindowStoreKeepsCompleteToolTurn(t *testing.T) {
-	base := inmemory.New()
+	base := new(inmemory.Store)
 	messages := []chat.Message{
 		chat.NewUserMessage(chat.NewTextPart("old question")),
 		chat.NewAssistantMessage(chat.NewTextPart("old answer")),
@@ -97,7 +97,7 @@ func TestWindowStoreKeepsCompleteToolTurn(t *testing.T) {
 }
 
 func TestWindowStoreRejectsSplitNewestTurn(t *testing.T) {
-	base := inmemory.New()
+	base := new(inmemory.Store)
 	messages := []chat.Message{
 		chat.NewSystemMessage("system"),
 		chat.NewUserMessage(chat.NewTextPart("question")),
@@ -117,7 +117,7 @@ func TestWindowStoreRejectsSplitNewestTurn(t *testing.T) {
 }
 
 func TestWindowStorePreservesStandaloneNewestUserTurn(t *testing.T) {
-	base := inmemory.New()
+	base := new(inmemory.Store)
 	messages := []chat.Message{
 		chat.NewUserMessage(chat.NewTextPart("old question")),
 		chat.NewAssistantMessage(chat.NewTextPart("old answer")),
@@ -140,7 +140,7 @@ func TestWindowStorePreservesStandaloneNewestUserTurn(t *testing.T) {
 }
 
 func TestWindowStorePreservesSystemPartStructure(t *testing.T) {
-	base := inmemory.New()
+	base := new(inmemory.Store)
 	part := chat.NewTextPart("")
 	part.Metadata = metadata.Map{}
 	if err := part.Metadata.Set("provider", "preserved"); err != nil {
@@ -168,7 +168,7 @@ func TestWindowStorePreservesSystemPartStructure(t *testing.T) {
 }
 
 func TestWindowStoreDelegatesWritesAndClear(t *testing.T) {
-	base := inmemory.New()
+	base := new(inmemory.Store)
 	window, err := history.NewWindowStore(base, 2)
 	if err != nil {
 		t.Fatal(err)

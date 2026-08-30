@@ -418,11 +418,11 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, error) {
 	if filter == nil {
 		return "", nil
 	}
-	v := NewVisitor()
+	v := newVisitor()
 	if err := filter.Accept(v); err != nil {
 		return "", fmt.Errorf("azureaisearch: convert filter: %w", err)
 	}
-	return v.Result(), nil
+	return v.snapshot(), nil
 }
 
 func (s *Store) toMatch(row map[string]any) (*vectorstore.SearchResult, error) {

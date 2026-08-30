@@ -25,10 +25,6 @@ type Store struct {
 	messages map[history.ConversationID][]chat.Message
 }
 
-func New() *Store {
-	return &Store{}
-}
-
 func (s *Store) Write(ctx context.Context, conversationID history.ConversationID, messages ...chat.Message) error {
 	if err := ctx.Err(); err != nil {
 		return err

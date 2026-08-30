@@ -103,7 +103,10 @@ func mapProtocolOutputFormat(format *corechat.OutputFormat) (json.RawMessage, er
 
 func decodeProtocolRequestExtension(req *corechat.Request) (*nativeChatRequest, error) {
 	apiReq := new(nativeChatRequest)
-	raw, found := req.Options.Extensions[RequestExtensionKey]
+	raw, found, err := req.Options.Extensions.Decode[json.RawMessage](RequestExtensionKey)
+	if err != nil {
+		return nil, fmt.Errorf("ollama: extension %q: %w", RequestExtensionKey, err)
+	}
 	if !found {
 		return apiReq, nil
 	}

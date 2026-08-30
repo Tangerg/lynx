@@ -24,11 +24,8 @@ func TestModelFunc(t *testing.T) {
 }
 
 func TestOptionsAndRequestValidation(t *testing.T) {
-	if _, err := moderation.NewOptions(""); err == nil {
-		t.Fatal("NewOptions accepted empty model")
-	}
-	if _, err := moderation.NewOptions(" model "); err == nil {
-		t.Fatal("NewOptions accepted model with surrounding whitespace")
+	if err := (moderation.Options{Model: " model "}).Validate(); err == nil {
+		t.Fatal("Options accepted model with surrounding whitespace")
 	}
 	if _, err := moderation.NewRequest(nil); err == nil {
 		t.Fatal("NewRequest accepted empty texts")
@@ -36,25 +33,19 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 	if _, err := moderation.NewRequest([]string{"valid", ""}); err == nil {
 		t.Fatal("NewRequest accepted an empty text entry")
 	}
-	if resolved, err := (moderation.Options{}).Resolve(moderation.Options{}); err != nil || resolved.Model != "" || len(resolved.Extensions) != 0 {
+	if resolved, err := (moderation.Options{}).Resolve(moderation.Options{}); err != nil || resolved.Model != "" || !resolved.Extensions.IsZero() {
 		t.Fatalf("zero Options.Resolve(empty) = %#v, %v", resolved, err)
 	}
 	if err := (*moderation.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")
 	}
-	invalid := &moderation.Request{
-		Texts:   []string{"text"},
-		Options: moderation.Options{Extensions: metadata.Map{"provider/broken": []byte("{")}},
-	}
-	if err := invalid.Validate(); err == nil {
-		t.Fatal("Validate accepted invalid options metadata")
-	}
+	invalid := &moderation.Request{Texts: []string{"text"}}
 	invalid.Options = moderation.Options{Model: " model "}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted model with surrounding whitespace")
 	}
 	options := new(moderation.Options)
-	if err := options.SetExtension("provider/value", func() {}); err == nil || options.Extensions != nil {
+	if err := options.Extensions.Set("provider/value", func() {}); err == nil || !options.Extensions.IsZero() {
 		t.Fatalf("failed SetExtension mutated options: %#v, %v", options.Extensions, err)
 	}
 	if _, err := (moderation.Options{Model: " model "}).Resolve(moderation.Options{}); err == nil {
@@ -89,15 +80,17 @@ func TestCategoriesAndResponse(t *testing.T) {
 }
 
 func TestOptionsResolveAndCopies(t *testing.T) {
-	base := moderation.Options{Model: "base", Extensions: mustMetadata(t, map[string]any{"provider/base": true})}
+	base := moderation.Options{Model: "base", Extensions: mustExtensions(t, map[string]any{"provider/base": true})}
 	resolved, err := base.Resolve(moderation.Options{
 		Model:      "override",
-		Extensions: mustMetadata(t, map[string]any{"provider/override": true}),
+		Extensions: mustExtensions(t, map[string]any{"provider/override": true}),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if resolved.Model != "override" || len(resolved.Extensions) != 2 {
+	if resolved.Model != "override" ||
+		!mustDecode[bool](t, resolved.Extensions, "provider/base") ||
+		!mustDecode[bool](t, resolved.Extensions, "provider/override") {
 		t.Fatalf("Resolve = %#v", resolved)
 	}
 	clone := resolved.Clone()
@@ -109,16 +102,18 @@ func TestOptionsResolveAndCopies(t *testing.T) {
 	}
 }
 
-func mustMetadata(t *testing.T, values map[string]any) metadata.Map {
+func mustExtensions(t *testing.T, values map[string]any) metadata.Extensions {
 	t.Helper()
-	output, err := metadata.FromValues(values)
-	if err != nil {
-		t.Fatal(err)
+	var output metadata.Extensions
+	for key, value := range values {
+		if err := output.Set(key, value); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return output
 }
 
-func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
+func mustDecode[T any](t *testing.T, values metadata.Extensions, key string) T {
 	t.Helper()
 	value, ok, err := values.Decode[T](key)
 	if err != nil || !ok {

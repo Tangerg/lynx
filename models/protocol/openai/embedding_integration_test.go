@@ -18,7 +18,8 @@ func integrationEmbeddingModel(t *testing.T) *openai.EmbeddingModel {
 	if modelID == "" {
 		modelID = "text-embedding-3-small"
 	}
-	opts, err := embedding.NewOptions(modelID)
+	opts := embedding.Options{Model: modelID}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

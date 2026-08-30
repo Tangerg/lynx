@@ -8,9 +8,9 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-// Visitor transforms AST filter expressions into the JSON filter
+// visitor transforms AST filter expressions into the JSON filter
 // document S3 Vectors expects under the QueryVectors `Filter` field.
 //
 // The S3 Vectors filter language is Mongo-flavored:
@@ -20,28 +20,28 @@ var _ filter.Visitor = (*Visitor)(nil)
 //	tag IN ("a", "b")        →  {"tag":    {"$in": ["a", "b"]}}
 //	NOT (author == "Alice")  →  {"$not":   {"author": {"$eq": "Alice"}}}
 //	a == "x" AND b == "y"    →  {"$and": [{"a":{"$eq":"x"}}, {"b":{"$eq":"y"}}]}
-type Visitor struct {
+type visitor struct {
 	err    error
 	result map[string]any
 }
 
-func NewVisitor() *Visitor { return &Visitor{} }
+func newVisitor() *visitor { return &visitor{} }
 
-func (v *Visitor) Result() map[string]any {
+func (v *visitor) snapshot() map[string]any {
 	if v.err != nil {
 		return nil
 	}
 	return v.result
 }
 
-func (v *Visitor) Visit(expr filter.Predicate) error {
+func (v *visitor) Visit(expr filter.Predicate) error {
 	doc, err := v.translate(expr)
 	v.err = err
 	v.result = doc
 	return v.err
 }
 
-func (v *Visitor) translate(expr filter.Expr) (map[string]any, error) {
+func (v *visitor) translate(expr filter.Expr) (map[string]any, error) {
 	if expr == nil {
 		return nil, errors.New("s3vectors: cannot process nil expression")
 	}
@@ -55,7 +55,7 @@ func (v *Visitor) translate(expr filter.Expr) (map[string]any, error) {
 	}
 }
 
-func (v *Visitor) translateBinary(expr *filter.BinaryExpr) (map[string]any, error) {
+func (v *visitor) translateBinary(expr *filter.BinaryExpr) (map[string]any, error) {
 	switch {
 	case expr.Operator().IsLogicalOperator():
 		return v.translateLogical(expr)
@@ -72,7 +72,7 @@ func (v *Visitor) translateBinary(expr *filter.BinaryExpr) (map[string]any, erro
 
 // translateHas uses S3 Vectors' documented scalar equality behavior for
 // metadata arrays: $eq matches when any array element equals the scalar.
-func (v *Visitor) translateHas(expr *filter.BinaryExpr) (map[string]any, error) {
+func (v *visitor) translateHas(expr *filter.BinaryExpr) (map[string]any, error) {
 	key, err := keyName(expr.Left())
 	if err != nil {
 		return nil, err
@@ -84,7 +84,7 @@ func (v *Visitor) translateHas(expr *filter.BinaryExpr) (map[string]any, error) 
 	return map[string]any{key: map[string]any{"$eq": value}}, nil
 }
 
-func (v *Visitor) translateUnary(expr *filter.UnaryExpr) (map[string]any, error) {
+func (v *visitor) translateUnary(expr *filter.UnaryExpr) (map[string]any, error) {
 	if !expr.Operator().Is(filter.OpNot) {
 		return nil, fmt.Errorf("s3vectors: unsupported unary '%s'", expr.Operator().String())
 	}
@@ -95,7 +95,7 @@ func (v *Visitor) translateUnary(expr *filter.UnaryExpr) (map[string]any, error)
 	return map[string]any{"$not": inner}, nil
 }
 
-func (v *Visitor) translateLogical(expr *filter.BinaryExpr) (map[string]any, error) {
+func (v *visitor) translateLogical(expr *filter.BinaryExpr) (map[string]any, error) {
 	left, err := v.translate(expr.Left())
 	if err != nil {
 		return nil, err
@@ -111,7 +111,7 @@ func (v *Visitor) translateLogical(expr *filter.BinaryExpr) (map[string]any, err
 	return map[string]any{op: []any{left, right}}, nil
 }
 
-func (v *Visitor) translateComparison(expr *filter.BinaryExpr) (map[string]any, error) {
+func (v *visitor) translateComparison(expr *filter.BinaryExpr) (map[string]any, error) {
 	key, err := keyName(expr.Left())
 	if err != nil {
 		return nil, err
@@ -127,7 +127,7 @@ func (v *Visitor) translateComparison(expr *filter.BinaryExpr) (map[string]any, 
 	return map[string]any{key: map[string]any{op: value}}, nil
 }
 
-func (v *Visitor) translateIn(expr *filter.BinaryExpr) (map[string]any, error) {
+func (v *visitor) translateIn(expr *filter.BinaryExpr) (map[string]any, error) {
 	key, err := keyName(expr.Left())
 	if err != nil {
 		return nil, err

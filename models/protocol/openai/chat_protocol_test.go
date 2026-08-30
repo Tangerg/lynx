@@ -179,7 +179,7 @@ func TestCompatibleChatRejectsResultCountOption(t *testing.T) {
 	if err != nil {
 		t.Fatalf("NewRequest: %v", err)
 	}
-	if err := request.Options.SetExtension("test/openai_request", map[string]any{"n": 2}); err != nil {
+	if err := request.Options.Extensions.Set("test/openai_request", map[string]any{"n": 2}); err != nil {
 		t.Fatalf("SetExtension: %v", err)
 	}
 	if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), "produces one output") {
@@ -233,7 +233,7 @@ func newCoreChatRequest(t *testing.T) *corechat.Request {
 		Description: "Search the index",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"q":{"type":"string"}},"required":["q"]}`),
 	}}
-	if err := request.Options.SetExtension("test/openai_request", map[string]any{
+	if err := request.Options.Extensions.Set("test/openai_request", map[string]any{
 		"modalities": []string{"text", "audio"},
 		"audio":      map[string]any{"format": "wav", "voice": "alloy"},
 	}); err != nil {

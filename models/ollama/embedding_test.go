@@ -30,7 +30,8 @@ func TestEmbeddingModel_Call_Mock(t *testing.T) {
 	})
 	t.Cleanup(srv.Close)
 
-	opts, err := embedding.NewOptions("nomic-embed-text")
+	opts := embedding.Options{Model: "nomic-embed-text"}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

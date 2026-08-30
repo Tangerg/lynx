@@ -86,7 +86,7 @@ func TestAcceptPropagatesVisitorError(t *testing.T) {
 	wantErr := errors.New("stop")
 	visitor := &recordingVisitor{err: wantErr}
 
-	if err := predicate.Accept(visitor); err != wantErr {
+	if err := predicate.Accept(visitor); !errors.Is(err, wantErr) {
 		t.Fatalf("Accept() error = %v, want %v", err, wantErr)
 	}
 	if visitor.visits != 1 || visitor.visited != predicate {

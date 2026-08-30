@@ -1,6 +1,7 @@
 package evaluation
 
 import (
+	"encoding/json"
 	"fmt"
 	"math"
 	"slices"
@@ -8,6 +9,9 @@ import (
 
 	"github.com/Tangerg/scope/core/metadata"
 )
+
+// MaxReportDepth bounds recursive detail trees at every public trust boundary.
+const MaxReportDepth = 64
 
 // Report is one evaluation result. Verdict, normalized Score, and raw
 // Measurement are independent and optional so measurement-only and qualitative
@@ -23,7 +27,15 @@ type Report struct {
 	Details     []Report     `json:"details,omitzero"`
 }
 
-func (report Report) Clone() Report {
+// Clone validates the complete detail tree before allocating its detached copy.
+func (report Report) Clone() (Report, error) {
+	if err := report.Validate(); err != nil {
+		return Report{}, err
+	}
+	return report.cloneValid(), nil
+}
+
+func (report Report) cloneValid() Report {
 	report.Metric = report.Metric.Clone()
 	if report.Score != nil {
 		score := *report.Score
@@ -36,12 +48,19 @@ func (report Report) Clone() Report {
 	report.Metadata = report.Metadata.Clone()
 	report.Details = slices.Clone(report.Details)
 	for index := range report.Details {
-		report.Details[index] = report.Details[index].Clone()
+		report.Details[index] = report.Details[index].cloneValid()
 	}
 	return report
 }
 
 func (report Report) Validate() error {
+	return report.validate(1)
+}
+
+func (report Report) validate(depth int) error {
+	if depth > MaxReportDepth {
+		return fmt.Errorf("%w: detail depth exceeds %d", ErrInvalidReport, MaxReportDepth)
+	}
 	if err := report.Metric.Validate(); err != nil {
 		return fmt.Errorf("%w: metric: %w", ErrInvalidReport, err)
 	}
@@ -66,10 +85,35 @@ func (report Report) Validate() error {
 		return fmt.Errorf("%w: at least one verdict, score, measurement, feedback, metadata value, or detail is required", ErrInvalidReport)
 	}
 	for index, detail := range report.Details {
-		if err := detail.Validate(); err != nil {
+		if err := detail.validate(depth + 1); err != nil {
 			return fmt.Errorf("%w: details[%d]: %w", ErrInvalidReport, index, err)
 		}
 	}
+	return nil
+}
+
+func (report Report) MarshalJSON() ([]byte, error) {
+	if err := report.Validate(); err != nil {
+		return nil, err
+	}
+	type wireReport Report
+	return json.Marshal(wireReport(report))
+}
+
+func (report *Report) UnmarshalJSON(data []byte) error {
+	if report == nil {
+		return fmt.Errorf("%w: nil receiver", ErrInvalidReport)
+	}
+	type wireReport Report
+	var decoded wireReport
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("%w: decode: %w", ErrInvalidReport, err)
+	}
+	candidate := Report(decoded)
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	*report = candidate
 	return nil
 }
 

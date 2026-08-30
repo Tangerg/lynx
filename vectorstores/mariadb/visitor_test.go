@@ -1,4 +1,4 @@
-package mariadb_test
+package mariadb
 
 import (
 	"reflect"
@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 	"github.com/Tangerg/scope/core/vectorstore/storetest"
-	"github.com/Tangerg/scope/vectorstores/mariadb"
 )
 
 func TestVisitor_Conformance(t *testing.T) {
@@ -16,7 +15,7 @@ func TestVisitor_Conformance(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		v := mariadb.NewVisitor("metadata")
+		v := newVisitor("metadata")
 		return expr.Accept(v)
 	})
 }
@@ -28,11 +27,11 @@ func build(t *testing.T, src string) (string, []any, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	v := mariadb.NewVisitor("metadata")
+	v := newVisitor("metadata")
 	if err := expr.Accept(v); err != nil {
 		return "", nil, err
 	}
-	sql, args := v.Result()
+	sql, args := v.snapshot()
 	return sql, args, nil
 }
 
@@ -72,11 +71,11 @@ func TestVisitor_CollectionMembershipPreservesJSONType(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			visitor := mariadb.NewVisitor("metadata")
+			visitor := newVisitor("metadata")
 			if err := test.predicate.Accept(visitor); err != nil {
 				t.Fatal(err)
 			}
-			sql, args := visitor.Result()
+			sql, args := visitor.snapshot()
 			if sql != test.wantSQL {
 				t.Fatalf("sql = %q, want %q", sql, test.wantSQL)
 			}

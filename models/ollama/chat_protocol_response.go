@@ -39,7 +39,7 @@ func (p *protocolResponseMapper) mapResponse(requestModel string, response nativ
 			},
 		},
 	}
-	if err := mapped.Metadata.Set(ResponseExtensionKey, response.raw); err != nil {
+	if err := mapped.Metadata.Extra.Set(ResponseExtensionKey, response.raw); err != nil {
 		return nil, fmt.Errorf("ollama: preserve native response: %w", err)
 	}
 
@@ -51,7 +51,7 @@ func (p *protocolResponseMapper) mapResponse(requestModel string, response nativ
 		mapped.Output = output
 	}
 	if !response.CreatedAt.IsZero() {
-		if err := mapped.Metadata.Set(protocolCreatedAtKey, response.CreatedAt.UTC().Format(time.RFC3339Nano)); err != nil {
+		if err := mapped.Metadata.Extra.Set(protocolCreatedAtKey, response.CreatedAt.UTC().Format(time.RFC3339Nano)); err != nil {
 			return nil, err
 		}
 	}
@@ -62,7 +62,7 @@ func (p *protocolResponseMapper) mapResponse(requestModel string, response nativ
 			"prompt_eval": int64(response.PromptEvalDuration),
 			"eval":        int64(response.EvalDuration),
 		}
-		if err := mapped.Metadata.Set(protocolDurationsKey, durations); err != nil {
+		if err := mapped.Metadata.Extra.Set(protocolDurationsKey, durations); err != nil {
 			return nil, err
 		}
 	}
@@ -71,7 +71,7 @@ func (p *protocolResponseMapper) mapResponse(requestModel string, response nativ
 			PromptEvalCount: response.PromptEvalCount,
 			EvalCount:       response.EvalCount,
 		}
-		if err := mapped.Metadata.Set(protocolMetricsKey, metrics); err != nil {
+		if err := mapped.Metadata.Extra.Set(protocolMetricsKey, metrics); err != nil {
 			return nil, err
 		}
 	}
@@ -85,7 +85,7 @@ func (p *protocolResponseMapper) mapOutput(response nativeChatResponse) (*corech
 	output := &corechat.Output{FinishReason: normalizeProtocolDoneReason(response.DoneReason)}
 	if response.DoneReason != "" {
 		output.Metadata = &corechat.OutputMetadata{}
-		if err := output.Metadata.Set(protocolNativeDoneReasonKey, response.DoneReason); err != nil {
+		if err := output.Metadata.Extra.Set(protocolNativeDoneReasonKey, response.DoneReason); err != nil {
 			return nil, false, err
 		}
 	}

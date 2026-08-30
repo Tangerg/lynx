@@ -468,11 +468,11 @@ func (s *Store) buildFilter(expr filter.Predicate) (bson.M, error) {
 	if expr == nil {
 		return nil, nil
 	}
-	v := NewVisitor(s.metadataField)
+	v := newVisitor(s.metadataField)
 	if err := expr.Accept(v); err != nil {
 		return nil, fmt.Errorf("mongodb: convert filter: %w", err)
 	}
-	return bson.M(v.Result()), nil
+	return bson.M(v.snapshot()), nil
 }
 
 func (s *Store) toMatch(raw bson.M) (*vectorstore.SearchResult, error) {

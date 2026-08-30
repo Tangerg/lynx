@@ -16,7 +16,8 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	srv := modeltest.JSONServer(http.StatusOK, body)
 	t.Cleanup(srv.Close)
 
-	opts, err := image.NewOptions(stability.ModelCore)
+	opts := image.Options{Model: stability.ModelCore}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

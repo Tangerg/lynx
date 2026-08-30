@@ -25,28 +25,19 @@ func TestModelFunc(t *testing.T) {
 }
 
 func TestOptionsAndRequestValidation(t *testing.T) {
-	if _, err := image.NewOptions(""); err == nil {
-		t.Fatal("NewOptions accepted empty model")
-	}
-	if _, err := image.NewOptions(" model "); err == nil {
-		t.Fatal("NewOptions accepted model with surrounding whitespace")
+	if err := (image.Options{Model: " model "}).Validate(); err == nil {
+		t.Fatal("Options accepted model with surrounding whitespace")
 	}
 	if _, err := image.NewRequest(""); err == nil {
 		t.Fatal("NewRequest accepted empty prompt")
 	}
-	if resolved, err := (image.Options{}).Resolve(image.Options{}); err != nil || resolved.Model != "" || resolved.Width != nil || len(resolved.Extensions) != 0 {
+	if resolved, err := (image.Options{}).Resolve(image.Options{}); err != nil || resolved.Model != "" || resolved.Width != nil || !resolved.Extensions.IsZero() {
 		t.Fatalf("zero Options.Resolve(empty) = %#v, %v", resolved, err)
 	}
 	if err := (*image.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")
 	}
-	invalid := &image.Request{
-		Prompt:  "scope",
-		Options: image.Options{Extensions: metadata.Map{"provider/broken": []byte("{")}},
-	}
-	if err := invalid.Validate(); err == nil {
-		t.Fatal("Validate accepted invalid options metadata")
-	}
+	invalid := &image.Request{Prompt: "scope"}
 	invalid.Options = image.Options{Model: " model "}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted model with surrounding whitespace")
@@ -66,10 +57,11 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 		t.Fatal("Validate accepted a non-canonical output MIME type")
 	}
 	options := new(image.Options)
-	if err := options.SetExtension("provider/value", func() {}); err == nil || options.Extensions != nil {
+	if err := options.Extensions.Set("provider/value", func() {}); err == nil || !options.Extensions.IsZero() {
 		t.Fatalf("failed SetExtension mutated options: %#v, %v", options.Extensions, err)
 	}
-	base, err := image.NewOptions("image-model")
+	base := image.Options{Model: "image-model"}
+	err := base.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -115,11 +107,11 @@ func TestResponseValidation(t *testing.T) {
 
 func TestOptionsResolveAndCopies(t *testing.T) {
 	width, height, seed := int64(512), int64(768), int64(7)
-	base := image.Options{Model: "base", Width: &width, Extensions: mustMetadata(t, map[string]any{"provider/base": true})}
+	base := image.Options{Model: "base", Width: &width, Extensions: mustExtensions(t, map[string]any{"provider/base": true})}
 	override := image.Options{
 		Model: "override", NegativePrompt: "text", Width: &width, Height: &height,
 		Seed: &seed, OutputFormat: "image/png",
-		Extensions: mustMetadata(t, map[string]any{"provider/override": true}),
+		Extensions: mustExtensions(t, map[string]any{"provider/override": true}),
 	}
 	resolved, err := base.Resolve(override)
 	if err != nil {
@@ -129,7 +121,8 @@ func TestOptionsResolveAndCopies(t *testing.T) {
 		resolved.Seed == nil || resolved.OutputFormat != "image/png" {
 		t.Fatalf("Resolve = %#v", resolved)
 	}
-	if len(resolved.Extensions) != 2 {
+	if !mustDecodeExtension[bool](t, resolved.Extensions, "provider/base") ||
+		!mustDecodeExtension[bool](t, resolved.Extensions, "provider/override") {
 		t.Fatalf("resolved Extensions = %#v", resolved.Extensions)
 	}
 	*resolved.Height = 1024
@@ -142,7 +135,7 @@ func TestOptionsResolveAndCopies(t *testing.T) {
 	if err := clone.Extensions.Set("provider/base", false); err != nil {
 		t.Fatal(err)
 	}
-	if *resolved.Width != 512 || !mustDecode[bool](t, resolved.Extensions, "provider/base") {
+	if *resolved.Width != 512 || !mustDecodeExtension[bool](t, resolved.Extensions, "provider/base") {
 		t.Fatal("Options.Clone aliases source state")
 	}
 }
@@ -180,11 +173,22 @@ func mustMetadata(t *testing.T, values map[string]any) metadata.Map {
 	return output
 }
 
-func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
+func mustExtensions(t *testing.T, values map[string]any) metadata.Extensions {
+	t.Helper()
+	var output metadata.Extensions
+	for key, value := range values {
+		if err := output.Set(key, value); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return output
+}
+
+func mustDecodeExtension[T any](t *testing.T, values metadata.Extensions, key string) T {
 	t.Helper()
 	value, ok, err := values.Decode[T](key)
 	if err != nil || !ok {
-		t.Fatalf("metadata.Decode(%q) = %#v, %t, %v", key, value, ok, err)
+		t.Fatalf("Extensions.Decode(%q) = %#v, %t, %v", key, value, ok, err)
 	}
 	return value
 }

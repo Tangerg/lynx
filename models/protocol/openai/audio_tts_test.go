@@ -15,7 +15,8 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	srv := modeltest.BinaryServer(200, "audio/mpeg", canned)
 	t.Cleanup(srv.Close)
 
-	opts, err := tts.NewOptions("tts-1")
+	opts := tts.Options{Model: "tts-1"}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -55,7 +56,7 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 }
 
 func TestAudioTTSModelConfigRejectsNegativeResponseLimit(t *testing.T) {
-	opts, _ := tts.NewOptions("tts-1")
+	opts := tts.Options{Model: "tts-1"}
 	_, err := openai.NewAudioTTSModel(openai.AudioTTSModelConfig{
 		Provider: "openai", APIKey: "test-key", DefaultOptions: opts, MaxResponseBytes: -1,
 	})

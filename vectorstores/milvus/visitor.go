@@ -9,28 +9,28 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-// Visitor compiles Scope filter expressions into Milvus's string expression
+// visitor compiles Scope filter expressions into Milvus's string expression
 // language. A value is reusable: Visit resets the previous result before
 // compiling the complete immutable tree. Numeric literals retain their
 // canonical text instead of passing through float64.
-type Visitor struct {
+type visitor struct {
 	result string
 }
 
-func NewVisitor() *Visitor {
-	return &Visitor{}
+func newVisitor() *visitor {
+	return &visitor{}
 }
 
-// Result is empty until Visit succeeds and after any failed compilation.
-func (v *Visitor) Result() string {
+// Failed compilation clears the prior value so a reused compiler cannot leak a stale filter.
+func (v *visitor) snapshot() string {
 	return v.result
 }
 
 // Visit replaces prior state and accepts only trees Milvus can represent
 // without changing their meaning.
-func (v *Visitor) Visit(predicate filter.Predicate) error {
+func (v *visitor) Visit(predicate filter.Predicate) error {
 	v.result = ""
 	result, err := compilePredicate(predicate)
 	if err != nil {

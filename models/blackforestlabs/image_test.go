@@ -50,7 +50,8 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	serverURL = srv.URL
 	t.Cleanup(srv.Close)
 
-	opts, err := image.NewOptions("flux-pro-1.1")
+	opts := image.Options{Model: "flux-pro-1.1"}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

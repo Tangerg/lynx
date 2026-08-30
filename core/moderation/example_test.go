@@ -11,7 +11,8 @@ func Example() {
 	if err != nil {
 		panic(err)
 	}
-	options, err := moderation.NewOptions("moderation-model")
+	options := moderation.Options{Model: "moderation-model"}
+	err = options.Validate()
 	if err != nil {
 		panic(err)
 	}

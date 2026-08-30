@@ -344,11 +344,11 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, []NamedParam, erro
 	if filter == nil {
 		return "", nil, nil
 	}
-	v := NewVisitor(docAlias, s.metadataField)
+	v := newVisitor(docAlias, s.metadataField)
 	if err := filter.Accept(v); err != nil {
 		return "", nil, fmt.Errorf("azurecosmos: convert filter: %w", err)
 	}
-	predicate, params := v.Result()
+	predicate, params := v.snapshot()
 	return predicate, params, nil
 }
 

@@ -571,6 +571,7 @@ Host 负责 Store、transaction、CAS、lease、幂等、retention、产品身�
 - Framework 定义一致 capture 点，Host 决定哪些 capture 被持久化；“已捕获”不等于“已持久化”。
 - `ProcessSnapshot` 只用于诊断、Strategy inspector、Event/debug tooling 和测试，不是恢复输入；完整 `TreeSnapshot` 是唯一恢复单位，禁止把 child 当新 root 或只恢复父级。
 - `TreeSnapshot` 严格保存每个 Process snapshot、Engine-owned 活动 direct-child wait、planned/pending/settled Effect phase 与完整 tree program counter，不保存 dispatcher、resolver 或 Host persistence 对象。每棵树的 owner line直接形成 canonical snapshot；in-flight Step/Dispatch job 不进入 snapshot，只保留 last-stable state与已提交 Effect phase。
+- `TreeSnapshot` envelope 必须携带 `CurrentTreeSnapshotVersion`。缺失或未知版本返回独立的 `ErrUnsupportedTreeSnapshotVersion`，不能伪装成内容损坏；Kernel 只读取当前版本，不做隐式迁移。升级前的排空、保留或显式 wire 迁移由拥有持久化数据的 Host 负责，并须在调用 `RestoreTree` 前完成。
 - tree restore 先校验 root/parent/depth/ChildKey、预算总和、能力衰减、tree limits、活动 child wait 和每个精确 DeploymentRef，再原子注册完整树；任一校验或解析失败不得留下部分 Process。
 - 等待子树取消是 Kernel 自有的一次性 prepared capability：`PrepareWaitingSubtreeCancellation` 在完整 tree quiescent cut 上冻结 source root tree，记录 acknowledged `SourceTreeDigest`，计算确定的 resulting TreeSnapshot、parent-before-child 的 canceled Process IDs 和需要显式继续的 paused parent IDs，并返回 `PreparedWaitingSubtreeCancellation`。该 capability 必须且只能以 `Apply` 或 `Discard` 结束；在结束前同一 root tree 不能越过冻结边界，也不能从第二份状态重算结果。
 - prepared 结果保留被取消 Process 及永久 child budget allocation，以 host-canceled target、parent-canceled active descendants、已关闭等待和 Kernel-owned child-completion Signal 表达事实；直接父级在消费完成 Signal 前进入 Paused。所有可失败、可取消的 Process projection staging 都在 Prepare 返回 capability 前完成；失败会释放 source tree且 live state 不变。返回后的 contextless `Apply()` 只跨越单一 apply gate并完成既有 finalization，caller 不能用请求取消撤销已经形成的 durable decision；`Discard` 只释放 source tree。两者都保留既有 Process handle，不替换 controller，不解析或修改 opaque ExecutionState，也不引入 persistence、transaction、checkpoint、lease 或产品删除模型。
@@ -646,8 +647,9 @@ agent/
 │   └── goap/                GOAP 实现，只依赖 Planning contract
 ├── workflow/                managed child Process 的确定性有序编排
 ├── platform/                Deployment catalog、选择与治理
+├── agenttest/               可复用契约套件与参考适配器，不进入 Host 生产依赖闭包
 ├── examples/                验证公共使用路径的可运行示例
-└── doc/                     架构、决策与执行记录
+└── doc/                     当前架构与工程合同
 ```
 
 OpenTelemetry adapter 位于独立 sibling module `otel/agent`，从集成层依赖这里的公开 Event 合同；它不是 Agent Framework 的生产 package，也不会把 OTel 依赖带回本 module。
@@ -656,11 +658,11 @@ OpenTelemetry adapter 位于独立 sibling module `otel/agent`，从集成层依
 
 - 不预建 `core/`、`runtime/`、`service/`、`manager/`、`common/`、`utils/` 等层次或泛名 package。
 - 根 package 承载真正共同且不可再分的公共语义；策略专属类型留在策略 package。
-- 新 package 只有在独立变化原因和真实消费者已被证明、ADR 已更新生产 package 集合与允许边后才能建立；`htn`、`utility`、`hitl`、`internal` 目前都不存在。
+- 新 package 只有在独立变化原因和真实消费者已被证明，并在本文的生产 package 集合与允许边中登记后才能建立；`htn`、`utility`、`hitl`、`internal` 目前都不存在。
 - 不为“整洁”机械拆包，以独立变化原因、依赖切断和真实消费者作为依据。
 - 根 facade 不通过大量 alias 重导出所有高级类型。
 - `Process` 的构造权只属于 Engine；公开只读/控制面不能绕过合法状态机创建或改写 Process。
-- 全图 architecture test 扫描所有非测试生产 `.go` 文件（包括受 build tag 约束的文件），锁定 package 集合、允许的内部直连边和关键外部依赖归属；examples 作为组合公共 API 的消费者单独验收，不进入生产 DAG。
+- 全图 architecture test 扫描所有非测试生产 `.go` 文件（包括受 build tag 约束的文件），锁定 package 集合、允许的内部直连边和关键外部依赖归属；`agenttest` 与 examples 分别作为契约测试消费者和组合公共 API 消费者单独验收，不进入 Host 生产 DAG。
 
 ---
 

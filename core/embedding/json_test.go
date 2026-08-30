@@ -11,7 +11,7 @@ import (
 )
 
 func TestJSONBoundaries(t *testing.T) {
-	if _, err := embedding.NewOptions(""); !errors.Is(err, embedding.ErrInvalidOptions) {
+	if err := (embedding.Options{Model: " model "}).Validate(); !errors.Is(err, embedding.ErrInvalidOptions) {
 		t.Fatalf("NewOptions error = %v", err)
 	}
 	if _, err := embedding.NewRequest(nil); !errors.Is(err, embedding.ErrInvalidRequest) {
@@ -21,7 +21,7 @@ func TestJSONBoundaries(t *testing.T) {
 		t.Fatalf("NewResponse error = %v", err)
 	}
 	var extensionOptions embedding.Options
-	if err := extensionOptions.SetExtension("invalid", true); !errors.Is(err, embedding.ErrInvalidOptions) {
+	if err := extensionOptions.Extensions.Set("invalid", true); err == nil {
 		t.Fatalf("SetExtension error = %v", err)
 	}
 
@@ -82,7 +82,7 @@ func TestResponseJSONRoundTripPreservesValidatedMetadata(t *testing.T) {
 		Usage:   &embedding.Usage{InputTokens: 7},
 		Created: 42,
 	}
-	if setErr := responseMetadata.Set("provider/response", "request-id"); setErr != nil {
+	if setErr := responseMetadata.Extra.Set("provider/response", "request-id"); setErr != nil {
 		t.Fatal(setErr)
 	}
 	response, err := embedding.NewResponse([]*embedding.Output{output}, responseMetadata)
@@ -104,9 +104,6 @@ func TestResponseJSONRoundTripPreservesValidatedMetadata(t *testing.T) {
 }
 
 func TestResponseJSONRejectsInvalidNestedValues(t *testing.T) {
-	if err := (*embedding.ResponseMetadata)(nil).Set("provider/value", true); !errors.Is(err, embedding.ErrInvalidResponse) {
-		t.Fatalf("nil ResponseMetadata.Set error = %v", err)
-	}
 	if _, err := json.Marshal(embedding.Usage{InputTokens: -1}); !errors.Is(err, embedding.ErrInvalidResponse) {
 		t.Fatalf("negative Usage marshal error = %v", err)
 	}

@@ -1,11 +1,10 @@
-package chroma_test
+package chroma
 
 import (
 	"testing"
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 	"github.com/Tangerg/scope/core/vectorstore/storetest"
-	"github.com/Tangerg/scope/vectorstores/chroma"
 )
 
 func TestVisitor_Conformance(t *testing.T) {
@@ -15,7 +14,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			v := chroma.NewVisitor()
+			v := newVisitor()
 			return expr.Accept(v)
 		},
 		storetest.Options{Unsupported: []string{
@@ -34,7 +33,7 @@ func TestVisitor_RejectsLossyNumbers(t *testing.T) {
 	}
 	for name, predicate := range tests {
 		t.Run(name, func(t *testing.T) {
-			if err := predicate.Accept(chroma.NewVisitor()); err == nil {
+			if err := predicate.Accept(newVisitor()); err == nil {
 				t.Fatal("Chroma silently accepted a lossy number")
 			}
 		})

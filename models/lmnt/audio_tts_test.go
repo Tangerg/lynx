@@ -36,7 +36,8 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	opts, err := tts.NewOptions(lmnt.ModelBlizzard)
+	opts := tts.Options{Model: lmnt.ModelBlizzard}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,7 +81,7 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 }
 
 func TestAudioTTSModelConfigRejectsNegativeResponseLimit(t *testing.T) {
-	opts, _ := tts.NewOptions(lmnt.ModelBlizzard)
+	opts := tts.Options{Model: lmnt.ModelBlizzard}
 	opts.Voice = "lily"
 	_, err := lmnt.NewAudioTTSModel(lmnt.AudioTTSModelConfig{
 		APIKey: "test-key", DefaultOptions: opts, MaxResponseBytes: -1,

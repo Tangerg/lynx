@@ -15,7 +15,8 @@ import (
 
 func newEmbeddingModel(t *testing.T, baseURL, modelID string) *openai.EmbeddingModel {
 	t.Helper()
-	opts, err := embedding.NewOptions(modelID)
+	opts := embedding.Options{Model: modelID}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatalf("NewOptions: %v", err)
 	}

@@ -209,13 +209,13 @@ func (a *AudioTranscriptionModel) buildResponse(apiResp *transcriptResponse) (*t
 	}
 
 	meta := &transcription.ResponseMetadata{Model: apiResp.SpeechModelUsed}
-	if err := meta.Set("assemblyai/transcript_id", apiResp.ID); err != nil {
+	if err := meta.Extra.Set("assemblyai/transcript_id", apiResp.ID); err != nil {
 		return nil, err
 	}
-	if err := meta.Set("assemblyai/audio_duration_seconds", apiResp.AudioDuration); err != nil {
+	if err := meta.Extra.Set("assemblyai/audio_duration_seconds", apiResp.AudioDuration); err != nil {
 		return nil, err
 	}
-	if err := meta.Set(ResponseExtensionKey, apiResp.Raw); err != nil {
+	if err := meta.Extra.Set(ResponseExtensionKey, apiResp.Raw); err != nil {
 		return nil, err
 	}
 

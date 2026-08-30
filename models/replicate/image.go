@@ -261,18 +261,18 @@ func (i *ImageModel) response(ctx context.Context, effectiveOptions image.Option
 		}
 		meta.Created = createdAt.Unix()
 	}
-	if err := meta.Set("replicate/model", effectiveOptions.Model); err != nil {
+	if err := meta.Extra.Set("replicate/model", effectiveOptions.Model); err != nil {
 		return nil, err
 	}
-	if err := meta.Set("replicate/prediction_id", final.ID); err != nil {
+	if err := meta.Extra.Set("replicate/prediction_id", final.ID); err != nil {
 		return nil, err
 	}
 	if final.Version != "" {
-		if err := meta.Set("replicate/version", final.Version); err != nil {
+		if err := meta.Extra.Set("replicate/version", final.Version); err != nil {
 			return nil, err
 		}
 	}
-	if err := meta.Set(ImageResponseExtensionKey, final); err != nil {
+	if err := meta.Extra.Set(ImageResponseExtensionKey, final); err != nil {
 		return nil, err
 	}
 	return image.NewResponse(outputs, meta)

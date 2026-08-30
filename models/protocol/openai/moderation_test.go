@@ -23,7 +23,8 @@ func TestModerationModel_Call_Mock(t *testing.T) {
 	srv := modeltest.JSONServer(http.StatusOK, modResponseJSON)
 	t.Cleanup(srv.Close)
 
-	opts, err := moderation.NewOptions("omni-moderation-latest")
+	opts := moderation.Options{Model: "omni-moderation-latest"}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

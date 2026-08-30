@@ -10,7 +10,7 @@ import (
 )
 
 func Example() {
-	store := inmemory.New()
+	store := new(inmemory.Store)
 	message := chat.NewUserMessage(chat.NewTextPart("hello"))
 	if err := store.Write(context.Background(), history.ConversationID("demo"), message); err != nil {
 		panic(err)

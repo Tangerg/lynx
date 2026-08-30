@@ -1,4 +1,4 @@
-package clickhouse_test
+package clickhouse
 
 import (
 	"strings"
@@ -6,7 +6,6 @@ import (
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 	"github.com/Tangerg/scope/core/vectorstore/storetest"
-	"github.com/Tangerg/scope/vectorstores/clickhouse"
 )
 
 // TestVisitor_Conformance exercises every AST shape the filter DSL
@@ -20,7 +19,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			v := clickhouse.NewVisitor("metadata")
+			v := newVisitor("metadata")
 			return expr.Accept(v)
 		},
 		storetest.Options{Unsupported: []string{"collection_membership"}},
@@ -34,11 +33,11 @@ func build(t *testing.T, src string) (string, []any, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	v := clickhouse.NewVisitor("metadata")
+	v := newVisitor("metadata")
 	if err := expr.Accept(v); err != nil {
 		return "", nil, err
 	}
-	sql, args := v.Result()
+	sql, args := v.snapshot()
 	return sql, args, nil
 }
 

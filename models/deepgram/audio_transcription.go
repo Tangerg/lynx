@@ -132,16 +132,16 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	}
 
 	meta := &transcription.ResponseMetadata{Model: params.Model}
-	if err := meta.Set("deepgram/request_id", apiResp.Metadata.RequestID); err != nil {
+	if err := meta.Extra.Set("deepgram/request_id", apiResp.Metadata.RequestID); err != nil {
 		return nil, err
 	}
-	if err := meta.Set("deepgram/duration_seconds", apiResp.Metadata.Duration); err != nil {
+	if err := meta.Extra.Set("deepgram/duration_seconds", apiResp.Metadata.Duration); err != nil {
 		return nil, err
 	}
-	if err := meta.Set("deepgram/channels", apiResp.Metadata.Channels); err != nil {
+	if err := meta.Extra.Set("deepgram/channels", apiResp.Metadata.Channels); err != nil {
 		return nil, err
 	}
-	if err := meta.Set(TranscriptionResponseExtensionKey, apiResp.Raw); err != nil {
+	if err := meta.Extra.Set(TranscriptionResponseExtensionKey, apiResp.Raw); err != nil {
 		return nil, err
 	}
 

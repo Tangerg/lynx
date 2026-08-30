@@ -22,7 +22,8 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 		Provider: "bedrock",
 		Build: func(t *testing.T, _ string) embedding.Model {
 			t.Helper()
-			opts, err := embedding.NewOptions(modelID)
+			opts := embedding.Options{Model: modelID}
+			err := opts.Validate()
 			if err != nil {
 				t.Fatal(err)
 			}

@@ -133,11 +133,11 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 		metadata.Usage = &embedding.Usage{InputTokens: batch.inputTokens}
 	}
 	if len(batch.responseBodies) == 1 {
-		if err := metadata.Set(EmbeddingResponseExtensionKey, batch.responseBodies[0]); err != nil {
+		if err := metadata.Extra.Set(EmbeddingResponseExtensionKey, batch.responseBodies[0]); err != nil {
 			return nil, err
 		}
 	} else if len(batch.responseBodies) > 1 {
-		if err := metadata.Set(EmbeddingResponseExtensionKey, batch.responseBodies); err != nil {
+		if err := metadata.Extra.Set(EmbeddingResponseExtensionKey, batch.responseBodies); err != nil {
 			return nil, err
 		}
 	}

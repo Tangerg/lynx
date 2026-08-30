@@ -24,7 +24,7 @@ func TestChatMapsCoreReasoningEffort(t *testing.T) {
 		t.Fatalf("reasoning_effort = %q", params.ReasoningEffort)
 	}
 
-	if err := request.Options.SetExtension(RequestExtensionKey, map[string]any{"reasoning_effort": "low"}); err != nil {
+	if err := request.Options.Extensions.Set(RequestExtensionKey, map[string]any{"reasoning_effort": "low"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := model.buildRequest(request, false); err == nil || !strings.Contains(err.Error(), "owned by Core") {
@@ -50,7 +50,7 @@ func TestResponsesMapsCoreReasoningEffortAndTokenProjection(t *testing.T) {
 		t.Fatalf("projected reasoning.effort = %q", projected.Reasoning.Effort)
 	}
 
-	if err := request.Options.SetExtension(ResponsesRequestExtensionKey, map[string]any{
+	if err := request.Options.Extensions.Set(ResponsesRequestExtensionKey, map[string]any{
 		"reasoning": map[string]any{"effort": "low"},
 	}); err != nil {
 		t.Fatal(err)

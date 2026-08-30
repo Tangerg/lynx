@@ -8,9 +8,9 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-// Visitor transforms AST filter expressions into a CQL WHERE
+// visitor transforms AST filter expressions into a CQL WHERE
 // fragment. Each metadata key must map to an actual indexed column on
 // the underlying table — Cassandra has no JSON-path operator, so
 // filters reference columns directly.
@@ -23,22 +23,22 @@ var _ filter.Visitor = (*Visitor)(nil)
 //
 // IN values are bound as a single slice parameter so callers can pass
 // `[]string{"a", "b"}` straight through.
-type Visitor struct {
+type visitor struct {
 	err  error
 	sql  strings.Builder
 	args []any
 }
 
-func NewVisitor() *Visitor { return &Visitor{} }
+func newVisitor() *visitor { return &visitor{} }
 
-func (v *Visitor) Result() (string, []any) {
+func (v *visitor) snapshot() (string, []any) {
 	if v.err != nil {
 		return "", nil
 	}
 	return v.sql.String(), v.args
 }
 
-func (v *Visitor) Visit(expr filter.Predicate) error {
+func (v *visitor) Visit(expr filter.Predicate) error {
 	v.err = nil
 	v.sql.Reset()
 	v.args = nil
@@ -46,7 +46,7 @@ func (v *Visitor) Visit(expr filter.Predicate) error {
 	return v.err
 }
 
-func (v *Visitor) visit(expr filter.Expr) error {
+func (v *visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("cassandra: cannot process nil expression")
 	}
@@ -64,7 +64,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
 	case expr.Operator().IsLogicalOperator():
 		if expr.Operator().Is(filter.OpOr) {
@@ -87,7 +87,7 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	}
 }
 
-func (v *Visitor) visitAnd(expr *filter.BinaryExpr) error {
+func (v *visitor) visitAnd(expr *filter.BinaryExpr) error {
 	if err := v.visit(expr.Left()); err != nil {
 		return err
 	}
@@ -95,7 +95,7 @@ func (v *Visitor) visitAnd(expr *filter.BinaryExpr) error {
 	return v.visit(expr.Right())
 }
 
-func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	column, err := columnName(expr.Left())
 	if err != nil {
 		return fmt.Errorf("cassandra: %w (at %s)", err, expr.Start().String())
@@ -117,7 +117,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	column, err := columnName(expr.Left())
 	if err != nil {
 		return fmt.Errorf("cassandra: %w (at %s)", err, expr.Start().String())

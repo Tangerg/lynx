@@ -11,7 +11,8 @@ func Example() {
 	if err != nil {
 		panic(err)
 	}
-	options, err := speech.NewOptions("speech-model")
+	options := speech.Options{Model: "speech-model"}
+	err = options.Validate()
 	if err != nil {
 		panic(err)
 	}

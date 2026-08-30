@@ -274,11 +274,11 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 	}
 
 	if req.Options.Filter != nil {
-		visitor := NewVisitor()
+		visitor := newVisitor()
 		if acceptErr := req.Options.Filter.Accept(visitor); acceptErr != nil {
 			return nil, fmt.Errorf("pinecone: convert filter: %w", acceptErr)
 		}
-		queryReq.MetadataFilter = visitor.Result()
+		queryReq.MetadataFilter = visitor.snapshot()
 	}
 
 	resp, err := s.index.QueryByVectorValues(ctx, queryReq)
@@ -306,12 +306,12 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return fmt.Errorf("pinecone.Store.DeleteWhere: %w", err)
 	}
 
-	visitor := NewVisitor()
+	visitor := newVisitor()
 	if err = expr.Accept(visitor); err != nil {
 		return fmt.Errorf("pinecone: convert filter: %w", err)
 	}
 
-	if err = s.index.DeleteVectorsByFilter(ctx, visitor.Result()); err != nil {
+	if err = s.index.DeleteVectorsByFilter(ctx, visitor.snapshot()); err != nil {
 		return fmt.Errorf("pinecone: delete vectors: %w", err)
 	}
 

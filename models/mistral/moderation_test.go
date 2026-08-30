@@ -22,7 +22,8 @@ func TestModerationModel_Call_Mock(t *testing.T) {
 	srv := modeltest.JSONServer(http.StatusOK, mistralModerationJSON)
 	t.Cleanup(srv.Close)
 
-	opts, err := moderation.NewOptions("mistral-moderation-latest")
+	opts := moderation.Options{Model: "mistral-moderation-latest"}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

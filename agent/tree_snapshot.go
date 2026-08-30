@@ -12,12 +12,17 @@ import (
 )
 
 const (
-	maxTreeSnapshotBytes = 512 << 20
+	maxTreeSnapshotBytes                           = 512 << 20
+	CurrentTreeSnapshotVersion TreeSnapshotVersion = 1
 )
 
 var (
-	ErrInvalidTreeSnapshot = errors.New("agent: invalid process tree snapshot")
+	ErrInvalidTreeSnapshot            = errors.New("agent: invalid process tree snapshot")
+	ErrUnsupportedTreeSnapshotVersion = errors.New("agent: unsupported process tree snapshot version")
 )
+
+// TreeSnapshotVersion identifies one exact durable wire contract.
+type TreeSnapshotVersion uint16
 
 // TreeSnapshot is an immutable, portable capture of one complete Process tree.
 // It owns Framework execution facts, a canonical content digest, and the
@@ -25,6 +30,7 @@ var (
 // revisions, and cleanup policy remain Host responsibilities.
 type TreeSnapshot struct {
 	data           json.RawMessage
+	version        TreeSnapshotVersion
 	digest         Digest
 	rootID         ProcessID
 	incarnationID  TreeIncarnationID
@@ -73,7 +79,7 @@ func treeSnapshotFromWire(wire treeSnapshotWire) (TreeSnapshot, error) {
 	}
 	incarnationID, hasIncarnation := treeSnapshotIncarnation(wire.IncarnationID)
 	return TreeSnapshot{
-		data: normalized, digest: ComputeDigest(normalized), rootID: wire.RootID,
+		data: normalized, digest: ComputeDigest(normalized), version: wire.Version, rootID: wire.RootID,
 		incarnationID: incarnationID, hasIncarnation: hasIncarnation,
 		processes: slices.Clone(wire.ProcessSnapshots),
 	}, nil
@@ -81,6 +87,9 @@ func treeSnapshotFromWire(wire treeSnapshotWire) (TreeSnapshot, error) {
 
 // JSON returns an independently owned tree snapshot representation.
 func (t TreeSnapshot) JSON() json.RawMessage { return bytes.Clone(t.data) }
+
+// Version lets a Host route explicit migration before asking Engine to restore.
+func (t TreeSnapshot) Version() TreeSnapshotVersion { return t.version }
 
 // RootID returns the identity of the tree's root Process.
 func (t TreeSnapshot) RootID() ProcessID { return t.rootID }
@@ -100,7 +109,7 @@ func (t TreeSnapshot) ProcessSnapshots() []ProcessSnapshot {
 }
 
 func (t TreeSnapshot) Valid() bool {
-	return len(t.data) > 0 && t.digest.Valid() && t.rootID.Valid() &&
+	return len(t.data) > 0 && t.version == CurrentTreeSnapshotVersion && t.digest.Valid() && t.rootID.Valid() &&
 		(!t.hasIncarnation || t.incarnationID.Valid()) && len(t.processes) > 0
 }
 
@@ -141,6 +150,7 @@ type childWaitSnapshotWire struct {
 }
 
 type treeSnapshotWire struct {
+	Version          TreeSnapshotVersion     `json:"version"`
 	RootID           ProcessID               `json:"root_id"`
 	IncarnationID    *TreeIncarnationID      `json:"incarnation_id,omitempty"`
 	ProcessSnapshots []ProcessSnapshot       `json:"process_snapshots"`
@@ -169,6 +179,12 @@ func compareSnapshots(left, right ProcessSnapshot) int {
 }
 
 func validateTreeSnapshot(wire treeSnapshotWire) error {
+	if wire.Version != CurrentTreeSnapshotVersion {
+		return fmt.Errorf(
+			"%w: got %d, want %d",
+			ErrUnsupportedTreeSnapshotVersion, wire.Version, CurrentTreeSnapshotVersion,
+		)
+	}
 	validation, err := newTreeSnapshotValidation(wire)
 	if err != nil {
 		return err

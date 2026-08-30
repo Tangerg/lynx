@@ -35,16 +35,6 @@ type OutputMetadata struct {
 	Extra metadata.Map `json:"extra,omitzero"`
 }
 
-func (o *OutputMetadata) Set(key string, value any) error {
-	if o == nil {
-		return fmt.Errorf("chat: set output metadata: %w: nil receiver", ErrInvalidResponse)
-	}
-	if err := o.Extra.Set(key, value); err != nil {
-		return fmt.Errorf("chat: set output metadata: %w: %w", ErrInvalidResponse, err)
-	}
-	return nil
-}
-
 func (o *OutputMetadata) validate() error {
 	if o == nil {
 		return nil

@@ -16,7 +16,8 @@ func Example() {
 	if err != nil {
 		panic(err)
 	}
-	options, err := transcription.NewOptions("transcription-model")
+	options := transcription.Options{Model: "transcription-model"}
+	err = options.Validate()
 	if err != nil {
 		panic(err)
 	}

@@ -10,7 +10,7 @@ import (
 // it. Call and Stream both return the complete decoded result; use
 // [Client.Stream] directly when individual response chunks are required.
 type Generation[T any] struct {
-	client *Client
+	client Client
 	format OutputFormat[T]
 }
 
@@ -32,7 +32,7 @@ func (g Generation[T]) Stream(ctx context.Context, request *chat.Request) (T, er
 }
 
 func (g Generation[T]) validate() error {
-	if g.client == nil {
+	if !g.client.valid() {
 		return ErrNilClient
 	}
 	return g.format.validate()

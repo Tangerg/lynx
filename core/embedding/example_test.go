@@ -11,7 +11,8 @@ func Example() {
 	if err != nil {
 		panic(err)
 	}
-	options, err := embedding.NewOptions("text-embedding-model")
+	options := embedding.Options{Model: "text-embedding-model"}
+	err = options.Validate()
 	if err != nil {
 		panic(err)
 	}

@@ -28,7 +28,8 @@ func TestEngineStartRejectsNilContextBeforePublication(t *testing.T) {
 		_, _ = engine.Start(nilContext, newChildTestDeployment(t), input)
 		return nil
 	}()
-	if recovered != errNilContext {
+	recoveredErr, isError := recovered.(error)
+	if !isError || !errors.Is(recoveredErr, errNilContext) {
 		t.Fatalf("Start nil-context panic = %v, want %v", recovered, errNilContext)
 	}
 	engine.mu.RLock()
@@ -1204,6 +1205,7 @@ func waitForUnknownSettlement(t *testing.T, process *Process) ProcessSnapshot {
 func singleProcessTreeSnapshot(t *testing.T, snapshot ProcessSnapshot) TreeSnapshot {
 	t.Helper()
 	tree, err := newTreeSnapshot(treeSnapshotWire{
+		Version:          CurrentTreeSnapshotVersion,
 		RootID:           snapshot.ProcessID(),
 		ProcessSnapshots: []ProcessSnapshot{snapshot},
 	})

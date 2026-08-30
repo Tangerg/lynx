@@ -82,9 +82,15 @@ type Engine struct {
 	limits                   Limits
 	treeLimits               TreeLimits
 	capabilities             CapabilitySet
-	treeOperationsMu         sync.Mutex
-	treeOperations           map[ProcessID]*treeOperation
 
+	// Tree-wide administrative operations use an independent serial lane so a
+	// caller waiting for one root never holds the registry lock needed by Engine
+	// lifecycle paths. The two locks are therefore never nested.
+	treeOperationsMu sync.Mutex
+	treeOperations   map[ProcessID]*treeOperation
+
+	// mu protects only the process/tree registry and admission reservations;
+	// each treeRuntime owns execution state after publication.
 	mu                      sync.RWMutex
 	processes               map[ProcessID]*processController
 	trees                   map[ProcessID]*treeRuntime

@@ -229,7 +229,7 @@ func (i *ImageModel) mapResponse(ctx context.Context, generation *lumaagents.Gen
 		return nil, fmt.Errorf("luma: generation created_at %q: %w", generation.CreatedAt, err)
 	}
 	metadata := &image.ResponseMetadata{Created: createdAt.Unix()}
-	if err := metadata.Set(ResponseExtensionKey, generation); err != nil {
+	if err := metadata.Extra.Set(ResponseExtensionKey, generation); err != nil {
 		return nil, err
 	}
 	return image.NewResponse(outputs, metadata)

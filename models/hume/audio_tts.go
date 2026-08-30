@@ -168,11 +168,11 @@ func (a *AudioTTSModel) buildResponse(apiResp *ttsResponse, model string) (*tts.
 	}
 	meta := &tts.ResponseMetadata{Model: model}
 	if apiResp.RequestID != "" {
-		if err := meta.Set(metadataRequestID, apiResp.RequestID); err != nil {
+		if err := meta.Extra.Set(metadataRequestID, apiResp.RequestID); err != nil {
 			return nil, err
 		}
 	}
-	if err := meta.Set(metadataResponse, apiResp); err != nil {
+	if err := meta.Extra.Set(metadataResponse, apiResp); err != nil {
 		return nil, err
 	}
 	return tts.NewResponse(output, meta)
@@ -269,7 +269,7 @@ func (t *ttsStreamEvent) response(model string) (*tts.Response, error) {
 	}
 	responseMetadata := &tts.ResponseMetadata{Model: model}
 	if t.RequestID != "" {
-		if err := responseMetadata.Set(metadataRequestID, t.RequestID); err != nil {
+		if err := responseMetadata.Extra.Set(metadataRequestID, t.RequestID); err != nil {
 			return nil, err
 		}
 	}

@@ -480,11 +480,11 @@ func (s *Store) buildFilter(filter filter.Predicate, startIdx int) (string, []an
 	if filter == nil {
 		return "", nil, nil
 	}
-	v := NewVisitor(s.metadataColumn)
+	v := newVisitor(s.metadataColumn)
 	if err := filter.Accept(v); err != nil {
 		return "", nil, fmt.Errorf("oracle: convert filter: %w", err)
 	}
-	predicate, args := v.Result()
+	predicate, args := v.snapshot()
 	if startIdx > 1 && len(args) > 0 {
 		predicate = renumberPlaceholders(predicate, startIdx)
 	}

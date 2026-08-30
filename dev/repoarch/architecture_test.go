@@ -88,7 +88,7 @@ func TestWorkspaceCoversEveryProductModule(t *testing.T) {
 	}
 }
 
-func TestCoreCoverageGateTargetsTheCoreModule(t *testing.T) {
+func TestCoverageGatesTargetTheirOwningModules(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
 	workflow, err := os.ReadFile(filepath.Join(root, ".github", "workflows", "ci.yml"))
@@ -99,7 +99,10 @@ func TestCoreCoverageGateTargetsTheCoreModule(t *testing.T) {
 	if strings.Contains(text, "matrix.module == '.'") {
 		t.Error("CI targets the retired root module; Core-only gates must select matrix.module == 'core'")
 	}
-	for _, gate := range []string{"Core coverage budget"} {
+	for gate, module := range map[string]string{
+		"Core coverage budget":  "core",
+		"Agent coverage budget": "agent",
+	} {
 		gateIndex := strings.Index(text, "- name: "+gate)
 		if gateIndex < 0 {
 			t.Errorf("CI is missing %q", gate)
@@ -110,8 +113,8 @@ func TestCoreCoverageGateTargetsTheCoreModule(t *testing.T) {
 		if nextStep >= 0 {
 			block = text[gateIndex : gateIndex+1+nextStep]
 		}
-		if !strings.Contains(block, "if: matrix.module == 'core'") {
-			t.Errorf("CI gate %q does not select the Core module", gate)
+		if !strings.Contains(block, "if: matrix.module == '"+module+"'") {
+			t.Errorf("CI gate %q does not select the %s module", gate, module)
 		}
 	}
 }

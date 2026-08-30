@@ -26,7 +26,7 @@ func (c *chatStreamState) mapChunk(chunk chatCompletionChunk) (*corechat.Respons
 			ID: chunk.ID, Model: chunk.Model, Usage: mapMistralUsage(chunk.Usage),
 		},
 	}
-	if err := response.Metadata.Set(streamChunkExtensionKey, chunk); err != nil {
+	if err := response.Metadata.Extra.Set(streamChunkExtensionKey, chunk); err != nil {
 		return nil, err
 	}
 	if len(chunk.Choices) > expectedResponseChoices {

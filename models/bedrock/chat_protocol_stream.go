@@ -48,7 +48,7 @@ func (p *protocolChunkAccumulator) add(event types.ConverseStreamOutput) (*corec
 		output = &corechat.Output{FinishReason: mapProtocolStopReason(typed.Value.StopReason)}
 		if output.FinishReason == corechat.FinishReasonOther {
 			output.Metadata = &corechat.OutputMetadata{}
-			if err := output.Metadata.Set(chatNativeFinishReasonKey, string(typed.Value.StopReason)); err != nil {
+			if err := output.Metadata.Extra.Set(chatNativeFinishReasonKey, string(typed.Value.StopReason)); err != nil {
 				return nil, false, err
 			}
 		}

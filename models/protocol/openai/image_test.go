@@ -15,7 +15,8 @@ import (
 
 func newImageModel(t *testing.T, baseURL, modelID string) *openai.ImageModel {
 	t.Helper()
-	opts, err := image.NewOptions(modelID)
+	opts := image.Options{Model: modelID}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatalf("NewOptions: %v", err)
 	}

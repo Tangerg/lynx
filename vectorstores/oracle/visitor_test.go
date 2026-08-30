@@ -1,4 +1,4 @@
-package oracle_test
+package oracle
 
 import (
 	"reflect"
@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 	"github.com/Tangerg/scope/core/vectorstore/storetest"
-	"github.com/Tangerg/scope/vectorstores/oracle"
 )
 
 func TestVisitor_Conformance(t *testing.T) {
@@ -16,7 +15,7 @@ func TestVisitor_Conformance(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		v := oracle.NewVisitor("metadata")
+		v := newVisitor("metadata")
 		return expr.Accept(v)
 	})
 }
@@ -36,7 +35,7 @@ func TestVisitor_CollectionMembershipUsesJSONExists(t *testing.T) {
 }
 
 func TestVisitor_CollectionMembershipRejectsBoolean(t *testing.T) {
-	visitor := oracle.NewVisitor("metadata")
+	visitor := newVisitor("metadata")
 	if err := filter.Has("flags", true).Accept(visitor); err == nil {
 		t.Fatal("Visit() error = nil, want Oracle PASSING boolean limitation")
 	}
@@ -49,11 +48,11 @@ func build(t *testing.T, src string) (string, []any, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	v := oracle.NewVisitor("metadata")
+	v := newVisitor("metadata")
 	if err := expr.Accept(v); err != nil {
 		return "", nil, err
 	}
-	sql, args := v.Result()
+	sql, args := v.snapshot()
 	return sql, args, nil
 }
 

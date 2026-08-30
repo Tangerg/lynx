@@ -13,7 +13,7 @@
 
 ## 架构心智
 
-- **filter 公共面只表达语义**:`Predicate`/`Selector` 与 `Parse` 是稳定门面；同包私有 scanner/token/递归下降 parser 直接构造唯一 AST。后端 compiler 实现公开 `filter.Visitor`，把同一语义树译成自家方言(JSONB 路径 / 扁平字典 / 嵌套查询 …)；外部扩展通过 `Predicate.Accept` 完成边界校验并交给一个 compiler/interpreter。
+- **filter 公共面只表达语义**:`Predicate`/`Selector` 与 `Parse` 是稳定入口；同包私有 scanner/token/递归下降 parser 直接构造唯一 AST。后端私有 compiler 实现 `filter.Visitor`，由 Store 把同一语义树译成自家方言(JSONB 路径 / 扁平字典 / 嵌套查询 …)；provider 不再公开第二套 compiler API。真正的外部实现仍可通过 `Predicate.Accept` 接入自己的 interpreter。
 - **每后端固定两件**:backend(实现其能力集合)+ compiler(Predicate → 方言)。跨 provider 稳定的 ingestion/filter/score 语义归 core；provider 标识符、schema 与 wire 编码留在本包；共享测试契约归契约 owner `core/vectorstore/storetest`。OTel 等横切能力由外层 decorator 提供,不得侵入 provider。
 - **向量编码与距离度量因 DB 而异**:provider 解释原始值，再构造 core 的 `Score` 收束到统一区间，上层拿到一致的 score。
 - **schema 初始化是显式开关**:开则建表建索引,关则假设已 provisioned —— 绝不静默 ALTER。

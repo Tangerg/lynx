@@ -146,10 +146,10 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	}
 
 	meta := &transcription.ResponseMetadata{Model: apiReq.Model}
-	if err := meta.Set("gladia/transcript_id", final.ID); err != nil {
+	if err := meta.Extra.Set("gladia/transcript_id", final.ID); err != nil {
 		return nil, err
 	}
-	if err := meta.Set(ResponseExtensionKey, final.Raw); err != nil {
+	if err := meta.Extra.Set(ResponseExtensionKey, final.Raw); err != nil {
 		return nil, err
 	}
 	return transcription.NewResponse(output, meta)

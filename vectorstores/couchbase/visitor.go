@@ -10,9 +10,9 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-// Visitor transforms AST filter expressions into a SQL++ (N1QL)
+// visitor transforms AST filter expressions into a SQL++ (N1QL)
 // predicate fragment usable in `WHERE` clauses of queries and
 // DELETE statements.
 //
@@ -27,31 +27,31 @@ var _ filter.Visitor = (*Visitor)(nil)
 // Values are JSON-encoded — strings get double-quoted with embedded
 // quotes escaped per JSON rules, which is also valid in SQL++ string
 // literals.
-type Visitor struct {
+type visitor struct {
 	err            error
 	sql            strings.Builder
 	metadataPrefix string // typically "metadata"
 }
 
-func NewVisitor(metadataPrefix string) *Visitor {
-	return &Visitor{metadataPrefix: metadataPrefix}
+func newVisitor(metadataPrefix string) *visitor {
+	return &visitor{metadataPrefix: metadataPrefix}
 }
 
-func (v *Visitor) Result() string {
+func (v *visitor) snapshot() string {
 	if v.err != nil {
 		return ""
 	}
 	return v.sql.String()
 }
 
-func (v *Visitor) Visit(expr filter.Predicate) error {
+func (v *visitor) Visit(expr filter.Predicate) error {
 	v.err = nil
 	v.sql.Reset()
 	v.err = v.visit(expr)
 	return v.err
 }
 
-func (v *Visitor) visit(expr filter.Expr) error {
+func (v *visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("couchbase: cannot process nil expression")
 	}
@@ -72,7 +72,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 	}
 }
 
-func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	switch {
 	case expr.Operator().IsLogicalOperator():
 		return v.visitLogicalExpr(expr)
@@ -90,7 +90,7 @@ func (v *Visitor) visitBinaryExpr(expr *filter.BinaryExpr) error {
 	}
 }
 
-func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("couchbase: %w (at %s)", err, expr.Start().String())
@@ -108,7 +108,7 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
+func (v *visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	if !expr.Operator().Is(filter.OpNot) {
 		return fmt.Errorf("couchbase: unsupported unary operator '%s' at %s",
 			expr.Operator().String(), expr.Start().String())
@@ -121,7 +121,7 @@ func (v *Visitor) visitUnaryExpr(expr *filter.UnaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op := " AND "
 	if expr.Operator().Is(filter.OpOr) {
 		op = " OR "
@@ -138,7 +138,7 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("couchbase: %w (at %s)", err, expr.Start().String())
@@ -160,7 +160,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("couchbase: %w (at %s)", err, expr.Start().String())
@@ -193,7 +193,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 
 // visitLikeExpr emits SQL++ LIKE — SQL wildcards % / _ pass through
 // untouched since LIKE uses the same syntax.
-func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("couchbase: %w (at %s)", err, expr.Start().String())
@@ -220,7 +220,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 // mirroring the inmemory reference semantics. The negated IS NOT NULL
 // arrives as NOT(<path> IS NULL) and is rendered by visitUnaryExpr, so
 // no separate handling is needed here. No bound parameter is required.
-func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("couchbase: %w (at %s)", err, expr.Start().String())
@@ -233,7 +233,7 @@ func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 
 // fieldPath builds the dotted SQL++ path for the left operand, with
 // each segment backtick-quoted to allow special characters.
-func (v *Visitor) fieldPath(expr *filter.BinaryExpr) (string, error) {
+func (v *visitor) fieldPath(expr *filter.BinaryExpr) (string, error) {
 	keys, err := expr.Path()
 	if err != nil {
 		return "", err

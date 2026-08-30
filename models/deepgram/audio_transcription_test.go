@@ -30,7 +30,8 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	srv := modeltest.JSONServer(http.StatusOK, deepgramSTTJSON)
 	t.Cleanup(srv.Close)
 
-	opts, err := transcription.NewOptions("nova-3")
+	opts := transcription.Options{Model: "nova-3"}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

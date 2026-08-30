@@ -9,7 +9,6 @@ import (
 
 	"github.com/Tangerg/scope/core/chat"
 	"github.com/Tangerg/scope/core/media"
-	"github.com/Tangerg/scope/core/metadata"
 )
 
 func validToolDefinition() chat.ToolDefinition {
@@ -40,12 +39,12 @@ func TestRequestClone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := image.Metadata.Set("origin", "caller"); err != nil {
-		t.Fatal(err)
+	if setErr := image.Metadata.Set("origin", "caller"); setErr != nil {
+		t.Fatal(setErr)
 	}
 	user := chat.NewUserMessage(chat.NewMediaPart(image))
-	if err := user.Metadata.Set("turn", 1); err != nil {
-		t.Fatal(err)
+	if setErr := user.Metadata.Set("turn", 1); setErr != nil {
+		t.Fatal(setErr)
 	}
 	assistant := chat.NewAssistantMessage(
 		chat.NewReasoningPart("thinking", []byte("signature")),
@@ -62,8 +61,8 @@ func TestRequestClone(t *testing.T) {
 			Temperature: new(0.5),
 		},
 	}
-	if err := request.Options.SetExtension("test/value", "caller"); err != nil {
-		t.Fatal(err)
+	if setErr := request.Options.Extensions.Set("test/value", "caller"); setErr != nil {
+		t.Fatal(setErr)
 	}
 
 	clone := request.Clone()
@@ -77,7 +76,13 @@ func TestRequestClone(t *testing.T) {
 	*clone.Options.MaxTokens = 20
 	clone.Options.Stop[0] = "MUTATED"
 	*clone.Options.Temperature = 1
-	clone.Options.Extensions["test/value"][1] = 'X'
+	if setErr := clone.Options.Extensions.Set("test/value", "changed"); setErr != nil {
+		t.Fatal(setErr)
+	}
+	extension, found, err := request.Options.Extensions.Decode[string]("test/value")
+	if err != nil || !found {
+		t.Fatal(err)
+	}
 
 	if string(request.Messages[0].Metadata["turn"]) != "1" ||
 		string(request.Messages[0].Parts[0].Media.Source.Bytes) != "image" ||
@@ -88,8 +93,7 @@ func TestRequestClone(t *testing.T) {
 		request.Tools[0].InputSchema[0] != '{' ||
 		*request.Options.MaxTokens != 10 ||
 		request.Options.Stop[0] != "END" ||
-		*request.Options.Temperature != 0.5 ||
-		string(request.Options.Extensions["test/value"]) != `"caller"` {
+		*request.Options.Temperature != 0.5 || extension != "caller" {
 		t.Fatalf("clone mutated source request: %#v", request)
 	}
 
@@ -110,7 +114,7 @@ func TestRequestValidate(t *testing.T) {
 		t.Fatal(err)
 	}
 	request.Options = chat.Options{Model: "model", OutputFormat: &format, Temperature: new(0.5)}
-	if err := request.Options.SetExtension("openai/request", map[string]any{"seed": 42}); err != nil {
+	if err := request.Options.Extensions.Set("openai/request", map[string]any{"seed": 42}); err != nil {
 		t.Fatal(err)
 	}
 	if err := request.Validate(); err != nil {
@@ -144,8 +148,6 @@ func TestRequestValidateRejectsInvalidValues(t *testing.T) {
 		{name: "invalid tool", request: &chat.Request{Messages: []chat.Message{validMessage}, Tools: []chat.ToolDefinition{{}}}, also: chat.ErrInvalidToolDefinition},
 		{name: "duplicate tool", request: &chat.Request{Messages: []chat.Message{validMessage}, Tools: []chat.ToolDefinition{definition, definition}}},
 		{name: "invalid options", request: &chat.Request{Messages: []chat.Message{validMessage}, Options: invalidOption}, also: chat.ErrInvalidOptions},
-		{name: "unscoped extension", request: &chat.Request{Messages: []chat.Message{validMessage}, Options: chat.Options{Extensions: metadata.Map{"key": json.RawMessage(`1`)}}}, also: chat.ErrInvalidOptions},
-		{name: "invalid extension JSON", request: &chat.Request{Messages: []chat.Message{validMessage}, Options: chat.Options{Extensions: metadata.Map{"openai/key": json.RawMessage(`{`)}}}, also: metadata.ErrInvalidValue},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -162,7 +164,7 @@ func TestRequestValidateRejectsInvalidValues(t *testing.T) {
 
 func TestRequestOptionsExtension(t *testing.T) {
 	request, _ := chat.NewRequest(chat.NewUserMessage(chat.NewTextPart("hello")))
-	if err := request.Options.SetExtension("openai/response_format", map[string]string{"type": "json_object"}); err != nil {
+	if err := request.Options.Extensions.Set("openai/response_format", map[string]string{"type": "json_object"}); err != nil {
 		t.Fatalf("SetExtension: %v", err)
 	}
 	value, ok, err := request.Options.Extensions.Decode[map[string]string]("openai/response_format")
@@ -171,13 +173,13 @@ func TestRequestOptionsExtension(t *testing.T) {
 	}
 
 	before := request.Options.Extensions.Clone()
-	if err := request.Options.SetExtension("not-namespaced", 1); !errors.Is(err, chat.ErrInvalidOptions) {
+	if err := request.Options.Extensions.Set("not-namespaced", 1); err == nil {
 		t.Fatalf("unscoped key error = %v", err)
 	}
-	if err := request.Options.SetExtension("openai/bad", func() {}); !errors.Is(err, chat.ErrInvalidOptions) {
+	if err := request.Options.Extensions.Set("openai/bad", func() {}); err == nil {
 		t.Fatalf("unsupported value error = %v", err)
 	}
-	if !reflect.DeepEqual(request.Options.Extensions, before) {
+	if !request.Options.Extensions.Equal(before) {
 		t.Fatalf("failed SetExtension mutated map: %#v, want %#v", request.Options.Extensions, before)
 	}
 }
@@ -189,7 +191,7 @@ func TestRequestJSONRoundTrip(t *testing.T) {
 	)
 	request.Tools = []chat.ToolDefinition{validToolDefinition()}
 	request.Options = chat.Options{Model: "model", MaxTokens: new(int64(100))}
-	if err := request.Options.SetExtension("anthropic/cache_control", map[string]bool{"enabled": true}); err != nil {
+	if err := request.Options.Extensions.Set("anthropic/cache_control", map[string]bool{"enabled": true}); err != nil {
 		t.Fatal(err)
 	}
 

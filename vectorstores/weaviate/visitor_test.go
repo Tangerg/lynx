@@ -1,4 +1,4 @@
-package weaviate_test
+package weaviate
 
 import (
 	"strings"
@@ -8,15 +8,14 @@ import (
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 	"github.com/Tangerg/scope/core/vectorstore/storetest"
-	"github.com/Tangerg/scope/vectorstores/weaviate"
 )
 
-func compileFilter(predicate filter.Predicate) (*filters.WhereBuilder, error) {
-	visitor := weaviate.NewVisitor()
+func compileTestFilter(predicate filter.Predicate) (*filters.WhereBuilder, error) {
+	visitor := newVisitor()
 	if err := predicate.Accept(visitor); err != nil {
 		return nil, err
 	}
-	return visitor.Result(), nil
+	return visitor.snapshot(), nil
 }
 
 func TestVisitor_Conformance(t *testing.T) {
@@ -25,7 +24,7 @@ func TestVisitor_Conformance(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		v := weaviate.NewVisitor()
+		v := newVisitor()
 		return expr.Accept(v)
 	})
 }
@@ -36,7 +35,7 @@ func TestVisitor_IsNull(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	got, err := compileFilter(expr)
+	got, err := compileTestFilter(expr)
 	if err != nil {
 		t.Fatalf("Visit: %v", err)
 	}
@@ -62,7 +61,7 @@ func TestVisitor_IsNotNull(t *testing.T) {
 		t.Fatalf("parse: %v", err)
 	}
 
-	got, err := compileFilter(expr)
+	got, err := compileTestFilter(expr)
 	if err != nil {
 		t.Fatalf("Visit: %v", err)
 	}
@@ -93,14 +92,14 @@ func TestVisitor_IsNotNull(t *testing.T) {
 }
 
 func TestVisitor_RejectsIntegerThatNumberFilterCannotRepresent(t *testing.T) {
-	_, err := compileFilter(filter.EQ("id", uint64(1)<<63))
+	_, err := compileTestFilter(filter.EQ("id", uint64(1)<<63))
 	if err == nil {
 		t.Fatal("Weaviate accepted an integer larger than its int64 data type")
 	}
 }
 
 func TestVisitor_PreservesIntegerAndNumberTypes(t *testing.T) {
-	integer, err := compileFilter(filter.GT("count", 42))
+	integer, err := compileTestFilter(filter.GT("count", 42))
 	if err != nil {
 		t.Fatalf("integer filter: %v", err)
 	}
@@ -108,7 +107,7 @@ func TestVisitor_PreservesIntegerAndNumberTypes(t *testing.T) {
 		t.Fatalf("ValueInt = %v, want 42", got)
 	}
 
-	number, err := compileFilter(filter.GT("score", 4.2))
+	number, err := compileTestFilter(filter.GT("score", 4.2))
 	if err != nil {
 		t.Fatalf("number filter: %v", err)
 	}
@@ -124,7 +123,7 @@ func TestVisitor_RejectsMixedMembershipTypes(t *testing.T) {
 }
 
 func TestVisitor_DistinguishesInFromCollectionMembership(t *testing.T) {
-	inFilter, err := compileFilter(filter.In("status", []string{"active", "pending"}))
+	inFilter, err := compileTestFilter(filter.In("status", []string{"active", "pending"}))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +137,7 @@ func TestVisitor_DistinguishesInFromCollectionMembership(t *testing.T) {
 		}
 	}
 
-	hasFilter, err := compileFilter(filter.Has("visible_to", "user-42"))
+	hasFilter, err := compileTestFilter(filter.Has("visible_to", "user-42"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -154,7 +153,7 @@ func TestVisitor_TranslatesSQLLikeWildcards(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	got, err := compileFilter(expr)
+	got, err := compileTestFilter(expr)
 	if err != nil {
 		t.Fatalf("Visit: %v", err)
 	}
@@ -168,7 +167,7 @@ func TestVisitor_RejectsUnrepresentableLikeLiteral(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
-	_, err = compileFilter(expr)
+	_, err = compileTestFilter(expr)
 	if err == nil || !strings.Contains(err.Error(), "cannot represent") {
 		t.Fatalf("error = %v, want unrepresentable-pattern error", err)
 	}

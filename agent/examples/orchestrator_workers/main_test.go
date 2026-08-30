@@ -327,9 +327,11 @@ func (p *planningDelegateModel) Call(_ context.Context, request *chat.Request) (
 			return nil, fmt.Errorf("planning tool result %d=%#v", index, part.ToolResult)
 		}
 		var output planning.Output
-		if err := json.Unmarshal(part.ToolResult.Output.Details, &output); err != nil ||
-			output.Outcome != planning.OutcomeAchieved {
-			return nil, fmt.Errorf("planning tool result %d did not achieve goal: %#v, %v", index, output, err)
+		if err := json.Unmarshal(part.ToolResult.Output.Details, &output); err != nil {
+			return nil, fmt.Errorf("decode planning tool result %d: %w", index, err)
+		}
+		if output.Outcome != planning.OutcomeAchieved {
+			return nil, fmt.Errorf("planning tool result %d did not achieve goal: %#v", index, output)
 		}
 	}
 	message := chat.NewAssistantMessage(chat.NewTextPart("planning workers achieved 2 tasks"))

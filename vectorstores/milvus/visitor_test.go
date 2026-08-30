@@ -1,4 +1,4 @@
-package milvus_test
+package milvus
 
 import (
 	"math"
@@ -7,7 +7,6 @@ import (
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 	"github.com/Tangerg/scope/core/vectorstore/storetest"
-	"github.com/Tangerg/scope/vectorstores/milvus"
 )
 
 func TestVisitor_Conformance(t *testing.T) {
@@ -16,17 +15,17 @@ func TestVisitor_Conformance(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		v := milvus.NewVisitor()
+		v := newVisitor()
 		return expr.Accept(v)
 	})
 }
 
 func TestVisitor_PreservesLargeIntegerText(t *testing.T) {
-	visitor := milvus.NewVisitor()
+	visitor := newVisitor()
 	if err := filter.EQ("id", uint64(math.MaxUint64)).Accept(visitor); err != nil {
 		t.Fatal(err)
 	}
-	actual := visitor.Result()
+	actual := visitor.snapshot()
 	if actual != "id == 18446744073709551615" {
 		t.Fatalf("filter = %q", actual)
 	}
@@ -37,22 +36,22 @@ func TestVisitor_HasUsesArrayContains(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	v := milvus.NewVisitor()
+	v := newVisitor()
 	if err := expr.Accept(v); err != nil {
 		t.Fatal(err)
 	}
-	if got := v.Result(); got != `ARRAY_CONTAINS(tags, "rag")` {
+	if got := v.snapshot(); got != `ARRAY_CONTAINS(tags, "rag")` {
 		t.Fatalf("Result() = %q", got)
 	}
 }
 
 func TestVisitor_QuotesCompleteStringLiteral(t *testing.T) {
 	value := "line one\nline two\\path\"quoted"
-	visitor := milvus.NewVisitor()
+	visitor := newVisitor()
 	if err := filter.EQ("value", value).Accept(visitor); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := visitor.Result(), "value == "+strconv.Quote(value); got != want {
+	if got, want := visitor.snapshot(), "value == "+strconv.Quote(value); got != want {
 		t.Fatalf("Result() = %q, want %q", got, want)
 	}
 }

@@ -19,7 +19,8 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 				modelID = "nomic-embed-text"
 			}
 			baseURL, _ := lookupEnv("SCOPE_TEST_OLLAMA_BASE_URL")
-			opts, err := embedding.NewOptions(modelID)
+			opts := embedding.Options{Model: modelID}
+			err := opts.Validate()
 			if err != nil {
 				t.Fatal(err)
 			}

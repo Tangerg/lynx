@@ -366,11 +366,11 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		WithOutputFields(fieldID, fieldContent, fieldMeta)
 
 	if req.Options.Filter != nil {
-		visitor := NewVisitor()
+		visitor := newVisitor()
 		if acceptErr := req.Options.Filter.Accept(visitor); acceptErr != nil {
 			return nil, fmt.Errorf("milvus: convert filter: %w", acceptErr)
 		}
-		searchOpt = searchOpt.WithFilter(visitor.Result())
+		searchOpt = searchOpt.WithFilter(visitor.snapshot())
 	}
 
 	results, err := s.client.Search(ctx, searchOpt)
@@ -398,12 +398,12 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 		return fmt.Errorf("milvus.Store.DeleteWhere: %w", err)
 	}
 
-	visitor := NewVisitor()
+	visitor := newVisitor()
 	if err = expr.Accept(visitor); err != nil {
 		return fmt.Errorf("milvus: convert filter: %w", err)
 	}
 
-	_, err = s.client.Delete(ctx, milvusclient.NewDeleteOption(s.collectionName).WithExpr(visitor.Result()))
+	_, err = s.client.Delete(ctx, milvusclient.NewDeleteOption(s.collectionName).WithExpr(visitor.snapshot()))
 	if err != nil {
 		return fmt.Errorf("milvus: delete from collection %s: %w", s.collectionName, err)
 	}

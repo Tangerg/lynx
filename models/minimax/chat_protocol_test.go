@@ -71,7 +71,7 @@ func TestOpenAIChatRespectsExplicitReasoningSplit(t *testing.T) {
 		corechat.NewUserMessage(corechat.NewTextPart("solve")),
 	}}
 	reasoningSplit := false
-	if err := request.Options.SetExtension(minimax.RequestExtensionKey, minimax.ChatRequestOptions{ReasoningSplit: &reasoningSplit}); err != nil {
+	if err := request.Options.Extensions.Set(minimax.RequestExtensionKey, minimax.ChatRequestOptions{ReasoningSplit: &reasoningSplit}); err != nil {
 		t.Fatalf("SetExtension: %v", err)
 	}
 	if _, err := model.Call(t.Context(), request); err != nil {

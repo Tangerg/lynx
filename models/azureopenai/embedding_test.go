@@ -23,7 +23,8 @@ func TestEmbeddingModel_Call_Mock(t *testing.T) {
 	srv := modeltest.JSONServer(http.StatusOK, azureEmbedJSON)
 	t.Cleanup(srv.Close)
 
-	opts, err := embedding.NewOptions("text-embedding-ada-002")
+	opts := embedding.Options{Model: "text-embedding-ada-002"}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

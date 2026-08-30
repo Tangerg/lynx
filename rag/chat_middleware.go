@@ -113,14 +113,14 @@ func (prepared preparedChatRequest) attachRetrievalMetadata(response *chat.Respo
 	if response.Metadata == nil {
 		response.Metadata = &chat.ResponseMetadata{}
 	}
-	if err := response.Metadata.Set(retrievedCandidatesMetadataKey, prepared.candidates); err != nil {
+	if err := response.Metadata.Extra.Set(retrievedCandidatesMetadataKey, prepared.candidates); err != nil {
 		return err
 	}
 	if len(prepared.citations) == 0 {
 		delete(response.Metadata.Extra, citationsMetadataKey)
 		return nil
 	}
-	return response.Metadata.Set(citationsMetadataKey, prepared.citations)
+	return response.Metadata.Extra.Set(citationsMetadataKey, prepared.citations)
 }
 
 // CandidatesFromResponse returns the candidates attached to response by

@@ -9,9 +9,9 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-// Visitor transforms AST filter expressions into OpenSearch
+// visitor transforms AST filter expressions into OpenSearch
 // query-string syntax (Lucene). The output plugs into the `filter`
 // clause of a `knn` query via `query_string.query`.
 //
@@ -24,31 +24,31 @@ var _ filter.Visitor = (*Visitor)(nil)
 //	NOT (author == "Alice")    →  NOT (metadata.author:"Alice")
 //	author IS NULL             →  NOT _exists_:metadata.author
 //	author IS NOT NULL         →  NOT (NOT _exists_:metadata.author)
-type Visitor struct {
+type visitor struct {
 	err            error
 	sql            strings.Builder
 	metadataPrefix string
 }
 
-func NewVisitor(metadataPrefix string) *Visitor {
-	return &Visitor{metadataPrefix: metadataPrefix}
+func newVisitor(metadataPrefix string) *visitor {
+	return &visitor{metadataPrefix: metadataPrefix}
 }
 
-func (v *Visitor) Result() string {
+func (v *visitor) snapshot() string {
 	if v.err != nil {
 		return ""
 	}
 	return v.sql.String()
 }
 
-func (v *Visitor) Visit(expr filter.Predicate) error {
+func (v *visitor) Visit(expr filter.Predicate) error {
 	v.err = nil
 	v.sql.Reset()
 	v.err = v.visit(expr)
 	return v.err
 }
 
-func (v *Visitor) visit(expr filter.Expr) error {
+func (v *visitor) visit(expr filter.Expr) error {
 	if expr == nil {
 		return errors.New("opensearch: cannot process nil expression")
 	}
@@ -77,7 +77,7 @@ func (v *Visitor) visit(expr filter.Expr) error {
 
 // visitHasExpr uses Lucene's exact field query. OpenSearch applies it to each
 // value of a multi-valued field.
-func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("opensearch: %w (at %s)", err, expr.Start().String())
@@ -92,7 +92,7 @@ func (v *Visitor) visitHasExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
+func (v *visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	v.sql.WriteString("NOT (")
 	if err := v.visit(expr.Right()); err != nil {
 		return err
@@ -101,7 +101,7 @@ func (v *Visitor) visitNotExpr(expr *filter.UnaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	op, err := expr.Operator().LogicalString()
 	if err != nil {
 		return fmt.Errorf("opensearch: %w", err)
@@ -120,7 +120,7 @@ func (v *Visitor) visitLogicalExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("opensearch: %w (at %s)", err, expr.Start().String())
@@ -162,7 +162,7 @@ func (v *Visitor) visitComparisonExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("opensearch: %w (at %s)", err, expr.Start().String())
@@ -189,7 +189,7 @@ func (v *Visitor) visitInExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("opensearch: %w (at %s)", err, expr.Start().String())
@@ -216,7 +216,7 @@ func (v *Visitor) visitLikeExpr(expr *filter.BinaryExpr) error {
 // resulting `NOT (NOT _exists_:<path>)` is a double negation equivalent to
 // `_exists_:<path>` — the existence check — so no separate handling is
 // needed here.
-func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
+func (v *visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return fmt.Errorf("opensearch: %w (at %s)", err, expr.Start().String())
@@ -226,7 +226,7 @@ func (v *Visitor) visitNullTestExpr(expr *filter.BinaryExpr) error {
 	return nil
 }
 
-func (v *Visitor) fieldPath(expr *filter.BinaryExpr) (string, error) {
+func (v *visitor) fieldPath(expr *filter.BinaryExpr) (string, error) {
 	keys, err := expr.Path()
 	if err != nil {
 		return "", err

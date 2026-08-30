@@ -8,9 +8,9 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-// Visitor transforms AST filter expressions into the MongoDB query
+// visitor transforms AST filter expressions into the MongoDB query
 // document shape used by Atlas Vector Search's `filter` clause.
 //
 // Output shape (MongoDB query language, keyed on metadata.* paths):
@@ -27,24 +27,24 @@ var _ filter.Visitor = (*Visitor)(nil)
 //   - bare identifier      → <metadataPrefix>.<ident>
 //   - metadata['k']        → <metadataPrefix>.k
 //   - metadata['a']['b']   → <metadataPrefix>.a.b
-type Visitor struct {
+type visitor struct {
 	err            error
 	result         map[string]any
 	metadataPrefix string // typically "metadata"
 }
 
-func NewVisitor(metadataPrefix string) *Visitor {
-	return &Visitor{metadataPrefix: metadataPrefix}
+func newVisitor(metadataPrefix string) *visitor {
+	return &visitor{metadataPrefix: metadataPrefix}
 }
 
-func (v *Visitor) Result() map[string]any {
+func (v *visitor) snapshot() map[string]any {
 	if v.err != nil {
 		return nil
 	}
 	return v.result
 }
 
-func (v *Visitor) Visit(expr filter.Predicate) error {
+func (v *visitor) Visit(expr filter.Predicate) error {
 	doc, err := v.translate(expr)
 	v.err = err
 	v.result = doc
@@ -55,7 +55,7 @@ func (v *Visitor) Visit(expr filter.Predicate) error {
 // MongoDB sub-document for one expression, leaving the receiver state
 // untouched. This avoids the stateful "currentField" shuffle the other
 // visitors need.
-func (v *Visitor) translate(expr filter.Expr) (map[string]any, error) {
+func (v *visitor) translate(expr filter.Expr) (map[string]any, error) {
 	if expr == nil {
 		return nil, errors.New("mongodb: cannot process nil expression")
 	}
@@ -71,7 +71,7 @@ func (v *Visitor) translate(expr filter.Expr) (map[string]any, error) {
 	}
 }
 
-func (v *Visitor) translateBinary(expr *filter.BinaryExpr) (map[string]any, error) {
+func (v *visitor) translateBinary(expr *filter.BinaryExpr) (map[string]any, error) {
 	switch {
 	case expr.Operator().IsNullOperator():
 		return v.translateNullTest(expr)
@@ -93,7 +93,7 @@ func (v *Visitor) translateBinary(expr *filter.BinaryExpr) (map[string]any, erro
 
 // translateHas uses MongoDB equality semantics, which match a scalar against
 // any equal element when the selected field contains an array.
-func (v *Visitor) translateHas(expr *filter.BinaryExpr) (map[string]any, error) {
+func (v *visitor) translateHas(expr *filter.BinaryExpr) (map[string]any, error) {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return nil, fmt.Errorf("mongodb: %w (at %s)", err, expr.Start().String())
@@ -105,7 +105,7 @@ func (v *Visitor) translateHas(expr *filter.BinaryExpr) (map[string]any, error) 
 	return map[string]any{field: map[string]any{"$eq": value}}, nil
 }
 
-func (v *Visitor) translateUnary(expr *filter.UnaryExpr) (map[string]any, error) {
+func (v *visitor) translateUnary(expr *filter.UnaryExpr) (map[string]any, error) {
 	if !expr.Operator().Is(filter.OpNot) {
 		return nil, fmt.Errorf("mongodb: unsupported unary operator '%s' at %s",
 			expr.Operator().String(), expr.Start().String())
@@ -120,7 +120,7 @@ func (v *Visitor) translateUnary(expr *filter.UnaryExpr) (map[string]any, error)
 	return map[string]any{"$nor": []any{inner}}, nil
 }
 
-func (v *Visitor) translateLogical(expr *filter.BinaryExpr) (map[string]any, error) {
+func (v *visitor) translateLogical(expr *filter.BinaryExpr) (map[string]any, error) {
 	left, err := v.translate(expr.Left())
 	if err != nil {
 		return nil, err
@@ -136,7 +136,7 @@ func (v *Visitor) translateLogical(expr *filter.BinaryExpr) (map[string]any, err
 	return map[string]any{op: []any{left, right}}, nil
 }
 
-func (v *Visitor) translateComparison(expr *filter.BinaryExpr) (map[string]any, error) {
+func (v *visitor) translateComparison(expr *filter.BinaryExpr) (map[string]any, error) {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return nil, fmt.Errorf("mongodb: %w (at %s)", err, expr.Start().String())
@@ -158,7 +158,7 @@ func (v *Visitor) translateComparison(expr *filter.BinaryExpr) (map[string]any, 
 // reference). The negated `IS NOT NULL` arrives as NOT(field IS NULL)
 // and is wrapped by translateUnary's $nor, so no separate handling is
 // needed here.
-func (v *Visitor) translateNullTest(expr *filter.BinaryExpr) (map[string]any, error) {
+func (v *visitor) translateNullTest(expr *filter.BinaryExpr) (map[string]any, error) {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return nil, fmt.Errorf("mongodb: %w (at %s)", err, expr.Start().String())
@@ -166,7 +166,7 @@ func (v *Visitor) translateNullTest(expr *filter.BinaryExpr) (map[string]any, er
 	return map[string]any{field: map[string]any{"$eq": nil}}, nil
 }
 
-func (v *Visitor) translateIn(expr *filter.BinaryExpr, op string) (map[string]any, error) {
+func (v *visitor) translateIn(expr *filter.BinaryExpr, op string) (map[string]any, error) {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return nil, fmt.Errorf("mongodb: %w (at %s)", err, expr.Start().String())
@@ -198,7 +198,7 @@ func (v *Visitor) translateIn(expr *filter.BinaryExpr, op string) (map[string]an
 // (% → .*, _ → .) and anchors the pattern. The match is
 // case-insensitive ($options "i") for parity with most SQL engines'
 // default behavior on LIKE.
-func (v *Visitor) translateLike(expr *filter.BinaryExpr) (map[string]any, error) {
+func (v *visitor) translateLike(expr *filter.BinaryExpr) (map[string]any, error) {
 	field, err := v.fieldPath(expr)
 	if err != nil {
 		return nil, fmt.Errorf("mongodb: %w (at %s)", err, expr.Start().String())
@@ -241,7 +241,7 @@ func (v *Visitor) translateLike(expr *filter.BinaryExpr) (map[string]any, error)
 }
 
 // fieldPath assembles the dotted field path used by MongoDB.
-func (v *Visitor) fieldPath(expr *filter.BinaryExpr) (string, error) {
+func (v *visitor) fieldPath(expr *filter.BinaryExpr) (string, error) {
 	keys, err := expr.Path()
 	if err != nil {
 		return "", err

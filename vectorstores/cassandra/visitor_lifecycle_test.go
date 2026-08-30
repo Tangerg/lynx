@@ -1,18 +1,17 @@
-package cassandra_test
+package cassandra
 
 import (
 	"testing"
 
 	"github.com/Tangerg/scope/core/vectorstore/storetest"
-	"github.com/Tangerg/scope/vectorstores/cassandra"
 )
 
 func TestVisitorLifecycle(t *testing.T) {
 	t.Parallel()
 	storetest.VisitorLifecycle(t, func() storetest.Compiler {
-		visitor := cassandra.NewVisitor()
+		visitor := newVisitor()
 		return storetest.Compiler{Visit: visitor.Visit, Snapshot: func() any {
-			query, args := visitor.Result()
+			query, args := visitor.snapshot()
 			return struct {
 				query string
 				args  any

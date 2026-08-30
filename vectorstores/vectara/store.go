@@ -302,11 +302,11 @@ func (s *Store) buildFilter(filter filter.Predicate) (string, error) {
 	if filter == nil {
 		return "", nil
 	}
-	v := NewVisitor(s.metadataPrefix)
+	v := newVisitor(s.metadataPrefix)
 	if err := filter.Accept(v); err != nil {
 		return "", fmt.Errorf("vectara: convert filter: %w", err)
 	}
-	return v.Result(), nil
+	return v.snapshot(), nil
 }
 
 func (s *Store) sendJSON(ctx context.Context, method, path string, body any) ([]byte, error) {

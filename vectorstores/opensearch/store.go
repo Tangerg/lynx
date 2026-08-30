@@ -366,11 +366,11 @@ func (s *Store) buildFilterQuery(filter filter.Predicate) (string, error) {
 	if filter == nil {
 		return "", nil
 	}
-	v := NewVisitor(s.metadataField)
+	v := newVisitor(s.metadataField)
 	if err := filter.Accept(v); err != nil {
 		return "", fmt.Errorf("opensearch: convert filter: %w", err)
 	}
-	return v.Result(), nil
+	return v.snapshot(), nil
 }
 
 func (s *Store) toDocument(hit opensearchapi.SearchHit) (*document.Document, error) {

@@ -1,18 +1,17 @@
-package typesense_test
+package typesense
 
 import (
 	"testing"
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
-	"github.com/Tangerg/scope/vectorstores/typesense"
 )
 
 func TestVisitorCollectionMembershipUsesExactArrayMatch(t *testing.T) {
-	visitor := typesense.NewVisitor("metadata")
+	visitor := newVisitor("metadata")
 	if err := filter.Has("visible_to", "user-42").Accept(visitor); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := visitor.Result(), "metadata.visible_to:= user-42"; got != want {
+	if got, want := visitor.snapshot(), "metadata.visible_to:= user-42"; got != want {
 		t.Fatalf("Result() = %q, want %q", got, want)
 	}
 }

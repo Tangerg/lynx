@@ -10,7 +10,7 @@ import (
 )
 
 func TestJSONBoundaries(t *testing.T) {
-	if _, err := image.NewOptions(""); !errors.Is(err, image.ErrInvalidOptions) {
+	if err := (image.Options{Model: " model "}).Validate(); !errors.Is(err, image.ErrInvalidOptions) {
 		t.Fatalf("NewOptions error = %v", err)
 	}
 	if _, err := image.NewRequest(""); !errors.Is(err, image.ErrInvalidRequest) {
@@ -20,7 +20,7 @@ func TestJSONBoundaries(t *testing.T) {
 		t.Fatalf("NewResponse error = %v", err)
 	}
 	var extensionOptions image.Options
-	if err := extensionOptions.SetExtension("invalid", true); !errors.Is(err, image.ErrInvalidOptions) {
+	if err := extensionOptions.Extensions.Set("invalid", true); err == nil {
 		t.Fatalf("SetExtension error = %v", err)
 	}
 

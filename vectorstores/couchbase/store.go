@@ -523,11 +523,11 @@ func (s *Store) buildFilter(expr filter.Predicate) (string, error) {
 	if expr == nil {
 		return "", nil
 	}
-	v := NewVisitor(metadataField)
+	v := newVisitor(metadataField)
 	if err := expr.Accept(v); err != nil {
 		return "", fmt.Errorf("couchbase: convert filter: %w", err)
 	}
-	return v.Result(), nil
+	return v.snapshot(), nil
 }
 
 func (s *Store) toDocument(raw map[string]any) (*document.Document, error) {

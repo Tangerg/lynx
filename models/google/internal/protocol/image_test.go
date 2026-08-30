@@ -32,12 +32,13 @@ func TestImageModelCallUsesInteractionsAPI(t *testing.T) {
 	srv := modeltest.JSONServer(http.StatusOK, body)
 	t.Cleanup(srv.Close)
 
-	opts, err := image.NewOptions(protocol.ModelGemini31FlashImage)
+	opts := image.Options{Model: protocol.ModelGemini31FlashImage}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}
 	opts.OutputFormat = "image/jpeg"
-	if setExtensionErr := opts.SetExtension(protocol.ImageRequestExtensionKey, protocol.ImageGenerationOptions{
+	if setExtensionErr := opts.Extensions.Set(protocol.ImageRequestExtensionKey, protocol.ImageGenerationOptions{
 		AspectRatio: "16:9",
 		ImageSize:   "2K",
 	}); setExtensionErr != nil {
@@ -77,7 +78,7 @@ func TestImageModelCallUsesInteractionsAPI(t *testing.T) {
 }
 
 func TestImageModelRejectsUnsupportedImagenOnlyOptions(t *testing.T) {
-	opts, _ := image.NewOptions(protocol.ModelGemini31FlashImage)
+	opts := image.Options{Model: protocol.ModelGemini31FlashImage}
 	model, err := protocol.NewImageModel(protocol.ImageModelConfig{
 		Client:         protocol.ClientConfig{APIKey: "test-key", BaseURL: "https://example.com"},
 		DefaultOptions: opts,

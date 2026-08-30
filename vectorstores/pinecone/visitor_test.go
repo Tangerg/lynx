@@ -1,4 +1,4 @@
-package pinecone_test
+package pinecone
 
 import (
 	"reflect"
@@ -8,15 +8,14 @@ import (
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 	"github.com/Tangerg/scope/core/vectorstore/storetest"
-	"github.com/Tangerg/scope/vectorstores/pinecone"
 )
 
 func compileFilter(predicate filter.Predicate) (*structpb.Struct, error) {
-	visitor := pinecone.NewVisitor()
+	visitor := newVisitor()
 	if err := predicate.Accept(visitor); err != nil {
 		return nil, err
 	}
-	return visitor.Result(), nil
+	return visitor.snapshot(), nil
 }
 
 func TestVisitor_Conformance(t *testing.T) {
@@ -26,7 +25,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			v := pinecone.NewVisitor()
+			v := newVisitor()
 			return expr.Accept(v)
 		},
 		storetest.Options{

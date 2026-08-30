@@ -46,10 +46,10 @@ MCP Go SDK 把它写成需求清单的最后一条："the SDK should be **minima
 - **可机器验证**：导出内部依赖边，任何指向上层的边都是回归。
 - **组合根集中装配具体实现**：执行核只依赖抽象，具体实现在组合根注入 —— 加 / 删一个具体实现对核零波及，且所有实现一视同仁。
 
-### 2.2 用户面：倾向"单一可发现门面"
-- 把常用 API 收进**一个门面包**提升可发现性，避免"按未来可能失准的结构武断分包"（类比 `net/http` / `grpc`）。
-- **scope 的调和**：内部多包（§2.1 的分层 DAG，保留）≠ 用户面多包。常用类型从一个门面包 re-export，让常见场景 import 一个包而非五个。
-- **YAGNI 闸**：门面化在出现**第二个外部消费者**时才做；只有一个消费者时痛感不足，先记账。
+### 2.2 用户面：一个语义只有一个 owner 和一个入口
+- 用户直接 import 拥有该语义的 package；不通过根门面、alias 或薄转发再次暴露同一能力。否则文档、类型身份和演进节奏会形成两份公共合同。
+- 可发现性由 package 文档、可运行 examples、provider catalog 和一致命名解决，不以重复 API 换取少写 import。
+- 只有真正拥有组合生命周期、状态和不变量的上层 package 才能提供新的组合入口；单纯聚合下层符号不是组合能力。
 
 ### 2.3 一个扩展机制 优于 一堆 hook / SPI
 - 优先"**一个**同质机制 + 类型 / 中间件分发"（如一个 `Middleware func(Handler) Handler`、一个泛型类型分发器），而不是"为每种扩展开一个具名插槽"。
@@ -106,7 +106,7 @@ MCP Go SDK 把它写成需求清单的最后一条："the SDK should be **minima
 | **accept interfaces, return structs** | 入参最大兼容、返回值最大信息量；接口是边界、struct 是实现。 |
 | **make zero values useful** | 少构造函数、少出错；导出字段 struct 零值可用。 |
 | **`iter.Seq` / `iter.Seq2` 优于 channel** | 拉模型、ctx 可在循环前检查、无 goroutine 泄漏。 |
-| **藏协议 / 传输细节，业务看不到 wire 形态** | 业务逻辑不该感知 JSON-RPC、SDK DTO 等传输形态；envelope I/O 与业务解耦。完全相同且只暴露 Core 契约的共享 Model 可由 façade 用 type alias 提升，不能为隐藏类型身份复制一层空转发。 |
+| **藏协议 / 传输细节，业务看不到 wire 形态** | 业务逻辑不该感知 JSON-RPC、SDK DTO 等传输形态；envelope I/O 与业务解耦。共享 Model 由它的唯一 owner 直接暴露，不能为隐藏 import 或类型身份再复制一层空转发。 |
 | **最小接口** | "the bigger the interface, the weaker the abstraction"；低层接口更易实现、更易替换。 |
 | **错误分层** | 协议错误带 code、工具 / 业务错误进 result 不进 Go error。 |
 | **核无状态，差异作参数** | 同一核服务多连接 / 多会话，per-session 靠工厂 / 参数注入，不为每会话造实例。 |
@@ -117,7 +117,7 @@ MCP Go SDK 把它写成需求清单的最后一条："the SDK should be **minima
 
 沿用 [`CLAUDE.md`](CLAUDE.md) "原则冲突时"，并补两条本篇相关的：
 
-- **可发现性（单门面）vs 低耦合（多包分层）**：二者不矛盾 —— 内部保持多包 DAG（低耦合），用户面用门面 re-export（可发现）。冲突只在"要不要现在就门面化"，答案由消费者数量定（§2.2）。
+- **可发现性 vs 唯一入口**：优先保持语义 owner 和公共入口唯一；通过文档、examples 与命名提升可发现性，不以 façade re-export 制造第二套 API（§2.2）。
 
 ---
 

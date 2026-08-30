@@ -149,7 +149,7 @@ func TestMiddlewarePreservesChatExtensionsAndExposesTypedHistory(t *testing.T) {
 		chat.NewAssistantMessage(chat.NewTextPart("first answer")),
 		chat.NewUserMessage(chat.NewTextPart("question")),
 	)
-	if setExtensionErr := request.Options.SetExtension("test/tenant", "acme"); setExtensionErr != nil {
+	if setExtensionErr := request.Options.Extensions.Set("test/tenant", "acme"); setExtensionErr != nil {
 		t.Fatal(setExtensionErr)
 	}
 	var downstreamTenant string

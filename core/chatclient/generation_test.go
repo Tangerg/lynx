@@ -109,8 +109,8 @@ func TestGenerationRejectsDuplicateOrInvalidConstruction(t *testing.T) {
 	if _, err := client.Output(OutputFormat[recipe]{}).Call(t.Context(), textRequest("hello")); !errors.Is(err, ErrInvalidOutputFormat) {
 		t.Fatalf("zero output format = %v, want ErrInvalidOutputFormat", err)
 	}
-	var nilClient *Client
-	if _, err := nilClient.Output(JSON[recipe]()).Call(t.Context(), textRequest("hello")); !errors.Is(err, ErrNilClient) {
+	var zeroClient Client
+	if _, err := zeroClient.Output(JSON[recipe]()).Call(t.Context(), textRequest("hello")); !errors.Is(err, ErrNilClient) {
 		t.Fatalf("nil client = %v, want ErrNilClient", err)
 	}
 }

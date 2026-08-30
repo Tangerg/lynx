@@ -24,7 +24,8 @@ func TestEmbeddingModel(t *testing.T) {
 		Response: zhipuEmbedResponseJSON,
 		Build: func(t *testing.T, baseURL string) embedding.Model {
 			t.Helper()
-			opts, err := embedding.NewOptions(zhipu.ModelEmbedding3)
+			opts := embedding.Options{Model: zhipu.ModelEmbedding3}
+			err := opts.Validate()
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}

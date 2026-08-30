@@ -74,6 +74,10 @@ jobs:
         if: matrix.module == 'core'
         run: scripts/check-core-coverage.sh
 
+      - name: Agent coverage budget
+        if: matrix.module == 'agent'
+        run: scripts/check-agent-coverage.sh
+
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:

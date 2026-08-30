@@ -131,11 +131,11 @@ func (a *AudioTTSModel) buildResponse(audio []byte, hdr http.Header) (*tts.Respo
 	}
 	meta := &tts.ResponseMetadata{Model: hdr.Get("dg-model-name")}
 	if requestID := hdr.Get("dg-request-id"); requestID != "" {
-		if err := meta.Set("deepgram/request_id", requestID); err != nil {
+		if err := meta.Extra.Set("deepgram/request_id", requestID); err != nil {
 			return nil, err
 		}
 	}
-	if err := meta.Set(SpeechResponseExtensionKey, map[string]string{
+	if err := meta.Extra.Set(SpeechResponseExtensionKey, map[string]string{
 		"content_type": hdr.Get("Content-Type"),
 		"model_name":   hdr.Get("dg-model-name"),
 		"request_id":   hdr.Get("dg-request-id"),

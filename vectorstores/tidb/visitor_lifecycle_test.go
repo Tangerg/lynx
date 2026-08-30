@@ -1,18 +1,17 @@
-package tidb_test
+package tidb
 
 import (
 	"testing"
 
 	"github.com/Tangerg/scope/core/vectorstore/storetest"
-	"github.com/Tangerg/scope/vectorstores/tidb"
 )
 
 func TestVisitorLifecycle(t *testing.T) {
 	t.Parallel()
 	storetest.VisitorLifecycle(t, func() storetest.Compiler {
-		visitor := tidb.NewVisitor("metadata")
+		visitor := newVisitor("metadata")
 		return storetest.Compiler{Visit: visitor.Visit, Snapshot: func() any {
-			query, args := visitor.Result()
+			query, args := visitor.snapshot()
 			return struct {
 				query string
 				args  any

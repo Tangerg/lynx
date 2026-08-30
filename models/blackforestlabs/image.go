@@ -194,13 +194,13 @@ func mapImageResponse(value *media.Media, async *asyncResponse, final *pollResul
 	}
 
 	meta := &image.ResponseMetadata{}
-	if err := meta.Set("blackforestlabs/task_id", async.ID); err != nil {
+	if err := meta.Extra.Set("blackforestlabs/task_id", async.ID); err != nil {
 		return nil, err
 	}
-	if err := meta.Set("blackforestlabs/submit_response", async); err != nil {
+	if err := meta.Extra.Set("blackforestlabs/submit_response", async); err != nil {
 		return nil, err
 	}
-	if err := meta.Set("blackforestlabs/result_response", final); err != nil {
+	if err := meta.Extra.Set("blackforestlabs/result_response", final); err != nil {
 		return nil, err
 	}
 	return image.NewResponse([]*image.Output{output}, meta)

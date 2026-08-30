@@ -24,7 +24,8 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	srv := modeltest.JSONServer(http.StatusOK, body)
 	t.Cleanup(srv.Close)
 
-	opts, err := tts.NewOptions(protocol.ModelGemini31FlashTTSPreview)
+	opts := tts.Options{Model: protocol.ModelGemini31FlashTTSPreview}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

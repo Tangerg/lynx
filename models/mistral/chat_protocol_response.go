@@ -28,7 +28,7 @@ func mapChatCompletion(completion *chatCompletionResponse) (*corechat.Response, 
 			ID: completion.ID, Model: completion.Model, Usage: mapMistralUsage(completion.Usage),
 		},
 	}
-	if err := response.Metadata.Set(responseExtensionKey, completion); err != nil {
+	if err := response.Metadata.Extra.Set(responseExtensionKey, completion); err != nil {
 		return nil, err
 	}
 	wireChoice := completion.Choices[0]

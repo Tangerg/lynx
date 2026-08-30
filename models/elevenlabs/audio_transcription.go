@@ -121,7 +121,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	}
 
 	responseMetadata := &transcription.ResponseMetadata{Model: apiReq.ModelID}
-	if err := responseMetadata.Set(TranscriptionResponseExtensionKey, apiResp); err != nil {
+	if err := responseMetadata.Extra.Set(TranscriptionResponseExtensionKey, apiResp); err != nil {
 		return nil, err
 	}
 	return transcription.NewResponse(output, responseMetadata)

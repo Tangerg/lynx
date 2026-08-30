@@ -37,7 +37,8 @@ func TestAudioTranscriptionModel_Call_Mock(t *testing.T) {
 	)
 	t.Cleanup(srv.Close)
 
-	opts, err := transcription.NewOptions(gladia.ModelSolaria1)
+	opts := transcription.Options{Model: gladia.ModelSolaria1}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

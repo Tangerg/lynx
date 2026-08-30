@@ -57,7 +57,8 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	)
 	t.Cleanup(srv.Close)
 
-	opts, err := image.NewOptions(replicate.ModelFluxSchnell)
+	opts := image.Options{Model: replicate.ModelFluxSchnell}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -116,7 +116,7 @@ func (experiment Experiment[T]) execute(
 				err = report.Validate()
 			}
 			if err == nil {
-				results[index].Report = report.Clone()
+				results[index].Report = report.cloneValid()
 				return nil
 			}
 			results[index].Err = err

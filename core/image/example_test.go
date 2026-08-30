@@ -11,7 +11,8 @@ func Example() {
 	if err != nil {
 		panic(err)
 	}
-	options, err := image.NewOptions("image-model")
+	options := image.Options{Model: "image-model"}
+	err = options.Validate()
 	if err != nil {
 		panic(err)
 	}

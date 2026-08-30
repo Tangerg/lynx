@@ -13,8 +13,8 @@
 //	        if err != nil {
 //	            return err
 //	        }
-//	        v := redis.NewVisitor(myFieldSchema)
-//	        return v.Visit(expr)
+//	        compiler := newVisitor(myFieldSchema)
+//	        return expr.Accept(compiler)
 //	    })
 //	}
 //

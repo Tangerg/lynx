@@ -31,11 +31,8 @@ func TestModelFuncAdaptsCall(t *testing.T) {
 }
 
 func TestOptionsAndRequest(t *testing.T) {
-	if _, err := embedding.NewOptions(""); err == nil {
-		t.Fatal("NewOptions accepted empty model")
-	}
-	if _, err := embedding.NewOptions(" model "); err == nil {
-		t.Fatal("NewOptions accepted model with surrounding whitespace")
+	if err := (embedding.Options{Model: " model "}).Validate(); err == nil {
+		t.Fatal("Options accepted model with surrounding whitespace")
 	}
 	if _, err := embedding.NewRequest(nil); err == nil {
 		t.Fatal("NewRequest accepted empty input")
@@ -46,13 +43,7 @@ func TestOptionsAndRequest(t *testing.T) {
 	if err := (*embedding.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")
 	}
-	invalid := &embedding.Request{
-		Texts:   []string{"text"},
-		Options: embedding.Options{Extensions: metadata.Map{"provider/broken": []byte("{")}},
-	}
-	if err := invalid.Validate(); err == nil {
-		t.Fatal("Validate accepted invalid options metadata")
-	}
+	invalid := &embedding.Request{Texts: []string{"text"}}
 	invalid.Options = embedding.Options{Model: " model "}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted model with surrounding whitespace")
@@ -63,7 +54,7 @@ func TestOptionsAndRequest(t *testing.T) {
 		t.Fatal("Validate accepted non-positive dimensions")
 	}
 	options := new(embedding.Options)
-	if err := options.SetExtension("provider/value", func() {}); err == nil || options.Extensions != nil {
+	if err := options.Extensions.Set("provider/value", func() {}); err == nil || !options.Extensions.IsZero() {
 		t.Fatalf("failed SetExtension mutated options: %#v, %v", options.Extensions, err)
 	}
 	dimensions := int64(32)
@@ -88,7 +79,7 @@ func TestProtocolValueCopies(t *testing.T) {
 	dimensions := int64(64)
 	options := embedding.Options{
 		Model: "base", Dimensions: &dimensions,
-		Extensions: mustMetadata(t, map[string]any{"provider/region": "local"}),
+		Extensions: mustExtensions(t, map[string]any{"provider/region": "local"}),
 	}
 	clone := options.Clone()
 	*clone.Dimensions = 128
@@ -100,16 +91,18 @@ func TestProtocolValueCopies(t *testing.T) {
 	}
 }
 
-func mustMetadata(t *testing.T, values map[string]any) metadata.Map {
+func mustExtensions(t *testing.T, values map[string]any) metadata.Extensions {
 	t.Helper()
-	output, err := metadata.FromValues(values)
-	if err != nil {
-		t.Fatal(err)
+	var output metadata.Extensions
+	for key, value := range values {
+		if err := output.Set(key, value); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return output
 }
 
-func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
+func mustDecode[T any](t *testing.T, values metadata.Extensions, key string) T {
 	t.Helper()
 	value, ok, err := values.Decode[T](key)
 	if err != nil || !ok {
@@ -119,7 +112,7 @@ func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
 }
 
 func TestProtocolConstructorsRejectInvalidValues(t *testing.T) {
-	if resolved, err := (embedding.Options{}).Resolve(embedding.Options{}); err != nil || resolved.Model != "" || resolved.Dimensions != nil || len(resolved.Extensions) != 0 {
+	if resolved, err := (embedding.Options{}).Resolve(embedding.Options{}); err != nil || resolved.Model != "" || resolved.Dimensions != nil || !resolved.Extensions.IsZero() {
 		t.Fatalf("zero Options.Resolve(empty) = %#v, %v", resolved, err)
 	}
 	if _, err := embedding.NewOutput(nil, nil); err == nil {

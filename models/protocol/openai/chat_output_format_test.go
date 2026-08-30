@@ -39,7 +39,7 @@ func TestOutputFormatMapsToChatAndResponsesNativeShapes(t *testing.T) {
 }
 
 func TestResponsesOutputFormatRejectsDuplicateExtensionSource(t *testing.T) {
-	extensions := metadata.Map{}
+	var extensions metadata.Extensions
 	if err := extensions.Set(ResponsesRequestExtensionKey, map[string]any{
 		"text": map[string]any{
 			"verbosity": "low",

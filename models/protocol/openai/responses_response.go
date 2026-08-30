@@ -29,7 +29,7 @@ func mapResponsesResponse(response *responses.Response) (*corechat.Response, err
 			ID: response.ID, Model: string(response.Model), Usage: responsesUsage(response.Usage),
 		},
 	}
-	if err := mapped.Metadata.Set(ResponsesResponseExtensionKey, response); err != nil {
+	if err := mapped.Metadata.Extra.Set(ResponsesResponseExtensionKey, response); err != nil {
 		return nil, fmt.Errorf("openai responses: preserve native response: %w", err)
 	}
 	if err := mapped.Validate(); err != nil {

@@ -1,4 +1,4 @@
-package bedrockkb_test
+package bedrockkb
 
 import (
 	"math"
@@ -9,15 +9,14 @@ import (
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 	"github.com/Tangerg/scope/core/vectorstore/storetest"
-	"github.com/Tangerg/scope/vectorstores/bedrockkb"
 )
 
 func compileFilter(predicate filter.Predicate) (types.RetrievalFilter, error) {
-	visitor := bedrockkb.NewVisitor()
+	visitor := newVisitor()
 	if err := predicate.Accept(visitor); err != nil {
 		return nil, err
 	}
-	return visitor.Result(), nil
+	return visitor.snapshot(), nil
 }
 
 func TestVisitor_Conformance(t *testing.T) {
@@ -27,7 +26,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			return predicate.Accept(bedrockkb.NewVisitor())
+			return predicate.Accept(newVisitor())
 		},
 		storetest.Options{Unsupported: []string{"indexed_key", "nested_index"}},
 	)

@@ -1,19 +1,18 @@
-package cassandra_test
+package cassandra
 
 import (
 	"math"
 	"testing"
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
-	"github.com/Tangerg/scope/vectorstores/cassandra"
 )
 
 func TestVisitor_PreservesUnsignedIntegerList(t *testing.T) {
-	visitor := cassandra.NewVisitor()
+	visitor := newVisitor()
 	if err := filter.In("id", []uint64{math.MaxUint64}).Accept(visitor); err != nil {
 		t.Fatal(err)
 	}
-	_, args := visitor.Result()
+	_, args := visitor.snapshot()
 	if len(args) != 1 {
 		t.Fatalf("args = %#v", args)
 	}

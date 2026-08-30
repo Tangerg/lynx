@@ -15,7 +15,8 @@ func TestImageModel_Call_Mock(t *testing.T) {
 	srv := modeltest.JSONServer(http.StatusOK, azureImageJSON)
 	t.Cleanup(srv.Close)
 
-	opts, err := image.NewOptions("dall-e-3-deployment")
+	opts := image.Options{Model: "dall-e-3-deployment"}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

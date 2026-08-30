@@ -1,11 +1,10 @@
-package redis_test
+package redis
 
 import (
 	"testing"
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 	"github.com/Tangerg/scope/core/vectorstore/storetest"
-	"github.com/Tangerg/scope/vectorstores/redis"
 )
 
 // TestVisitor_Conformance runs the shared visitor suite against the
@@ -14,20 +13,20 @@ import (
 // identifiers; redis IN-on-numeric isn't supported by the visitor
 // so `in_numbers` is declared via [storetest.Options.Unsupported].
 func TestVisitor_Conformance(t *testing.T) {
-	fields := map[string]redis.MetadataFieldType{
-		"author":         redis.FieldTag, // == / !=
-		"year":           redis.FieldNumeric,
-		"published":      redis.FieldTag, // bool ==
-		"n":              redis.FieldNumeric,
-		"a":              redis.FieldNumeric,
-		"b":              redis.FieldNumeric,
-		"c":              redis.FieldNumeric,
-		"d":              redis.FieldNumeric,
-		"tags":           redis.FieldTag,  // IN strings
-		"flags":          redis.FieldTag,  // IN bools (rendered as tag string)
-		"title":          redis.FieldText, // LIKE
-		"profile.author": redis.FieldTag,
-		"profile.a.b":    redis.FieldTag,
+	fields := map[string]MetadataFieldType{
+		"author":         FieldTag, // == / !=
+		"year":           FieldNumeric,
+		"published":      FieldTag, // bool ==
+		"n":              FieldNumeric,
+		"a":              FieldNumeric,
+		"b":              FieldNumeric,
+		"c":              FieldNumeric,
+		"d":              FieldNumeric,
+		"tags":           FieldTag,  // IN strings
+		"flags":          FieldTag,  // IN bools (rendered as tag string)
+		"title":          FieldText, // LIKE
+		"profile.author": FieldTag,
+		"profile.a.b":    FieldTag,
 	}
 
 	storetest.VisitorConformance(t,
@@ -36,7 +35,7 @@ func TestVisitor_Conformance(t *testing.T) {
 			if err != nil {
 				return err
 			}
-			v := redis.NewVisitor(fields)
+			v := newVisitor(fields)
 			return expr.Accept(v)
 		},
 		storetest.Options{
@@ -49,7 +48,7 @@ func TestVisitor_Conformance(t *testing.T) {
 }
 
 func TestVisitor_RejectsIntegerThatRediSearchCannotRepresentExactly(t *testing.T) {
-	visitor := redis.NewVisitor(map[string]redis.MetadataFieldType{"id": redis.FieldNumeric})
+	visitor := newVisitor(map[string]MetadataFieldType{"id": FieldNumeric})
 	if err := filter.EQ("id", uint64(1<<53+1)).Accept(visitor); err == nil {
 		t.Fatal("Redis silently rounded a large integer")
 	}
@@ -58,11 +57,11 @@ func TestVisitor_RejectsIntegerThatRediSearchCannotRepresentExactly(t *testing.T
 func TestVisitor_TranslatesLikeToRedisWildcardQuery(t *testing.T) {
 	t.Parallel()
 
-	visitor := redis.NewVisitor(map[string]redis.MetadataFieldType{"title": redis.FieldText})
+	visitor := newVisitor(map[string]MetadataFieldType{"title": FieldText})
 	if err := filter.Like("title", `intro%_literal*?`).Accept(visitor); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := visitor.Result(), `@title:(w'intro*?literal\*\?')`; got != want {
+	if got, want := visitor.snapshot(), `@title:(w'intro*?literal\*\?')`; got != want {
 		t.Fatalf("Result() = %q, want %q", got, want)
 	}
 }

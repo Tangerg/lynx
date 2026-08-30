@@ -152,11 +152,11 @@ func (i *ImageModel) buildResponse(body []byte, hdr http.Header, outputFormat st
 
 	meta := &image.ResponseMetadata{}
 	if rid := hdr.Get("request-id"); rid != "" {
-		if err := meta.Set("stability/request_id", rid); err != nil {
+		if err := meta.Extra.Set("stability/request_id", rid); err != nil {
 			return nil, err
 		}
 	}
-	if err := meta.Set(ResponseExtensionKey, envelope); err != nil {
+	if err := meta.Extra.Set(ResponseExtensionKey, envelope); err != nil {
 		return nil, err
 	}
 

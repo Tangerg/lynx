@@ -9,24 +9,31 @@ import (
 )
 
 type processState struct {
+	// These references establish ownership and remain fixed while the runtime
+	// owner line mutates the execution fields below.
 	engine     *Engine
 	controller *processController
 	deployment Deployment
 	execution  Execution
 
-	startedAt              time.Time
-	finishedAt             time.Time
-	status                 Status
-	committedSteps         uint64
-	processEventSequence   uint64
-	lastStableState        ExecutionState
-	mailbox                signalMailbox
-	prepared               *preparedStep
-	currentWaitID          WaitID
-	pauseReason            string
-	pendingControl         pendingControl
-	finalOutput            Output
-	termination            Termination
+	// Only treeRuntime's owner line mutates protocol and recovery state, keeping
+	// snapshots and externally visible transitions in one deterministic order.
+	startedAt            time.Time
+	finishedAt           time.Time
+	status               Status
+	committedSteps       uint64
+	processEventSequence uint64
+	lastStableState      ExecutionState
+	mailbox              signalMailbox
+	prepared             *preparedStep
+	currentWaitID        WaitID
+	pauseReason          string
+	pendingControl       pendingControl
+	finalOutput          Output
+	termination          Termination
+
+	// Allocation and authority stay adjacent because every child reservation
+	// must update both before it can become observable.
 	limits                 Limits
 	treeLimits             TreeLimits
 	budget                 Budget
@@ -34,10 +41,13 @@ type processState struct {
 	provisionalChildBudget Budget
 	capabilities           CapabilitySet
 	usage                  Usage
-	restored               bool
-	restoredPending        restoredPendingEffect
-	runtime                *treeRuntime
-	attemptSequence        uint64
+
+	// Restore bookkeeping is consumed by the same owner line before new work is
+	// admitted, preventing recovered effects from racing fresh execution.
+	restored        bool
+	restoredPending restoredPendingEffect
+	runtime         *treeRuntime
+	attemptSequence uint64
 }
 
 type restoredPendingEffect struct {

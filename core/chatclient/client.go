@@ -40,14 +40,14 @@ type Client struct {
 	defaults          chat.Options
 }
 
-func New(model chat.Model, config Config) (*Client, error) {
+func New(model chat.Model, config Config) (Client, error) {
 	if lo.IsNil(model) {
-		return nil, ErrNilModel
+		return Client{}, ErrNilModel
 	}
 
 	config, err := config.snapshot()
 	if err != nil {
-		return nil, err
+		return Client{}, err
 	}
 
 	streamer := config.Streamer
@@ -56,17 +56,17 @@ func New(model chat.Model, config Config) (*Client, error) {
 	}
 	model = chat.Wrap(model, config.CallMiddleware...)
 	if lo.IsNil(model) {
-		return nil, errors.New("chatclient: call middleware returned a nil model")
+		return Client{}, errors.New("chatclient: call middleware returned a nil model")
 	}
 	tokenCounter, _ := model.(inputTokenCounter)
 	if streamer != nil {
 		streamer = chat.WrapStream(streamer, config.StreamMiddleware...)
 		if lo.IsNil(streamer) {
-			return nil, errors.New("chatclient: stream middleware returned a nil streamer")
+			return Client{}, errors.New("chatclient: stream middleware returned a nil streamer")
 		}
 	}
 
-	return &Client{
+	return Client{
 		model:             model,
 		streamer:          streamer,
 		inputTokenCounter: tokenCounter,
@@ -74,12 +74,12 @@ func New(model chat.Model, config Config) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) Output[T any](format OutputFormat[T]) Generation[T] {
+func (c Client) Output[T any](format OutputFormat[T]) Generation[T] {
 	return Generation[T]{client: c, format: format}
 }
 
-func (c *Client) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
-	if c == nil {
+func (c Client) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
+	if !c.valid() {
 		return nil, ErrNilClient
 	}
 	return c.call(ctx, req, nil)
@@ -88,14 +88,14 @@ func (c *Client) Call(ctx context.Context, req *chat.Request) (*chat.Response, e
 // SupportsInputTokenCounting reports whether CountInputTokens observes the same
 // prepared provider request as Call. Middleware must explicitly preserve that
 // capability after any request transformation.
-func (c *Client) SupportsInputTokenCounting() bool {
-	return c != nil && c.inputTokenCounter != nil
+func (c Client) SupportsInputTokenCounting() bool {
+	return c.valid() && c.inputTokenCounter != nil
 }
 
 // CountInputTokens snapshots and resolves defaults exactly like Call, then asks
 // the model's optional provider-owned counter to measure the complete input.
-func (c *Client) CountInputTokens(ctx context.Context, req *chat.Request) (int64, error) {
-	if c == nil {
+func (c Client) CountInputTokens(ctx context.Context, req *chat.Request) (int64, error) {
+	if !c.valid() {
 		return 0, ErrNilClient
 	}
 	prepared, err := c.prepareRequest(req, nil)
@@ -115,7 +115,7 @@ func (c *Client) CountInputTokens(ctx context.Context, req *chat.Request) (int64
 	return count, nil
 }
 
-func (c *Client) call(ctx context.Context, req *chat.Request, format *chat.OutputFormat) (*chat.Response, error) {
+func (c Client) call(ctx context.Context, req *chat.Request, format *chat.OutputFormat) (*chat.Response, error) {
 	prepared, err := c.prepareRequest(req, format)
 	if err != nil {
 		return nil, err
@@ -123,7 +123,7 @@ func (c *Client) call(ctx context.Context, req *chat.Request, format *chat.Outpu
 	return c.model.Call(ctx, prepared)
 }
 
-func (c *Client) prepareRequest(request *chat.Request, outputFormat *chat.OutputFormat) (*chat.Request, error) {
+func (c Client) prepareRequest(request *chat.Request, outputFormat *chat.OutputFormat) (*chat.Request, error) {
 	if request == nil {
 		return nil, fmt.Errorf("%w: nil request", chat.ErrInvalidRequest)
 	}
@@ -145,14 +145,14 @@ func (c *Client) prepareRequest(request *chat.Request, outputFormat *chat.Output
 	return prepared, nil
 }
 
-func (c *Client) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
-	if c == nil {
+func (c Client) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+	if !c.valid() {
 		return errorSequence(ErrNilClient)
 	}
 	return c.stream(ctx, req, nil)
 }
 
-func (c *Client) stream(ctx context.Context, req *chat.Request, format *chat.OutputFormat) iter.Seq2[*chat.Response, error] {
+func (c Client) stream(ctx context.Context, req *chat.Request, format *chat.OutputFormat) iter.Seq2[*chat.Response, error] {
 	prepared, err := c.prepareRequest(req, format)
 	if err != nil {
 		return errorSequence(err)
@@ -169,6 +169,10 @@ func (c *Client) stream(ctx context.Context, req *chat.Request, format *chat.Out
 		}
 		sequence(yield)
 	}
+}
+
+func (c Client) valid() bool {
+	return !lo.IsNil(c.model)
 }
 
 func errorSequence(err error) iter.Seq2[*chat.Response, error] {

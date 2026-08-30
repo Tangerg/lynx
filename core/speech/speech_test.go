@@ -39,28 +39,19 @@ func TestModelAndStreamerFunc(t *testing.T) {
 }
 
 func TestOptionsAndRequestValidation(t *testing.T) {
-	if _, err := speech.NewOptions(""); !errors.Is(err, speech.ErrInvalidOptions) {
-		t.Fatalf("NewOptions error = %v", err)
-	}
-	if _, err := speech.NewOptions(" model "); err == nil {
-		t.Fatal("NewOptions accepted model with surrounding whitespace")
+	if err := (speech.Options{Model: " model "}).Validate(); err == nil {
+		t.Fatal("Options accepted model with surrounding whitespace")
 	}
 	if _, err := speech.NewRequest(""); err == nil {
 		t.Fatal("NewRequest accepted empty text")
 	}
-	if resolved, err := (speech.Options{}).Resolve(speech.Options{}); err != nil || resolved.Model != "" || resolved.Speed != 0 || len(resolved.Extensions) != 0 {
+	if resolved, err := (speech.Options{}).Resolve(speech.Options{}); err != nil || resolved.Model != "" || resolved.Speed != 0 || !resolved.Extensions.IsZero() {
 		t.Fatalf("zero Options.Resolve(empty) = %#v, %v", resolved, err)
 	}
 	if err := (*speech.Request)(nil).Validate(); err == nil {
 		t.Fatal("Validate accepted nil request")
 	}
-	invalid := &speech.Request{
-		Text:    "text",
-		Options: speech.Options{Extensions: metadata.Map{"provider/broken": []byte("{")}},
-	}
-	if err := invalid.Validate(); err == nil {
-		t.Fatal("Validate accepted invalid options metadata")
-	}
+	invalid := &speech.Request{Text: "text"}
 	invalid.Options = speech.Options{Model: " model "}
 	if err := invalid.Validate(); err == nil {
 		t.Fatal("Validate accepted model with surrounding whitespace")
@@ -82,7 +73,7 @@ func TestOptionsAndRequestValidation(t *testing.T) {
 		})
 	}
 	options := new(speech.Options)
-	if err := options.SetExtension("provider/value", func() {}); err == nil || options.Extensions != nil {
+	if err := options.Extensions.Set("provider/value", func() {}); err == nil || !options.Extensions.IsZero() {
 		t.Fatalf("failed SetExtension mutated options: %#v, %v", options.Extensions, err)
 	}
 	if _, err := (speech.Options{Model: "base", Speed: math.NaN()}).Resolve(speech.Options{}); err == nil {
@@ -101,16 +92,17 @@ func TestResponseValidation(t *testing.T) {
 }
 
 func TestOptionsResolveAndCopies(t *testing.T) {
-	base := speech.Options{Model: "base", Voice: "base-voice", Extensions: mustMetadata(t, map[string]any{"provider/base": true})}
+	base := speech.Options{Model: "base", Voice: "base-voice", Extensions: mustExtensions(t, map[string]any{"provider/base": true})}
 	resolved, err := base.Resolve(speech.Options{
 		Model: "override", Voice: "alloy", OutputFormat: "mp3", Speed: 1.25,
-		Extensions: mustMetadata(t, map[string]any{"provider/override": true}),
+		Extensions: mustExtensions(t, map[string]any{"provider/override": true}),
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if resolved.Model != "override" || resolved.Voice != "alloy" || resolved.OutputFormat != "mp3" ||
-		resolved.Speed != 1.25 || len(resolved.Extensions) != 2 {
+		resolved.Speed != 1.25 || !mustDecode[bool](t, resolved.Extensions, "provider/base") ||
+		!mustDecode[bool](t, resolved.Extensions, "provider/override") {
 		t.Fatalf("Resolve = %#v", resolved)
 	}
 	clone := resolved.Clone()
@@ -122,16 +114,18 @@ func TestOptionsResolveAndCopies(t *testing.T) {
 	}
 }
 
-func mustMetadata(t *testing.T, values map[string]any) metadata.Map {
+func mustExtensions(t *testing.T, values map[string]any) metadata.Extensions {
 	t.Helper()
-	output, err := metadata.FromValues(values)
-	if err != nil {
-		t.Fatal(err)
+	var output metadata.Extensions
+	for key, value := range values {
+		if err := output.Set(key, value); err != nil {
+			t.Fatal(err)
+		}
 	}
 	return output
 }
 
-func mustDecode[T any](t *testing.T, values metadata.Map, key string) T {
+func mustDecode[T any](t *testing.T, values metadata.Extensions, key string) T {
 	t.Helper()
 	value, ok, err := values.Decode[T](key)
 	if err != nil || !ok {

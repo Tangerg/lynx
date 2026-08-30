@@ -13,7 +13,8 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	srv := modeltest.BinaryServer(200, "audio/mpeg", []byte("FAKE-MP3"))
 	t.Cleanup(srv.Close)
 
-	opts, err := tts.NewOptions("eleven_v3")
+	opts := tts.Options{Model: "eleven_v3"}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

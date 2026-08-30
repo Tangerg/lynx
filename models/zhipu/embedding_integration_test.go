@@ -19,7 +19,8 @@ func TestEmbeddingModel_Integration(t *testing.T) {
 			if modelID == "" {
 				modelID = zhipu.ModelEmbedding3
 			}
-			opts, err := embedding.NewOptions(modelID)
+			opts := embedding.Options{Model: modelID}
+			err := opts.Validate()
 			if err != nil {
 				t.Fatal(err)
 			}

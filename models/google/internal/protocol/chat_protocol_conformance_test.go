@@ -184,7 +184,7 @@ func newProtocolChatRequest(t *testing.T) *corechat.Request {
 		Description: "Run a calculation",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"x":{"type":"number"}}}`),
 	}}
-	if err := request.Options.SetExtension("google/request", map[string]any{
+	if err := request.Options.Extensions.Set("google/request", map[string]any{
 		"safety_settings": []map[string]any{{
 			"category":  "HARM_CATEGORY_DANGEROUS_CONTENT",
 			"threshold": "BLOCK_ONLY_HIGH",

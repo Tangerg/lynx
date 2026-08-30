@@ -170,7 +170,7 @@ func (a *AudioTTSModel) buildTTSResponse(apiResp *genai.GenerateContentResponse)
 	}
 
 	meta := &tts.ResponseMetadata{Model: apiResp.ModelVersion}
-	if err := meta.Set(protocolKey(a.provider, "speech_response"), apiResp); err != nil {
+	if err := meta.Extra.Set(protocolKey(a.provider, "speech_response"), apiResp); err != nil {
 		return nil, err
 	}
 

@@ -281,6 +281,8 @@ func (r Result) Valid() bool {
 }
 
 type processController struct {
+	// Identity and allocation are immutable after Engine publishes the Process,
+	// so callers can inspect them without contending with the runtime owner line.
 	processID          ProcessID
 	deploymentRef      DeploymentRef
 	relation           ProcessRelation
@@ -294,6 +296,8 @@ type processController struct {
 	treeSettled        chan struct{}
 	treeSettledOnce    sync.Once
 
+	// viewMu protects only the read projection copied from processState; runtime
+	// execution never occurs while this lock is held.
 	viewMu              sync.RWMutex
 	viewStatus          Status
 	viewWaitID          WaitID

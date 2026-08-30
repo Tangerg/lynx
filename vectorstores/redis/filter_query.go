@@ -13,11 +13,11 @@ func (s *Store) buildFilterQuery(filter filter.Predicate) (string, error) {
 	if filter == nil {
 		return "*", nil
 	}
-	v := NewVisitor(s.fieldTypes)
+	v := newVisitor(s.fieldTypes)
 	if err := filter.Accept(v); err != nil {
 		return "", fmt.Errorf("redis: convert filter: %w", err)
 	}
-	fragment := v.Result()
+	fragment := v.snapshot()
 	if fragment == "" {
 		return "*", nil
 	}

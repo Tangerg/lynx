@@ -42,13 +42,13 @@ func TestResponseAccumulatorAggregatesResultDeltas(t *testing.T) {
 		},
 	}
 	chunks[0].Metadata.Extra = metadata.Map{}
-	if err := chunks[0].Metadata.Set("test/value", "first"); err != nil {
+	if err := chunks[0].Metadata.Extra.Set("test/value", "first"); err != nil {
 		t.Fatal(err)
 	}
-	if err := chunks[2].Metadata.Set("test/value", "last"); err != nil {
+	if err := chunks[2].Metadata.Extra.Set("test/value", "last"); err != nil {
 		t.Fatal(err)
 	}
-	if err := chunks[2].Output.Metadata.Set("test/finish", true); err != nil {
+	if err := chunks[2].Output.Metadata.Extra.Set("test/finish", true); err != nil {
 		t.Fatal(err)
 	}
 

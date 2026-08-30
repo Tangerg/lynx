@@ -1,11 +1,10 @@
-package elasticsearch_test
+package elasticsearch
 
 import (
 	"testing"
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 	"github.com/Tangerg/scope/core/vectorstore/storetest"
-	"github.com/Tangerg/scope/vectorstores/elasticsearch"
 )
 
 func TestVisitor_Conformance(t *testing.T) {
@@ -14,7 +13,7 @@ func TestVisitor_Conformance(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		v := elasticsearch.NewVisitor("metadata")
+		v := newVisitor("metadata")
 		return expr.Accept(v)
 	})
 }
@@ -46,11 +45,11 @@ func TestVisitor_NullTest(t *testing.T) {
 			if err != nil {
 				t.Fatalf("parse %q: %v", tt.src, err)
 			}
-			v := elasticsearch.NewVisitor("metadata")
+			v := newVisitor("metadata")
 			if err := expr.Accept(v); err != nil {
 				t.Fatalf("visit %q: %v", tt.src, err)
 			}
-			if got := v.Result(); got != tt.want {
+			if got := v.snapshot(); got != tt.want {
 				t.Errorf("Result() = %q, want %q", got, tt.want)
 			}
 		})
@@ -59,11 +58,11 @@ func TestVisitor_NullTest(t *testing.T) {
 
 func TestVisitor_CollectionMembershipUsesExactFieldQuery(t *testing.T) {
 	expr := filter.Has("visible_to", "user-42")
-	visitor := elasticsearch.NewVisitor("metadata")
+	visitor := newVisitor("metadata")
 	if err := expr.Accept(visitor); err != nil {
 		t.Fatal(err)
 	}
-	if got, want := visitor.Result(), `metadata.visible_to:"user-42"`; got != want {
+	if got, want := visitor.snapshot(), `metadata.visible_to:"user-42"`; got != want {
 		t.Fatalf("Result() = %q, want %q", got, want)
 	}
 }

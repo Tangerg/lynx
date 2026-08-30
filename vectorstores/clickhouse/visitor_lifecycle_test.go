@@ -1,18 +1,17 @@
-package clickhouse_test
+package clickhouse
 
 import (
 	"testing"
 
 	"github.com/Tangerg/scope/core/vectorstore/storetest"
-	"github.com/Tangerg/scope/vectorstores/clickhouse"
 )
 
 func TestVisitorLifecycle(t *testing.T) {
 	t.Parallel()
 	storetest.VisitorLifecycle(t, func() storetest.Compiler {
-		visitor := clickhouse.NewVisitor("metadata")
+		visitor := newVisitor("metadata")
 		return storetest.Compiler{Visit: visitor.Visit, Snapshot: func() any {
-			query, args := visitor.Result()
+			query, args := visitor.snapshot()
 			return struct {
 				query string
 				args  any

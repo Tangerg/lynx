@@ -24,7 +24,8 @@ func TestEmbeddingModel(t *testing.T) {
 		ExpectedPath: "/embedding/text",
 		Build: func(t *testing.T, baseURL string) embedding.Model {
 			t.Helper()
-			opts, err := embedding.NewOptions(nomic.ModelEmbedTextV15)
+			opts := embedding.Options{Model: nomic.ModelEmbedTextV15}
+			err := opts.Validate()
 			if err != nil {
 				t.Fatalf("NewOptions: %v", err)
 			}

@@ -22,7 +22,8 @@ func TestAsyncProviderPollingDurationsShareOneContract(t *testing.T) {
 		"gladia":     gladia.ModelSolaria1,
 		"revai":      revai.ModelMachine,
 	} {
-		options, err := transcription.NewOptions(model)
+		options := transcription.Options{Model: model}
+		err := options.Validate()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -34,13 +35,15 @@ func TestAsyncProviderPollingDurationsShareOneContract(t *testing.T) {
 		"luma":            luma.ModelUni1,
 		"replicate-image": replicate.ModelFluxSchnell,
 	} {
-		options, err := image.NewOptions(model)
+		options := image.Options{Model: model}
+		err := options.Validate()
 		if err != nil {
 			t.Fatal(err)
 		}
 		imageOptions[name] = options
 	}
-	speechOptions, err := speech.NewOptions(replicate.ModelXTTSV2)
+	speechOptions := speech.Options{Model: replicate.ModelXTTSV2}
+	err := speechOptions.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

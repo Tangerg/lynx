@@ -54,10 +54,10 @@ func TestResponseGolden(t *testing.T) {
 	reasoning := int64(4)
 	cacheRead := int64(8)
 	response.Metadata.Usage = chat.Usage{InputTokens: 32, OutputTokens: 12, ReasoningTokens: &reasoning, CacheReadInputTokens: &cacheRead}
-	if err := response.Metadata.Set("openai/system_fingerprint", "fp-1"); err != nil {
+	if err := response.Metadata.Extra.Set("openai/system_fingerprint", "fp-1"); err != nil {
 		t.Fatal(err)
 	}
-	if err := response.Output.Metadata.Set("openai/logprobs", []float64{-0.1, -0.2}); err != nil {
+	if err := response.Output.Metadata.Extra.Set("openai/logprobs", []float64{-0.1, -0.2}); err != nil {
 		t.Fatal(err)
 	}
 	assertChatGolden(t, "response.golden.json", response)

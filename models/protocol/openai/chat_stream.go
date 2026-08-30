@@ -52,7 +52,7 @@ func (o *openAIStreamState) mapChunk(chunk openaisdk.ChatCompletionChunk) (*core
 			mapped.Output = output
 		}
 	}
-	if err := mapped.Metadata.Set(o.chunkKey, exactProviderResponse(chunk.RawJSON(), chunk)); err != nil {
+	if err := mapped.Metadata.Extra.Set(o.chunkKey, exactProviderResponse(chunk.RawJSON(), chunk)); err != nil {
 		return nil, err
 	}
 	if err := mapped.Validate(); err != nil {
@@ -105,7 +105,7 @@ func (o *openAIStreamState) attachChunkMessage(mapped *corechat.Output, message 
 	}
 	if refusal != "" {
 		mapped.Metadata = &corechat.OutputMetadata{}
-		if err := mapped.Metadata.Set(o.refusalKey, refusal); err != nil {
+		if err := mapped.Metadata.Extra.Set(o.refusalKey, refusal); err != nil {
 			return err
 		}
 	}

@@ -1,19 +1,18 @@
-package redis_test
+package redis
 
 import (
 	"testing"
 
 	"github.com/Tangerg/scope/core/vectorstore/storetest"
-	"github.com/Tangerg/scope/vectorstores/redis"
 )
 
 func TestVisitorLifecycle(t *testing.T) {
 	t.Parallel()
 	storetest.VisitorLifecycle(t, func() storetest.Compiler {
-		visitor := redis.NewVisitor(map[string]redis.MetadataFieldType{
-			"a": redis.FieldNumeric,
-			"b": redis.FieldNumeric,
+		visitor := newVisitor(map[string]MetadataFieldType{
+			"a": FieldNumeric,
+			"b": FieldNumeric,
 		})
-		return storetest.Compiler{Visit: visitor.Visit, Snapshot: func() any { return visitor.Result() }}
+		return storetest.Compiler{Visit: visitor.Visit, Snapshot: func() any { return visitor.snapshot() }}
 	})
 }

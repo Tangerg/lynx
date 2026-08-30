@@ -12,7 +12,8 @@ func TestAudioTTSModel_Call_Mock(t *testing.T) {
 	srv := modeltest.BinaryServer(200, "audio/mpeg", []byte("FAKE-MP3"))
 	t.Cleanup(srv.Close)
 
-	opts, err := tts.NewOptions("tts-1-deployment")
+	opts := tts.Options{Model: "tts-1-deployment"}
+	err := opts.Validate()
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"iter"
 	"math"
 	"slices"
 
@@ -12,14 +13,22 @@ import (
 
 	agent "github.com/Tangerg/scope/agent"
 	"github.com/Tangerg/scope/core/chat"
-	"github.com/Tangerg/scope/core/chatclient"
 	"github.com/Tangerg/scope/core/tool"
 )
+
+// ModelClient stays consumer-owned so Interaction does not depend on one
+// concrete Core client implementation.
+type ModelClient interface {
+	// Call invokes the configured model for one complete response.
+	Call(ctx context.Context, request *chat.Request) (*chat.Response, error)
+	// Stream invokes the configured model as a lazy response sequence.
+	Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error]
+}
 
 // DispatcherConfig binds external capabilities for one Deployment.
 type DispatcherConfig struct {
 	// Client provides complete and optional streaming model calls.
-	Client *chatclient.Client
+	Client ModelClient
 
 	// Tools is the frozen ordinary model-visible and executable Tool manifest.
 	// Managed Delegate definitions come from the bound Definition.
@@ -65,7 +74,7 @@ type boundTool struct {
 // internal observation health counters are concurrency-safe. It may serve
 // Processes concurrently when the supplied Client and Tools support concurrent use.
 type Dispatcher struct {
-	client              *chatclient.Client
+	client              ModelClient
 	tools               map[string]boundTool
 	delegates           map[string]struct{}
 	initialDefinitions  []chat.ToolDefinition
@@ -87,7 +96,7 @@ func (d *Dispatcher) ObservationFailures() ObservationFailureCounts {
 }
 
 func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher, error) {
-	if !definition.valid() || config.Client == nil {
+	if !definition.valid() || lo.IsNil(config.Client) {
 		return nil, fmt.Errorf("%w: Definition and Client are required", ErrInvalidDispatcherConfig)
 	}
 	if config.MaxConcurrentToolCalls < 0 {
@@ -172,7 +181,7 @@ func (d *Dispatcher) Dispatch(
 	request agent.EffectRequest,
 	emit agent.DeltaEmitter,
 ) (agent.Settlement, error) {
-	if d == nil || d.client == nil {
+	if d == nil || lo.IsNil(d.client) {
 		return agent.Settlement{}, ErrInvalidDispatcherConfig
 	}
 	envelope, err := decodeEffect(request.Effect().Payload())

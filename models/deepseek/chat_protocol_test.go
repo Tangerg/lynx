@@ -129,7 +129,7 @@ func TestOpenAIChatMapsOfficialRequestOptions(t *testing.T) {
 	}
 	request.Options.OutputFormat = &format
 	request.Options.ReasoningEffort = "max"
-	if err := request.Options.SetExtension(deepseek.RequestExtensionKey, deepseek.RequestOptions{
+	if err := request.Options.Extensions.Set(deepseek.RequestExtensionKey, deepseek.RequestOptions{
 		Thinking:    &deepseek.ThinkingConfig{Type: deepseek.ThinkingEnabled},
 		ToolChoice:  &deepseek.ToolChoice{FunctionName: "lookup"},
 		LogProbs:    &logProbs,
@@ -192,7 +192,7 @@ func TestOpenAIChatThinkingDisabledAllowsSampling(t *testing.T) {
 		Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart("hello"))},
 		Options:  corechat.Options{Temperature: &temperature},
 	}
-	if err := request.Options.SetExtension(deepseek.RequestExtensionKey, deepseek.RequestOptions{
+	if err := request.Options.Extensions.Set(deepseek.RequestExtensionKey, deepseek.RequestOptions{
 		Thinking: &deepseek.ThinkingConfig{Type: deepseek.ThinkingDisabled},
 	}); err != nil {
 		t.Fatalf("SetExtension: %v", err)
@@ -228,7 +228,7 @@ func TestOpenAIChatMapsStreamingUsageOption(t *testing.T) {
 	}
 	includeUsage := true
 	request := &corechat.Request{Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart("hello"))}}
-	if err := request.Options.SetExtension(deepseek.RequestExtensionKey, deepseek.RequestOptions{IncludeUsage: &includeUsage}); err != nil {
+	if err := request.Options.Extensions.Set(deepseek.RequestExtensionKey, deepseek.RequestOptions{IncludeUsage: &includeUsage}); err != nil {
 		t.Fatalf("SetExtension: %v", err)
 	}
 	for _, streamErr := range model.Stream(t.Context(), request) {
@@ -275,7 +275,7 @@ func TestOpenAIChatRejectsInvalidDeepSeekOptions(t *testing.T) {
 				Options:  test.core,
 				Tools:    test.tools,
 			}
-			if err := request.Options.SetExtension(deepseek.RequestExtensionKey, test.options); err != nil {
+			if err := request.Options.Extensions.Set(deepseek.RequestExtensionKey, test.options); err != nil {
 				t.Fatalf("SetExtension: %v", err)
 			}
 			if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), test.want) {
@@ -287,7 +287,7 @@ func TestOpenAIChatRejectsInvalidDeepSeekOptions(t *testing.T) {
 	request := &corechat.Request{
 		Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart("hello"))},
 	}
-	if err := request.Options.SetExtension(deepseek.RequestExtensionKey, map[string]any{"reasoning_effort": "high"}); err != nil {
+	if err := request.Options.Extensions.Set(deepseek.RequestExtensionKey, map[string]any{"reasoning_effort": "high"}); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), "owned by options.reasoning_effort") {

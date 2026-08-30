@@ -89,7 +89,7 @@ func (r *responsesStreamState) addEvent(event responses.ResponseStreamEventUnion
 				ID: r.responseID, Model: r.model, Usage: responsesUsage(typed.Response.Usage),
 			},
 		}
-		if err := response.Metadata.Set(ResponsesResponseExtensionKey, typed.Response); err != nil {
+		if err := response.Metadata.Extra.Set(ResponsesResponseExtensionKey, typed.Response); err != nil {
 			return nil, false, fmt.Errorf("openai responses: preserve completed response: %w", err)
 		}
 		if err := response.Validate(); err != nil {

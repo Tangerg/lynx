@@ -1,4 +1,4 @@
-package tidb_test
+package tidb
 
 import (
 	"reflect"
@@ -6,7 +6,6 @@ import (
 	"testing"
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
-	"github.com/Tangerg/scope/vectorstores/tidb"
 )
 
 // build is the test driver — parse src, visit, return (sql, args, err).
@@ -16,11 +15,11 @@ func build(t *testing.T, src string) (string, []any, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	v := tidb.NewVisitor("metadata")
+	v := newVisitor("metadata")
 	if err := expr.Accept(v); err != nil {
 		return "", nil, err
 	}
-	sql, args := v.Result()
+	sql, args := v.snapshot()
 	return sql, args, nil
 }
 
@@ -63,11 +62,11 @@ func TestVisitorCollectionMembershipPreservesJSONType(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			visitor := tidb.NewVisitor("metadata")
+			visitor := newVisitor("metadata")
 			if err := test.predicate.Accept(visitor); err != nil {
 				t.Fatal(err)
 			}
-			sql, args := visitor.Result()
+			sql, args := visitor.snapshot()
 			if sql != test.wantSQL {
 				t.Fatalf("sql = %q, want %q", sql, test.wantSQL)
 			}

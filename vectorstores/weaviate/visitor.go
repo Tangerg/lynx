@@ -11,20 +11,20 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
-// Visitor compiles Scope filter expressions into Weaviate where filters.
+// visitor compiles Scope filter expressions into Weaviate where filters.
 // A visitor can be reused; each call to Visit replaces the previous result.
-type Visitor struct {
+type visitor struct {
 	result *filters.WhereBuilder
 }
 
-var _ filter.Visitor = (*Visitor)(nil)
+var _ filter.Visitor = (*visitor)(nil)
 
-func NewVisitor() *Visitor {
-	return &Visitor{}
+func newVisitor() *visitor {
+	return &visitor{}
 }
 
 // Visit compiles the complete expression tree rooted at expr.
-func (v *Visitor) Visit(expr filter.Predicate) error {
+func (v *visitor) Visit(expr filter.Predicate) error {
 	v.result = nil
 	result, err := compileFilter(expr)
 	if err != nil {
@@ -34,8 +34,8 @@ func (v *Visitor) Visit(expr filter.Predicate) error {
 	return nil
 }
 
-// Result returns the filter produced by the most recent successful Visit.
-func (v *Visitor) Result() *filters.WhereBuilder {
+// Failed compilation clears the prior value so a reused compiler cannot leak a stale filter.
+func (v *visitor) snapshot() *filters.WhereBuilder {
 	return v.result
 }
 

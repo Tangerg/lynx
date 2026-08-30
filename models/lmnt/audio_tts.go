@@ -135,11 +135,11 @@ func buildResponse(audio []byte, headers http.Header, model string) (*tts.Respon
 	}
 	metadata := &tts.ResponseMetadata{Model: model}
 	if requestID := headers.Get("request-id"); requestID != "" {
-		if err := metadata.Set("lmnt/request_id", requestID); err != nil {
+		if err := metadata.Extra.Set("lmnt/request_id", requestID); err != nil {
 			return nil, err
 		}
 	}
-	if err := metadata.Set(ResponseExtensionKey, map[string]string{
+	if err := metadata.Extra.Set(ResponseExtensionKey, map[string]string{
 		"content_type": headers.Get("Content-Type"),
 		"request_id":   headers.Get("request-id"),
 	}); err != nil {

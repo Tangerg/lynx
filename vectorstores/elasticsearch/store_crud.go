@@ -292,11 +292,11 @@ func (s *Store) buildFilterQuery(filter filter.Predicate) (string, error) {
 	if filter == nil {
 		return "", nil
 	}
-	v := NewVisitor(s.metadataField)
+	v := newVisitor(s.metadataField)
 	if err := filter.Accept(v); err != nil {
 		return "", fmt.Errorf("elasticsearch: convert filter: %w", err)
 	}
-	return v.Result(), nil
+	return v.snapshot(), nil
 }
 
 // normalizeScore validates Elasticsearch's already normalized dense-vector

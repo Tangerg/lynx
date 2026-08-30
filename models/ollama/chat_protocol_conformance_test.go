@@ -180,7 +180,7 @@ func newProtocolChatRequest(t *testing.T) *corechat.Request {
 		t.Fatalf("NewOutputFormat: %v", err)
 	}
 	request.Options.OutputFormat = &format
-	if err := request.Options.SetExtension(ollama.RequestExtensionKey, map[string]any{
+	if err := request.Options.Extensions.Set(ollama.RequestExtensionKey, map[string]any{
 		"keep_alive": "10m",
 		"think":      true,
 		"options": map[string]any{

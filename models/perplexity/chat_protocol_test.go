@@ -55,7 +55,7 @@ func TestOpenAIChatMapsOfficialSonarOptionsAndResponse(t *testing.T) {
 	request.Options.OutputFormat = &format
 	returnImages := true
 	disableSearch := false
-	if setExtensionErr := request.Options.SetExtension(perplexity.RequestExtensionKey, perplexity.RequestOptions{
+	if setExtensionErr := request.Options.Extensions.Set(perplexity.RequestExtensionKey, perplexity.RequestOptions{
 		SearchMode:            perplexity.SearchModeWeb,
 		ReturnImages:          &returnImages,
 		DisableSearch:         &disableSearch,
@@ -103,7 +103,7 @@ func TestOpenAIChatRejectsProSearchWithoutStreaming(t *testing.T) {
 	request := &corechat.Request{Messages: []corechat.Message{
 		corechat.NewUserMessage(corechat.NewTextPart("question")),
 	}}
-	if err := request.Options.SetExtension(perplexity.RequestExtensionKey, perplexity.RequestOptions{
+	if err := request.Options.Extensions.Set(perplexity.RequestExtensionKey, perplexity.RequestOptions{
 		WebSearchOptions: &perplexity.WebSearchOptions{SearchType: perplexity.SearchTypePro},
 	}); err != nil {
 		t.Fatalf("SetExtension: %v", err)

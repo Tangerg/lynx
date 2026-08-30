@@ -79,16 +79,6 @@ type ResponseMetadata struct {
 	Extra metadata.Map `json:"extra,omitzero"`
 }
 
-func (r *ResponseMetadata) Set(key string, value any) error {
-	if r == nil {
-		return fmt.Errorf("speech: set response metadata: %w: nil receiver", ErrInvalidResponse)
-	}
-	if err := r.Extra.Set(key, value); err != nil {
-		return fmt.Errorf("speech: set response metadata: %w: %w", ErrInvalidResponse, err)
-	}
-	return nil
-}
-
 func (r *ResponseMetadata) validate() error {
 	if r == nil {
 		return nil

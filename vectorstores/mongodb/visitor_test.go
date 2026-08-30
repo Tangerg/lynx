@@ -1,4 +1,4 @@
-package mongodb_test
+package mongodb
 
 import (
 	"reflect"
@@ -6,7 +6,6 @@ import (
 
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 	"github.com/Tangerg/scope/core/vectorstore/storetest"
-	"github.com/Tangerg/scope/vectorstores/mongodb"
 )
 
 // TestVisitor_Conformance exercises every AST shape the filter DSL
@@ -19,7 +18,7 @@ func TestVisitor_Conformance(t *testing.T) {
 		if err != nil {
 			return err
 		}
-		v := mongodb.NewVisitor("metadata")
+		v := newVisitor("metadata")
 		return expr.Accept(v)
 	})
 }
@@ -42,11 +41,11 @@ func build(t *testing.T, src string) (map[string]any, error) {
 	if err != nil {
 		return nil, err
 	}
-	v := mongodb.NewVisitor("metadata")
+	v := newVisitor("metadata")
 	if err := expr.Accept(v); err != nil {
 		return nil, err
 	}
-	return v.Result(), nil
+	return v.snapshot(), nil
 }
 
 func TestVisitor_IsNull(t *testing.T) {

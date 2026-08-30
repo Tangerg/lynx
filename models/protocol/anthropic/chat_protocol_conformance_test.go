@@ -196,7 +196,7 @@ func newProtocolChatRequest(t *testing.T) *corechat.Request {
 		Description: "Look up a record",
 		InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"}}}`),
 	}}
-	if err := request.Options.SetExtension(anthropic.RequestExtensionKey, map[string]any{
+	if err := request.Options.Extensions.Set(anthropic.RequestExtensionKey, map[string]any{
 		"thinking":      map[string]any{"type": "enabled", "budget_tokens": 512},
 		"cache_control": map[string]any{"type": "ephemeral"},
 	}); err != nil {

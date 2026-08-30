@@ -11,7 +11,7 @@ import (
 // an extension to silently override the neutral request.
 type RequestFields map[string]any
 
-func decodeRequestFields(values metadata.Map, key string, reserved ...string) (RequestFields, error) {
+func decodeRequestFields(values metadata.Extensions, key string, reserved ...string) (RequestFields, error) {
 	fields, _, err := values.Decode[RequestFields](key)
 	if err != nil {
 		return nil, fmt.Errorf("openai: extension %q: %w", key, err)

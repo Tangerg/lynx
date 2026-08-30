@@ -231,18 +231,18 @@ func (a *AudioTTSModel) response(ctx context.Context, effectiveOptions tts.Optio
 		}
 		meta.Created = createdAt.Unix()
 	}
-	if err := meta.Set("replicate/prediction_id", final.ID); err != nil {
+	if err := meta.Extra.Set("replicate/prediction_id", final.ID); err != nil {
 		return nil, err
 	}
 	if final.Version != "" {
-		if err := meta.Set("replicate/version", final.Version); err != nil {
+		if err := meta.Extra.Set("replicate/version", final.Version); err != nil {
 			return nil, err
 		}
 	}
-	if err := meta.Set("replicate/audio_url", url); err != nil {
+	if err := meta.Extra.Set("replicate/audio_url", url); err != nil {
 		return nil, err
 	}
-	if err := meta.Set(SpeechResponseExtensionKey, final); err != nil {
+	if err := meta.Extra.Set(SpeechResponseExtensionKey, final); err != nil {
 		return nil, err
 	}
 	return tts.NewResponse(output, meta)

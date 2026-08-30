@@ -34,7 +34,7 @@ func mapCompletion(params *openaisdk.ChatCompletionNewParams, response *openaisd
 			Usage: mapUsage(response.Usage),
 		},
 	}
-	if err := mapped.Metadata.Set(protocolResponseExtensionKey(dialect.Provider), exactProviderResponse(response.RawJSON(), response)); err != nil {
+	if err := mapped.Metadata.Extra.Set(protocolResponseExtensionKey(dialect.Provider), exactProviderResponse(response.RawJSON(), response)); err != nil {
 		return nil, err
 	}
 	if err := mapped.Validate(); err != nil {
