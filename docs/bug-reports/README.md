@@ -22,13 +22,21 @@ correct behavior and left failing only if the report says so explicitly.
 
 ## Current status
 
-No implementation defect has been found so far. Every gap closed in this pass
-was a missing test, not wrong behavior: the protocol wire paths, the MCP content
-mappings, the skills confinement rules, the web freshness mappings, and the
-tools concurrency declarations all matched their documented contracts once
-exercised.
+No implementation defect has been found. Every gap closed in this pass was a
+missing test, not wrong behavior: the Core protocol wire paths, the MCP content
+mappings in both directions, the skills confinement and precedence rules, the
+web freshness mappings, the tools concurrency declarations, the OTel error
+classifications, the ETL extraction boundaries, the RAG identity stages, the
+eval report boundaries, and the agent vocabulary and planning contracts all
+matched their documented behavior once exercised.
 
-Two things were confirmed as intentional rather than filed:
+One architecture violation was found and fixed at the source rather than filed:
+adding `core/doc.go` for a module overview created a Go package at a namespace
+root, which `dev/repoarch` forbids because it would be the root façade the
+architecture rules out. The gate caught it, the overview moved to
+`core/README.md`, and no product code changed.
+
+Three things were confirmed as intentional rather than filed:
 
 - Several `Options.applyOverride` and `Validate` branches in the Core modality
   packages are unreachable from the public API, because `metadata.Extensions`
@@ -37,3 +45,7 @@ Two things were confirmed as intentional rather than filed:
   `core/vectorstore/inmemory` are unreachable through `filter`'s constructors
   and parser, which only produce boolean predicates. They guard against a future
   node type rather than a current input.
+- The Markdown splitter does not fail on an oversized single word. Prose has no
+  indivisible unit above the word, so a long paragraph falls back to token
+  windows by design; only a structural unit — a table row, a list item, a code
+  line — can be reported as too large.
