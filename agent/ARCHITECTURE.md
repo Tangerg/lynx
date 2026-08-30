@@ -1,165 +1,229 @@
-# Agent Framework 架构
+# Agent Framework architecture
 
-本文定义 Agent Framework 的定位、领域语言、边界、结构和不可变量，不记录阶段进度、提交或临时实施细节。
+This document defines the Agent Framework's position, domain language,
+boundaries, structure, invariants, and the engineering standard it is built to.
+It records no phase progress, no commits, and no temporary implementation
+detail.
 
-- 工程实施和代码质量标准见 [`ENGINEERING_STANDARDS.md`](ENGINEERING_STANDARDS.md)。
-- 上位约束见 [`../../AGENTS.md`](../../AGENTS.md)、[`../../DESIGN_PHILOSOPHY.md`](../../DESIGN_PHILOSOPHY.md) 和 [`../../REFACTORING.md`](../../REFACTORING.md)。
+- Repository-wide rules: [`../AGENTS.md`](../AGENTS.md),
+  [`../DESIGN_PHILOSOPHY.md`](../DESIGN_PHILOSOPHY.md), and
+  [`../REFACTORING.md`](../REFACTORING.md).
+- The usage entry point: [`README.md`](README.md).
 
-代码与本文冲突时不得静默迁就：如果实现有误，修改实现；如果设计被事实推翻，同步修改本文和代码。仓库历史不是当前合同。
+When the code and this document disagree, neither side wins by default: if the
+implementation is wrong, change the implementation; if reality has overtaken the
+design, change this document and the code together. Repository history is not a
+current contract.
 
 ---
 
-## 1. 总体定位
+## 1. Position
 
-> Agent 是一个可嵌入、可组合、拥有统一执行生命周期的 Go Framework；它允许 Interaction、Planning 以及未来被真实推进和恢复语义证明的新执行策略成为平等且可嵌套的 Agent Definition。
+> Agent is an embeddable, composable Go framework with one unified execution
+> lifecycle. It lets Interaction, Planning, and any future execution strategy
+> proven to have independent advancement and recovery semantics be equal,
+> nestable Agent Definitions.
 
-### 1.1 从直接能力到完整应用
+### 1.1 From a direct capability to a complete application
 
-框架必须允许使用者只支付当前需求所需的复杂度：
+The framework must let a user pay only the complexity their requirement
+actually needs:
 
 ```text
-直接 AI 能力
+Direct AI capability
     chatclient / embeddingclient / tool
-        ↓ 需要模型自主选择工具
-本地 Agent 执行
-    Engine + Interaction Definition
-        ↓ 需要暂停恢复、预算和子任务
-托管 Process 执行
-    Engine + snapshot + child Process
-        ↓ 需要多定义部署、路由和长期治理
-完整 Agent 应用
-    Platform + Host Application
+        ↓ the model must choose tools itself
+Local agent execution
+    Engine + an Interaction Definition
+        ↓ pause, resume, budgets, and subtasks are needed
+Managed Process execution
+    Engine + snapshots + child Processes
+        ↓ multi-definition deployment, routing, and governance are needed
+A complete agent application
+    Platform + a Host application
 ```
 
-“嵌入式”不是一种 Execution Mode，不建立 `EmbeddedMode`。可嵌入性来自显式依赖、无全局容器、可选持久化，以及同一 Engine 可以在普通 Go 进程内运行。
+"Embeddable" is not an execution mode, and there is no `EmbeddedMode`.
+Embeddability comes from explicit dependencies, no global container, optional
+persistence, and the fact that one Engine runs inside an ordinary Go process.
 
-直接模型调用永远是一等路径。只需要一次或少量明确模型调用的程序应直接使用 `chatclient`；普通同步控制流可以直接使用独立的 `flow` 库，不应被迫创建 Agent 或 Process。
+A direct model call is always a first-class path. A program that needs one or a
+few explicit model calls should use `chatclient` directly, and ordinary
+synchronous control flow can use the standalone `flow` library — neither should
+be forced to create an Agent or a Process.
 
-### 1.2 能力上限
+### 1.2 What the architecture raises
 
-新架构提高的是系统的表达、组合、恢复和治理上限，而不是模型本身的智力。其关键性质是组合闭包：
+This architecture raises the system's ceiling for expression, composition,
+recovery, and governance — not the model's intelligence. Its key property is
+compositional closure:
 
-> 任意 Agent Definition 可以启动另一个 Agent Definition 对应的子 Process；子 Process 可以使用任意执行策略并继续组合，而所有实例仍服从同一个 Process 生命周期。
-
----
-
-## 2. 核心设计原则
-
-1. **最小正确抽象优先。** 不为完整感预建 package、接口、配置或扩展点。
-2. **一个概念只有一个术语。** 不同时保留 plan/todo、run/execution、sub-agent/child-agent 等近义公共概念。
-3. **抽象程度向下递增，具体度向上累积。** 共同 Kernel 不承载 GOAP、ReAct、任意编排实现或产品 Session 的专属状态。
-4. **Execution Strategy 是主变化轴。** Interaction 和 Planning 不是 Extension；其他 Strategy 必须先证明独立推进与恢复语义。
-5. **Extension 只表达横切能力。** 事件观察、策略检查、instrumentation 等可以扩展；主控制流不能伪装成扩展。
-6. **生命周期只有一个所有者。** Engine 为每棵 root tree 建立唯一 `treeRuntime` 提交线，具体策略只在 owner 外推进一个有界步骤。
-7. **组合优于包装。** orchestrator-worker 语义由已成立的 Strategy 和 child Process 组合；普通同步控制流留在 `flow`，需要独立 Process 生命周期的确定编排才进入 managed Workflow。
-8. **状态归拥有者。** GOAP 状态归 Planning，消息和轮次归 Interaction，Stage/branch/fan-out 游标归 Workflow；未来新策略的状态同样留在其 owner，不提前进入 Kernel。
-9. **框架状态与应用持久化分层。** Agent 捕获、验证和恢复执行快照；Host 决定何时、在哪里、以何种事务保存。
-10. **默认安全且确定。** 不默认重试任意副作用，不默认无限递归，不允许并发完成顺序决定业务结果。
-11. **透明胜过魔法。** 不做扫描、注解、全局 DI、隐式策略注册或隐藏模型调用。
-12. **简单方案先行。** 只有评测证明需要时，才从直接调用或 `flow` 组合升级到 managed child Process、多 Agent 或自主 Agent。
-13. **输入、意图和事实严格分离。** Signal 进入 Execution，Transition 表达意图，Event 记录事实；三者不得互相冒充。
-14. **状态推进与外部效果分离。** Step 只产生候选状态和 Effect 意图；模型、Tool、Action 和其他 I/O 由策略拥有的 Effect dispatcher 执行。
-
-这些原则与 Anthropic 在 [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents) 中强调的简单、透明、可组合以及重视工具接口设计的方向一致。
+> Any Agent Definition can start a child Process of any other Agent Definition;
+> that child may use any execution strategy and keep composing, and every
+> instance still obeys the same Process lifecycle.
 
 ---
 
-## 3. 统一领域语言
+## 2. Core design principles
 
-代码命名利用 package qualifier 避免口吃，例如优先 `agent.Definition`，不写 `agent.AgentDefinition`。
+1. **The minimal correct abstraction first.** No package, interface, config, or
+   extension point is built ahead of need for a sense of completeness.
+2. **One concept, one term.** Never keep plan and todo, run and execution,
+   sub-agent and child-agent as parallel public concepts.
+3. **Abstraction increases downward; concreteness accumulates upward.** The
+   shared kernel carries no GOAP, no ReAct, no arbitrary orchestration
+   implementation, and no product session state.
+4. **Execution strategy is the primary axis of variation.** Interaction and
+   Planning are not extensions; any other strategy must first prove independent
+   advancement and recovery semantics.
+5. **An extension expresses a cross-cutting capability only.** Event
+   observation, policy checks, and instrumentation may extend; the primary
+   control flow must never disguise itself as an extension.
+6. **A lifecycle has exactly one owner.** The Engine establishes one
+   `treeRuntime` commit line per root tree, and a strategy only advances one
+   bounded step outside that owner.
+7. **Composition over wrapping.** Orchestrator-worker semantics come from
+   composing established strategies and child Processes. Ordinary synchronous
+   control flow stays in `flow`; only deterministic orchestration that needs an
+   independent Process lifecycle becomes a managed Workflow.
+8. **State belongs to its owner.** GOAP state belongs to Planning, messages and
+   turns to Interaction, stage/branch/fan-out cursors to Workflow. A future
+   strategy's state stays with its owner and does not move into the kernel ahead
+   of time.
+9. **Framework state and application persistence are layered.** Agent captures,
+   validates, and restores an execution snapshot; the Host decides when, where,
+   and in which transaction to save it.
+10. **Safe and deterministic by default.** No arbitrary side effect is retried by
+    default, no recursion is unbounded by default, and concurrent completion
+    order never decides a business result.
+11. **Transparency over magic.** No scanning, annotations, global DI, implicit
+    strategy registration, or hidden model calls.
+12. **The simple option first.** Upgrade from a direct call or a `flow`
+    composition to a managed child Process, multiple agents, or an autonomous
+    agent only when evaluation proves it necessary.
+13. **Input, intent, and fact are strictly separated.** A Signal enters an
+    Execution, a Transition expresses intent, an Event records a fact. None of
+    the three may impersonate another.
+14. **State advancement is separated from external effects.** A Step produces
+    only candidate state and effect intents; models, tools, actions, and other
+    I/O are executed by the strategy's own effect dispatcher.
 
-| 术语 | 唯一含义 | 明确不表示 |
+These align with the direction Anthropic emphasizes in
+[Building effective agents](https://www.anthropic.com/engineering/building-effective-agents):
+simplicity, transparency, composability, and taking tool-interface design
+seriously.
+
+---
+
+## 3. Unified domain language
+
+Naming uses the package qualifier to avoid stutter: prefer `agent.Definition`
+over `agent.AgentDefinition`.
+
+| Term | Its one meaning | Explicitly not |
 |---|---|---|
-| `Definition` | 不可变的 Agent 行为定义，可创建或恢复 Execution | 运行实例、部署记录 |
-| `Descriptor` | Definition 的稳定名称、描述、输入输出契约等静态信息 | 可变配置袋 |
-| `Deployment` | 已校验、冻结、可精确恢复的 Definition | Process |
-| `DeploymentRef` | Deployment 的稳定身份和值引用 | 指针、可变注册项 |
-| `Input` | 创建 Process 时按目标 Descriptor 校验的不可变 wire value | Host request DTO、共享可变对象 |
-| `Output` | Process 完成时按目标 Descriptor 校验的最终语义结果 | Delta 拼接、UI 投影 |
-| `Execution` | 某个 Process 内、由具体策略拥有的可推进执行状态 | Engine、goroutine |
-| `Process` | Engine 管理的运行实例及共同生命周期事实 | GOAP Process 专属状态 |
-| `Signal` | Engine 接受并按序交给 Execution 消费的输入 | 已发生事实、状态修改入口 |
-| `SignalID` | 一次 Signal 投递的稳定去重身份 | 等待目标身份 |
-| `WaitID` | Engine 铸造并暴露给外部回答者的等待目标身份 | Signal 投递身份、策略 payload |
-| `Transition` | 一次有界 Step 产生的候选状态和下一生命周期意图 | 任意应用事件集合、已提交事实 |
-| `Effect` | Transition 声明的、在 Step 之外由 Engine 或策略 dispatcher 执行的操作意图 | Host transaction、任意业务事件 |
-| `Prepared Step` | Effect 执行前由 Engine 原子记录、尚未 finalize 的候选状态与固定意图 | 已提交 Execution state、Host transaction |
-| `Event` | 已经发生的框架事实 | Signal、命令、Transition |
-| `Delta` | 执行期间产生的临时流式增量 | 完成结果、可恢复状态、权威记录 |
-| `Engine` | 驱动 Process、执行状态迁移和父子调度的唯一执行内核 | 产品 Session runtime、部署市场 |
-| `Platform` | 可选的多 Definition 部署、目录、路由和治理容器 | Engine 的同义词 |
-| `Strategy` | Interaction、Planning 及通过准入的新主执行语义 | Extension |
-| `Planning Action` | Planning 中具有前置条件、预测效果和成本的不可变搜索操作 | 可执行函数、LLM Tool |
-| `Tool` | 暴露给模型选择和调用的 JSON/Schema 能力 | 所有 Action |
-| `Delegate` | 以模型可理解的 Tool 合同暴露一个 exact child Deployment 的 Interaction 组合值 | 通用 Action、Platform 路由、Dispatcher 私自启动 Process |
-| `Child Process` | 由另一个 Process 启动的普通 Process | 独立的 `SubAgent` 类型 |
-| `ProcessSnapshot` | 单 Process 的不可变诊断与 Strategy inspector value | 恢复单位、Store 或事务 |
-| `TreeSnapshot` | 完整 root tree 的 canonical 恢复状态与可选 durable writer identity | Host Store、事务或产品记录 |
-| `Waiting` | 正在等待已声明的外部条件 | 人工暂停 |
-| `Paused` | 由操作者或策略明确停止调度、等待继续 | 子任务尚未完成 |
+| `Definition` | An immutable Agent behavior definition that can create or restore an Execution | A running instance, a deployment record |
+| `Descriptor` | A Definition's stable name, description, and input/output contract | A mutable configuration bag |
+| `Deployment` | A validated, frozen, exactly restorable Definition | A Process |
+| `DeploymentRef` | A Deployment's stable identity as a value reference | A pointer, a mutable registry entry |
+| `Input` | The immutable wire value validated against the target Descriptor at Process creation | A Host request DTO, a shared mutable object |
+| `Output` | The final semantic result validated against the target Descriptor at completion | Concatenated deltas, a UI projection |
+| `Execution` | The advanceable execution state owned by a concrete strategy inside one Process | The Engine, a goroutine |
+| `Process` | An Engine-managed running instance and its shared lifecycle facts | GOAP's Process-specific state |
+| `Signal` | Input the Engine accepts and hands to an Execution in order | An already-happened fact, a state-mutation entry |
+| `SignalID` | The stable deduplication identity of one Signal delivery | A wait target identity |
+| `WaitID` | The wait-target identity the Engine mints and exposes to an external answerer | A Signal delivery identity, a strategy payload |
+| `Transition` | The candidate state and next lifecycle intent produced by one bounded Step | An arbitrary application event set, a committed fact |
+| `Effect` | An operation intent declared by a Transition, executed outside the Step by the Engine or a strategy dispatcher | A Host transaction, an arbitrary business event |
+| `Prepared Step` | The candidate state and fixed intent the Engine records atomically before an effect runs, not yet finalized | Committed execution state, a Host transaction |
+| `Event` | A framework fact that has already happened | A Signal, a command, a Transition |
+| `Delta` | A transient streaming increment produced during execution | A completed result, recoverable state, an authoritative record |
+| `Engine` | The one execution kernel driving Processes, state transitions, and parent/child scheduling | A product session runtime, a deployment marketplace |
+| `Platform` | The optional multi-definition deployment, catalog, routing, and governance container | A synonym for Engine |
+| `Strategy` | Interaction, Planning, and any new primary execution semantics that passes admission | An extension |
+| `Planning Action` | An immutable search operation with preconditions, predicted effects, and a cost | An executable function, an LLM tool |
+| `Tool` | A JSON/schema capability exposed for a model to select and call | Every Action |
+| `Delegate` | An Interaction composition value exposing one exact child Deployment through a model-comprehensible tool contract | A general Action, Platform routing, a dispatcher starting a Process on its own |
+| `Child Process` | An ordinary Process started by another Process | A separate `SubAgent` type |
+| `ProcessSnapshot` | An immutable single-Process diagnostic and strategy-inspector value | A recovery unit, a store or a transaction |
+| `TreeSnapshot` | The canonical recovery state of a complete root tree, with an optional durable writer identity | A Host store, a transaction, a product record |
+| `Waiting` | Waiting on a declared external condition | A human pause |
+| `Paused` | Explicitly removed from scheduling by an operator or a strategy, awaiting continuation | A subtask not finished yet |
 
-命名反向约束：
+Naming constraints, stated negatively:
 
-- 不创建 `AgentManager`、`ExecutionService`、`RuntimeHelper`、`Common`、`Utils`、`Impl`。
-- 不把 ReAct 命名为 `reactive`；Reactive Planner 和 ReAct 是不同概念。
-- 不用 `Mode` 枚举承载本质不同的执行生命周期。
-- 不为同一操作同时提供 `StartAgent`、`RunAgent`、`ExecuteAgent` 等含义重叠入口。
-- 不创建 `SubAgent` 结构体；父子性存在于 Process relation。
-- 不把暂时的 `agent` 写入领域类型名、事件名或 snapshot kind。
-- 不用 `Correlation` 同时表示 SignalID、WaitID、EffectID 或策略内部逻辑 key。
-
----
-
-## 4. 所有权边界
-
-### 4.1 Agent Framework 拥有
-
-- Definition 校验与 Deployment 冻结。
-- Process 状态机和有界执行循环。
-- Execution 的创建、推进、捕获和恢复。
-- Process tree、子 Process 调度和父级唤醒。
-- Signal 接受、排序、去重、等待寻址和成功消费确认。
-- Effect 稳定身份、调度顺序和框架内结算事实。
-- 通用 usage/budget 限制。
-- Waiting、Paused、Completed、Failed、Canceled、TimedOut、Killed 生命周期。
-- Framework event 和通用可观测事实。
-- snapshot envelope、校验和恢复协议。
-- 执行策略的显式装配。
-
-### 4.2 基础模块拥有
-
-- `core/chat`：provider-neutral 请求、单 `Output` 响应和流协议。
-- `chatclient`：直接模型调用、middleware 和结构化输出。
-- `embeddingclient`：直接 embedding 能力。
-- `tool`/`tools`：工具协议、schema、调用和具体工具。
-- `history`：独立 history 能力。
-- `otel`：官方 OTel API 的组合与 adapter。
-
-Agent 复用这些能力，不复制 Client、Model、Tool、Message、Embedding 或 OTel 抽象。
-
-### 4.3 Host Application 拥有
-
-- 用户、Workspace、Conversation、Session、Turn 等产品身份。
-- HTTP/WebSocket/SSE/desktop/CLI 传输协议。
-- Store、Repository、数据库 schema、事务和 CAS/lease 策略。
-- 产品权限、订阅、计费、审计和 retention。
-- UI 文案、展示状态和产品事件映射。
-- provider/model 选择、价格表和产品默认预算。
-- checkpoint 的提交时机与应用 write-set。
-- 使应用自有事实失效的销毁、回滚、替换和恢复策略，以及关联 Process 的生命周期清理。
-
-Host 最终只依赖 Agent 的中性生命周期合同，不解析 Planning、Interaction 或未来 Strategy 的内部 snapshot payload。
+- No `AgentManager`, `ExecutionService`, `RuntimeHelper`, `Common`, `Utils`, or
+  `Impl`.
+- ReAct is never named `reactive` — a reactive planner and ReAct are different
+  concepts.
+- A `Mode` enum never carries fundamentally different execution lifecycles.
+- One operation never gets overlapping entries such as `StartAgent`, `RunAgent`,
+  and `ExecuteAgent`.
+- No `SubAgent` struct: parentage lives in the Process relation.
+- The transient word `agent` never enters a domain type name, an event name, or
+  a snapshot kind.
+- `Correlation` never simultaneously means a SignalID, a WaitID, an EffectID,
+  and a strategy-internal logical key.
 
 ---
 
-## 5. 目标架构与执行窄腰
+## 4. Ownership boundaries
+
+### 4.1 The Agent Framework owns
+
+- Definition validation and Deployment freezing.
+- The Process state machine and the bounded execution loop.
+- Creating, advancing, capturing, and restoring an Execution.
+- The Process tree, child scheduling, and parent wake-up.
+- Signal acceptance, ordering, deduplication, wait addressing, and confirmation
+  of successful consumption.
+- Stable Effect identity, dispatch order, and in-framework settlement facts.
+- General usage and budget limits.
+- The Waiting, Paused, Completed, Failed, Canceled, TimedOut, and Killed
+  lifecycle.
+- Framework events and general observable facts.
+- The snapshot envelope, its validation, and the recovery protocol.
+- Explicit assembly of execution strategies.
+
+### 4.2 The base modules own
+
+- `core/chat`: the provider-neutral request, the single-`Output` response, and
+  the stream protocol.
+- `chatclient`: direct model calls, middleware, and structured output.
+- `embeddingclient`: direct embedding capability.
+- `tool` and `tools`: the tool protocol, schemas, invocation, and concrete tools.
+- `history`: standalone history capability.
+- `otel`: composition and adapters over the official OTel API.
+
+Agent reuses these and never duplicates a Client, Model, Tool, Message,
+Embedding, or OTel abstraction.
+
+### 4.3 The Host application owns
+
+- Product identities: user, workspace, conversation, session, turn.
+- HTTP, WebSocket, SSE, desktop, and CLI transports.
+- Stores, repositories, database schemas, transactions, and CAS or lease policy.
+- Product permissions, subscriptions, billing, audit, and retention.
+- UI copy, display state, and product event mapping.
+- Provider and model selection, price tables, and product default budgets.
+- When a checkpoint commits, and the application write set around it.
+- Destruction, rollback, replacement, and restore policy for its own facts, plus
+  the lifecycle cleanup of the Processes those facts relate to.
+
+A Host ultimately depends only on Agent's neutral lifecycle contract. It never
+parses the internal snapshot payload of Planning, Interaction, or a future
+strategy.
+
+---
+
+## 5. Target architecture and the execution waist
 
 ```mermaid
 flowchart TD
-    Host["Host Application"] --> Platform["Platform（可选）"]
+    Host["Host application"] --> Platform["Platform (optional)"]
     Host --> Engine["Engine"]
     Platform --> Engine
-    Engine --> Kernel["Process Kernel"]
+    Engine --> Kernel["Process kernel"]
     Kernel --> Definition["Definition / Execution"]
     Definition --> Interaction["Interaction"]
     Definition --> Planning["Planning"]
@@ -172,33 +236,34 @@ flowchart TD
     Workflow --> Child
 ```
 
-### 5.1 窄腰
+### 5.1 The waist
 
-所有 Execution Strategy 只在以下语义上相交：
+Every execution strategy intersects on exactly these semantics:
 
 ```text
 Definition
-  ├─ 描述静态契约
-  ├─ 创建新的 Execution
-  └─ 从自身状态恢复 Execution
+  ├─ describes the static contract
+  ├─ creates a new Execution
+  └─ restores an Execution from its own state
 
 Execution
-  ├─ 按序消费 Signal
-  ├─ 推进一个有界且无外部副作用的 Step
-  ├─ 产生候选状态、Transition 和 Effect
-  └─ 捕获自身可移植状态
+  ├─ consumes Signals in order
+  ├─ advances one bounded Step with no external side effect
+  ├─ produces candidate state, a Transition, and Effects
+  └─ captures its own portable state
 
 Engine
-  ├─ 创建和拥有 Process
-  ├─ 调用 Execution.Step
-  ├─ 应用 Transition
-  ├─ 为 Effect 建立稳定身份并调用策略 dispatcher
-  ├─ 将 Effect 结果重新投递为 Signal
-  ├─ 调度子 Process
-  └─ 在满足等待条件时恢复父 Process
+  ├─ creates and owns Processes
+  ├─ calls Execution.Step
+  ├─ applies the Transition
+  ├─ establishes stable Effect identity and calls the strategy dispatcher
+  ├─ redelivers Effect results as Signals
+  ├─ schedules child Processes
+  └─ resumes a parent when its wait condition is met
 ```
 
-当前执行窄腰如下；精确参数名、GoDoc 和完整公开面由代码、测试与调用方共同守卫：
+The current waist is below; exact parameter names, GoDoc, and the complete
+public surface are guarded jointly by the code, the tests, and the callers:
 
 ```go
 type Definition interface {
@@ -213,51 +278,121 @@ type Execution interface {
 }
 ```
 
-公共窄腰使用可移植、类型擦除的 JSON value；泛型只用于边缘 typed adapter，不能把 `Definition[I, O]` 放进 Engine 必须同构保存的根合同。Descriptor 的输入输出 schema 是权威结构合同并进入 Deployment identity；Definition/typed adapter 仍负责 Go 类型和语义不变量。
+The public waist uses portable, type-erased JSON values. Generics are for edge
+typed adapters only: `Definition[I, O]` must never enter the root contract the
+Engine has to hold homogeneously. A Descriptor's input and output schema is the
+authoritative structural contract and enters Deployment identity; the Definition
+and its typed adapter still own the Go types and the semantic invariants.
 
-Strategy Effect payload 和所有 Signal payload 对 Engine 不透明。每个 Strategy 在自己的 package 定义最小 dispatcher/codec，Deployment 冻结并绑定这些能力；Engine 只理解 Framework 自有 Effect、信封身份、路由、顺序、limit 和 settlement，不 import 或 type-switch 具体 Strategy。dispatcher 与 erased raw value 的精确公开合同已经由 Interaction、Planning、Workflow 和独立消费者共同冻结。
+Strategy effect payloads and all Signal payloads are opaque to the Engine. Each
+strategy defines a minimal dispatcher and codec in its own package, and the
+Deployment freezes and binds them. The Engine understands only its own framework
+effects, envelope identity, routing, ordering, limits, and settlement; it never
+imports or type-switches a concrete strategy. The exact public contract of a
+dispatcher and its erased raw value has been frozen jointly by Interaction,
+Planning, Workflow, and independent consumers.
 
-如果子 Process 能力需要注入 Execution，应由真实消费包定义最小接口，不能把完整 `*Engine` 或不断膨胀的 `ExecutionContext` 传给所有策略。子创建、等待、模型调用、Tool 和 Action 都通过 Transition 声明 Effect，使 Engine 继续拥有生命周期顺序，而 Strategy 继续拥有具体执行语义。
+If child-Process capability must be injected into an Execution, the real
+consuming package defines the minimal interface. A whole `*Engine` or an
+ever-growing `ExecutionContext` is never passed to every strategy. Child
+creation, waiting, model calls, tools, and actions are all declared as Effects
+through a Transition, so the Engine keeps owning lifecycle order while the
+strategy keeps owning concrete execution semantics.
 
 ### 5.2 Step
 
-`Step` 是一次可取消、可丢弃的纯候选归约，不等同于整个任务：
+A `Step` is one cancellable, discardable, purely candidate reduction — it is not
+the whole task:
 
-| Strategy | 一个 Step |
+| Strategy | One Step |
 |---|---|
-| Interaction | 消费模型/Tool/外部输入 Signal，决定下一 Effect、等待或完成 |
-| GOAP | 消费观察/Action 结果，推进 observe → plan → act → reobserve 状态 |
-| Workflow | 推进一个有序 Stage 的纯归约、child start/wait 或稳定聚合边界 |
+| Interaction | Consume a model, tool, or external-input Signal and decide the next effect, wait, or completion |
+| GOAP | Consume an observation or action result and advance observe → plan → act → reobserve |
+| Workflow | Advance one ordered stage's pure reduction, child start or wait, or a stable aggregation boundary |
 
-这里必须使用三个不同的尺度理解 Kernel：**root tree 是一致性、提交与恢复单元；Process 是生命周期与 Strategy state 隔离单元；Step/Dispatcher job 是并发执行单元。** 向同一 tree 增加 Process 可以增加彼此隔离的候选计算和外部 I/O 并发，但不会增加 authoritative commit 并行度；需要独立提交吞吐时，应拆成不同 root tree，而不是绕过 owner line。
+Three different scales are needed to understand the kernel: **the root tree is
+the consistency, commit, and recovery unit; a Process is the lifecycle and
+strategy-state isolation unit; a Step or dispatcher job is the concurrency
+unit.** Adding Processes to one tree adds mutually isolated candidate
+computation and external I/O concurrency, but it does not add authoritative
+commit parallelism. Independent commit throughput means splitting into separate
+root trees, never bypassing the owner line.
 
-任何 Strategy 的 Step 都不能执行模型、Tool、Action 或其他外部 I/O，不能隐藏无限循环或启动无所有者 goroutine。Runtime 从 `context.Background()` 构造 cancellation-only context；它不含 value、deadline 或 cause，只允许 tree owner 取消已经没有提交资格的计算。外部操作只能由 Effect 表达并由该 Strategy 的 dispatcher 执行。
+No strategy's Step may execute a model, a tool, an action, or any other external
+I/O, hide an unbounded loop, or start an unowned goroutine. The runtime builds a
+cancellation-only context from `context.Background()`: it carries no value, no
+deadline, and no cause, and exists only so the tree owner can cancel a
+computation that has already lost its right to commit. An external operation can
+only be expressed as an Effect and executed by that strategy's dispatcher.
 
-每棵 root tree 的私有 `treeRuntime` 是唯一 Framework commit owner，但纯计算不占有 owner line：同一 Process 至多有一个 Step job，不同 sibling 可以并行。owner 将 last-stable ExecutionState 与有序 Signal 前缀交给 job；job 完成 Step、Transition 校验和 candidate snapshot 后返回 attempt identity。只有 owner 可以再次校验并采用结果；Kill/Pause/Cancel 或新 incarnation 使 attempt 过期时，结果与 error 整体丢弃，Execution 从 last-stable state 重建。
+Each root tree's private `treeRuntime` is the only framework commit owner, but
+pure computation does not occupy the owner line: one Process has at most one
+Step job, and different siblings run in parallel. The owner hands a job the
+last-stable ExecutionState and an ordered Signal prefix; the job completes the
+Step, the Transition validation, and the candidate snapshot, and returns an
+attempt identity. Only the owner may revalidate and adopt the result. When a
+kill, pause, cancel, or a new incarnation expires an attempt, the result and any
+error are discarded whole and the Execution is rebuilt from last-stable state.
 
-Dispatcher Effect 使用 `planned → pending → settled` 状态机：
+A dispatcher Effect uses a `planned → pending → settled` state machine:
 
-1. owner 验证候选 state、signal consumption、budget、capability 与完整 batch identity；
-2. 当前 Effect 进入 pending，并在 durable mode 先提交包含完整 tree 的 pending boundary；
-3. pending 成功后才启动 owner 外的 Dispatcher job；
-4. Dispatcher result 被规范化为 definite 或 Unknown Settlement；
-5. settled boundary 成功后，owner 才安装 settlement、candidate state、mailbox 与 Process transition。
+1. the owner validates the candidate state, signal consumption, budget,
+   capability, and complete batch identity;
+2. the current Effect enters pending, and in durable mode the pending boundary —
+   carrying the complete tree — commits first;
+3. only after pending succeeds does the dispatcher job start outside the owner;
+4. the dispatcher result is normalized to a definite or an Unknown settlement;
+5. only after the settled boundary succeeds does the owner install the
+   settlement, the candidate state, the mailbox, and the Process transition.
 
-同一 Process 的 Effect 按声明顺序逐项跨越 pending/settled，尚未派发的 planned Effect不能成为 Unknown。ephemeral mode执行同一个状态机但不调用 Host durability port。Event/Delta 只记录 attempt/observation，不能替代 acknowledged `TreeSnapshot`。
+One Process's Effects cross pending and settled one at a time in declaration
+order, and a planned Effect that has not been dispatched can never become
+Unknown. Ephemeral mode runs the same state machine without calling the Host
+durability port. Events and deltas record attempts and observations only; they
+never substitute for an acknowledged `TreeSnapshot`.
 
-### 5.3 确定性编排边界
+### 5.3 The deterministic orchestration boundary
 
-确定性编排按生命周期强度分边界：普通 Go/AI 同进程控制流可以直接写 Go，也可以选择独立 `flow`；每项工作需要独立 ProcessID、DeploymentRef、snapshot、预算、能力、取消和 tree recovery 时使用 managed Workflow。`flow` 是可参考的既有实现而不是 Agent Framework 的必选依赖：Workflow 可以吸收其显式拓扑、typed composition、确定顺序和有界 fan-out 思想，但不强求复用、不建立强制 adapter，也不共享 runtime、Store、Journal 或恢复事实。
+Deterministic orchestration is divided by lifecycle strength. Ordinary in-process
+Go or AI control flow can be written directly in Go, or with the standalone
+`flow`. When each unit of work needs its own ProcessID, DeploymentRef, snapshot,
+budget, capabilities, cancellation, and tree recovery, use a managed Workflow.
+`flow` is an existing implementation worth learning from, not a required
+dependency: Workflow may absorb its explicit topology, typed composition,
+deterministic ordering, and bounded fan-out ideas, but reuse is not required, no
+mandatory adapter exists, and no runtime, store, journal, or recovery fact is
+shared.
 
-Workflow Definition 冻结一个有序 Stage 序列。一个 Stage 消费当前 immutable、schema-validated value 并产生下一 value；相邻 schema 在构造时精确衔接。首个封闭词汇只有 `Transform`、`Call`、`Switch`、`Fork`、`Map` 和 `Loop`：Sequence 是 Stage 声明顺序，Prompt Chaining 是连续 Call，Gate 由 Transform/Switch 表达，Vote 是 Fork 后的纯 reducer，evaluator-optimizer 是 Loop 组合。多阶段分支通过调用另一个 Workflow Deployment 组合，不在同一 Process 内嵌第二个 Execution。
+A Workflow Definition freezes an ordered stage sequence. A stage consumes the
+current immutable, schema-validated value and produces the next; adjacent
+schemas connect exactly at construction. The first closed vocabulary is only
+`Transform`, `Call`, `Switch`, `Fork`, `Map`, and `Loop`: a sequence is the stage
+declaration order, prompt chaining is consecutive Calls, a gate is a Transform or
+Switch, a vote is a pure reducer after a Fork, and evaluator-optimizer is a Loop
+composition. Multi-stage branching composes by calling another Workflow
+Deployment, never by nesting a second Execution in one Process.
 
-Transform、selector、reducer 和 predicate 是一个 Step 内的有界确定纯函数。Call、被选择分支、Fork branch、Map item 和 Loop iteration 都启动 exact Deployment 的真实 child Process。Fork/Map 必须显式配置正数 `WindowSize`，每个固定窗口完整结算后才启动下一窗口，结果按声明顺序归位；该名称不承诺持续补位的滑动并发池。Loop 有显式正数迭代上限并准确区分 predicate satisfied 与 limit exhausted。ExecutionState 只保存 Stage/value/case/window/item/iteration 游标和 child/wait/result 身份，不保存函数、Deployment concrete value、Engine、goroutine、Store/Journal 或 Host 数据。
+Transforms, selectors, reducers, and predicates are bounded deterministic pure
+functions inside one Step. A Call, a selected branch, a Fork branch, a Map item,
+and a Loop iteration each start a real child Process of an exact Deployment.
+Fork and Map must be configured with a positive `WindowSize`: each fixed window
+settles completely before the next starts, and results are placed back in
+declaration order. That name promises no continuously refilled sliding pool. A
+Loop has an explicit positive iteration limit and distinguishes exactly between
+"predicate satisfied" and "limit exhausted". The ExecutionState holds only the
+stage, value, case, window, item, and iteration cursors plus child, wait, and
+result identities — never a function, a concrete Deployment value, an Engine, a
+goroutine, a store or journal, or Host data.
 
-`flow.Node.Run`、Graph scheduler 和 Journal 仍不能进入 `Execution.Step`。Workflow 不产生 dispatcher Effect；它只通过 Framework child Effect 组合，包内 Dispatcher 仅拒绝意外 dispatcher Effect。这样 Engine 继续是唯一 Process loop、Effect 提交与 tree recovery owner。
+`flow.Node.Run`, the graph scheduler, and the journal still may not enter
+`Execution.Step`. Workflow produces no dispatcher Effect; it composes only
+through framework child Effects, and its in-package dispatcher merely rejects an
+unexpected dispatcher Effect. That keeps the Engine the only owner of the Process
+loop, effect commits, and tree recovery.
 
-### 5.4 Process 状态机
+### 5.4 The Process state machine
 
-共同 Process 只使用以下状态：
+A shared Process uses only these states:
 
 ```text
 NotStarted → Running
@@ -266,52 +401,67 @@ Waiting    → Running | Failed | Canceled | TimedOut | Killed
 Paused     → Running | Canceled | TimedOut | Killed
 ```
 
-- `Continue`：仍可立即调度下一 Step。
-- `Waiting`：等待工具结果、人类输入、时间、子 Process 或其他已声明条件。
-- `Completed`：产生符合 Definition 输出契约的结果。
-- 终态由 Engine 已记录的控制意图和 Step 结果共同决定，不能只按 error 文本或 `context.Canceled` 推断。
-- Engine 显式 kill 映射为 `Killed`；父 Process 或 Host context 取消映射为 `Canceled`，并用 cause 区分发起方。
-- Process 或被提升为 Process 终止原因的 Effect deadline 映射为 `TimedOut`；deadline 不压成普通 `Failed`。
-- 普通 Step error、外部失败、panic 或合同违约映射为 `Failed`，并保留稳定错误分类。
-- 已提交终态 first-terminal-wins；迟到取消或 deadline 不能覆盖它。
-- `Stuck` 不是共同状态；GOAP 无可行计划属于 Planning 的结果和策略决定。
+- `Continue`: the next Step can still be scheduled immediately.
+- `Waiting`: awaiting a tool result, human input, a time, a child Process, or
+  another declared condition.
+- `Completed`: produced a result satisfying the Definition's output contract.
+- A terminal state is decided jointly by the control intent the Engine has
+  recorded and the Step result — never inferred from error text or from
+  `context.Canceled` alone.
+- An explicit Engine kill maps to `Killed`. A parent Process or Host context
+  cancellation maps to `Canceled`, with the cause distinguishing the initiator.
+- A Process deadline, or an Effect deadline promoted to a Process termination
+  reason, maps to `TimedOut`. A deadline is never flattened into an ordinary
+  `Failed`.
+- An ordinary Step error, an external failure, a panic, or a contract violation
+  maps to `Failed`, keeping a stable error classification.
+- A committed terminal state is first-terminal-wins: a late cancellation or
+  deadline cannot overwrite it.
+- `Stuck` is not a shared state. "GOAP found no feasible plan" is a Planning
+  result and a strategy decision.
 
-终态矩阵按以下优先级匹配，并由表驱动合同持续守卫：
+The terminal matrix is matched in this priority and guarded continuously by a
+table-driven contract:
 
-| 已记录原因 | deadline 已到达 | Step/Effect 结果 | 终态 | cause |
+| Recorded reason | Deadline reached | Step/Effect result | Terminal | Cause |
 |---|---:|---|---|---|
-| Engine 显式 kill | 任意 | 任意 | `Killed` | Engine kill reason |
-| Process/parent/Host deadline | 是 | 任意 | `TimedOut` | 准确 deadline owner |
-| parent 取消 | 否 | 任意 | `Canceled` | parent cancellation |
-| Host context 取消 | 否 | 任意 | `Canceled` | host cancellation |
-| 无控制面取消 | 否 | 合同违约、外部失败或 panic | `Failed` | 稳定错误分类 |
-| 无控制面取消 | 否 | 合法完成 | `Completed` | completion |
+| Explicit Engine kill | any | any | `Killed` | Engine kill reason |
+| Process/parent/Host deadline | yes | any | `TimedOut` | The exact deadline owner |
+| Parent cancellation | no | any | `Canceled` | Parent cancellation |
+| Host context cancellation | no | any | `Canceled` | Host cancellation |
+| No control-plane cancellation | no | Contract violation, external failure, or panic | `Failed` | Stable error classification |
+| No control-plane cancellation | no | Legal completion | `Completed` | Completion |
 
-Effect 自己的取消或 deadline 先作为 settlement Signal 交给 Strategy；只有 Strategy/Engine 决定它终止整个 Process 时，才依据同一矩阵映射，不能把局部调用失败天然提升成 Process 终态。
+An Effect's own cancellation or deadline first reaches the strategy as a
+settlement Signal. Only when the strategy or the Engine decides it terminates the
+whole Process is the same matrix applied — a local call failure is never
+promoted to a Process terminal state on its own.
 
-共同 Process 可以拥有：
+A shared Process may own:
 
-- `ProcessID`、`RootProcessID`、`ParentProcessID`
+- `ProcessID`, `RootProcessID`, `ParentProcessID`
 - `DeploymentRef`
-- `StartedAt`、`FinishedAt`
-- `Status`、准确 terminal cause/failure、当前等待条件
-- 通用 usage/budget
-- pending Signal 的不透明信封、到达序、投递状态和消费游标
-- WaitID 与 Strategy logical wait key 的映射
-- 尚未 finalize 的 prepared step envelope，其中唯一保存 pending Effect、稳定 EffectID 和逐项 settlement
-- Execution state envelope
+- `StartedAt`, `FinishedAt`
+- `Status`, the exact terminal cause or failure, and the current wait condition
+- General usage and budget
+- The opaque envelope, arrival order, delivery state, and consumption cursor of
+  pending Signals
+- The mapping from WaitID to a strategy logical wait key
+- The not-yet-finalized prepared step envelope, the only place holding pending
+  Effects, stable EffectIDs, and per-item settlements
+- The Execution state envelope
 
-共同 Process 不拥有：
+A shared Process does not own:
 
-- Goal、WorldState、Plan
-- WorkingContext、model-call/ToolCall cursor、Tool checkpoint
-- 任意具体 Strategy 的私有 cursor、branch 或 join state
-- 产品 Session、Conversation、Turn
-- provider、model、USD 账本
+- Goal, WorldState, Plan
+- WorkingContext, model-call or tool-call cursors, tool checkpoints
+- Any concrete strategy's private cursor, branch, or join state
+- Product session, conversation, or turn
+- Provider, model, or USD ledger
 
-### 5.5 Execution state envelope
+### 5.5 The Execution state envelope
 
-共同 snapshot 只保存可判别的策略状态信封：
+The shared snapshot holds only a discriminated strategy-state envelope:
 
 ```go
 type ExecutionState struct {
@@ -320,122 +470,327 @@ type ExecutionState struct {
 }
 ```
 
-- Planning payload 拥有 WorldState、Planning pass、Action attempt/exclusion/confirmation 和 child wait 状态；Goal、Action binding 与 Planner 留在 exact Definition。
-- Interaction payload 拥有 WorkingContext、model-call count、pending model response、ToolCall cursor/checkpoint、Delegate settlement 和 artifact provenance。
-- Workflow payload 拥有 Stage index、current value、selected case、fan-out window/output、Loop iteration 和 child wait 状态。
-- 未来 Strategy payload 只拥有自身经过准入的恢复状态；共同 envelope 不预留字段。
-- Host 可以持久化 envelope，但不得依据 `Kind` 解析 payload 并参与策略控制流。
-- 恢复必须通过精确 `DeploymentRef` 找回 Definition；禁止全局 `kind → factory` 巨型 switch。
+- The Planning payload owns WorldState, the planning pass, action attempts,
+  exclusions, confirmations, and child wait state. Goal, action bindings, and the
+  planner stay in the exact Definition.
+- The Interaction payload owns WorkingContext, the model-call count, a pending
+  model response, the tool-call cursor and checkpoint, Delegate settlements, and
+  artifact provenance.
+- The Workflow payload owns the stage index, current value, selected case,
+  fan-out window and output, loop iteration, and child wait state.
+- A future strategy's payload owns only its own admitted recovery state; the
+  shared envelope reserves no fields.
+- A Host may persist the envelope but must never parse the payload by `Kind` and
+  participate in strategy control flow.
+- Recovery must find the Definition through an exact `DeploymentRef`. A global
+  `kind → factory` mega-switch is forbidden.
 
-共同 snapshot 只约束 envelope，不递归解释 payload。每个 Strategy schema owner 在自己的 package 独立守卫 ExecutionState 与 Effect/Signal/Delta 的当前 wire shape，并以覆盖测试阻止新增私有 JSON shape 漏登记；Kernel 对这些私有 shape 没有导入或解释权。
+The shared snapshot constrains the envelope only and never interprets the payload
+recursively. Each strategy's schema owner guards its own current
+ExecutionState, Effect, Signal, and Delta wire shape in its own package, with
+coverage tests preventing an unregistered private JSON shape. The kernel has no
+right to import or interpret those private shapes.
 
-### 5.6 Signal、等待与安全消费
+### 5.6 Signals, waiting, and safe consumption
 
-Signal 是唯一进入 Execution 的运行时输入。共同信封只包含稳定 SignalID、可选 WaitID 路由和不透明 JSON payload；Engine 另行记录自身分配的单调序号、投递状态和消费游标。Engine wall clock 不进入 Strategy input：业务时间必须由 Host 作为稳定 payload 明确提交，接收观察时间只属于 Event。Signal 的 kind/schema 若有需要也必须封装在 owner 自有 payload 内，不能成为共同 Process 可解释的类型。Engine 不依据 payload 决定策略控制流，也不把具体 Signal 类型放进共同 Process。
+A Signal is the only runtime input into an Execution. The shared envelope carries
+a stable SignalID, optional WaitID routing, and an opaque JSON payload; the
+Engine separately records its own monotonic sequence number, delivery state, and
+consumption cursor. The Engine wall clock never enters strategy input: business
+time must be submitted explicitly by the Host as a stable payload, and the
+receive-observation time belongs to an Event only. A Signal's kind or schema,
+where needed, must be encapsulated inside its owner's payload and never become a
+type the shared Process can interpret. The Engine never decides strategy control
+flow from a payload and never puts a concrete Signal type into the shared
+Process.
 
-Signal 投递合同必须满足：
+The Signal delivery contract must satisfy:
 
-- 同一 SignalID 的重复提交只产生一次逻辑消费。
-- Running Process 接受的 Signal 排队到 Strategy 声明的下一安全 Step 边界。
-- Waiting Process 只接受当前 WaitID 允许的输入；过期、已结算和错目标输入确定失败。
-- Signal 游标只有在候选状态和 Transition 成功提交时推进；失败 Step 不永久吞掉输入。
-- pending queue、去重事实和游标均可 snapshot，并受单项/总量 limit。
+- Repeated submission of the same SignalID produces exactly one logical
+  consumption.
+- A Signal accepted by a running Process queues to the next safe Step boundary
+  the strategy declares.
+- A waiting Process accepts only input its current WaitID allows; expired,
+  already-settled, and wrong-target input fails deterministically.
+- The Signal cursor advances only when the candidate state and the Transition
+  commit successfully; a failed Step never permanently swallows input.
+- The pending queue, the deduplication facts, and the cursor are all
+  snapshottable and subject to per-item and total limits.
 
-WaitID 由 Engine 铸造，Execution 不能自行生成外部等待身份。Execution 先通过 Transition 声明 logical wait；Engine 在 Effect settlement/finalize 时原子保存 WaitID 与 logical wait 映射并入队包含 WaitID 的内部 Signal，Execution 在下一 Step 将它写入私有状态并显式进入 Waiting。映射建立后提前到达的回答可以排队，但只能在对应安全边界消费。该往返保持 Execution 单写者，不允许 Engine 回调或直接修改 Strategy state。
+A WaitID is minted by the Engine; an Execution can never generate an external
+wait identity itself. The Execution first declares a logical wait through a
+Transition; at effect settlement or finalization the Engine atomically saves the
+WaitID-to-logical-wait mapping and enqueues an internal Signal carrying the
+WaitID; on the next Step the Execution writes it into its private state and
+enters Waiting explicitly. An answer arriving early after the mapping exists may
+queue but is consumed only at the matching safe boundary. This round trip keeps
+the Execution a single writer and allows no Engine callback into, or direct
+mutation of, strategy state.
 
-不同 Strategy 必须声明自己的安全消费边界并用 contract tests 证明。Interaction 默认在已开始的模型调用和 Tool batch 结算后、下一模型 Effect 前消费 steer；其可观察生效延迟上界是当前不可中断 Effect 的剩余时长加下一 Step 的调度延迟，必须写入公开 GoDoc。通用 Engine 选择“等待结算”，不提供会遗弃不确定副作用的 interrupt-and-restart，也不假装拥有外部补偿语义。
+Each strategy must declare its own safe consumption boundary and prove it with
+contract tests. Interaction consumes a steer by default after an already-started
+model call and tool batch settle, and before the next model effect; the
+observable upper bound on its latency is the remaining duration of the current
+uninterruptible effect plus the next Step's scheduling delay, and that must be
+written in the public GoDoc. The general Engine chooses "wait for settlement" and
+offers no interrupt-and-restart that would abandon an uncertain side effect, nor
+pretends to own external compensation semantics.
 
-### 5.7 Effect 与结算
+### 5.7 Effects and settlement
 
-Effect 是 Execution 请求 Step 之外操作的唯一方式。候选信封只区分 Framework 自有目标与 Deployment dispatcher 目标，并携带 owner-owned raw payload；Engine 依据 ProcessID、Step sequence 与 effect index 生成 EffectID 并冻结 payload。Engine 只解释 child/wait/timer 等封闭的 Framework Effect，Strategy Effect 整体交给绑定的 dispatcher 解释。dispatcher 不修改 Execution，只产生 Delta 和最终 settlement Signal；不得把模型、Tool、Action kind 提升为 Kernel union。
+An Effect is the only way an Execution requests an operation outside a Step. The
+candidate envelope distinguishes only a framework-owned target from a Deployment
+dispatcher target and carries an owner-owned raw payload; the Engine derives the
+EffectID from the ProcessID, the Step sequence, and the effect index, and freezes
+the payload. The Engine interprets only the closed set of framework Effects such
+as child, wait, and timer; a strategy Effect is handed whole to its bound
+dispatcher. A dispatcher never mutates the Execution — it produces deltas and a
+final settlement Signal. Model, tool, and action kinds are never promoted into a
+kernel union.
 
-Engine-owned Effect 必须用 EffectID 保证重复调度不重复创建 child、wait 或其他 Framework 实体。模型、Tool、Action 等外部 Effect 的 dispatcher 必须把 EffectID 作为稳定请求身份并明确其 replay contract：只有已证明同一 EffectID 重放仍是同一逻辑操作时才允许自动重投。无法证明时，未知结算必须停留为可观察、待显式裁决的状态，不得静默重放或假装成功；业务事务、补偿和外部幂等实现仍属于具体 adapter 或 Host。
+An Engine-owned Effect must use the EffectID to ensure repeated scheduling never
+creates a duplicate child, wait, or other framework entity. A dispatcher for an
+external effect such as a model, tool, or action must use the EffectID as the
+stable request identity and state its replay contract explicitly: automatic
+redelivery is allowed only where replaying the same EffectID is proven to be the
+same logical operation. Where that cannot be proven, an unknown settlement must
+remain an observable state awaiting explicit adjudication — never silently
+replayed and never assumed successful. Business transactions, compensation, and
+external idempotency remain the concern of a concrete adapter or the Host.
 
-同一 Transition 的 Effect batch 首版按 declaration order 逐项推进；一个 Effect settled 后，下一个 planned Effect 才能进入 pending。EffectID 和 settlement 按 batch index 确定性归位；pending/Unknown 保留每项结算事实，只按各自 replay contract 恢复，不能重跑整个 batch 或按完成先后生成协议结果。并行 batch 只有在真实 benchmark/trace 证明必要且不改变 durable prefix 后才能另行设计。
+The first version of an Effect batch from one Transition advances item by item in
+declaration order: only after one Effect settles may the next planned Effect
+enter pending. EffectIDs and settlements are placed deterministically by batch
+index; pending and Unknown items keep their own settlement facts and recover only
+under their own replay contract, never by rerunning the whole batch or by
+producing a protocol result ordered by completion time. A parallel batch may be
+designed separately only when a real benchmark or trace proves it necessary and
+it does not change the durable prefix.
 
-### 5.8 输入、输出与 typed adapter
+### 5.8 Input, output, and typed adapters
 
-Engine 必须同构保存并运行异构 Definition，因此根窄腰不泛型化。Input、Output、Signal、Effect 和 ExecutionState 的 wire value 均使用被 owner 防御性复制且受大小限制的 JSON 表示，不用 `any` 或共享可变 `json.RawMessage` 绕过合同；严格解码和 payload 语义校验由拥有其 schema 的 Definition、Execution 或 dispatcher 完成。
+The Engine must hold and run heterogeneous Definitions homogeneously, so the root
+waist is not generic. The wire values of Input, Output, Signal, Effect, and
+ExecutionState all use a JSON representation that its owner copies defensively
+and bounds in size — never `any` or a shared mutable `json.RawMessage` routing
+around the contract. Strict decoding and payload semantic validation are done by
+the Definition, Execution, or dispatcher that owns the schema.
 
-Descriptor 携带权威 input/output schema；schema 及影响编码语义的配置进入 Deployment digest。Engine 在 start、complete 和 child settlement 边界执行结构校验，Definition 负责语义校验。常用 Go API 由边缘泛型 adapter 提供 `I ↔ raw input`、`raw output ↔ O` 的严格转换，但 Engine 和 catalog 永远只依赖非泛型 Definition。
+A Descriptor carries the authoritative input and output schema, and the schema
+plus any configuration affecting encoding semantics enters the Deployment digest.
+The Engine performs structural validation at the start, complete, and child
+settlement boundaries; the Definition performs semantic validation. The everyday
+Go API comes from edge generic adapters providing strict `I ↔ raw input` and
+`raw output ↔ O` conversion, while the Engine and the catalog depend only on the
+non-generic Definition.
 
 ---
 
-## 6. Execution Strategy
+## 6. Execution strategies
 
 ### 6.1 Interaction
 
-Interaction 是模型根据环境反馈自主选择工具的 ReAct 类执行策略，适用于编码、研究、聊天和开放式任务。
+Interaction is the ReAct-style strategy in which the model selects tools
+autonomously from environment feedback. It suits coding, research, chat, and
+open-ended tasks.
 
-能力包括普通与流式模型调用、稳定 Tool 边界、多轮循环、checkpoint、精确恢复、有界工具并行、HITL、steer、usage 和完整生命周期事件。Interaction 的私有 WorkingContext 是当前 Execution 精确恢复所需的模型工作集，不等同于 Host 拥有的跨 Process 产品历史或 UI 记录。
+Its capabilities are ordinary and streaming model calls, a stable tool boundary,
+multi-turn loops, checkpoints, exact recovery, bounded tool parallelism,
+human-in-the-loop, steer, usage, and the complete lifecycle event set.
+Interaction's private WorkingContext is the model working set needed to restore
+the current Execution exactly. It is not the cross-Process product history or UI
+record the Host owns.
 
-工具循环是 Interaction 的实现机制，不另设同义公共概念。是否暴露更小的直接 Runner，必须由独立消费者证明。
+The tool loop is Interaction's implementation mechanism, not a second public
+concept under another name. Whether to expose a smaller direct runner must be
+proven by an independent consumer.
 
 ### 6.2 Planning
 
-Planning 表达已知 Action 模型上的目标导向选择。`Planner` 是 Planning 内部的真实可替换点：
+Planning expresses goal-directed selection over a known action model. `Planner`
+is the real substitution point inside Planning:
 
 ```text
 Planning Definition
-    ├─ GOAP Planner
-    ├─ HTN Planner
-    ├─ Utility Planner
-    └─ 后续有真实需求的新 Planner
+    ├─ GOAP planner
+    ├─ HTN planner
+    ├─ Utility planner
+    └─ A future planner with a real requirement
 ```
 
-Planning 独占 Goal、Condition、Truth、WorldState、PlannedAction metadata 和 replan/no-plan policy。
+Planning exclusively owns Goal, Condition, Truth, WorldState, PlannedAction
+metadata, and replan or no-plan policy.
 
-GOAP 适合目标可机器验证、存在多条路径、Action 前置条件/效果/成本可声明且环境会变化的场景。GOAP 不作为默认 Agent 语义，也不用于包装固定控制流或开放式 ReAct 循环。
+GOAP suits a scenario where the goal is machine-verifiable, several paths exist,
+action preconditions, effects, and costs are declarable, and the environment
+changes. GOAP is not the default agent semantics and is not for wrapping fixed
+control flow or an open-ended ReAct loop.
 
-### 6.3 确定性编排
+### 6.3 Deterministic orchestration
 
-`flow` 是可选的普通 in-process 组合库；Workflow 是只编排真实 child Process 的 managed Strategy。Workflow 使用有序 Stage 而不是任意 DAG/Registry，不依赖或复制 `flow` runtime，也不编译成 GOAP；后续设计可以选择性吸收已被 `flow` 证明的组合规律，而不以代码复用为目标。它的独立状态是当前 value、Stage 游标、branch/item/iteration 窗口和 child wait；这些状态已经由独立 public-API consumer 的完整 tree restore 证明。
+`flow` is an optional ordinary in-process composition library; Workflow is the
+managed strategy that orchestrates real child Processes only. Workflow uses
+ordered stages rather than an arbitrary DAG or registry, depends on and
+duplicates no `flow` runtime, and compiles to no GOAP. A later design may
+selectively absorb composition regularities `flow` has proven, without code reuse
+as a goal. Its independent state is the current value, the stage cursor, the
+branch, item, and iteration windows, and the child waits — all already proven by
+a full tree restore from an independent public-API consumer.
 
-### 6.4 Orchestrator-worker 组合
+### 6.4 Orchestrator-worker composition
 
-Orchestrator-worker 由 Interaction、Workflow、managed Delegate、typed artifacts、completion validator 和 child Process 组合，不是独立 Strategy、独立 ExecutionState kind 或预建 package。只有实现证明它具有这些既有能力无法表达的独立推进与恢复语义，才申请新 Strategy 准入。
+Orchestrator-worker is composed from Interaction, Workflow, managed Delegates,
+typed artifacts, a completion validator, and child Processes. It is not a
+separate strategy, a separate ExecutionState kind, or a prebuilt package. Only an
+implementation proving it has advancement and recovery semantics these existing
+capabilities cannot express may apply for admission as a new strategy.
 
-orchestrator-worker 有两种正交且可组合的形态。模型需要直接选择少量已知 worker 时，Interaction 把 exact Deployment 暴露为 Delegate，模型的 ToolCall 直接创建对应 child Process。任务集合由模型按输入动态拆分、但调度顺序、窗口、数量上限和聚合必须确定时，decomposer Interaction 先输出 consumer-owned typed task list，Workflow Map 再为每项创建 exact worker child，最后由另一个 Interaction 综合有序 typed results。两种形态都只使用既有 Process 窄腰；Framework 不增加通用 Worker、Task、Result、Team、Supervisor 或共享 Blackboard 类型。
+It has two orthogonal, composable shapes. When the model must directly choose
+among a few known workers, Interaction exposes exact Deployments as Delegates and
+the model's tool call creates the corresponding child Process. When the task set
+is split dynamically by the model from the input but the scheduling order,
+window, count limit, and aggregation must be deterministic, a decomposer
+Interaction first emits a consumer-owned typed task list, a Workflow Map then
+creates an exact worker child per item, and another Interaction synthesizes the
+ordered typed results. Both shapes use only the existing Process waist. The
+framework adds no general Worker, Task, Result, Team, Supervisor, or shared
+blackboard type.
 
-Planning 可以作为 exact worker Deployment，但仅适用于其目标能够由 WorldState/Goal 验证、Action 具有诚实预测语义的子任务。编排层只能提交该 Planning Definition 的 Input 并消费其 Output，不能检查计划、逐步遥控 Action、把 Planning 当作任意内容变换器，或把业务 task/result schema 下沉进 Planning/Workflow。开放式分析 worker 应使用 Interaction 或消费方自己的 Definition。
+Planning can be an exact worker Deployment, but only for a subtask whose goal is
+verifiable through WorldState and Goal and whose actions have honest predictive
+semantics. The orchestration layer may only submit that Planning Definition's
+Input and consume its Output. It must not inspect the plan, remote-control
+actions step by step, use Planning as an arbitrary content transformer, or push a
+business task or result schema down into Planning or Workflow. An open-ended
+analysis worker should use Interaction or the consumer's own Definition.
 
-Interaction 的 typed artifact 只代表已成功完成、再次通过 exact Delegate Output schema 的 child 结果。它以模型轮次与 ToolCall 位置保持稳定顺序，在 ExecutionState 中保存 portable `agent.Output`，对 validator 则只暴露 immutable `Artifact`、exact Delegate name 与 erased/typed decode 边缘。普通 Tool 结果、参数违约、start failure、非 Completed child 和任意 `IsError` ToolResult 都不是 artifact；Framework 不按 Go type name 猜测、不过滤 `any`、不发布到共享 Blackboard，也不拥有产品 artifact store。若应用要长期保存或跨 Process 分享结果，必须在自己的 Definition Output 或 Host 聚合中显式建模。
+An Interaction typed artifact represents only a successfully completed child
+result that passed the exact Delegate's output schema again. It keeps a stable
+order by model turn and tool-call position, stores a portable `agent.Output` in
+the ExecutionState, and exposes to a validator only an immutable `Artifact`, the
+exact Delegate name, and the erased-or-typed decode edge. An ordinary tool
+result, an argument violation, a start failure, a non-completed child, and any
+`IsError` tool result are not artifacts. The framework never guesses by Go type
+name, never filters `any`, never publishes to a shared blackboard, and owns no
+product artifact store. An application that wants to keep or share results across
+Processes must model that explicitly in its own Definition output or in a Host
+aggregate.
 
-completion validator 是 Interaction Definition 冻结的有界、确定、无副作用纯函数，只在模型最终响应或 direct-Tool 结果形成候选完成时读取独立复制的当前 WorkingContext、candidate Output 与 artifacts。WorkingContext 是该 Execution 的模型上下文，不是 Host conversation/transcript，并且尚未包含当前候选。validator 返回显式二选一：接受；或拒绝并给出非空、有界 feedback。拒绝时，候选上下文与 feedback 作为下一轮 user message 进入 WorkingContext，仍由正数 `MaxModelCalls` 限制；耗尽以稳定 execution failure 终止，不能把未接受候选伪装成完成。需要模型、Tool、网络或其他外部判断的 evaluator 必须是 managed child Process，不能藏进 validator callback。
+A completion validator is a bounded, deterministic, side-effect-free pure
+function frozen by the Interaction Definition. It runs only when a final model
+response or a direct-tool result forms a completion candidate, reading an
+independently copied current WorkingContext, the candidate Output, and the
+artifacts. The WorkingContext is that Execution's model context — not the Host
+conversation or transcript — and does not yet include the candidate. The
+validator returns an explicit binary: accept, or reject with non-empty bounded
+feedback. On rejection, the candidate context and the feedback enter the
+WorkingContext as the next user message, still bounded by a positive
+`MaxModelCalls`; exhaustion terminates with a stable execution failure rather
+than passing an unaccepted candidate off as completion. An evaluator that needs a
+model, a tool, the network, or any other external judgment must be a managed
+child Process and can never hide inside a validator callback.
 
-### 6.5 Evaluator-optimizer 组合
+### 6.5 Evaluator-optimizer composition
 
-Evaluator-optimizer 是 Workflow Loop 的派生组合，不是新 Strategy。Loop 的 typed value 由消费者定义，至少显式保存原目标、有序 attempt/feedback history、当前候选、best-so-far 与 accepted；每轮 body 是 exact child Workflow，先 Call 一个 exact optimizer child，再 Call 一个 exact evaluator child。optimizer 读取上一轮 evaluator feedback 产生新候选；evaluator 评分并给出下一轮 feedback；Loop 的 pure predicate 只读取已提交的 accepted 状态。
+Evaluator-optimizer is a derived composition of a Workflow Loop, not a new
+strategy. The loop's typed value is defined by the consumer and must at minimum
+hold the original objective, the ordered attempt and feedback history, the
+current candidate, the best-so-far, and the accepted flag. Each round's body is
+an exact child Workflow that first calls an exact optimizer child and then an
+exact evaluator child. The optimizer reads the previous round's evaluator
+feedback and produces a new candidate; the evaluator scores it and gives the next
+round's feedback; the loop's pure predicate reads only committed accepted state.
 
-最大迭代数、评价规则和 acceptance threshold 必须显式配置并进入 Deployment identity，Framework 不提供默认“好坏”标准。best-so-far 只在严格更优时更新，同分保留最早结果；达到阈值时 `LoopResult.Satisfied=true`，耗尽时正常完成但必须是 `Satisfied=false`，并返回 best attempt 而不是最后 attempt。attempt history、Score、Feedback、阈值范围和最终 report 都是 consumer-owned typed schema，不进入 Workflow/Kernel，也不借共享 Blackboard 或 runtime type 查询传播。
+The maximum iteration count, the evaluation rule, and the acceptance threshold
+must be configured explicitly and enter Deployment identity — the framework
+supplies no default notion of "good". The best-so-far updates only on a strict
+improvement, keeping the earliest result on a tie. Reaching the threshold sets
+`LoopResult.Satisfied=true`; exhaustion completes normally but must report
+`Satisfied=false` and return the best attempt rather than the last. The attempt
+history, score, feedback, threshold range, and final report are all
+consumer-owned typed schemas; none enters Workflow or the kernel, and none
+propagates through a shared blackboard or a runtime type query.
 
-optimizer/evaluator 的 exact child Deployment 必须满足该消费者声明的 typed state 合同；若底层能力来自 Interaction、Planning、普通 Tool 或其他 Definition，转换与状态合并必须由 consumer-owned adapter Deployment 显式完成，Workflow 不猜测也不改写其 Descriptor。需要模型、网络或其他外部判断的 evaluator 必须是 managed child Process，不能藏进 pure Loop predicate、Transform 或 Interaction completion validator。只有评价标准足够清晰、feedback 能被 optimizer 实际消费且评测证明循环优于单次生成时，才应使用该组合。
+The exact optimizer and evaluator child Deployments must satisfy the typed state
+contract the consumer declares. Where the underlying capability comes from
+Interaction, Planning, an ordinary tool, or another Definition, the conversion and
+state merge must be done explicitly by a consumer-owned adapter Deployment;
+Workflow neither guesses nor rewrites a Descriptor. An evaluator needing a model,
+the network, or another external judgment must be a managed child Process and can
+never hide inside a pure loop predicate, a Transform, or an Interaction
+completion validator. Use this composition only when the evaluation criterion is
+clear enough, the feedback is actually consumable by the optimizer, and
+evaluation proves the loop beats a single generation.
 
-### 6.6 新策略准入
+### 6.6 Admitting a new strategy
 
-一个 Process 只有一个顶层 Execution 和一个顶层 ExecutionState envelope。Strategy 不得在同一 Process 内驱动另一个框架 Execution；组合跨越 Strategy 或需要独立暂停、恢复、预算、取消时必须创建 child Process。
+A Process has exactly one top-level Execution and one top-level ExecutionState
+envelope. A strategy must never drive another framework Execution inside one
+Process; composition that crosses strategies or needs independent pausing,
+recovery, budget, or cancellation must create a child Process.
 
-只有当新模式拥有与现有 Strategy 本质不同的状态推进和恢复语义时，才增加新的 Definition/Execution。GOAP、HTN、Utility 共享 Planning 生命周期，应实现 Planner，而不是各自创建 Engine。
+Add a new Definition and Execution only when a new pattern has state advancement
+and recovery semantics fundamentally different from the existing strategies.
+GOAP, HTN, and Utility share the Planning lifecycle and should implement a
+planner rather than each creating an engine.
 
 ---
 
-## 7. Planning Action、Tool 与 Delegate
+## 7. Planning Action, Tool, and Delegate
 
-`planning.Action` 只表达 Planning 搜索使用的稳定名称、准确描述、Preconditions、预测 Effects 和 Cost。它没有 JSON 输入输出、执行函数或外部副作用语义；`ActionBinding` 才把预测操作绑定到 dispatcher executor 或 exact child Deployment，`PlannedAction` 只是 Planner 输出的稳定引用。因此 Framework 不再虚构一个与 `planning.Action` 同名的通用可执行 Action，也不提供无法从预测元数据推出的通用 Action-to-Tool adapter。
+`planning.Action` expresses only the stable name, exact description,
+preconditions, predicted effects, and cost that the Planning search uses. It has
+no JSON input or output, no execution function, and no external side-effect
+semantics. An `ActionBinding` is what binds a predicted operation to a dispatcher
+executor or an exact child Deployment, and a `PlannedAction` is only the planner's
+stable reference to it. The framework therefore invents no general executable
+Action sharing a name with `planning.Action`, and provides no general
+Action-to-Tool adapter that cannot be derived from predictive metadata.
 
-Tool 是提供给模型的可调用协议，强调模型可理解的名称、描述、参数 schema 和文本结果。Tool 可以直接来自 MCP、Host 或普通 Go adapter，不一定参与 Planning；权限、sandbox、once-only、产品审批、事务和业务幂等属于具体装配边界。`core/tool.Guard` 是普通与 managed 调用共用的授权装饰边界；Interaction 通过调用 context 提供精确 `ToolInvocation` 归因，但只向模型返回稳定的拒绝结果，不泄露 Authorizer 的具体原因。
+A Tool is a callable protocol offered to a model, emphasizing a
+model-comprehensible name, description, parameter schema, and textual result. A
+Tool may come straight from MCP, a Host, or an ordinary Go adapter and need not
+participate in Planning. Permissions, sandboxing, once-only execution, product
+approval, transactions, and business idempotency belong to the concrete assembly
+boundary. `core/tool.Guard` is the authorization decoration boundary shared by
+ordinary and managed calls; Interaction supplies exact `ToolInvocation`
+attribution through the call context but returns only a stable refusal to the
+model, never leaking the Authorizer's specific reason.
 
-当模型必须选择一个拥有独立生命周期的 worker 时，Interaction 使用 `Delegate`：它冻结模型友好的 Tool 名称/描述、一个 exact child Deployment、每次调用的 Budget 与衰减 Capabilities。模型参数只表达目标 child Descriptor 的业务 Input；ProcessID、DeploymentRef、递归深度、预算、权限和父子关系都由 Definition 与 Engine 决定，不能让模型填写。Interaction Execution 识别 Delegate 调用并通过 Framework `StartChild`/`WaitForChildren` 推进；Dispatcher 和普通 Tool 不获得第二个 Process 创建入口。
+When the model must choose a worker with an independent lifecycle, Interaction
+uses a `Delegate`: it freezes a model-friendly tool name and description, one
+exact child Deployment, a per-call budget, and attenuated capabilities. The model
+parameters express only the target child Descriptor's business Input; the
+ProcessID, DeploymentRef, recursion depth, budget, permissions, and parentage are
+all decided by the Definition and the Engine, never filled in by the model. The
+Interaction Execution recognizes a Delegate call and advances it through the
+framework `StartChild` and `WaitForChildren`; a dispatcher and an ordinary tool
+gain no second Process-creation entry.
 
-一个模型 ToolCall batch 可以同时包含普通 Tool 与 Delegate。Interaction 只按原始顺序切分连续区段：普通 Tool 区段继续由 Dispatcher 执行并保留有界并发/HITL，Delegate 区段声明一批 child start 并 wait-all；全部结算后只向 WorkingContext 追加原 assistant message 和一个严格按原 ToolCall 顺序排列的 ToolResult message。无效 Delegate 参数、确定的 child start failure 和 child 非 Completed 终态是模型可重新决策的错误 ToolResult；错配的 Framework Signal、身份或成功 Output schema 是执行合同违约，不能伪装成普通 worker 失败。
+One model tool-call batch may contain both ordinary tools and Delegates.
+Interaction splits it only into consecutive runs in the original order: an
+ordinary-tool run continues through the dispatcher with bounded concurrency and
+human-in-the-loop, and a Delegate run declares a batch of child starts and waits
+for all. After everything settles, only the original assistant message and one
+tool-result message ordered strictly by the original tool-call order are appended
+to the WorkingContext. Invalid Delegate arguments, a deterministic child start
+failure, and a non-completed child terminal state are error tool results the
+model can decide about again; a mismatched framework Signal, identity, or
+successful-output schema is an execution contract violation and must never be
+disguised as an ordinary worker failure.
 
-Platform 只在 Process 启动前选择 active root Deployment，不把 Interaction 的 exact Delegate 偷换成字符串 registry lookup。若未来需要模型在一次 Interaction 中从动态 catalog 选择 worker，必须另行证明选择和权限合同，不能绕过 exact child Deployment 与 Engine 准入。
+Platform selects the active root Deployment only before a Process starts. It
+never swaps Interaction's exact Delegate for a string registry lookup. If a model
+must someday select a worker from a dynamic catalog within one Interaction, the
+selection and permission contract must be proven separately — never by routing
+around the exact child Deployment and Engine admission.
 
 ---
 
-## 8. 子 Process 与递归组合
+## 8. Child Processes and recursive composition
 
-Agent 自递归不是当前 Go 调用栈再次进入同一个函数，而是同一个 Definition 创建一个新的子 Process：
+Agent self-recursion is not the current Go call stack re-entering the same
+function — it is the same Definition creating a new child Process:
 
 ```text
 Process A₀
@@ -443,273 +798,760 @@ Process A₀
        └─ Process A₂
 ```
 
-每个 Process 具有唯一 ID、独立 Execution state、独立 snapshot 和受划拨的预算。Definition 可以相同，Process 永远不同。
+Each Process has a unique ID, independent Execution state, an independent
+snapshot, and an allocated budget. The Definition may be the same; the Process
+never is.
 
-只建立两个正交语义：
+Only two orthogonal semantics exist:
 
-1. `StartChild`：启动一个或多个子 Process。
-2. `WaitForChildren`：按 `all`、`any` 或 `quorum` 条件等待结果。
+1. `StartChild`: start one or more child Processes.
+2. `WaitForChildren`: wait for results under an `all`, `any`, or `quorum`
+   condition.
 
-同步调用是 start + wait-all 的便利组合；并行、竞速和投票由相同原语表达。长时间等待不得阻塞 Step：父 Execution 通过 Effect 请求 child start，捕获等待状态并返回 Waiting，Engine 将 child settlement 作为 Signal 恢复它。
+A synchronous call is the convenience combination of start plus wait-all;
+parallelism, racing, and voting are expressed by the same primitives. A long wait
+must never block a Step: the parent Execution requests the child start through an
+Effect, captures its wait state, and returns Waiting, and the Engine resumes it
+with the child settlement as a Signal.
 
-递归和动态委派必须由 Engine 强制约束：
+Recursion and dynamic delegation must be constrained by the Engine:
 
-- 最大深度、子 Process 总数、fan-out 和并行度。
-- 最大 Step、模型调用、工具调用、token、cost 和 wall time。
-- 子预算从父剩余预算中划拨，不能复制完整预算。
-- 子能力只能是父能力的子集，不能递归提权。
-- 父上下文按任务投影，不默认复制完整消息、Blackboard 或秘密。
-- deadline 和 cancellation 向下传播。
-- 父 Process 的任意终态都不能遗留活动孤儿；父 deadline 在后代保留准确来源，其他父终态作为 parent cancellation 逐层传播。
-- 父终态只向当时仍 active 的 direct child 投递控制意图；已先行合法完成的 child 保持 Completion。若父级结果依赖 child，Strategy 必须显式 WaitForChildren，不能依赖两条并发 run loop 的调度先后。
-- `Process.Await` 只在线性化该 Process 的 terminal Result 且 Engine 已完成这次终止直接触发的父完成通知、子终止投递和 wait 注销后返回；它不承诺整棵后代树已经全部终止。
-- child start 使用稳定请求身份，恢复时不能重复创建。
-- 子输出满足目标 Definition 的输出契约。
-- 子 Process 不得等待祖先 Process。
-- child failure 作为结果进入父 Execution；retry、fallback、部分成功、失败提升和聚合策略由编排显式定义，Engine 不自动猜测。
-- 父子创建、等待、恢复和取消产生可观测事件。
+- Maximum depth, total child count, fan-out, and parallelism.
+- Maximum steps, model calls, tool calls, tokens, cost, and wall time.
+- A child budget is allocated out of the parent's remaining budget, never a copy
+  of the full budget.
+- A child's capabilities are only a subset of the parent's; there is no recursive
+  privilege escalation.
+- Parent context is projected per task; the full message set, blackboard, and
+  secrets are not copied by default.
+- Deadlines and cancellation propagate downward.
+- No terminal state of a parent may leave an active orphan. A parent deadline
+  keeps its exact source in descendants; every other parent terminal state
+  propagates level by level as a parent cancellation.
+- A parent terminal state delivers control intent only to direct children still
+  active at that moment; a child that already completed legally keeps its
+  completion. If a parent result depends on a child, the strategy must
+  `WaitForChildren` explicitly rather than rely on the scheduling order of two
+  concurrent run loops.
+- `Process.Await` returns only after that Process's terminal result is linearized
+  and the Engine has finished the parent completion notification, the child
+  termination delivery, and the wait deregistration directly triggered by this
+  termination. It does not promise the entire descendant tree has terminated.
+- A child start uses a stable request identity and is never created twice on
+  recovery.
+- A child output satisfies the target Definition's output contract.
+- A child Process must never wait on an ancestor Process.
+- A child failure enters the parent Execution as a result; retry, fallback,
+  partial success, failure promotion, and aggregation policy are defined
+  explicitly by the orchestration, and the Engine guesses none of them.
+- Parent and child creation, waiting, recovery, and cancellation all produce
+  observable events.
 
-Process tree 是执行、取消、预算和恢复的共同单位。如果未来需要多个父级共享结果，应通过显式 artifact/reference 建模，不能让 Process 同时拥有多个 parent。
+The Process tree is the shared unit of execution, cancellation, budget, and
+recovery. If several parents must someday share a result, model it as an explicit
+artifact or reference — never let one Process have two parents.
 
 ---
 
-## 9. Anthropic 编排模式覆盖
+## 9. Coverage of the Anthropic orchestration patterns
 
-依据 [Building effective agents](https://www.anthropic.com/engineering/building-effective-agents) 的分类，覆盖与证据如下。模式名称是组合词汇，不是必须各建一个 Strategy/package/type 的清单。
+Per the taxonomy in
+[Building effective agents](https://www.anthropic.com/engineering/building-effective-agents),
+the coverage and its evidence are below. A pattern name is composition
+vocabulary, not a checklist requiring one strategy, package, or type each.
 
-| 模式 | 实现边界 | 路径由谁决定 | 行为证据 |
+| Pattern | Implementation boundary | Who decides the path | Behavioral evidence |
 |---|---|---|---|
-| Augmented LLM | `chatclient`/Interaction + Tools + WorkingContext；retrieval 是 Tool/provider，长期 memory 属于明确 owner | 单次模型调用或 Interaction 轮次 | `direct_vs_managed`、`autonomous`、Interaction Tool/WorkingContext tests |
-| Prompt Chaining | `flow.Then` 或 Workflow 连续 Call | 代码 | `workflow_patterns` 两个 exact child 串行并传递 typed value |
-| Routing | `flow.Switch`、Workflow Switch 或 Platform 路由 | 代码、分类器或模型 | `workflow_patterns` urgent/standard 双输入均只创建被选 exact child |
-| Parallel Sectioning | `flow.Map`/`flowx.FanOut` 或 Workflow Fork/Map | 代码 | `workflow_patterns` facts/risks 稳定声明顺序；Workflow Fork/Map contract tests |
-| Parallel Voting | `flow` 并行组合，或 Workflow Fork + consumer-owned typed reducer | 代码 | `workflow_patterns` 四 voter 两窗执行，2–2 同票稳定选择最早声明结果 |
-| Orchestrator-workers | Interaction Delegate，或 decomposer Interaction + Workflow Map + synthesizer Interaction；worker 始终是 child Process | 模型拆分/选择，Workflow 只确定调度与聚合 | `orchestrator_workers` 动态任务与 exact Planning Delegate tests |
-| Evaluator-optimizer | `flow.Loop` 或 Workflow Loop + exact optimizer/evaluator child | 代码控制循环，可由模型评估 | `evaluator_optimizer` feedback、提前接受、exhausted best-not-last 与稳定同分 tests |
-| Autonomous Agent | Interaction + Tools + 环境反馈 + 显式停止/上限 | 模型 | `autonomous` model→Tool→model final 与 Interaction limit tests |
-| Pattern Composition | `flow`、Workflow、Interaction 与 child Process 按生命周期边界组合 | 代码与模型按边界组合 | `composition`、`orchestrator_workers`、`evaluator_optimizer` 的 heterogeneous Process trees |
+| Augmented LLM | `chatclient` or Interaction plus tools and WorkingContext; retrieval is a tool or provider, long-term memory has an explicit owner | One model call or Interaction turn | `direct_vs_managed`, `autonomous`, Interaction tool and WorkingContext tests |
+| Prompt chaining | `flow.Then` or consecutive Workflow Calls | Code | `workflow_patterns`: two exact children in series passing a typed value |
+| Routing | `flow.Switch`, Workflow Switch, or Platform routing | Code, a classifier, or the model | `workflow_patterns`: urgent and standard inputs each create only the selected exact child |
+| Parallel sectioning | `flow.Map`/`flowx.FanOut`, or Workflow Fork/Map | Code | `workflow_patterns`: facts and risks in stable declaration order; Workflow Fork/Map contract tests |
+| Parallel voting | `flow` parallel composition, or Workflow Fork plus a consumer-owned typed reducer | Code | `workflow_patterns`: four voters across two windows, a 2–2 tie stably choosing the earliest declared result |
+| Orchestrator-workers | Interaction Delegates, or a decomposer Interaction plus Workflow Map plus a synthesizer Interaction; a worker is always a child Process | The model splits and selects; Workflow fixes only scheduling and aggregation | `orchestrator_workers`: dynamic tasks and exact Planning Delegate tests |
+| Evaluator-optimizer | `flow.Loop` or Workflow Loop plus exact optimizer and evaluator children | Code controls the loop; the model may evaluate | `evaluator_optimizer`: feedback, early acceptance, exhausted best-not-last, and stable ties |
+| Autonomous agent | Interaction plus tools plus environment feedback plus an explicit stop and limit | The model | `autonomous`: model → tool → model final, and Interaction limit tests |
+| Pattern composition | `flow`, Workflow, Interaction, and child Processes composed at lifecycle boundaries | Code and the model, per boundary | Heterogeneous Process trees in `composition`, `orchestrator_workers`, `evaluator_optimizer` |
 
-验收同时要求可运行示例和行为断言；只有 topology 类型或文档中的模式名不算实现。若普通 Go/`chatclient` 已足够，就不创建 Process；只有独立生命周期、恢复、预算、取消或治理确有价值时才升级为 managed composition。
+Acceptance requires both a runnable example and behavioral assertions: a topology
+type or a pattern name in a document is not an implementation. If ordinary Go or
+`chatclient` suffices, do not create a Process; upgrade to managed composition
+only when an independent lifecycle, recovery, budget, cancellation, or governance
+is genuinely worth it.
 
-复杂度选择遵循最小充分阶梯：
+Complexity follows the minimum sufficient ladder:
 
-| 需求 | 首选边界 | 不应承担 |
+| Requirement | Preferred boundary | Should not take on |
 |---|---|---|
-| 一次或少量模型调用，不需要托管生命周期 | 直接 `chatclient` | Process、snapshot、child tree |
-| 同进程确定控制流，节点无需独立身份/预算/恢复 | 普通 Go 或独立 `flow` | Agent Engine、每节点 Process |
-| 模型/Tool 循环需要暂停、恢复、steer、limit 或事件 | 单个 Interaction Process | Workflow、worker catalog |
-| 分支/迭代必须各自拥有身份、预算、取消和 tree recovery | Workflow + exact child Process | 第二 scheduler、共享 Store/Blackboard |
-| 模型动态选择 worker | Interaction Delegate；需要确定任务调度时再组合 Workflow | Supervisor Strategy、字符串 registry |
-| 多 Deployment 的选择和统一治理 | Platform | 反向扩张 Engine 或 Strategy state |
+| One or a few model calls, no managed lifecycle | Direct `chatclient` | A Process, a snapshot, a child tree |
+| In-process deterministic control flow, no per-node identity, budget, or recovery | Ordinary Go or standalone `flow` | The Agent Engine, a Process per node |
+| A model or tool loop needing pause, resume, steer, limits, or events | One Interaction Process | Workflow, a worker catalog |
+| Branches or iterations that each need identity, budget, cancellation, and tree recovery | Workflow plus exact child Processes | A second scheduler, a shared store or blackboard |
+| The model dynamically selects a worker | Interaction Delegates, composing Workflow when deterministic task scheduling is needed | A supervisor strategy, a string registry |
+| Selection and unified governance across Deployments | Platform | Expanding the Engine or strategy state in reverse |
 
-managed 复杂度按真实树线性显现：最小 Workflow 示例是四个 Process；orchestrator-worker 是六个；三轮 evaluator-optimizer 与完整 workflow-patterns 各十个。Process 数本身不是价值，只有这些身份真实承担独立恢复、资源、取消或观察边界时才合理。纯 Transform 在示例中作为 topology fixture 创建 child，不代表业务代码应把普通函数默认升级为 Process。
+Managed complexity shows up linearly in the real tree: the smallest Workflow
+example is four Processes, orchestrator-worker is six, and a three-round
+evaluator-optimizer and the full workflow-patterns example are ten each. Process
+count is not itself a value: it is justified only when those identities really
+carry an independent recovery, resource, cancellation, or observation boundary.
+A pure Transform creates a child in the examples as a topology fixture — that
+does not mean business code should upgrade an ordinary function to a Process by
+default.
 
 ---
 
-## 10. Engine 与 Platform
+## 10. Engine and Platform
 
 ### 10.1 Engine
 
-Engine 是最小托管执行边界：为每棵 root tree 建立唯一 `treeRuntime`，启动、推进、暂停、恢复和终止 Process；接受并投递 Signal；调度有界 Step/Dispatch job并只在 owner line 提交结果；管理 Process tree、等待和取消；捕获/恢复完整 tree；执行通用 limit/policy；发布中性 framework events 和临时 delta。
+The Engine is the minimal managed execution boundary. It establishes one
+`treeRuntime` per root tree; starts, advances, pauses, resumes, and terminates
+Processes; accepts and delivers Signals; schedules bounded Step and dispatch jobs
+and commits results only on the owner line; manages the Process tree, waits, and
+cancellation; captures and restores a complete tree; enforces general limits and
+policy; and publishes neutral framework events and transient deltas.
 
-Engine 不拥有产品 Session、数据库事务、模型 catalog、价格表或 UI 协议。
+The Engine owns no product session, database transaction, model catalog, price
+table, or UI protocol.
 
-EngineConfig 为每棵 root tree 冻结 Limits、TreeLimits 与最大 CapabilitySet；child 只能从父预算永久划拨并衰减能力。可选 `ProcessAdmitter` 是根与子 Process 共用的唯一启动准入合同：它读取 immutable `ProcessAdmission` 中的 ProcessRelation、exact DeploymentRef、Descriptor、Budget 与 CapabilitySet，并以启动方的 context 返回批准或拒绝。它不能修改分配、创建 Process 或取得 Engine/Process 控制权；Engine 的预算、能力子集和树限额始终在唯一 Kernel 状态中执行。产品身份、订阅、价格与 transaction 不进入该值。
+`EngineConfig` freezes `Limits`, `TreeLimits`, and the maximum `CapabilitySet`
+per root tree; a child may only permanently allocate from the parent budget and
+attenuate capabilities. The optional `ProcessAdmitter` is the single start
+admission contract shared by root and child Processes: it reads the immutable
+`ProcessAdmission` — the ProcessRelation, exact DeploymentRef, Descriptor,
+Budget, and CapabilitySet — and returns approval or refusal under the starter's
+context. It cannot modify an allocation, create a Process, or gain Engine or
+Process control; the Engine's budget, capability-subset, and tree limits are
+always enforced in the one kernel state. Product identity, subscription, price,
+and transaction never enter that value.
 
-准入发生在 Definition.Start 和 Process 发布之前；拒绝的 root 不启动，拒绝的 child 形成稳定 child-start failure。admitter 可以协调 caller-owned 外部准入，但必须尊重 context、保持有界和并发安全、不得重入 Engine/Process，并对同一 prospective ProcessID 的可能重放自行保证业务正确性；Framework 不因此定义 Store、transaction、charge、lease 或幂等 SPI。
+Admission happens before `Definition.Start` and before the Process is published.
+A rejected root does not start; a rejected child forms a stable child-start
+failure. An admitter may coordinate with a caller-owned external admission, but it
+must respect the context, stay bounded and concurrency-safe, never re-enter the
+Engine or a Process, and guarantee business correctness itself for a possible
+replay of the same prospective ProcessID. The framework defines no store,
+transaction, charge, lease, or idempotency SPI because of it.
 
-准入成功只表示允许初始化，不代表 Process 已经发布。可选 `ProcessStartOutcomeAcknowledger` 对每个已接受 admission 接收且只接收一个中性结论：初始化与初始 snapshot 自证完成时为 `started`，任一初始化边界失败时为带稳定 `Failure` 的 `aborted`。tentative `StartedAt` 只在 accepted admission 之后生成，且只有 started outcome 成功后才成为生命周期事实；aborted outcome 没有 StartedAt。outcome 不携带产品 identity、持久化对象、应用状态或回调 capability。Engine 在内部保留 prospective start reservation：`started` 在 acknowledgment 返回 nil 后才无失败地发布；`aborted` 永不发布；acknowledgment 失败同样不发布。Event listener 没有 veto/error 通道，不能替代该同步正确性边界。
+A successful admission means initialization is allowed, not that the Process is
+published. The optional `ProcessStartOutcomeAcknowledger` receives exactly one
+neutral conclusion per accepted admission: `started` when initialization and the
+initial snapshot self-certify, or `aborted` with a stable `Failure` when any
+initialization boundary fails. A tentative `StartedAt` is generated only after an
+accepted admission and becomes a lifecycle fact only after a started outcome
+succeeds; an aborted outcome has no `StartedAt`. An outcome carries no product
+identity, persistent object, application state, or callback capability. The
+Engine keeps a prospective start reservation internally: `started` publishes
+without possibility of failure only after the acknowledgment returns nil,
+`aborted` never publishes, and a failed acknowledgment does not publish either.
+An event listener has no veto or error channel and cannot substitute for that
+synchronous correctness boundary.
 
-已经捕获的 Process 恢复其原 admission，不按当前 admitter 再判一次，也不重放 start outcome；撤销授权由调用方在恢复前决定或通过明确的 Process control 表达，不能让 snapshot 恢复结果依赖隐藏的实时政策。
+A captured Process restores its original admission. It is not re-judged by the
+current admitter and does not replay its start outcome; revoking authorization is
+decided by the caller before restore or expressed through explicit Process
+control, so a snapshot restore never depends on hidden live policy.
 
 ### 10.2 Platform
 
-Platform 是建立在 Engine 上的可选完整形态，拥有 Deployment catalog、digest、Definition 路由、多 Agent 组合发现和面向 Host 的治理入口。
+Platform is the optional complete shape built on the Engine. It owns the
+Deployment catalog, digests, Definition routing, multi-agent composition
+discovery, and the Host-facing governance entry.
 
-本地嵌入式使用可以只创建 Engine 并运行显式 Definition；完整应用可以使用 Platform。二者共享 Process 和 Execution 语义，不建立两个 runtime。
+Local embedded use can create only an Engine and run explicit Definitions; a
+complete application can use Platform. The two share Process and Execution
+semantics and establish no second runtime.
 
-Platform 不包装、不创建也不代理 Engine。完整形态由 Host 把同一个 `platform.Platform` 作为 exact DeploymentResolver，与原有 ProcessAdmitter、EventListener 和 EngineConfig 显式装配；根 Deployment 仍由 Host 在 active Candidate snapshot 上完成选择后交给 `Engine.Start/Run`。因此 Platform 没有第二套 Start/Run、Process handle、scheduler 或 observation bus。
+Platform does not wrap, create, or proxy an Engine. The complete shape is the
+Host assembling one `platform.Platform` explicitly as the exact
+`DeploymentResolver`, alongside the existing `ProcessAdmitter`, `EventListener`,
+and `EngineConfig`. The root Deployment is still selected by the Host from an
+active candidate snapshot and then handed to `Engine.Start` or `Engine.Run`.
+Platform therefore has no second Start or Run, Process handle, scheduler, or
+observation bus.
 
-Platform 的 Catalog 是 exact Deployment binding 的不可变内存快照：零值为空，同一 name 可以保留多个不同 digest 的定义，重复 exact DeploymentRef 必须拒绝而不能覆盖。枚举顺序固定为 Definition name、完整 Deployment digest；返回集合与内部 slice 隔离。Catalog 直接实现 Engine 消费的 DeploymentResolver，但不包含 active route、变更命令、远程发现、Process 引用计数或 Host persistence。
+Platform's catalog is an immutable in-memory snapshot of exact Deployment
+bindings: the zero value is empty, one name may keep several definitions with
+different digests, and a duplicate exact DeploymentRef must be rejected rather
+than overwritten. Enumeration order is fixed by Definition name and then complete
+Deployment digest, and the returned set is isolated from the internal slice. The
+catalog directly implements the `DeploymentResolver` the Engine consumes, and
+contains no active route, change command, remote discovery, Process reference
+count, or Host persistence.
 
-Deploy/Replace/Undeploy 只更新 Platform owner 持有的 catalog/route snapshot；Definition 路由只从一个已提交快照选择 exact DeploymentRef。二者不能把 Catalog 退化为 package-global mutable registry，也不能让 Engine 反向依赖 Platform。
+Deploy, Replace, and Undeploy only update the catalog and route snapshot the
+Platform owner holds; Definition routing selects an exact DeploymentRef from one
+committed snapshot. Neither may degrade the catalog into a package-global mutable
+registry, and neither may make the Engine depend on Platform in reverse.
 
-活跃 Deployment 的槽位键固定为 Definition name：一个名称只有一个 active binding；同槽位的不同 complete digest 是冲突，必须显式 Replace。Replace 只改变同一槽位且保留旧 exact binding。Undeploy 必须提交当前 exact DeploymentRef，陈旧引用不能下线已被替换的新 binding。所有本地变化一次性发布完整 immutable state；它们不声明外部持久化事务、分布式 CAS 或请求幂等。
+An active Deployment's slot key is fixed to the Definition name: one name has one
+active binding. A different complete digest in the same slot is a conflict and
+requires an explicit Replace. Replace only changes that slot and preserves the old
+exact binding. Undeploy must submit the current exact DeploymentRef, so a stale
+reference cannot take down a binding that has already been replaced. Every local
+change publishes a complete immutable state at once; none of them declares an
+external persistence transaction, a distributed CAS, or request idempotency.
 
-Definition discovery/selection 只暴露一次 active snapshot 的 `DeploymentCandidate{exact ref, Descriptor}`；Candidate 没有 Dispatcher、Engine 或 Process capability。调用方提供的 DeploymentSelector 拥有 request-specific input 与选择政策，可使用 context 执行模型或网络 I/O，返回一个 exact DeploymentRef。Platform 校验该 ref 必须属于同一次候选快照，并返回快照中原始 Deployment；并发 Replace/Undeploy 不能把已完成选择重定向到另一个 binding。historical Catalog 只用于 exact restore，不自动进入路由候选。
+Definition discovery and selection expose only `DeploymentCandidate{exact ref,
+Descriptor}` from one active snapshot; a candidate has no dispatcher, Engine, or
+Process capability. The caller-supplied `DeploymentSelector` owns the
+request-specific input and the selection policy, may use the context to perform
+model or network I/O, and returns one exact DeploymentRef. Platform validates
+that ref belongs to the same candidate snapshot and returns the original
+Deployment from it, so a concurrent Replace or Undeploy cannot redirect a
+completed selection to another binding. The historical catalog is for exact
+restore only and never enters routing candidates automatically.
 
-Platform 的零值是可用的空部署聚合；`New(deployments...)` 只为一次性构造初始 active set 并校验冲突。发现调用方只取得 non-executable DeploymentCandidates，不公开另一份 executable ActiveDeployments 枚举；需要精确恢复的代码使用 Catalog/Resolve，需要启动的代码使用 SelectDeployment 返回的 captured exact Deployment。不存在单字段 Config、重复 active executable view 或兼容入口。
+Platform's zero value is a usable empty deployment aggregate;
+`New(deployments...)` exists only to construct an initial active set once and
+validate conflicts. A discovery caller receives non-executable
+`DeploymentCandidate` values only, and no second executable `ActiveDeployments`
+enumeration is published. Code needing exact restore uses the catalog and
+`Resolve`; code needing to start uses the captured exact Deployment returned by
+`SelectDeployment`. There is no single-field config, no duplicated active
+executable view, and no compatibility entry.
 
-`embedded_vs_platform` 用完全相同的 Workflow root 与 exact worker 分别经过 caller-owned resolver 和 Platform selector/resolver 运行，并比较 Output、Status、Usage、两 Process tree、两次 admission 以及稳定 Process/Step/Effect Event 投影。不同运行中 child 可能在父 wait 注册前或后完成，所以 `signal.accepted` 与中间 running/waiting 事实可以合法不同；Platform 等价合同不谎称跨运行的 wall-clock、ProcessID 或完整 Event sequence 逐项相等。
+`embedded_vs_platform` runs the identical Workflow root and exact workers through
+a caller-owned resolver and through the Platform selector and resolver, and
+compares Output, Status, Usage, both Process trees, both admissions, and the
+stable Process, Step, and Effect event projections. A child may finish before or
+after the parent registers its wait across runs, so `signal.accepted` and
+intermediate running or waiting facts may legitimately differ. The Platform
+equivalence contract does not falsely claim per-item equality of wall clock,
+ProcessID, or the complete event sequence across runs.
 
-### 10.3 Deployment 恢复
+### 10.3 Deployment recovery
 
-- Deployment 冻结 Definition 及影响恢复语义的配置。
-- Process snapshot 始终记录精确 DeploymentRef。
-- Engine 只依赖由自身消费位置定义的最小 DeploymentResolver，或在 restore 时显式接收已经解析的 Deployment。该 resolver 是无 context、同步、有界、确定且无远程 I/O 的 exact binding lookup；同一精确引用不能随调用方或调用时机改变结果。
-- 路由、租户/调用方选择和远程发布发现必须先产生精确 DeploymentRef，再进入 resolver；resolver 不承担这些职责。
-- same-reference child 直接复用当前 Deployment，不调用 resolver；tree restore 对每个 distinct DeploymentRef 至多解析一次，并在全部 Deployment 与 snapshot 校验成功后才注册整棵树。
-- Platform 是唯一的进程内 executable catalog、路由和治理实现，不在 Engine 内再建立第二份权威目录；Host 的 durable publication 负责在进程启动时重建它。
-- Catalog 保存 executable Deployment value，不能冒充可跨进程序列化的发布仓库；Host/adapter 负责从持久发布事实构造本地不可变快照。
-- 不使用 package-global registry。
-- 不通过 execution kind 猜测 concrete factory。
-- Go 函数地址不能作为可靠实现身份；Deployment digest 必须来自稳定的显式配置与 schema。
+- A Deployment freezes the Definition and any configuration affecting recovery
+  semantics.
+- A Process snapshot always records the exact DeploymentRef.
+- The Engine depends only on the minimal `DeploymentResolver` defined at its own
+  consumption site, or receives an already-resolved Deployment explicitly at
+  restore. That resolver is a context-free, synchronous, bounded, deterministic
+  exact-binding lookup with no remote I/O: the same exact reference cannot change
+  result with the caller or the timing.
+- Routing, tenant or caller selection, and remote publication discovery must all
+  produce an exact DeploymentRef first and only then enter the resolver; the
+  resolver takes on none of those responsibilities.
+- A same-reference child reuses the current Deployment directly and does not call
+  the resolver. A tree restore resolves each distinct DeploymentRef at most once
+  and registers the whole tree only after every Deployment and snapshot
+  validates.
+- Platform is the only in-process executable catalog, routing, and governance
+  implementation. No second authoritative catalog is built inside the Engine; the
+  Host's durable publication rebuilds it at process start.
+- The catalog holds executable Deployment values and must not pose as a
+  cross-process serializable publication repository; the Host or an adapter
+  builds the local immutable snapshot from durable publication facts.
+- No package-global registry.
+- No guessing a concrete factory from an execution kind.
+- A Go function address is not a reliable implementation identity: the Deployment
+  digest must come from stable explicit configuration and schema.
 
 ---
 
-## 11. Snapshot、恢复与持久化
+## 11. Snapshot, recovery, and persistence
 
-Agent Framework 负责捕获一致的 Process/tree 执行状态、校验 schema/DeploymentRef/父子关系/状态机不变量，并从完整 `TreeSnapshot` 和精确 Deployment 恢复。不可序列化状态必须显式失败。
+The Agent Framework captures a consistent Process and tree execution state,
+validates the schema, DeploymentRef, parentage, and state-machine invariants, and
+restores from a complete `TreeSnapshot` and the exact Deployment.
+Non-serializable state must fail explicitly.
 
-Host 负责 Store、transaction、CAS、lease、幂等、retention、产品身份关联、应用 write-set 原子提交，以及崩溃后的调度政策。Agent 不定义 Store/Repository 来假装拥有持久化，也不在 Transition 内回调 Host transaction。
+The Host owns the store, transactions, CAS, leases, idempotency, retention,
+product identity association, atomic commit of the application write set, and the
+post-crash scheduling policy. Agent defines no store or repository to pretend it
+owns persistence, and never calls back into a Host transaction inside a
+Transition.
 
-恢复约束：
+Recovery constraints:
 
-- 不序列化 goroutine、调用栈、closure、客户端连接或 context。
-- Strategy 把恢复所需状态显式放入自己的 ExecutionState。
-- Snapshot 只能在 last-stable 或 prepared-step 原子边界捕获；prepared snapshot 必须完整包含候选状态、拟消费 Signal 范围、EffectID、冻结 payload 和已有 settlement。两个边界之间的并发 capture 必须确定等待或拒绝，不能读半提交状态。
-- Framework 定义一致 capture 点，Host 决定哪些 capture 被持久化；“已捕获”不等于“已持久化”。
-- `ProcessSnapshot` 只用于诊断、Strategy inspector、Event/debug tooling 和测试，不是恢复输入；完整 `TreeSnapshot` 是唯一恢复单位，禁止把 child 当新 root 或只恢复父级。
-- `TreeSnapshot` 严格保存每个 Process snapshot、Engine-owned 活动 direct-child wait、planned/pending/settled Effect phase 与完整 tree program counter，不保存 dispatcher、resolver 或 Host persistence 对象。每棵树的 owner line直接形成 canonical snapshot；in-flight Step/Dispatch job 不进入 snapshot，只保留 last-stable state与已提交 Effect phase。
-- `TreeSnapshot` envelope 必须携带 `CurrentTreeSnapshotVersion`。缺失或未知版本返回独立的 `ErrUnsupportedTreeSnapshotVersion`，不能伪装成内容损坏；Kernel 只读取当前版本，不做隐式迁移。升级前的排空、保留或显式 wire 迁移由拥有持久化数据的 Host 负责，并须在调用 `RestoreTree` 前完成。
-- tree restore 先校验 root/parent/depth/ChildKey、预算总和、能力衰减、tree limits、活动 child wait 和每个精确 DeploymentRef，再原子注册完整树；任一校验或解析失败不得留下部分 Process。
-- 等待子树取消是 Kernel 自有的一次性 prepared capability：`PrepareWaitingSubtreeCancellation` 在完整 tree quiescent cut 上冻结 source root tree，记录 acknowledged `SourceTreeDigest`，计算确定的 resulting TreeSnapshot、parent-before-child 的 canceled Process IDs 和需要显式继续的 paused parent IDs，并返回 `PreparedWaitingSubtreeCancellation`。该 capability 必须且只能以 `Apply` 或 `Discard` 结束；在结束前同一 root tree 不能越过冻结边界，也不能从第二份状态重算结果。
-- prepared 结果保留被取消 Process 及永久 child budget allocation，以 host-canceled target、parent-canceled active descendants、已关闭等待和 Kernel-owned child-completion Signal 表达事实；直接父级在消费完成 Signal 前进入 Paused。所有可失败、可取消的 Process projection staging 都在 Prepare 返回 capability 前完成；失败会释放 source tree且 live state 不变。返回后的 contextless `Apply()` 只跨越单一 apply gate并完成既有 finalization，caller 不能用请求取消撤销已经形成的 durable decision；`Discard` 只释放 source tree。两者都保留既有 Process handle，不替换 controller，不解析或修改 opaque ExecutionState，也不引入 persistence、transaction、checkpoint、lease 或产品删除模型。
-- Process admission 与其 conclusive start outcome 只属于首次 root/child start；restore 不重复调用 admitter/acknowledger，也不把 live policy 或 outcome 写入共同 snapshot。Host 若不允许恢复，必须在调用恢复前拒绝或显式终止已恢复 Process。
-- durable mode 由闭合 `TreeDurability` port 驱动：root/child start outcome、Effect pending/settled/resolved、Parked/Terminal checkpoint 和 restore activation 都提交完整 prospective TreeSnapshot。Host callback 必须以 previous digest/current incarnation 做原子 CAS，但该合同不得演变为 Framework Store/transaction SPI。
-- child admission 期间的预算只作为 treeRuntime job 拥有的 provisional reservation 参与资源门禁，不进入 snapshot 的 committed reserved budget；started outcome 在同一 prospective tree 中同时安装 child、topology、parent settlement 和 committed reservation，其他路径释放 provisional state。
-- durable restore 在 activation 前先建立不可见的 whole-tree local reservation；CAS 成功后的动作只剩无失败 publication，避免 authoritative head 已换代后才发现同 Engine identity 冲突。旧 writer 迟到 completion 由 attempt/incarnation fence 丢弃。
-- tree-scoped durability fault 先收集每个 Process 的既有 Unknown、当前 boundary 与 sibling in-flight 外部 EffectID，再以 canonical 两阶段决议终止全树；终止结果不得受 map 遍历或 parent propagation 时序影响。
-- 外部副作用用幂等键、外部事实或显式 checkpoint 协议处理，不能只靠 snapshot 猜测。
-- snapshot schema 在开发阶段直接 breaking，不保留长期 dual-read。
+- No goroutine, call stack, closure, client connection, or context is serialized.
+- A strategy explicitly places the state it needs for recovery into its own
+  ExecutionState.
+- A snapshot can be captured only at a last-stable or prepared-step atomic
+  boundary. A prepared snapshot must completely contain the candidate state, the
+  Signal range to be consumed, the EffectIDs, the frozen payloads, and any
+  settlements already present. A concurrent capture between those two boundaries
+  must deterministically wait or refuse — never read half-committed state.
+- The framework defines consistent capture points; the Host decides which
+  captures are persisted. "Captured" does not mean "persisted".
+- `ProcessSnapshot` is for diagnostics, strategy inspectors, event and debug
+  tooling, and tests. It is not a recovery input: a complete `TreeSnapshot` is the
+  only recovery unit, and treating a child as a new root or restoring only a
+  parent is forbidden.
+- `TreeSnapshot` strictly holds every Process snapshot, the Engine-owned active
+  direct-child waits, the planned/pending/settled effect phases, and the complete
+  tree program counter. It holds no dispatcher, resolver, or Host persistence
+  object. Each tree's owner line forms the canonical snapshot directly; an
+  in-flight Step or dispatch job does not enter the snapshot, which keeps only the
+  last-stable state and the committed effect phases.
+- The `TreeSnapshot` envelope must carry `CurrentTreeSnapshotVersion`. A missing
+  or unknown version returns a distinct `ErrUnsupportedTreeSnapshotVersion` and is
+  never disguised as content corruption; the kernel reads only the current version
+  and performs no implicit migration. Draining, retention, or an explicit wire
+  migration before an upgrade belongs to the Host that owns the persisted data and
+  must complete before `RestoreTree` is called.
+- A tree restore first validates the root, parent, depth, and ChildKey, the budget
+  sum, capability attenuation, the tree limits, the active child waits, and every
+  exact DeploymentRef, and only then registers the complete tree atomically. Any
+  validation or resolution failure must leave no partial Process behind.
+- Cancelling a waiting subtree is a kernel-owned one-shot prepared capability.
+  `PrepareWaitingSubtreeCancellation` freezes the source root tree at a complete
+  quiescent cut, records the acknowledged `SourceTreeDigest`, computes the
+  deterministic resulting TreeSnapshot, the parent-before-child canceled Process
+  IDs, and the paused parent IDs needing explicit continuation, and returns a
+  `PreparedWaitingSubtreeCancellation`. That capability must end in exactly one of
+  `Apply` or `Discard`; before it ends, the same root tree cannot cross the frozen
+  boundary and the result cannot be recomputed from a second state.
+- The prepared result preserves the canceled Processes and their permanent child
+  budget allocations, expressing the facts as a host-canceled target,
+  parent-canceled active descendants, closed waits, and a kernel-owned
+  child-completion Signal; a direct parent enters Paused before consuming that
+  completion Signal. Every failable, cancellable Process projection is staged
+  before Prepare returns the capability, and a failure releases the source tree
+  with live state unchanged. The contextless `Apply()` afterwards crosses a single
+  apply gate and completes the existing finalization, so a caller cannot use
+  request cancellation to undo a durable decision already formed; `Discard` only
+  releases the source tree. Both preserve existing Process handles, replace no
+  controller, neither parse nor modify the opaque ExecutionState, and introduce no
+  persistence, transaction, checkpoint, lease, or product deletion model.
+- Process admission and its conclusive start outcome belong only to a first root
+  or child start. A restore does not call the admitter or acknowledger again and
+  does not write live policy or an outcome into the shared snapshot. A Host that
+  disallows restoration must refuse before calling restore, or explicitly
+  terminate the restored Process.
+- Durable mode is driven by the closed `TreeDurability` port: root and child start
+  outcomes, effect pending/settled/resolved, Parked and Terminal checkpoints, and
+  restore activation all submit the complete prospective TreeSnapshot. The Host
+  callback must perform an atomic CAS on the previous digest and current
+  incarnation, and that contract must never evolve into a framework store or
+  transaction SPI.
+- A budget during child admission participates in resource gating only as a
+  provisional reservation owned by the `treeRuntime` job; it does not enter the
+  snapshot's committed reserved budget. A started outcome installs the child, the
+  topology, the parent settlement, and the committed reservation together in the
+  same prospective tree; every other path releases the provisional state.
+- A durable restore first establishes an invisible whole-tree local reservation.
+  After the CAS succeeds only failure-free publication remains, which avoids
+  discovering a same-Engine identity conflict after the authoritative head has
+  already advanced. A late completion from an old writer is discarded by the
+  attempt and incarnation fence.
+- A tree-scoped durability fault first collects each Process's existing Unknown
+  items, current boundary, and sibling in-flight external EffectIDs, then
+  terminates the whole tree with a canonical two-phase resolution. The termination
+  result must not depend on map iteration or parent propagation timing.
+- An external side effect is handled with an idempotency key, an external fact, or
+  an explicit checkpoint protocol — never guessed from the snapshot alone.
+- The snapshot schema breaks outright during development; no long-term dual read
+  is kept.
 
-ephemeral snapshot 没有 incarnation；durable snapshot 以有效、crypto-random `TreeIncarnationID` 作为唯一 mode 表示。每次 restore 在发布任何 Process 前生成新 incarnation，并由 Host 对 previous `(digest, incarnation)` 完成 activation CAS。durable Engine 不开放释放 owner 后再保存的 `CaptureTree`；只有 Runtime durability callback 或仍冻结 source 的具体 prepared tree capability 可以推进 authoritative head。
+An ephemeral snapshot has no incarnation; a durable snapshot uses a valid,
+cryptographically random `TreeIncarnationID` as its only mode marker. Every
+restore generates a new incarnation before publishing any Process, and the Host
+performs the activation CAS on the previous `(digest, incarnation)`. A durable
+Engine exposes no `CaptureTree` that saves after releasing the owner: only a
+runtime durability callback, or a concrete prepared tree capability that still
+holds the source frozen, may advance the authoritative head.
 
-Interaction 默认把精确恢复所需的 WorkingContext 自足地保存在私有 ExecutionState；Host 的产品历史不是恢复时可静默重建它的第二真相源。若某个 Strategy 真实依赖可变外部事实，只能在自己的 state 保存不透明 revision/digest，并由该 Strategy 的 provider 校验；外部事实变化时拒绝精确恢复，从新事实开始属于创建新 Process。
+Interaction keeps the WorkingContext needed for exact recovery self-sufficiently
+in its private ExecutionState by default. The Host's product history is not a
+second source of truth that could silently rebuild it at restore. If a strategy
+genuinely depends on a mutable external fact, it may store only an opaque revision
+or digest in its own state, validated by that strategy's provider; when the
+external fact changes, exact recovery is refused, and starting from the new fact
+means creating a new Process.
 
-Host 对自身事实执行销毁、回滚、替换或恢复时，必须在自己的生命周期/write-set 中终止并清理失效关联的 Process、snapshot 和 continuation。Framework 只提供中性 lifecycle/capture 能力，不认识产品身份、历史水位、删除集合或数据库原子性，这些值不得进入共同 Process snapshot。
+When a Host destroys, rolls back, replaces, or restores its own facts, it must
+terminate and clean up the invalidated Processes, snapshots, and continuations
+inside its own lifecycle and write set. The framework provides neutral lifecycle
+and capture capability only; it knows no product identity, history watermark,
+deletion set, or database atomicity, and none of those values may enter the shared
+Process snapshot.
 
 ---
 
-## 12. Extension、事件与可观测性
+## 12. Extensions, events, and observability
 
-横切替换点按真实消费位置定义一个准确的小接口，不建立通用 Extension marker、capability registry 或按运行时类型分派的 god scope。`ProcessAdmitter` 只负责启动准入；`ProcessStartOutcomeAcknowledger` 只负责 ephemeral admission lifecycle 闭合；完整 durable Host 实现闭合 `TreeDurability`；`EventListener`/`DeltaListener` 只负责观察。它们语义不同，不合并成 Policy/Guard/Middleware 或万能 Commit 近义层。只有一个实现且没有外部替换需求的内部依赖直接使用 concrete type。
+A cross-cutting substitution point defines one exact small interface at its real
+consumption site. No general extension marker, capability registry, or
+runtime-type-dispatched god scope is built. `ProcessAdmitter` handles start
+admission only; `ProcessStartOutcomeAcknowledger` closes the ephemeral admission
+lifecycle only; a complete durable Host implements the closed `TreeDurability`;
+`EventListener` and `DeltaListener` observe only. They differ semantically and are
+never merged into a Policy, Guard, Middleware, or catch-all commit layer. An
+internal dependency with one implementation and no external substitution need uses
+the concrete type directly.
 
-Event 描述已经发生的框架事实，不承担 Signal、命令、Transition 或产品协议。每个 Event 都携带 Process-local sequence、ProcessID、exact DeploymentRef、ProcessRelation、可选 Step/Effect identity、稳定名称、phase、OccurredAt 与独立 payload，因此 child、deployment 和恢复归因不依赖 Host 查询。Event 分为 attempt facts 与 committed facts：前者证明一次 Step 或 Effect 确实尝试过，后者证明 Process/Signal/Step 状态已由 Engine 提交。Framework Event 词汇是封闭的；构造与反序列化同时校验 name、phase、Step/Effect identity 和对应 payload，未知名称、错配身份、缺失必填字段与非法枚举不能成为一个 `Valid` Event。常用 payload 通过 immutable typed fact 读取，observer 不复制私有 JSON struct 或按 tag 猜协议。
+An Event describes a framework fact that has already happened. It never carries a
+Signal, a command, a Transition, or a product protocol. Every Event carries a
+Process-local sequence, the ProcessID, the exact DeploymentRef, the
+ProcessRelation, an optional Step or Effect identity, a stable name, a phase, an
+`OccurredAt`, and an independent payload — so child, deployment, and recovery
+attribution never depend on a Host query. Events split into attempt facts and
+committed facts: the former prove a Step or Effect was really attempted, the
+latter prove the Engine committed a Process, Signal, or Step state. The framework
+event vocabulary is closed: construction and deserialization both validate the
+name, phase, Step and Effect identity, and matching payload, so an unknown name, a
+mismatched identity, a missing required field, or an illegal enum can never become
+a `Valid` Event. A common payload is read through an immutable typed fact, so an
+observer never copies a private JSON struct or guesses the protocol from tags.
 
-当前 Framework 事实集合固定为：
+The current framework fact set is fixed at:
 
-- Process started/restored/paused/resumed/finished；Strategy Step 提交 Paused 时同样产生 process paused fact
+- Process started, restored, paused, resumed, finished — a strategy Step
+  committing Paused also produces a process-paused fact
 - Signal accepted
-- Step started/finished/prepared/committed
-- Framework 或 Dispatcher Effect started/finished
+- Step started, finished, prepared, committed
+- Framework or dispatcher Effect started, finished
 - Delta dropped
 
-Event 名称由根 package 常量统一，不能在发布点散落字符串。Step finished 与 Effect finished payload 都携带同一 owner 测得的非负 `duration_ms`；Effect lifecycle 同时携带准确 target 与 settlement status。模型、Tool、Planning Action 等 Strategy-specific lifecycle 不能由不理解 opaque Effect 的 Kernel 猜测；需要时由相应 dispatcher/adapter 使用官方 OTel API 或它自己的中性观察合同，不污染 Framework Event 名称。
+Event names are unified as root-package constants and never scattered as strings
+at publication sites. Both the Step-finished and Effect-finished payloads carry a
+non-negative `duration_ms` measured by the same owner, and the Effect lifecycle
+additionally carries the exact target and settlement status. Strategy-specific
+lifecycles for models, tools, and Planning actions must never be guessed by a
+kernel that does not understand an opaque Effect; where needed, the corresponding
+dispatcher or adapter uses the official OTel API or its own neutral observation
+contract, without polluting the framework event names.
 
-EventListener 与 DeltaListener 都是无错误返回的观察接口：返回值既不会改变事实，也不应制造“可否决执行”的误解。实现必须有界、并发安全且不得重入被观察 Process；panic 被隔离，并由持有投递生命周期的 Engine 以单调饱和计数暴露。Interaction Dispatcher 同理拥有模型/Tool observer 的分类计数。两者都返回不可变 typed snapshot，不递归发布故障 Event、不污染业务 Usage/settlement，也不把领域模块绑定到日志或遥测实现。Event 在每个 Process 内同步保持顺序，不承诺不同 Process 的全局顺序；同一 tree 的初始 started/restored facts 仍按 parent-before-child 的 canonical 顺序发布，使父子 trace 归因不依赖 map 遍历。durable tree 的 process-paused 与 terminal fact 共用 tree owner 的 checkpoint publication aggregate，只有对应 checkpoint callback 成功返回后才发布；crash prefix 不会越过 Host commit boundary 泄露尚未确认的 lifecycle。Delta 继续通过独立有界队列异步投递。
+`EventListener` and `DeltaListener` are both error-free observation interfaces:
+the absence of a return value means neither can change a fact nor create the
+impression of a vetoable execution. An implementation must be bounded,
+concurrency-safe, and must not re-enter the observed Process. A panic is isolated
+and exposed by the Engine that owns delivery as a monotonic saturating counter.
+The Interaction dispatcher likewise owns categorized counters for its model and
+tool observers. Both return immutable typed snapshots, publish no recursive
+failure events, do not pollute business usage or settlement, and do not bind a
+domain module to a logging or telemetry implementation. Events keep their order
+synchronously within each Process and promise no global order across Processes;
+one tree's initial started and restored facts are still published in canonical
+parent-before-child order, so parent-child trace attribution does not depend on map
+iteration. A durable tree's process-paused and terminal facts share the tree
+owner's checkpoint publication aggregate and are published only after the
+corresponding checkpoint callback returns successfully, so a crash prefix never
+leaks an unacknowledged lifecycle past a Host commit boundary. Deltas continue to
+be delivered asynchronously through an independent bounded queue.
 
-Delta 是与 Event 不同的临时流输出。Delta 缓冲显式有界、按调用内 sequence 排序、恢复后不重放；慢消费者造成的丢弃必须通过 gap/dropped count 可观察。观察型 listener 失败不改变 Step 或 Process 结果，也不得产生无 owner goroutine。完成 Output 必须由最终 Effect settlement/Transition 独立导出，不能由 delta 拼接成为唯一真相。
+A Delta is a transient stream output distinct from an Event. The Delta buffer is
+explicitly bounded, ordered by an in-call sequence, and never replayed after
+recovery; a drop caused by a slow consumer must be observable through a gap or a
+dropped count. An observation listener failure never changes a Step or Process
+result and must never create an unowned goroutine. The completion Output must be
+derived independently from the final effect settlement and Transition — a
+concatenation of deltas is never the single source of truth.
 
-事件时间字段具有准确语义；duration 从成对时间计算或由同一 owner 生成。Host 可以投影 UI、审计和账本，Agent 不反向依赖投影。
+Event time fields have exact semantics, and a duration is computed from a pair of
+times or generated by the same owner. A Host may project UI, audit, and ledger
+views; Agent never depends on a projection in reverse.
 
-独立 `otel/agent` adapter 只消费 Framework Event 的 typed fact 并直接使用官方 OTel trace/metric API：每次 Process runtime activation 及其 Step/Effect 形成 span；activation/exit、activation/Step/Effect 秒制 duration、terminal Framework Usage 和 Delta drop 形成 metric。span 携带 exact Process/tree/Deployment attribution，durable span 额外携带 current TreeIncarnationID；metric 只使用低基数 Deployment、activation、status、cause、target 与稳定 failure 分类。Observer 不长期保存 callback context，只保存 Span；`Close` 先拒绝新观察、等待全部 in-flight callback 完成，再结束剩余 span。provider 由 ObserverConfig 显式注入，nil 时遵循 OTel global provider；typed nil 构造期拒绝。adapter 不把 raw payload、Input、Output 或产品身份写入 telemetry。Kernel architecture gate 禁止任何 OTel import，adapter production gate 禁止 OTel SDK、Strategy、原框架实现与 Host import；SDK 只用于行为测试。
+The standalone `otel/agent` adapter consumes only the typed facts of framework
+events and uses the official OTel trace and metric API directly: each Process
+runtime activation and its Steps and Effects form spans; activation and exit,
+activation, Step, and Effect durations in seconds, the terminal framework usage,
+and delta drops form metrics. A span carries exact Process, tree, and Deployment
+attribution, and a durable span additionally carries the current
+TreeIncarnationID. Metrics use only low-cardinality Deployment, activation,
+status, cause, target, and stable failure classification. The observer keeps no
+callback context long-term, only spans; `Close` first refuses new observation,
+waits for every in-flight callback, and then ends the remaining spans. Providers
+are injected explicitly through `ObserverConfig`, falling back to the OTel global
+provider when nil, and a typed nil is rejected at construction. The adapter writes
+no raw payload, Input, Output, or product identity into telemetry. A kernel
+architecture gate forbids any OTel import, and the adapter's production gate
+forbids importing the OTel SDK, a strategy, a retired framework implementation, or
+a Host; the SDK is used only in behavior tests.
 
 ---
 
-## 13. 依赖与目标包结构
+## 13. Dependencies and package structure
 
-当前已验收的生产依赖方向如下；箭头表示 Go import：
+The accepted production dependency direction is below; an arrow is a Go import:
 
 ```text
-Host / examples ──> root, platform, otel, concrete Strategies
+Host / examples ──> root, platform, otel, concrete strategies
 
 platform ─────────┐
 otel ─────────────┤
 interaction ──────┤
-planning ─────────┼──> root Kernel
+planning ─────────┼──> root kernel
 workflow ─────────┘
 planning/goap ───────> planning
 
 interaction ─────────> chatclient + tool + core/chat
-root Kernel ──────X──> every agent subpackage
-all production ───X──> retired framework / Host app / flow / logging backend
+root kernel ──────X──> any agent subpackage
+all production ───X──> a retired framework / a Host app / flow / a logging backend
 non-otel packages ─X─> OpenTelemetry
 ```
 
-当前生产 package 集合精确为：
+The production package set is exactly:
 
 ```text
 agent/
-├── root package files       公共窄腰、Engine、Process、常用入口
-├── interaction/             模型/工具自主交互 Definition
-├── planning/                Planning domain 与 Planner contract
-│   └── goap/                GOAP 实现，只依赖 Planning contract
-├── workflow/                managed child Process 的确定性有序编排
-├── platform/                Deployment catalog、选择与治理
-├── agenttest/               可复用契约套件与参考适配器，不进入 Host 生产依赖闭包
-├── examples/                验证公共使用路径的可运行示例
-└── doc/                     当前架构与工程合同
+├── root package files       the public waist, Engine, Process, common entries
+├── interaction/             the model-and-tool autonomous interaction Definition
+├── planning/                the Planning domain and the planner contract
+│   └── goap/                the GOAP implementation, depending only on the Planning contract
+├── workflow/                deterministic ordered orchestration of managed child Processes
+├── platform/                the Deployment catalog, selection, and governance
+├── agenttest/               reusable contract suites and reference adapters, outside the Host production closure
+└── examples/                runnable examples verifying the public usage paths
 ```
 
-OpenTelemetry adapter 位于独立 sibling module `otel/agent`，从集成层依赖这里的公开 Event 合同；它不是 Agent Framework 的生产 package，也不会把 OTel 依赖带回本 module。
+The OpenTelemetry adapter lives in the standalone sibling module `otel/agent`,
+depending on the public event contract here from the integration layer. It is not
+a production package of the Agent Framework and brings no OTel dependency back
+into this module.
 
-约束：
+Constraints:
 
-- 不预建 `core/`、`runtime/`、`service/`、`manager/`、`common/`、`utils/` 等层次或泛名 package。
-- 根 package 承载真正共同且不可再分的公共语义；策略专属类型留在策略 package。
-- 新 package 只有在独立变化原因和真实消费者已被证明，并在本文的生产 package 集合与允许边中登记后才能建立；`htn`、`utility`、`hitl`、`internal` 目前都不存在。
-- 不为“整洁”机械拆包，以独立变化原因、依赖切断和真实消费者作为依据。
-- 根 facade 不通过大量 alias 重导出所有高级类型。
-- `Process` 的构造权只属于 Engine；公开只读/控制面不能绕过合法状态机创建或改写 Process。
-- 全图 architecture test 扫描所有非测试生产 `.go` 文件（包括受 build tag 约束的文件），锁定 package 集合、允许的内部直连边和关键外部依赖归属；`agenttest` 与 examples 分别作为契约测试消费者和组合公共 API 消费者单独验收，不进入 Host 生产 DAG。
+- No prebuilt `core/`, `runtime/`, `service/`, `manager/`, `common/`, or `utils/`
+  layer or generically named package.
+- The root package carries the genuinely shared and indivisible public semantics;
+  a strategy-specific type stays in its strategy package.
+- A new package is created only after an independent reason to change and a real
+  consumer are proven, and after it is registered in the production package set
+  and allowed edges above. `htn`, `utility`, `hitl`, and `internal` do not exist
+  today.
+- No package is split mechanically for tidiness; the basis is an independent
+  reason to change, a severed dependency, and a real consumer.
+- The root façade does not re-export every high-level type through a pile of
+  aliases.
+- Only the Engine may construct a `Process`; a public read-only or control surface
+  must never bypass the legal state machine to create or rewrite one.
+- A whole-graph architecture test scans every non-test production `.go` file,
+  including build-tag-constrained files, and locks the package set, the allowed
+  internal edges, and the ownership of key external dependencies. `agenttest` and
+  the examples are accepted separately as a contract-test consumer and a public-API
+  composition consumer, and neither enters the Host production DAG.
 
 ---
 
-## 14. API、实现与验收纪律
+## 14. Engineering standard
 
-### 14.1 Go API
+This section defines the technical standard the framework is implemented to. It
+is more specific than the repository-wide rules and can never relax them. On a
+conflict, apply the stricter rule closer to the root cause; if that still does not
+decide it, stop implementing and update the corresponding contract above first.
 
-- 接口定义在消费方并保持最小；accept interfaces，return concrete structs。
-- config 使用 options struct，不使用 builder 链和大量 variadic `WithXxx`。
-- 不用 `any` 掩盖尚未想清楚的领域类型。
-- 公共 wire value 使用严格、可判别、owner-copy 的 JSON；泛型只放在类型安全的边缘 adapter，不泛型化 Engine 根合同。
-- 构造时校验并取得 slice/map/config 所有权。
-- error 是合同；包装保留 `%w` cause，不按字符串分支。
-- `context.Context` 只传取消、deadline 和请求范围值，不进入 snapshot。
-- 并发有清晰 owner、停止条件和确定提交语义。
-- 不为未来可能存在的实现预造接口或注册表。
+### 14.1 Incremental scope, complete semantics
 
-### 14.2 Definition 与 Execution
+Every capability already decided must be completed at its root cause and in the
+correct layer:
 
-- Definition 创建后不可变，并发共享安全。
-- 每次 Start 创建独立 Execution。
-- Execution 不被多个 Process 并发推进。
-- 一个 Process 只拥有一个顶层 Execution/ExecutionState；Strategy 组合通过 child Process。
-- Step 只归约状态和声明 Effect，不执行外部 I/O。
-- Step 的状态变更可在 snapshot 中完整表达。
-- Restore 验证 state kind/schema 和 Definition identity。
-- Strategy 不能修改共同 Process 私有状态，只能通过 Transition 表达意图。
-- 每个正式 Definition 至少以代表性的合法 Input/ExecutionState 样本运行 `agenttest.RunDefinitionConformance`，共同验证 Descriptor 稳定、并发 Start 隔离、Snapshot/Restore 精确和 Step 规范化等价；取消、失败、边界输入与领域不变量仍由该 Strategy 自己测试。
+- No wrong abstraction is kept to touch less code.
+- No adapter, alias, fallback, or special branch hides an incorrect model.
+- No "it runs" simplification is committed with the correct semantics left as a
+  TODO.
+- Repository history is not a contract for current naming, types, or package
+  structure.
+- When a design is wrong, deleting and rewriting the current code is allowed;
+  stacking on the error is not.
 
-### 14.3 Retry 与副作用
+"Complete" does not mean implementing every future capability at once, nor
+pre-building every possible interface and config:
 
-- 任意 Action 和 Tool 默认执行一次。
-- provider SDK 自有 retry 不在 Agent 重复实现。
-- 只有明确幂等或有补偿语义时才配置 retry。
-- 子 Process 创建、HITL response 和 checkpoint settlement 必须可去重。
-- Engine 为 Effect 提供稳定身份，但不能据此宣称外部业务副作用已具备事务或幂等语义。
-- 不以“出错就再跑一次”掩盖状态所有权问题。
+> Each batch implements only the scope a real requirement has proven, but within
+> that scope the semantics, boundaries, errors, recovery, tests, and documentation
+> must be complete, leaving no known debt.
 
-### 14.4 验收层次
+A local spike may validate an interface; its temporary abstractions, hardcoding,
+and unfinished paths must never reach the mainline. A commit keeps only the
+minimal correct design a real implementation has proven.
 
-- 单元测试：值对象、状态机、定义校验、策略算法。
-- contract tests：Definition/Execution、Signal/Transition/Event、Effect settlement、Planner、snapshot codec、child composition。
-- 集成测试：Engine 驱动真实 Strategy 的完整生命周期。
-- 恢复测试：每个合法挂起边界 capture → restore → continue。
-- property/fuzz：snapshot、状态转换、wire 解码和畸形 adapter 输出。
-- race：Engine、事件、多子 Process 和显式并行路径。
-- architecture tests：依赖 DAG、禁止原框架实现/Host application import、策略状态和产品外部事实不进入共同 Process、Process 只能由 Engine 构造。
-- examples：每一种正式公开编排方式至少一个最小可运行示例。
+### 14.2 Arbitration priority
 
-最终合同要求：Interaction、Planning 与 Workflow 都是经过真实消费者验证的 Execution；`flow` 与 Workflow 按 in-process/managed-Process 生命周期各自只有一个准确边界，不共享或复制 runtime；GOAP 真实可重规划；Anthropic 编排模式有行为测试；递归 child Process 可恢复、取消和预算限制；Framework snapshot 与 Host persistence 无交叉；Host 只消费中性合同；仓库只保留唯一 `agent` module。
+When design principles conflict, decide in this order:
+
+1. **Correctness and invariants**: state cannot be illegal, recovery cannot
+   duplicate a side effect, an error cannot be swallowed.
+2. **Responsibility and ownership**: behavior and state must live in the correct
+   layer; no abstraction leak.
+3. **Dependency direction**: a lower layer never depends upward, and the framework
+   never depends on a Host.
+4. **Clarity and simplicity**: a reader should follow the normal control flow once
+   and understand it; no cleverness traded for line count.
+5. **API ergonomics**: correct use is natural, incorrect use is hard, the common
+   path is short and explicit.
+6. **Extensibility**: extend only along a proven axis of change; build no hook for
+   a guess.
+7. **Reuse and deduplication**: extract only where the knowledge and the reason to
+   change are the same.
+8. **Performance**: get the semantics right first, then optimize from a benchmark
+   or profile.
+
+A later item never justifies sacrificing an earlier one. DRY must not create a
+reverse dependency; performance must not cache derived state that cannot be
+invalidated reliably; a short API must not hide important failure semantics.
+
+### 14.3 Macro standards
+
+- **Fix the cause, not the symptom.** Reject a patch at the point of failure, a
+  consumer-side workaround leaving the source broken, a reactive coercion or
+  retry masking an upstream bad state, and an invariant left to the caller.
+- **Every layer's responsibility fits in one sentence.** If it does not, the layer
+  is doing two jobs.
+- **Dependencies form a verifiable DAG**, enforced by architecture tests rather
+  than by convention.
+- **Abstraction is exactly sufficient**: one implementation with no substitution
+  need uses the concrete type; a real substitution point gets the smallest
+  interface at its consumption site.
+- **Framework semantics are never polluted by application responsibility.** No
+  product identity, history watermark, storage protocol, or UI semantics enters a
+  public framework type.
+- **Transactions, idempotency, and extension points have exact boundaries.** The
+  framework provides stable identity and neutral lifecycle; it never claims to own
+  external transactional or idempotency semantics.
+- **One lifecycle, one extension mechanism.** Primary control flow never
+  masquerades as an extension.
+- **Signal, Transition, Effect, Event, and Delta are never interchanged.**
+- **Step commit discipline**: a Step produces candidates only, and only the owner
+  line commits.
+- **An independent delivery contains no half-finished work.**
+
+### 14.4 Micro standards
+
+- **Shallow, direct, locally understandable.** A reader should not need the whole
+  module in their head to read one function.
+- **Names are exact and unique.** One concept has one name, and one name has one
+  concept.
+- **A Go-style rich domain model.** Behavior lives on the entity or value object
+  that owns the invariant, not in a procedural helper.
+- **Object-oriented thinking without a Java shape.** No `Impl`, `Manager`, or
+  `Helper`, no getter and setter pairs, no builder chain.
+- **SOLID, DRY, KISS, and YAGNI applied**, per the repository-wide definitions.
+- **A design pattern is named only when the structure genuinely appears.**
+- **API ergonomics**: config through an options struct; the zero value is useful
+  where that is meaningful; the common path is short.
+- **Errors are contracts**: wrap with `%w`, classify with a sentinel or typed
+  error, never branch on a string.
+- **Data, state, and ownership**: validate and take ownership of a slice, map, or
+  config at construction; hand back copies, not aliases.
+- **Concurrency and cancellation**: every goroutine has a clear owner, a stop
+  condition, and deterministic commit semantics; `context.Context` carries
+  cancellation, deadlines, and request-scoped values only and never enters a
+  snapshot.
+- **Comments and documentation** follow the repository comment discipline: state
+  *why* and *what constrains*, never *what*.
+
+### 14.5 Tests as proof of design
+
+Tests are not only a regression gate — they prove the abstraction holds:
+
+- Every interface is verified by a real consumer contract test, not only a compile
+  assertion.
+- Every strategy proves the shared Definition and Execution semantics with
+  `agenttest.RunDefinitionConformance` and representative legal samples, and proves
+  its own semantics with its own tests.
+- Conformance runs under a cancellation-only context and verifies Descriptor
+  stability under concurrency, Start instance isolation, exact snapshot and
+  restore, and that the same state and Signal input produce byte-equivalent
+  candidate, Transition, and Effect values. It can only find hidden input the
+  samples actually expose; the prohibition on clocks, randomness, globals, and I/O
+  remains a contract carried jointly by code review, race tests, and
+  strategy-owned negative tests, and a single pass never poses as a static proof.
+- The state machine covers every legal and illegal transition.
+- Snapshots cover capture → restore → continue at every legal suspension boundary.
+- The Signal contract covers out-of-order arrival, duplicate delivery, an unknown
+  WaitID, the cursor committing together with candidate state, and a failed Step
+  not swallowing a signal.
+- The Effect contract covers the planned, pending, and settled phases, no dispatch
+  before the pending callback, the complete tree head, stable EffectIDs, dispatcher
+  recovery, settlement deduplication, declaration-order batches, Unknown and
+  resolution, non-retriable side effects, and the attempt versus committed fact
+  boundary.
+- The typed adapter contract proves schema validation happens at the edge and that
+  an erased Engine can hold heterogeneous Definitions homogeneously.
+- The terminal matrix covers Engine, parent, Host, and Effect cancellation sources,
+  deadlines, contract violations, external failures, and panics.
+- The Delta contract covers listener failure isolation, a bounded buffer, explicit
+  drops, no replay after recovery, and a final Output that does not depend on delta
+  reconstruction.
+- Child Processes cover recursion, budget exhaustion, cancellation, partial
+  failure, ancestor-wait refusal, and recovery deduplication.
+- The Process admission contract covers zero `Definition.Start` before a rejection,
+  exactly one started or aborted conclusion after acceptance, zero publication
+  before the acknowledgment, acknowledgment failure and panic, isomorphic root and
+  child identity, the concurrency boundary between a pending start and Close or a
+  tree limit, and zero admission or outcome on restore.
+- Public tree durability conformance drives the opaque boundary only through normal
+  Engine paths, covering the base head, a same-content retry, the three effect
+  boundaries, Parked and Terminal, random incarnation fencing, and a delayed
+  old-writer transaction and activation race. It must not expose a boundary
+  constructor, a private wire, or a store mutation hook for testing. Content
+  conflict and commit ambiguity or rollback are produced by adapter storage tests;
+  child outcome atomicity and checkpoint coalescing are proven by kernel owner
+  tests; the ten-line crash prefix is proven item by item through an `agenttest`
+  internal typed before-and-after commit gate that never enters the public API.
+- A child start's provisional budget must participate in every resource gate and
+  never enter the committed snapshot; only a started outcome's prospective tree
+  converts it together with the child, the topology, and the parent settlement,
+  while aborted, stale, and durability-fault paths all release it.
+- A tree-scoped fault must collect the whole tree's unresolved facts and complete
+  the canonical termination resolution for every Process before publishing the
+  result and the parent-child bookkeeping. Map iteration order must never change
+  terminal priority or lose a sibling EffectID.
+- The prepared tree change contract covers the acknowledged source-head freeze,
+  exactly one Apply or Discard, Host ambiguous-commit reconciliation, bounded
+  completion after the gate, exactly one winner under concurrent resolution,
+  independence of other root trees, a result restorable across Engines, and a
+  capability whose private fields hold framework state only.
+- Parallel paths verify a stable result order and run under race tests.
+- Wire and snapshot codecs are verified by round-trip, malformed-input, and fuzz
+  tests.
+- Error tests use `errors.Is` and `errors.As`, never a brittle full-string
+  comparison.
+- An example uses the official public API and runs as a minimal integration test.
+
+Being unable to write an independent behavioral contract for an abstraction
+usually means the abstraction does not hold yet.
+
+### 14.6 Definition of done, per batch
+
+**Design.** The problem and its cause are clear and the fix lands with the correct
+owner. No new abstraction leak or reverse dependency. Every public type is
+explainable independently of the current product, with no application identity,
+history watermark, storage protocol, or UI semantics. A new interface has a real
+consumer and a substitution reason. Every new type, method, field, and parameter
+name is semantically unique and exact.
+
+**Implementation.** The normal, error, cancellation, boundary, and recovery
+semantics are complete. Domain behavior converges on the correct entity or value
+object. No stub, TODO, FIXME, HACK, compatibility shim, dead code, or empty
+directory. No unowned goroutine, unbounded concurrency, or random commit order.
+Comments, GoDoc, the wire, and the code agree.
+
+**Verification.** `go build ./...`, `go vet ./...`, `go test ./...`, the relevant
+contract, race, fuzz, and architecture tests, no unexpected diff after
+`go mod tidy`, and `git diff --check` passing. The architecture and engineering
+standards are updated only when their contract genuinely changed — an ordinary
+batch does not append an execution log.
+
+**Commit.** One batch is independently revertable, contains no parallel change to
+another workspace module, states the *why* and the invariant it protects, and is
+pushed afterwards.
+
+### 14.7 Signals rejected outright in review
+
+Any one of these means the batch is not done:
+
+- "Like this for now, fix it properly later."
+- "Kept temporarily for compatibility with the old module."
+- "A caller probably would not use it that way."
+- "Add a retry or fallback and it stops erroring."
+- "Put every mode in one enum or config and split it later."
+- "There is one implementation, but there may be more later, so extract an
+  interface now."
+- "Put it in core or common so everyone can use it."
+- "Putting the transaction, session, or store in Agent would be more convenient."
+- "It is deterministic once we add a lock."
+- "Copying the full parent context to the child is easiest."
+- "Covering the happy path is enough."
+- "The name is inaccurate but renaming is a hassle."
+- "Leave the comment; the code runs."
+- "More patterns and deeper abstraction raise the framework's ceiling."
+
+There is one final test:
+
+> Is this implementation in the correct layer, holding a real invariant with the
+> smallest complete design, and can the next Go developer understand and use it
+> correctly without knowing the history?

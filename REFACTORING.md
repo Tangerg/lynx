@@ -1,112 +1,227 @@
-# REFACTORING.md — scope 重构标尺
+# REFACTORING.md — the Scope refactoring yardstick
 
-> 跨模块通用的**重构标尺 + 节奏**。设计哲学的"为什么"见 [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md)；项目级法则见 [`AGENTS.md`](AGENTS.md)。本文件是"重构时**改什么、怎么改、按什么节奏**"的泛化清单，适用**所有 sub-module**。**全部抽象表述、只宏观、不绑定任何具体实现** —— 遇到对应场景时按本则判断。
+> The cross-module **refactoring yardstick and rhythm**. The *why* behind the
+> design is in [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md); the
+> repository-wide laws are in [`AGENTS.md`](AGENTS.md). This file is the
+> generalized checklist for "**what** to change, **how**, and at **what
+> rhythm**" while refactoring, and it applies to **every sub-module**. It is
+> stated entirely in the abstract, at the macro level, bound to no concrete
+> implementation — apply the judgment when you meet the matching situation.
 
 ---
 
-## 0. 判据来源（用什么尺子）
+## 0. Where the yardstick comes from
 
-- 对标 **go-sdk（尤其 `design/`）+ Go 标准库**：minimal、idiomatic、*accept interfaces / return structs*、小接口、构造期 `Config` 值、零值可用。Core / A2A 等自有抽象的构造配置优先传 `Config` 结构体，不采用 `func(*T)` functional-options；底层 provider adapter 可以沿用其 SDK 的 functional-options，不把这种机制提升为跨 provider 公共心智。
-- **精修 ≠ 重写**：外科级、可逆、**在源头改对**，不在错的设计上叠补丁（治本，不治标 —— 见 [`AGENTS.md`](AGENTS.md) 第二法则）。参考业界只取思想、**不作命名锚**。
-- **唯一允许背的"债"是"设计还没想清楚"本身**；绝不允许"明知更好、却为省事不改"。
+- Measured against the **Go SDK design documents and the Go standard library**:
+  minimal, idiomatic, *accept interfaces / return structs*, small interfaces, a
+  `Config` value at construction, a useful zero value. Construction config for
+  Scope's own abstractions in Core, A2A, and elsewhere passes a `Config` struct
+  rather than `func(*T)` functional options. A lower-level provider adapter may
+  keep its SDK's functional options, but that mechanism is never promoted into
+  the shared cross-provider mental model.
+- **Refinement is not a rewrite.** Surgical, reversible, and **fixed at the
+  source** — never a patch stacked on a wrong design. (Fix the cause, not the
+  symptom; see the second law in [`AGENTS.md`](AGENTS.md).) Prior art
+  contributes ideas, **never a naming anchor**.
+- **The only admissible debt is "the design is not thought through yet".**
+  "Knowing the better shape and not changing it" is never admissible.
 
-## 1. 命名（名实相符）
+## 1. Naming: the name must match the thing
 
-- 名字必须与其**承载的数据 / 所做的事**一致；名不副实（类型名 ≠ 内容、方法名 ≠ 行为）就改。
-- 方法名使用动作原形描述当次行为或返回事实；除非表达真正已经持久化的领域状态，不用 `Merged`、`Processed` 之类过去分词冒充操作。
-- 字段名 == 序列化 tag；不一致时**优先改名而非将就 tag**。
-- 消除 **package-name stutter**（`pkg.Pkg…`）。
-- **文件名描述内容**：泛化 / Java 味文件名（`interface.go` / `impl.go` / `util.go` / `helper.go`）→ 按内容命名。文件重命名是包内操作，不改 API。
-- 参考对应领域的事实标准词汇，但仅在它独立评估下最优时采用。
+- A name must match **the data it carries and the work it does**. If a type name
+  does not match its content, or a method name does not match its behavior,
+  change it.
+- A method name uses a plain verb describing this call's behavior or the fact it
+  returns. A past participle such as `Merged` or `Processed` is reserved for
+  genuinely persisted domain state and never poses as an operation.
+- The field name equals the serialization tag. When they disagree, **rename the
+  field rather than settling for the tag.**
+- Eliminate **package-name stutter** (`pkg.Pkg…`).
+- **A file name describes its contents.** A generic or Java-flavored file name
+  (`interface.go`, `impl.go`, `util.go`, `helper.go`) becomes a name describing
+  what is in it. Renaming a file is an in-package operation and changes no API.
+- Refer to the de facto vocabulary of the domain, but adopt a term only when it
+  is the best name under independent evaluation.
 
-## 2. 注释
+## 2. Comments
 
-- 只解释 **why**，不解释 *what*（代码自身说明 what）。
-- 删过期 / 迁移 / 误导注释；**改名或重构后同步清理所有引用**，不留陈旧指向。
+- Explain **why**, never *what* — the code states the what.
+- Delete stale, migration-era, and misleading comments. **After a rename or a
+  refactor, clean up every reference**, leaving no stale pointer behind.
 
-## 3. 指针 vs 值
+## 3. Pointer versus value
 
-- **必然存在 + 小 + 只读 → 传值**（无意义的 nil 态加一次解引用是纯负担）。
-- **真可选（nil 是有意义的状态、且被代码分支）→ 传指针**。
-- 同一签名里值与指针并存，只要各自满足上述理由，就是**有原则的区分**，不是不一致。
-- **不存储可由方法即时计算的派生状态**（冗余缓存字段删掉，改按需计算）。
-- 例外：某些构造器返回**值**以保证 immutability —— 不要为统一而改成返指针。
+- **Necessarily present, small, and read-only → pass by value.** A meaningless
+  nil state plus one dereference is pure overhead.
+- **Genuinely optional — nil is a meaningful state the code branches on → pass a
+  pointer.**
+- Values and pointers coexisting in one signature is a **principled distinction**
+  when each satisfies the reason above, not an inconsistency.
+- **Never store derived state a method can compute on demand.** Delete the
+  redundant cache field and compute it.
+- The exception: some constructors return a **value** to guarantee immutability —
+  do not change one to return a pointer for uniformity.
 
-## 4. nil 守卫（pointer-receiver 卫生）
+## 4. Nil guards: pointer-receiver hygiene
 
-- 指针接收者方法**在顶部自守 nil**，让调用方无需先判 `!= nil`。
-- **仅加在 nil 真正可达的读访问器上**（返回零值 / sentinel）。
-- **不加在** mutator、服务型行为方法、内部 helper 上 —— 那里 nil 接收者是**构造 bug**，应当暴露而非静默 no-op。
-- 已天然 nil-safe 的（返回常量、不碰接收者、经 nil-safe 委托、已有守卫）**不重复加**。
+- A pointer-receiver method **guards nil at the top**, so a caller does not have
+  to check `!= nil` first.
+- **Only on read accessors where nil is genuinely reachable**, returning a zero
+  value or a sentinel.
+- **Never on** a mutator, a service-style behavior method, or an internal helper
+  — there, a nil receiver is a **construction bug** and must surface rather than
+  silently no-op.
+- **Do not duplicate a guard** where the method is already nil-safe: it returns a
+  constant, never touches the receiver, delegates through something nil-safe, or
+  already has one.
 
-## 5. 自由函数 vs 方法（控制包作用域）
+## 5. Free function versus method: controlling package scope
 
-- 包级私有函数，只要**在概念上属于某具体类型的行为 / 策略**就挂成它的**方法** —— 判据**不是**"读不读它的字段"（那条太窄），而是"这是不是该类型该做的事"。读状态当然算；**无状态的策略 / 分类 / 产出**同样算。移出包作用域；编译器照样内联，零开销。
-- **保留为自由函数**（挂上去只会造伪对象）：
-  - `newXxx` / `parseXxx` **构造器 / 工厂**（它产出该类型，不是该类型的行为）；
-  - **跨多个类型共享的纯组装 / builder**（没有单一 owner）；
-  - 操作切片 / sealed interface 的（没类型可挂，类比 `slices.*`）、跨包类型的 helper（Go 无法给外部类型加方法）。
-- **挂对 owner，别硬塞**：一个行为若描述的是**它参数**那个类型，它就属于**那个**类型，不属于顺手路过的调用者 —— 塞错对象比留自由函数更糟；本类型没法改（跨包）就留自由函数。
+- A package-private function belongs as a **method** on a concrete type whenever
+  it is **conceptually that type's behavior or policy**. The test is **not**
+  "does it read the type's fields" — that is too narrow — but "is this something
+  that type should do". Reading state counts, of course, and so does a
+  **stateless policy, classification, or production**. Moving it out of package
+  scope costs nothing: the compiler still inlines it.
+- **Keep it a free function** where making it a method would manufacture a fake
+  object:
+  - `newXxx` and `parseXxx` **constructors and factories** — they produce the
+    type, they are not its behavior;
+  - a **pure assembly or builder shared across several types** — no single
+    owner;
+  - one operating on a slice or a sealed interface (nothing to hang it on,
+    analogous to `slices.*`), or a helper over a type from another package (Go
+    cannot add a method to an external type).
+- **Hang it on the right owner, do not force it.** If a behavior describes the
+  type of **its parameter**, it belongs to **that** type, not to whichever caller
+  happened to be nearby. Attaching it to the wrong object is worse than leaving a
+  free function. If the type cannot be changed because it is in another package,
+  leave the free function.
 
-### 5.1 充血模型（§5 的语义版）
+### 5.1 The rich domain model — the semantic side of §5
 
-§5 管"机械搬迁"（自由函数→方法）；本条管"逻辑该归属哪个类型" —— 同一原则的语义面，二者配套。
+§5 governs mechanical relocation (free function → method); this governs which
+type the logic belongs to. Same principle, semantic side; they work together.
 
-- **领域实体 / 值对象自带行为**：它的**不变量 / 派生值 / 状态转移 / 校验**挂在类型上，不散落到 service 函数、SQL 字符串、或 wire 转换里。贫血（anemic）= 数据袋 + 逻辑跑去别处；发现就把逻辑收回类型（可纯函数单测、无需起服务 / DB）。
-- **数据本就该是数据，不算贫血**（别硬加方法）：config / 请求-响应 DTO / wire 协议类型 / 纯参数 / 操作结果记录。它们零方法是对的。
-- **关键边界 —— 只上移"无 I/O 的"逻辑**：派生 / 不变量 / 纯状态转移收回实体；但**状态写入若是 adapter 的原子 SQL**（计数器自增、单字段 UPDATE）**保留在 adapter** —— 搬上实体会退化成 load-modify-store 的 read-modify-write 竞态，既更慢又不安全。判据："这段逻辑需要 I/O 吗？"需要→留 adapter；不需要→上实体。
-- **库 vs 应用**（同 ISP「库 vs 应用」）：应用层的领域实体倾向充血；但**别为单后端叠 DDD 层**（repository / application-service / 显式聚合根 / domain-events 框架）—— 对单团队单后端是纯仪式（YAGNI）。充血只是"把规则收回类型"，不是"往上加层"。
+- **A domain entity or value object carries its own behavior.** Its
+  **invariants, derived values, state transitions, and validation** hang on the
+  type rather than scattering into service functions, SQL strings, or wire
+  conversions. Anemic means a data bag with the logic living elsewhere; when you
+  find that, pull the logic back onto the type — where it can be unit-tested as
+  a pure function with no service and no database.
+- **Data that is genuinely data is not anemic** — do not force methods onto it:
+  configs, request and response DTOs, wire protocol types, plain parameters, and
+  operation-result records. Zero methods is correct for them.
+- **The key boundary: only move up logic with no I/O.** Derivations, invariants,
+  and pure state transitions come back to the entity. But **a state write that is
+  the adapter's atomic SQL** — a counter increment, a single-field UPDATE —
+  **stays in the adapter**: moving it onto the entity degrades it into a
+  load-modify-store read-modify-write race, which is both slower and unsafe. The
+  test: "does this logic need I/O?" Yes → adapter; no → entity.
+- **Library versus application** (as with ISP): an application's domain entities
+  lean rich, but **do not stack a DDD layer for a single backend** — a
+  repository, an application service, an explicit aggregate root, a
+  domain-events framework. For one team and one backend that is pure ceremony
+  (YAGNI). Rich means pulling the rules back onto the type, not adding a layer on
+  top.
 
-### 5.2 单一能力出口
+### 5.2 One exit per capability
 
-- 先找能力的真实 owner，再决定唯一 public 入口。method 与 free function 同义、旧名与新名并存、`New` 与 builder/functional-options 并存、stream 与 once 各自实现，都是重复出口信号。
-- 流式能力优先作为底层唯一事实源；非流式只允许完整消费该流并返回聚合值，不能维护第二套解析、错误或生命周期逻辑。
-- 删除旧出口时同步迁移全部真实消费者与 examples；当前阶段不留 alias、deprecated forwarding 或兼容 shim。
+- Find the capability's real owner first, then decide its single public entry. A
+  method and a free function as synonyms, an old name coexisting with a new one,
+  `New` coexisting with a builder or functional options, and a stream and a
+  once-shot each implemented separately are all duplicate-exit signals.
+- A streaming capability is preferred as the single underlying source of truth.
+  The non-streaming form is allowed only to consume that stream fully and return
+  the aggregate; it must not maintain a second parsing, error, or lifecycle path.
+- When deleting an old exit, migrate every real consumer and example in the same
+  batch. At this stage no alias, deprecated forwarder, or compatibility shim is
+  kept.
 
-## 6. 卫语句 / 圈复杂度
+## 6. Guard clauses and cyclomatic complexity
 
-- `if cond { 大段 }` + 尾部收尾 → `if !cond { return }` + 平铺；合并多层嵌套条件；把内聚分支抽成 helper。
-- 但流式迭代器（`iter.Seq2` 等）的 `func→func→for→if !yield{return}` 是**结构性嵌套**，不是逻辑复杂度，**不动**。
+- `if cond { long body }` followed by trailing cleanup becomes
+  `if !cond { return }` plus a flat body. Merge nested conditions, and extract a
+  cohesive branch into a helper.
+- But a streaming iterator's `func → func → for → if !yield { return }` is
+  **structural nesting, not logical complexity** — leave it alone.
 
-## 7. 现代 Go（按各模块 go 版本）
+## 7. Modern Go, per the module's Go version
 
-- 用到当前 go 版本的现代特性替代旧写法：`any`、`min/max`、`slices.*` / `maps.*`、`iter.Seq2`、`range int` / `range slice`、`time.Since`、`omitzero`（而非失效的 omitempty）、类型化 atomic、`errors.AsType`（**仅当目标是 error 类型**）等。
-- 用 use-modern-go skill 取当前版本指导；**只清真 straggler，不为改而改**（成熟代码往往已经很现代）。
+- Replace older forms with the current version's features: `any`, `min`/`max`,
+  `slices.*` and `maps.*`, `iter.Seq2`, `range int` and `range slice`,
+  `time.Since`, `omitzero` (rather than an ineffective `omitempty`), typed
+  atomics, and `errors.AsType` (**only when the target is an error type**).
+- Take current guidance from the use-modern-go skill. **Clean up only real
+  stragglers, never change for the sake of changing** — mature code is usually
+  already modern.
 
-## 8. 组织 / 就近原则
+## 8. Organization and locality
 
-- **相关代码放一起，公共的下沉到公共处**，以提升阅读体验为目标。
-- **god-file**（超行数阈值且混多个关注点）按职责拆成**同包多文件**（纯包内移动，不改 API、不动 import）。
-- **大但内聚、单一职责的不拆**（如解析器 / 词法器 / 紧耦合的 builder 族）—— 拆了反而破坏内聚。
+- **Related code sits together, and shared code sinks to a shared place**, with
+  reading experience as the goal.
+- A **god file** — over the line threshold and mixing several concerns — splits
+  by responsibility into **several files in the same package**. That is a
+  purely in-package move: no API change, no import change.
+- **A large but cohesive, single-responsibility file is not split** — a parser, a
+  lexer, a tightly coupled builder family. Splitting one breaks the cohesion.
 
-## 9. Go idiom 硬规则
+## 9. Hard Go idiom rules
 
-- `errors.New` 优先于 `fmt.Errorf("常量")`；包装错误一律 `%w`（连 `panic` 路径也对齐）。
-- 局部结果累加器用 `nil` slice 而非 `make([]T, 0)`；**字段恒非 nil 的既定 house-style 保留**。
-- 构造器**出错返回 nil**，不返回"半成品 + error"。
-- 重构途中发现的**真实 bug 顺手修**（独立 commit，与重构分开）。
-- 禁推测性占位（"以后接" / stub interface）、死代码立即删。
+- `errors.New` is preferred over `fmt.Errorf("constant")`; a wrapped error always
+  uses `%w`, including on a panic path.
+- A local result accumulator uses a `nil` slice rather than `make([]T, 0)`. An
+  established house style of always-non-nil fields is kept.
+- A constructor **returns nil on error**, never a half-built value plus an error.
+- **A real bug found mid-refactor is fixed** — in its own commit, separate from
+  the refactor.
+- No speculative placeholder ("wire it later", a stub interface). Dead code is
+  deleted immediately.
 
-### 9.1 魔法与动态数据
+### 9.1 Magic values and dynamic data
 
-- 有限稳定词汇使用 named string value object，并由它自己拥有合法性、parse/string/codec；只有位掩码、计数、序号和进程内状态机判别值保留数值类型。
-- 重复出现不是提取常量的唯一理由：单次出现但承载协议、版本、默认策略、时间预算或观测 attribute 的值也必须具名，因为其语义需要 owner。
-- `map[string]any` 仅属于 JSON/YAML/SDK 等真实开放世界边界；领域层、配置层和包间调用必须尽早转成命名结构体或值对象。
+- A finite stable vocabulary uses a named string value object that owns its own
+  validity, parsing, string form, and codec. Only bit masks, counts, sequence
+  numbers, and in-process state-machine discriminants stay numeric.
+- Repetition is not the only reason to extract a constant: a value that appears
+  once but carries a protocol, a version, a default policy, a time budget, or an
+  observation attribute must also be named, because its meaning needs an owner.
+- `map[string]any` belongs only at a genuinely open-world boundary such as JSON,
+  YAML, or an SDK. The domain layer, the configuration layer, and cross-package
+  calls convert to a named struct or value object as early as possible.
 
-### 9.2 三方能力替代
+### 9.2 Replacing hand-rolled code with a third-party capability
 
-- 替代前证明成熟度、维护活跃度、边界行为和依赖成本；替代后必须删除本地 parser/formatter/codec 及其重复测试，而不是把旧实现藏在 adapter 后。
-- 第三方类型不得无意穿透 Scope 的稳定领域 API；若它本身就是行业协议的事实类型可直接使用，否则只在 adapter 边界转换一次。
-- 不为“统一风格”包装标准库或三方库的每个函数。只有需要承载 Scope 自有策略、错误边界或生命周期时才保留窄 adapter。
+- Before replacing, prove the library's maturity, maintenance activity, boundary
+  behavior, and dependency cost. After replacing, **delete** the local parser,
+  formatter, or codec and its duplicate tests — never hide the old
+  implementation behind an adapter.
+- A third-party type must not leak unintentionally through Scope's stable domain
+  API. If it is itself the de facto type of an industry protocol it may be used
+  directly; otherwise convert once at an adapter boundary.
+- Do not wrap every standard-library or third-party function for "consistent
+  style". Keep a narrow adapter only where it must carry a Scope policy, an error
+  boundary, or a lifecycle.
 
-## 10. 节奏与纪律（怎么推进）
+## 10. Rhythm and discipline
 
-1. **先深度审计**（grep / Explore / 读文件），不直接动手。
-2. **分类**（命名 / 耦合 / 内聚 / SOLID / DRY / 现代 Go / 指针值 / nil / 组织）按 impact 排序。
-3. **给批次方案** + 每项"动 vs 不动"权衡。
-4. **破坏性或结构性改动先确认**：列 scope + **爆炸半径**（所有跨模块消费方）+ 备选方案，等用户拍板。
-5. **每批一个可独立 revert 的 commit**；批与批之间 `go build && go vet && go test ./...` **全绿**；commit 后推送。
-6. commit message 写清 **why**（含 audit 发现 + skip 理由）。
-7. **承认 audit 误报**：深入看发现是 false positive 就 skip 并记录理由 —— 正常，不是失败。
+1. **Audit deeply first** — grep, explore, read the files — rather than editing
+   straight away.
+2. **Classify** the findings (naming, coupling, cohesion, SOLID, DRY, modern Go,
+   pointer versus value, nil, organization) and order them by impact.
+3. **Propose the batches**, with a "change versus leave" trade-off for each item.
+4. **Confirm a breaking or structural change first**: state the scope, the
+   **blast radius** (every cross-module consumer), and the alternatives, and wait
+   for a decision.
+5. **One independently revertable commit per batch**, with
+   `go build && go vet && go test ./...` **green between batches**. Push after
+   committing.
+6. The commit message states the **why**, including what the audit found and why
+   anything was skipped.
+7. **Admit a false positive.** If a closer look shows the finding was wrong, skip
+   it and record the reason — that is normal, not a failure.
 
-> 触发信号、Fowler 式重构清单（死代码 / 卫语句 / 查表 / 接口收窄 / 性能扫描等）、小型 vs 大型重构两档节奏，详见 [`AGENTS.md`](AGENTS.md) 的「重构」段。
+> The trigger signals, the Fowler-style checklist (dead code, guard clauses,
+> lookup tables, interface narrowing, performance scans), and the small-versus-
+> large refactoring rhythm are in the "Refactoring" section of
+> [`AGENTS.md`](AGENTS.md).

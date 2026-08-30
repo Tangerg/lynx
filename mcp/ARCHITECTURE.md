@@ -5,8 +5,7 @@
 > Scope-facing edges.
 
 Repository-wide rules live in [`../AGENTS.md`](../AGENTS.md). The usage entry
-point is [`README.md`](README.md); the package-organization rationale is in
-[`DESIGN.md`](DESIGN.md).
+point is [`README.md`](README.md).
 
 ---
 
@@ -58,7 +57,42 @@ observability type may leak into `tool.Tool` or any Core contract.
   writing one small function.
 - Never promote a wrapper capability into the `tool.Tool` interface.
 
-## 5. Read before changing
+## 5. Package organization
+
+The whole MCP adaptation domain lives in one root package, following the same
+reasoning as the official Go SDK's own design:
+
+- A protocol domain belongs in one core package — like `net/http`, `net/rpc`,
+  and `grpc` — because that is what makes it discoverable.
+- Client, server, transport, and tool are not split into small packages ahead of
+  time: a package structure chosen before the protocol settles is easy to get
+  wrong and expensive to undo.
+- Only a non-MCP capability moves to its own package. Application configuration,
+  OAuth, reconnect, and status display belong to an application layer.
+- Transport, session, and the server and client lifecycles use the SDK
+  primitives directly rather than a second wrapper.
+
+The files map one to one onto that domain:
+
+| File | Owns |
+|---|---|
+| `doc.go` | The package overview and the import-alias convention |
+| `meta.go` | Context-scoped `_meta` helpers |
+| `reverse.go` | The active call context plus progress and elicitation helpers |
+| `descriptor.go` | The immutable remote descriptor snapshot and schema projection |
+| `tool.go` | A remote MCP tool projected to `tool.Tool` |
+| `result.go` | A remote result projected to a tool result or error |
+| `tools.go` | Listing remote tools and wrapping them as `[]tool.Tool` |
+| `server.go` | A `tool.Tool` exposed as an MCP server tool |
+| `prompt.go` | MCP prompt messages projected to `[]chat.Message` |
+
+The root package deliberately does not provide a `ServerConfig` or a `Dial`
+(that is application configuration assembly), a provider or cache (tool-list
+refresh policy is the caller's), or transport wrappers (use the SDK's
+`CommandTransport`, `StreamableClientTransport`, and `NewStreamableHTTPHandler`
+directly).
+
+## 6. Read before changing
 
 - Start from the official SDK's interface shapes. This module holds no protocol
   state of its own, so a change here is usually a change in how an SDK type is

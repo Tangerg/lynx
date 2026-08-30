@@ -1,143 +1,274 @@
-# DESIGN_PHILOSOPHY.md — scope 设计哲学（的"为什么"）
+# DESIGN_PHILOSOPHY.md — the *why* behind Scope's design
 
-> 定位：scope 的设计文档分三层，各回答一个问题 ——
-> - [`AGENTS.md`](AGENTS.md)：**速查红线**（法则 / 反向不变量 / 触发信号）—— "**能不能**这么写"；
-> - [`REFACTORING.md`](REFACTORING.md)：**重构标尺**（命名 / 注释 / 指针vs值 / nil 守卫 / 自由函数vs方法 / 卫语句 / 就近组织 / 节奏）—— 重构时"**改什么、怎么改**"；
-> - **本篇**：这些红线**背后的组织哲学** —— "**该不该**这么设计、为什么"。
+> Scope's design documentation has three layers, each answering one question:
 >
-> 设计新能力 / 新包 / 改公开 API 前，先用本篇的判断框架对一遍；落手重构时对 [`REFACTORING.md`](REFACTORING.md)。
+> - [`AGENTS.md`](AGENTS.md): the **quick red lines** — laws, negative
+>   invariants, trigger signals. "**May** I write it this way?"
+> - [`REFACTORING.md`](REFACTORING.md): the **refactoring yardstick** — naming,
+>   comments, pointer versus value, nil guards, free function versus method,
+>   guard clauses, locality, rhythm. "**What** do I change and **how**?"
+> - **This document**: the **organizing philosophy behind those red lines**.
+>   "**Should** it be designed this way, and why?"
 >
-> 本篇只写**原则**，不绑具体实现（具体案例随演化变动，活在代码 / git 里）。这套哲学不是一家之言 —— 它经**两个外部权威独立印证**：与更老的 GOAP agent 框架 **embabel-agent** 形成 convergent design；又逐条命中 **MCP Go SDK 设计文档**（Go 核心团队 + Anthropic 合写）的同款取舍。
+> Before designing a new capability, a new package, or a public API change, run
+> it through the framework here. When actually refactoring, use
+> [`REFACTORING.md`](REFACTORING.md).
+>
+> This document states principles only and binds to no concrete implementation —
+> concrete cases change as the code evolves and live in the code and in git. This
+> philosophy is not one person's taste: it has **two independent external
+> corroborations** — convergent design with **embabel-agent**, an older GOAP
+> agent framework, and a point-by-point match with the trade-offs in the **MCP Go
+> SDK design document**, co-written by the Go core team and Anthropic.
 
 ---
 
-## 0. 总纲（一句话）
+## 0. The whole thing, in one line
 
-> **薄而不可再分的核 + 一切能力归约到核 + 没有谁为某个能力重造基础设施。**
+> **A thin, indivisible kernel + every capability reducing to that kernel + no
+> capability rebuilding its own infrastructure.**
 
-MCP Go SDK 把它写成需求清单的最后一条："the SDK should be **minimal**. However, it should admit **extensibility using simple interfaces, middleware, or hooks**." —— 最小核 + 简单扩展点，而非为每种能力造新机器。
+The MCP Go SDK states it as the last item on its requirements list: "the SDK
+should be **minimal**. However, it should admit **extensibility using simple
+interfaces, middleware, or hooks**." A minimal kernel with simple extension
+points, not a new machine per capability.
 
 ---
 
-## 1. 能力的三种变体形态 + 试金石
+## 1. Three shapes of variation, and the litmus test
 
-加一个新能力时，它必然是核心的某种"再表达"，而不是新机器。三种形态（按优先级）：
+When a new capability is added, it is necessarily a re-expression of the core,
+not a new machine. Three shapes, in priority order:
 
-| 形态 | 变的是什么 | 模式 |
+| Shape | What varies | Pattern |
 |---|---|---|
-| **① 参数化** | 一个参数 / 策略 | Strategy |
-| **② 组合** | 把原语拼起来，编译回核 | Composition |
-| **③ 装饰** | 包裹一个已有物 | Decorator |
+| **① Parameterize** | One parameter or policy | Strategy |
+| **② Compose** | Existing primitives assembled, compiling back to the core | Composition |
+| **③ Decorate** | An existing thing wrapped | Decorator |
 
-**试金石（设计新能力时按顺序问）：**
-1. 能**拨一个钮**实现吗？→ ①（最好）
-2. 拨不动，但能**拼现有原语**吗？→ ②（写个 shim 编译回核）
-3. 都不行，只是**想包一层**吗？→ ③
-4. **以上都套不上、需要为它新造一套 runtime / 调度 / 状态载体？** → ⚠️ **设计错误信号**：先停下来问"这块是不是其实该在核里"，而不是另起炉灶。
+**The litmus test, asked in order when designing a capability:**
 
-> 这条对应"组合大于继承"，并在 Go 里推到极端：**组合大于继承，基础能力优先库化；只有必须统一生命周期时才建立显式框架，且静态大于动态**（Go 无继承、无 DI 容器、用泛型而非反射）。框架的成立条件是它确实拥有主循环、状态迁移和恢复不变量，而不是因为需要一个更大的配置入口。
+1. Can it be done by **turning one knob**? → ① (best)
+2. No knob, but can it be **assembled from existing primitives**? → ② (write a
+   shim that compiles back to the core)
+3. Neither, and it is really just **wrapping something**? → ③
+4. **None of the above fits, and it needs a whole new runtime, scheduler, or
+   state carrier?** → ⚠️ **This is a design-error signal.** Stop and ask whether
+   this actually belongs in the kernel, rather than starting a second one.
+
+> This is "composition over inheritance", pushed to its Go extreme:
+> **composition over inheritance, base capability as a library first; build an
+> explicit framework only when a lifecycle genuinely must be unified, and prefer
+> static over dynamic** (Go has no inheritance, no DI container, and uses
+> generics rather than reflection). A framework is justified when it really owns
+> the main loop, the state transitions, and the recovery invariants — not because
+> something needs a bigger configuration entry.
 
 ---
 
-## 2. 包设计规范（Package Design）
+## 2. Package design
 
-### 2.1 内部：严格 DAG，不允许反向依赖
-- 跨包依赖必须是单向无环的 DAG。**接口在消费方定义**（消费方包内声明窄接口，被消费的具体类型隐式满足，不主动 export"给你用的接口"）。
-- **可机器验证**：导出内部依赖边，任何指向上层的边都是回归。
-- **组合根集中装配具体实现**：执行核只依赖抽象，具体实现在组合根注入 —— 加 / 删一个具体实现对核零波及，且所有实现一视同仁。
+### 2.1 Internally: a strict DAG, no reverse dependency
 
-### 2.2 用户面：一个语义只有一个 owner 和一个入口
-- 用户直接 import 拥有该语义的 package；不通过根门面、alias 或薄转发再次暴露同一能力。否则文档、类型身份和演进节奏会形成两份公共合同。
-- 可发现性由 package 文档、可运行 examples、provider catalog 和一致命名解决，不以重复 API 换取少写 import。
-- 只有真正拥有组合生命周期、状态和不变量的上层 package 才能提供新的组合入口；单纯聚合下层符号不是组合能力。
+- A cross-package dependency must form a one-way acyclic graph. **The interface
+  is defined by the consumer**: the consuming package declares a narrow
+  interface, the consumed concrete type satisfies it implicitly, and nothing
+  exports "an interface for you to use".
+- **Machine-verifiable**: export the internal dependency edges, and any edge
+  pointing upward is a regression.
+- **The composition root assembles the concrete implementations.** The execution
+  kernel depends on abstractions only, and concrete implementations are injected
+  at the composition root — so adding or removing one has zero effect on the
+  kernel, and every implementation is treated identically.
 
-### 2.3 一个扩展机制 优于 一堆 hook / SPI
-- 优先"**一个**同质机制 + 类型 / 中间件分发"（如一个 `Middleware func(Handler) Handler`、一个泛型类型分发器），而不是"为每种扩展开一个具名插槽"。
-- 插槽多 = 表面积大 + 心智负担。MCP Go SDK 用一个 middleware、明确拒绝几十个 rarely-used hook，是同一取舍。
+### 2.2 On the user-facing side: one owner and one entry per meaning
 
-### 2.4 包大 ≠ god package
-- **固有内聚的大包不强拆**（执行引擎、解析器族这类天然就大）。判据：抽出去能**真正切断耦合**且**不破坏公开 API**才抽；否则保留 —— 为整洁而拆是负收益。拆包信号见 [`AGENTS.md`](AGENTS.md) / [`REFACTORING.md`](REFACTORING.md) 的触发信号。
+- A user imports the package that owns the meaning directly. The same capability
+  is never re-exposed through a root façade, an alias, or a thin forwarder —
+  that would create two public contracts with two documentation sets, two type
+  identities, and two evolution rhythms.
+- Discoverability is solved by package documentation, runnable examples, a
+  provider catalog, and consistent naming — never by duplicating an API to save
+  an import.
+- Only an upper package that genuinely owns a composition lifecycle, state, and
+  invariants may offer a new composition entry. Merely aggregating lower-level
+  symbols is not a composition capability.
 
-### 2.5 抽象越底层越宏观，具体度只向上层流动（已两次踩坑，单列成规）
-> **一个类型 / 接口 / 字段放哪一层，由"有多少层会用到它"决定，而非"它看起来该归属谁"。**
+### 2.3 One extension mechanism beats a pile of hooks and SPIs
 
-- **规则**：**所有消费者都必须遵守的普适契约 → 沉到最底（薄核）**；**只有某一个消费方 / driver 用到的具体能力 → 留在那个消费方那一层，绝不向下沉进基础抽象。** 底层只承载普适、不可再分的契约；每往上一层才逐步具体。**具体度向上累积，不向下倾倒。**
-- **反模式（本则要防的）**：为"共享"或"看着该归属基类型"，把消费方特有 / 具体的东西往下塞进最底层。后果：底层变胖、被单个消费方的关注点污染，还逼**所有其他**消费者背上用不到的概念。**"放低一层 = 更通用"是错觉 —— 放低 ≠ 更抽象，放低 = 把一个消费方的具体强加给所有人。**
-- **判据一句话**：问"**是每个消费者都需要它，还是只有这一个消费方需要？**"只有一个 → 它属于那个消费方那一层，不属于基类型。
-- **区分两类能力（关键）**：
-  - **强制、跨所有实现的控制流契约**（任何 driver 都必须遵守、忽略即坏）→ **沉核**。
-  - **可选、某个 driver 自己消费的能力**（driver 可忽略、忽略后仍正确）→ **留在该 driver / 消费层**：消费方定义接口、provider **结构化实现**（不反向 import 具体 driver），核保持最小。
-- 这条是 §0 薄核 + §2.1「接口在消费方定义」+「库 vs 应用」的**显式化** —— 同一张尺，专治"把具体往底层倾倒"。
+- Prefer **one** homogeneous mechanism plus type or middleware dispatch — one
+  `Middleware func(Handler) Handler`, one generic type dispatcher — over a named
+  slot per kind of extension.
+- More slots means more surface area and more cognitive load. The MCP Go SDK
+  using one middleware and explicitly refusing dozens of rarely-used hooks is the
+  same trade-off.
 
-### 2.6 收敛 / 内联 / 删函数：要有具体的冗余信号，否则"收敛本身就是仪式"（已踩坑，单列成规）
-> 与 §2.4 对偶：§2.4 说"为整洁而**拆**是负收益"；本条说"**为整洁而收 / 内联 / 删，同样是负收益**"。动一个 helper / 静态函数前，必须指得出一个**具体冗余信号**；指不出，就别动。**函数数量不是指标，冗余才是。**
+### 2.4 A big package is not automatically a god package
 
-**该动（有信号才动）：**
+- **An inherently cohesive large package is not force-split** — an execution
+  engine or a parser family is naturally large. The test: extract only if the
+  extraction **genuinely severs a coupling** and **does not break the public
+  API**; otherwise keep it, because splitting for tidiness has negative return.
+  The split signals are in [`AGENTS.md`](AGENTS.md) and
+  [`REFACTORING.md`](REFACTORING.md).
 
-| 冗余信号 | 处理 |
+### 2.5 Abstraction is broader the lower it sits; concreteness only flows upward
+
+*(Learned twice the hard way, so it gets its own rule.)*
+
+> **Which layer a type, interface, or field belongs to is decided by how many
+> layers use it — not by which layer it seems to belong to.**
+
+- **The rule**: a universal contract every consumer must obey **sinks to the
+  bottom** (the thin kernel); a concrete capability only one consumer or driver
+  uses **stays at that consumer's layer and never sinks into the base
+  abstraction**. The bottom carries only universal, indivisible contracts, and
+  each layer upward gets more concrete. **Concreteness accumulates upward; it is
+  never poured downward.**
+- **The anti-pattern this rule guards against**: pushing something
+  consumer-specific down into the bottom layer, for "sharing" or because it looks
+  like it belongs on the base type. The result is a bloated bottom polluted by
+  one consumer's concern, and **every other** consumer forced to carry a concept
+  it does not use. **"Lower means more general" is an illusion — lower is not
+  more abstract; lower imposes one consumer's specifics on everyone.**
+- **The test, in one sentence**: ask "**does every consumer need this, or only
+  this one?**" Only one means it belongs to that consumer's layer, not the base
+  type.
+- **Distinguish two kinds of capability (the key part):**
+  - A **mandatory control-flow contract across all implementations** — every
+    driver must obey it, and ignoring it is a bug → **sink it into the kernel.**
+  - An **optional capability one driver consumes** — a driver may ignore it and
+    still be correct → **keep it at that driver's or consumer's layer.** The
+    consumer defines the interface, a provider implements it structurally
+    (without importing the concrete driver in reverse), and the kernel stays
+    minimal.
+- This rule makes §0's thin kernel, §2.1's consumer-defined interfaces, and the
+  library-versus-application distinction explicit. It is one yardstick against
+  one failure mode: pouring specifics downward.
+
+### 2.6 Converging, inlining, or deleting a function needs a concrete redundancy signal
+
+*(Learned the hard way, so it gets its own rule.)*
+
+> The dual of §2.4. §2.4 says splitting for tidiness has negative return; this
+> says **converging, inlining, or deleting for tidiness has negative return
+> too.** Before touching a helper or a static function, you must be able to point
+> at a **concrete redundancy signal**. If you cannot, leave it. **Function count
+> is not a metric; redundancy is.**
+
+**Act (only with a signal):**
+
+| Redundancy signal | Action |
 |---|---|
-| **死函数**（零调用者） | 删 |
-| **单调用者 + 平凡体 + 一个恒定值的冗余参数**（如永远传同一个 `caller` 常量） | 内联（常量错误顺手换 `errors.New`） |
-| **泛型 `func F[T]`，其 `T` 恰等于某类型的 receiver 类型参数** | 挂成那个类型的方法（receiver 已提供 `T`，泛型是多余的） |
-| **只服务单一类型的实现细节，却停在包级作用域** | 收进去（方法 / 局部 `const`），别污染包级 |
+| **A dead function** (zero callers) | Delete |
+| **One caller, a trivial body, and a redundant parameter that is always the same constant** | Inline (and switch a constant error to `errors.New` while you are there) |
+| **A generic `func F[T]` whose `T` is exactly a type's receiver type parameter** | Make it a method on that type — the receiver already provides `T`, so the generic is redundant |
+| **An implementation detail serving one type only, sitting at package scope** | Move it in as a method or a local constant, rather than polluting package scope |
 
-**别动（这些不是仪式，内联 / 删会倒退）：**
+**Do not act (these are not ceremony; inlining or deleting them is a
+regression):**
 
-| 情形 | 为什么留 |
+| Case | Why it stays |
 |---|---|
-| **2+ 调用者** | 那是 DRY；内联 = 重新制造重复 |
-| **泛型 helper 按多种 `T` 实例化** | 方法的类型参数只能来自 receiver，当不了方法；自由泛型函数是对的 |
-| **无 receiver 可言**（构造器、`unmarshalX(bytes) (X, error)` 从无到有造值） | 本就没有 receiver 可挂 |
-| **内聚的具名抽象 / 带 why-注释的谓词 / 对称对**（marshal ↔ unmarshal） | 名字即文档；单调用者也该留，内联会让调用点膨胀、破坏对称 |
-| **住在 `_test.go` 的测试 helper** | 只对测试可见，不属于生产包 API，不算包级污染 |
+| **Two or more callers** | That is DRY; inlining recreates the duplication |
+| **A generic helper instantiated at several `T`** | A method's type parameters can only come from the receiver, so it cannot be a method; a free generic function is correct |
+| **No receiver exists** (a constructor, or `unmarshalX(bytes) (X, error)` creating a value from nothing) | There is nothing to hang it on |
+| **A cohesive named abstraction, a predicate with a why-comment, or a symmetric pair** (marshal ↔ unmarshal) | The name is the documentation; keep it even with one caller, because inlining bloats the call site and breaks the symmetry |
+| **A test helper living in `_test.go`** | Visible only to tests, not part of the production package API, and not package pollution |
 
-- **判据一句话**：问"**这个函数指得出上表某个冗余信号吗？**"指得出 → 动；它是共享 / 多态泛型 / 无 receiver / 具名文档抽象 / 测试 helper → 留。**指不出信号还要收，就是"为收敛而收敛"—— 与机械拆接口是同一种过度旋转**（见 §2.4 + [`REFACTORING.md`](REFACTORING.md) 的「自由函数 vs 方法」与节奏纪律）。
-- **反模式（本则要防的）**：把一次**真实**的局部去冗余（某个 helper 确有冗余信号）误当成"全包体检指标"，逐个把内聚的具名 helper 内联回去、追求"更少函数"。这和上一轮把一个 ISP 模板机械套满全模块是同一个错 —— **局部真信号 ≠ 全局统一动作**。
+- **The test, in one sentence**: ask "**can I point at one of the redundancy
+  signals above?**" If yes, act. If it is shared, polymorphically generic,
+  receiverless, a named documenting abstraction, or a test helper, leave it.
+  **Converging with no signal is convergence as ceremony** — the same
+  over-rotation as mechanically extracting interfaces (see §2.4 and
+  [`REFACTORING.md`](REFACTORING.md)).
+- **The anti-pattern this rule guards against**: mistaking one **real** local
+  de-duplication for a whole-package health metric, and inlining cohesive named
+  helpers one by one in pursuit of "fewer functions". That is the same mistake as
+  mechanically applying one ISP template across a whole module — **a real local
+  signal is not a global uniform action.**
 
 ---
 
-## 3. 编码规范（原则层 —— 强制红线见 [`AGENTS.md`](AGENTS.md)，落手细则见 [`REFACTORING.md`](REFACTORING.md)）
+## 3. Coding principles
 
-下面是**原则**（回答"为什么"），跨模块通用。强制红线（`errors.New` / `%w` / 无 Java 味 / 现代 Go / OTel logging…）在 AGENTS.md；重构时怎么改成这样在 REFACTORING.md。本篇不复述，只给"为什么"，并标注与 MCP SDK 的同款印证。
+*(The mandatory red lines are in [`AGENTS.md`](AGENTS.md); the hands-on details
+are in [`REFACTORING.md`](REFACTORING.md).)*
 
-| 原则 | 为什么 |
+Below are the **principles** — the *why* — and they apply across modules. The red
+lines (`errors.New`, `%w`, no Java flavor, modern Go, OTel logging) are in
+AGENTS.md; how to refactor toward them is in REFACTORING.md. This document does
+not restate either; it gives the reason, noting where the MCP SDK independently
+made the same call.
+
+| Principle | Why |
 |---|---|
-| **options struct 优于 variadic `WithXxx` / builder 链** | 更可读、文档更简单；加字段不破坏调用方。 |
-| **accept interfaces, return structs** | 入参最大兼容、返回值最大信息量；接口是边界、struct 是实现。 |
-| **make zero values useful** | 少构造函数、少出错；导出字段 struct 零值可用。 |
-| **`iter.Seq` / `iter.Seq2` 优于 channel** | 拉模型、ctx 可在循环前检查、无 goroutine 泄漏。 |
-| **藏协议 / 传输细节，业务看不到 wire 形态** | 业务逻辑不该感知 JSON-RPC、SDK DTO 等传输形态；envelope I/O 与业务解耦。共享 Model 由它的唯一 owner 直接暴露，不能为隐藏 import 或类型身份再复制一层空转发。 |
-| **最小接口** | "the bigger the interface, the weaker the abstraction"；低层接口更易实现、更易替换。 |
-| **错误分层** | 协议错误带 code、工具 / 业务错误进 result 不进 Go error。 |
-| **核无状态，差异作参数** | 同一核服务多连接 / 多会话，per-session 靠工厂 / 参数注入，不为每会话造实例。 |
+| **An options struct beats variadic `WithXxx` and builder chains** | More readable, simpler to document, and adding a field does not break a caller. |
+| **Accept interfaces, return structs** | Maximum compatibility on input, maximum information on output. An interface is a boundary; a struct is an implementation. |
+| **Make zero values useful** | Fewer constructors, fewer mistakes; a struct of exported fields is usable at its zero value. |
+| **`iter.Seq` and `iter.Seq2` beat channels** | A pull model, the context can be checked before the loop, and no goroutine leaks. |
+| **Hide the protocol and transport; business code never sees the wire shape** | Business logic should not know about JSON-RPC or an SDK DTO. Envelope I/O is decoupled from business. A shared model is exposed directly by its one owner — never re-wrapped in an empty forwarder just to hide an import or a type identity. |
+| **The smallest interface** | "The bigger the interface, the weaker the abstraction." A lower-level interface is easier to implement and easier to replace. |
+| **Layered errors** | A protocol error carries a code; a tool or business error goes in the result, not in a Go error. |
+| **A stateless kernel with differences as parameters** | One kernel serves many connections and sessions; per-session concerns arrive through a factory or a parameter, not an instance per session. |
 
 ---
 
-## 4. 原则冲突时（裁决）
+## 4. When principles conflict
 
-沿用 [`AGENTS.md`](AGENTS.md) "原则冲突时"，并补两条本篇相关的：
+Follow "when principles conflict" in [`AGENTS.md`](AGENTS.md), plus one specific
+to this document:
 
-- **可发现性 vs 唯一入口**：优先保持语义 owner 和公共入口唯一；通过文档、examples 与命名提升可发现性，不以 façade re-export 制造第二套 API（§2.2）。
-
----
-
-## 5. 设计自检清单（新能力 / 新包 / 改公开 API 前）
-
-> 本节是**设计新东西**时的自检；**重构既有代码**另有清单（命名 / 注释 / 指针vs值 / nil 守卫 / 卫语句 / 就近组织 / 节奏），见 [`REFACTORING.md`](REFACTORING.md)。
-
-- [ ] 这个能力能**归约到核**吗？走 §1 试金石定形态（① / ② / ③），还是触发了"重造地基"信号？
-- [ ] 引入的跨包依赖**没有**指向上层？（DAG 不破）
-- [ ] 消费方依赖的是**窄接口**（自己定义）还是抱了具体类型整体？
-- [ ] 扩展点是**一个同质机制**，还是又开了一个具名插槽？
-- [ ] 配置用 **options struct**，不是 variadic / builder 链？
-- [ ] 流式用 **iterator**，不是 channel？
-- [ ] 公开 API 改动已经咨询用户，并在同一批次迁移全部 workspace 消费方？
-- [ ] 这是真 DRY 还是虚假 DRY？抽象会让"两段因不同原因独立演化的代码"被迫同步吗？（宁可重复）
-- [ ] 收 / 内联 / 删一个 helper 前：指得出**具体冗余信号**吗（死 / 单用+冗余参 / 泛型重复 receiver 类型参 / 实现细节泄到包级）？指不出就别动 —— 别为"更少函数"把内聚的具名抽象内联回去（§2.6）。
-- [ ] 放在哪一层：**每个消费者都需要它，还是只有这一个消费方需要？**只有一个就别往底层抽象沉 —— 留在消费方那层（§2.5）。
+- **Discoverability versus a single entry**: keep the semantic owner and the
+  public entry unique. Raise discoverability through documentation, examples, and
+  naming — never manufacture a second API through a façade re-export (§2.2).
 
 ---
 
-## 一句话收尾
+## 5. Design self-check
 
-**scope 的设计不是个人趣味，是一套被 embabel（convergent）和 Go 团队 MCP SDK（authoritative）双重印证的组织原则：薄核 + 三形态变体 + 窄腰 + 一个扩展机制 + 基础能力优先库化 + 生命周期框架显式化。** 设计前用 §1 试金石与 §5 清单各过一遍（回答"该不该"），重构时对 [`REFACTORING.md`](REFACTORING.md)（回答"怎么改"），就不会偏。
+*(Before a new capability, a new package, or a public API change.)*
+
+> This is the checklist for **designing something new**. **Refactoring existing
+> code** has its own — naming, comments, pointer versus value, nil guards, guard
+> clauses, locality, rhythm — in [`REFACTORING.md`](REFACTORING.md).
+
+- [ ] Does this capability **reduce to the kernel**? Use the §1 litmus test to
+      pick the shape (①/②/③) — or did it trip the "rebuilding the foundation"
+      signal?
+- [ ] Does the cross-package dependency it introduces point **only downward**?
+      (The DAG holds.)
+- [ ] Does the consumer depend on a **narrow interface it defined itself**, or
+      did it grab a whole concrete type?
+- [ ] Is the extension point **one homogeneous mechanism**, or another named
+      slot?
+- [ ] Is configuration an **options struct** rather than variadics or a builder
+      chain?
+- [ ] Is streaming an **iterator** rather than a channel?
+- [ ] Has the public API change been discussed with the user, and does it migrate
+      every workspace consumer in the same batch?
+- [ ] Is this real DRY or false DRY? Would the abstraction force two pieces of
+      code that evolve for different reasons to change together? (Prefer the
+      duplication.)
+- [ ] Before converging, inlining, or deleting a helper: can you point at a
+      **concrete redundancy signal** — dead, single-caller with a redundant
+      parameter, a generic duplicating a receiver type parameter, or an
+      implementation detail leaked to package scope? If not, leave it, and do not
+      inline a cohesive named abstraction for the sake of "fewer functions"
+      (§2.6).
+- [ ] Which layer: **does every consumer need this, or only this one?** If only
+      one, do not sink it into the base abstraction — keep it at that consumer's
+      layer (§2.5).
+
+---
+
+## In one sentence
+
+**Scope's design is not personal taste: it is a set of organizing principles
+corroborated both by embabel (convergent) and by the Go team's MCP SDK
+(authoritative) — a thin kernel, three shapes of variation, a narrow waist, one
+extension mechanism, base capability as a library first, and an explicit
+lifecycle framework.** Run the §1 litmus test and the §5 checklist before
+designing (answering "should I"), and use
+[`REFACTORING.md`](REFACTORING.md) while refactoring (answering "how"), and you
+will not drift.

@@ -74,4 +74,4 @@ background refresh: when a session reports `list-changed`, the caller decides
 when to list again.
 
 See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the boundaries this rests on and
-[`DESIGN.md`](DESIGN.md) for the package-organization rationale.
+the package-organization rationale.
