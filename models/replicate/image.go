@@ -1,6 +1,7 @@
 package replicate
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
@@ -158,12 +159,10 @@ var _ image.Model = (*ImageModel)(nil)
 // override is rejected because Replicate models do not share an input or
 // output contract; construct another adapter with the matching schema instead.
 type ImageModel struct {
-	api            *api
+	predictions    predictionRunner
 	model          string
 	inputSchema    ImageInputSchema
 	defaultOptions image.Options
-	pollInterval   time.Duration
-	pollTimeout    time.Duration
 }
 
 func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
@@ -178,43 +177,45 @@ func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	pi := config.PollInterval
-	if pi == 0 {
-		pi = time.Duration(DefaultPollIntervalSeconds) * time.Second
-	}
-	pt := config.PollTimeout
-	if pt == 0 {
-		pt = time.Duration(DefaultPollTimeoutSeconds) * time.Second
-	}
 	return &ImageModel{
-		api:            api,
+		predictions:    newPredictionRunner(api, config.PollInterval, config.PollTimeout, time.Duration(DefaultPollTimeoutSeconds)*time.Second),
 		model:          config.DefaultOptions.Model,
 		inputSchema:    config.InputSchema.Clone(),
 		defaultOptions: config.DefaultOptions.Clone(),
-		pollInterval:   pi,
-		pollTimeout:    pt,
 	}, nil
 }
 
 func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Response, error) {
-	if err := req.Validate(); err != nil {
+	effectiveOptions, apiRequest, err := i.prepareRequest(req)
+	if err != nil {
 		return nil, err
+	}
+	final, err := i.predictions.run(ctx, effectiveOptions.Model, apiRequest)
+	if err != nil {
+		return nil, err
+	}
+	return i.response(ctx, effectiveOptions, final)
+}
+
+func (i *ImageModel) prepareRequest(req *image.Request) (image.Options, *predictionRequest, error) {
+	if err := req.Validate(); err != nil {
+		return image.Options{}, nil, err
 	}
 	effectiveOptions, err := i.defaultOptions.Resolve(req.Options)
 	if err != nil {
-		return nil, err
+		return image.Options{}, nil, err
 	}
 	if effectiveOptions.Model != i.model {
-		return nil, fmt.Errorf("replicate: image: model override %q does not match bound schema for %q", effectiveOptions.Model, i.model)
+		return image.Options{}, nil, fmt.Errorf("replicate: image: model override %q does not match bound schema for %q", effectiveOptions.Model, i.model)
 	}
 	if validateOptionsErr := i.inputSchema.validateOptions(effectiveOptions); validateOptionsErr != nil {
-		return nil, validateOptionsErr
+		return image.Options{}, nil, validateOptionsErr
 	}
 	apiReqValue, _, err := effectiveOptions.Extensions.Decode[predictionRequest](ImageRequestExtensionKey)
-	apiReq := &apiReqValue
 	if err != nil {
-		return nil, err
+		return image.Options{}, nil, err
 	}
+	apiReq := &apiReqValue
 	if apiReq.Input == nil {
 		apiReq.Input = map[string]any{}
 	}
@@ -234,63 +235,22 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	if effectiveOptions.OutputFormat != "" {
 		value, supported := i.inputSchema.OutputFormats[effectiveOptions.OutputFormat]
 		if !supported {
-			return nil, fmt.Errorf("replicate: image: model %q does not support output format %q", i.model, effectiveOptions.OutputFormat)
+			return image.Options{}, nil, fmt.Errorf("replicate: image: model %q does not support output format %q", i.model, effectiveOptions.OutputFormat)
 		}
 		apiReq.Input[i.inputSchema.OutputFormatKey] = value
 	}
+	return effectiveOptions, apiReq, nil
+}
 
-	submit, err := i.api.createPrediction(ctx, effectiveOptions.Model, apiReq)
-	if err != nil {
-		return nil, err
-	}
-
-	final, err := i.pollUntilDone(ctx, submit.ID)
-	if err != nil {
-		return nil, err
-	}
-
+func (i *ImageModel) response(ctx context.Context, effectiveOptions image.Options, final *predictionResponse) (*image.Response, error) {
 	urls, err := imageURLs(final.Output, i.inputSchema.OutputKind)
 	if err != nil {
 		return nil, err
 	}
 
-	outputs := make([]*image.Output, 0, len(urls))
-	for outputIndex, outputURL := range urls {
-		data, contentType, err := i.api.downloadOutput(ctx, outputURL)
-		if err != nil {
-			return nil, fmt.Errorf("replicate: image output[%d]: %w", outputIndex, err)
-		}
-		mimeType := ""
-		contentType = strings.TrimSpace(contentType)
-		if contentType != "" {
-			mimeType, _, err = mime.ParseMediaType(contentType)
-			if err != nil {
-				return nil, fmt.Errorf("replicate: image output[%d]: parse content type %q: %w", outputIndex, contentType, err)
-			}
-		} else {
-			mimeType = effectiveOptions.OutputFormat
-		}
-		if mimeType == "" {
-			mimeType = "application/octet-stream"
-		}
-		value, err := media.NewBytes(mimeType, data)
-		if err != nil {
-			return nil, err
-		}
-		var outputMetadata metadata.Map
-		if setErr := outputMetadata.Set("replicate/output_url", outputURL); setErr != nil {
-			return nil, setErr
-		}
-		if milliseconds, present := final.predictTimeMilliseconds(); present {
-			if setErr := outputMetadata.Set("replicate/predict_time_ms", milliseconds); setErr != nil {
-				return nil, setErr
-			}
-		}
-		output, err := image.NewOutput(value, outputMetadata)
-		if err != nil {
-			return nil, err
-		}
-		outputs = append(outputs, output)
+	outputs, err := i.downloadOutputs(ctx, urls, effectiveOptions.OutputFormat, final)
+	if err != nil {
+		return nil, err
 	}
 
 	meta := &image.ResponseMetadata{}
@@ -318,35 +278,53 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	return image.NewResponse(outputs, meta)
 }
 
-// pollUntilDone blocks until the prediction reaches a terminal status.
-func (i *ImageModel) pollUntilDone(ctx context.Context, id string) (*predictionResponse, error) {
-	deadline, cancel := context.WithTimeout(ctx, i.pollTimeout)
-	defer cancel()
-
-	ticker := time.NewTicker(i.pollInterval)
-	defer ticker.Stop()
-
-	for {
-		resp, err := i.api.getPrediction(deadline, id)
+func (i *ImageModel) downloadOutputs(ctx context.Context, urls []string, fallbackMIMEType string, final *predictionResponse) ([]*image.Output, error) {
+	outputs := make([]*image.Output, 0, len(urls))
+	for outputIndex, outputURL := range urls {
+		output, err := i.downloadOutput(ctx, outputURL, fallbackMIMEType, final)
 		if err != nil {
+			return nil, fmt.Errorf("replicate: image output[%d]: %w", outputIndex, err)
+		}
+		outputs = append(outputs, output)
+	}
+	return outputs, nil
+}
+
+func (i *ImageModel) downloadOutput(ctx context.Context, outputURL, fallbackMIMEType string, final *predictionResponse) (*image.Output, error) {
+	data, contentType, err := i.predictions.api.downloadOutput(ctx, outputURL)
+	if err != nil {
+		return nil, err
+	}
+	mimeType, err := outputMIMEType(contentType, fallbackMIMEType)
+	if err != nil {
+		return nil, err
+	}
+	value, err := media.NewBytes(mimeType, data)
+	if err != nil {
+		return nil, err
+	}
+	var outputMetadata metadata.Map
+	if err := outputMetadata.Set("replicate/output_url", outputURL); err != nil {
+		return nil, err
+	}
+	if milliseconds, present := final.predictTimeMilliseconds(); present {
+		if err := outputMetadata.Set("replicate/predict_time_ms", milliseconds); err != nil {
 			return nil, err
 		}
-		switch resp.Status {
-		case "succeeded":
-			return resp, nil
-		case "failed", "canceled":
-			msg := resp.Error
-			if msg == "" {
-				msg = resp.Status
-			}
-			return nil, fmt.Errorf("replicate: generation %s: %s", resp.Status, msg)
-		}
-		select {
-		case <-deadline.Done():
-			return nil, deadline.Err()
-		case <-ticker.C:
-		}
 	}
+	return image.NewOutput(value, outputMetadata)
+}
+
+func outputMIMEType(contentType, fallback string) (string, error) {
+	contentType = strings.TrimSpace(contentType)
+	if contentType == "" {
+		return cmp.Or(fallback, "application/octet-stream"), nil
+	}
+	mimeType, _, err := mime.ParseMediaType(contentType)
+	if err != nil {
+		return "", fmt.Errorf("parse content type %q: %w", contentType, err)
+	}
+	return mimeType, nil
 }
 
 // imageURLs extracts every hosted image URL from a Replicate prediction.

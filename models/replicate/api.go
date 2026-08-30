@@ -33,6 +33,60 @@ type api struct {
 	baseHost string
 }
 
+type predictionRunner struct {
+	api          *api
+	pollInterval time.Duration
+	pollTimeout  time.Duration
+}
+
+func newPredictionRunner(api *api, pollInterval, pollTimeout, defaultTimeout time.Duration) predictionRunner {
+	if pollInterval == 0 {
+		pollInterval = time.Duration(DefaultPollIntervalSeconds) * time.Second
+	}
+	if pollTimeout == 0 {
+		pollTimeout = defaultTimeout
+	}
+	return predictionRunner{api: api, pollInterval: pollInterval, pollTimeout: pollTimeout}
+}
+
+func (p predictionRunner) run(ctx context.Context, model string, request *predictionRequest) (*predictionResponse, error) {
+	submitted, err := p.api.createPrediction(ctx, model, request)
+	if err != nil {
+		return nil, err
+	}
+	return p.poll(ctx, submitted.ID)
+}
+
+func (p predictionRunner) poll(ctx context.Context, id string) (*predictionResponse, error) {
+	deadline, cancel := context.WithTimeout(ctx, p.pollTimeout)
+	defer cancel()
+
+	ticker := time.NewTicker(p.pollInterval)
+	defer ticker.Stop()
+
+	for {
+		response, err := p.api.getPrediction(deadline, id)
+		if err != nil {
+			return nil, err
+		}
+		switch response.Status {
+		case "succeeded":
+			return response, nil
+		case "failed", "canceled":
+			message := response.Error
+			if message == "" {
+				message = response.Status
+			}
+			return nil, fmt.Errorf("replicate: generation %s: %s", response.Status, message)
+		}
+		select {
+		case <-deadline.Done():
+			return nil, deadline.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
 func newAPI(config apiConfig) (*api, error) {
 	if err := config.validate(); err != nil {
 		return nil, err

@@ -117,12 +117,10 @@ var _ tts.Model = (*AudioTTSModel)(nil)
 // never infers fields from a model name: community models have independent,
 // versioned schemas and must be constructed with the matching binding.
 type AudioTTSModel struct {
-	api            *api
+	predictions    predictionRunner
 	model          string
 	inputSchema    SpeechInputSchema
 	defaultOptions tts.Options
-	pollInterval   time.Duration
-	pollTimeout    time.Duration
 }
 
 func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
@@ -137,45 +135,46 @@ func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err != nil {
 		return nil, err
 	}
-	pi := config.PollInterval
-	if pi == 0 {
-		pi = time.Duration(DefaultPollIntervalSeconds) * time.Second
-	}
-	pt := config.PollTimeout
-	if pt == 0 {
-		pt = time.Duration(DefaultTTSPollTimeoutSeconds) * time.Second
-	}
 	return &AudioTTSModel{
-		api:            api,
+		predictions:    newPredictionRunner(api, config.PollInterval, config.PollTimeout, time.Duration(DefaultTTSPollTimeoutSeconds)*time.Second),
 		model:          config.DefaultOptions.Model,
 		inputSchema:    config.InputSchema,
 		defaultOptions: config.DefaultOptions.Clone(),
-		pollInterval:   pi,
-		pollTimeout:    pt,
 	}, nil
 }
 
 func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Response, error) {
-	if err := req.Validate(); err != nil {
+	effectiveOptions, apiRequest, err := a.prepareRequest(req)
+	if err != nil {
 		return nil, err
+	}
+	final, err := a.predictions.run(ctx, effectiveOptions.Model, apiRequest)
+	if err != nil {
+		return nil, err
+	}
+	return a.response(ctx, effectiveOptions, final)
+}
+
+func (a *AudioTTSModel) prepareRequest(req *tts.Request) (tts.Options, *predictionRequest, error) {
+	if err := req.Validate(); err != nil {
+		return tts.Options{}, nil, err
 	}
 	effectiveOptions, err := a.defaultOptions.Resolve(req.Options)
 	if err != nil {
-		return nil, err
+		return tts.Options{}, nil, err
 	}
 	if effectiveOptions.Model != a.model {
-		return nil, fmt.Errorf("replicate: speech: model override %q does not match bound schema for %q", effectiveOptions.Model, a.model)
+		return tts.Options{}, nil, fmt.Errorf("replicate: speech: model override %q does not match bound schema for %q", effectiveOptions.Model, a.model)
 	}
 	if validateOptionsErr := a.inputSchema.validateOptions(effectiveOptions); validateOptionsErr != nil {
-		return nil, validateOptionsErr
+		return tts.Options{}, nil, validateOptionsErr
 	}
 
 	apiReqValue, _, err := effectiveOptions.Extensions.Decode[predictionRequest](SpeechRequestExtensionKey)
-
-	apiReq := &apiReqValue
 	if err != nil {
-		return nil, err
+		return tts.Options{}, nil, err
 	}
+	apiReq := &apiReqValue
 	if apiReq.Input == nil {
 		apiReq.Input = map[string]any{}
 	}
@@ -190,26 +189,19 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 	if a.inputSchema.VoiceRequired {
 		voice, exists := apiReq.Input[a.inputSchema.VoiceKey]
 		if !exists || voice == nil || voice == "" {
-			return nil, fmt.Errorf("replicate: speech: model %q requires input %q", a.model, a.inputSchema.VoiceKey)
+			return tts.Options{}, nil, fmt.Errorf("replicate: speech: model %q requires input %q", a.model, a.inputSchema.VoiceKey)
 		}
 	}
+	return effectiveOptions, apiReq, nil
+}
 
-	submit, err := a.api.createPrediction(ctx, effectiveOptions.Model, apiReq)
-	if err != nil {
-		return nil, err
-	}
-
-	final, err := a.pollUntilDone(ctx, submit.ID)
-	if err != nil {
-		return nil, err
-	}
-
+func (a *AudioTTSModel) response(ctx context.Context, effectiveOptions tts.Options, final *predictionResponse) (*tts.Response, error) {
 	url, err := firstAudioURL(final.Output, a.inputSchema.OutputKind)
 	if err != nil {
 		return nil, err
 	}
 
-	audio, contentType, err := a.api.downloadOutput(ctx, url)
+	audio, contentType, err := a.predictions.api.downloadOutput(ctx, url)
 	if err != nil {
 		return nil, err
 	}
@@ -254,37 +246,6 @@ func (a *AudioTTSModel) Call(ctx context.Context, req *tts.Request) (*tts.Respon
 		return nil, err
 	}
 	return tts.NewResponse(output, meta)
-}
-
-// pollUntilDone blocks until the prediction reaches a terminal status.
-func (a *AudioTTSModel) pollUntilDone(ctx context.Context, id string) (*predictionResponse, error) {
-	deadline, cancel := context.WithTimeout(ctx, a.pollTimeout)
-	defer cancel()
-
-	ticker := time.NewTicker(a.pollInterval)
-	defer ticker.Stop()
-
-	for {
-		resp, err := a.api.getPrediction(deadline, id)
-		if err != nil {
-			return nil, err
-		}
-		switch resp.Status {
-		case "succeeded":
-			return resp, nil
-		case "failed", "canceled":
-			msg := resp.Error
-			if msg == "" {
-				msg = resp.Status
-			}
-			return nil, fmt.Errorf("replicate: generation %s: %s", resp.Status, msg)
-		}
-		select {
-		case <-deadline.Done():
-			return nil, deadline.Err()
-		case <-ticker.C:
-		}
-	}
 }
 
 func firstAudioURL(out any, kind FileOutputKind) (string, error) {
