@@ -24,6 +24,20 @@ import (
 )
 
 func TestObserverTracesRealProcessStepAndEffectLifecycle(t *testing.T) {
+	harness := newObserverHarness(t)
+	result := runObservedProcess(t, harness.observer)
+	assertObservedSpans(t, harness.recorder.Ended(), result)
+	assertObservedMetrics(t, harness.reader, result)
+}
+
+type observerHarness struct {
+	recorder *tracetest.SpanRecorder
+	reader   *sdkmetric.ManualReader
+	observer *agentotel.Observer
+}
+
+func newObserverHarness(t *testing.T) observerHarness {
+	t.Helper()
 	recorder := tracetest.NewSpanRecorder()
 	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(recorder))
 	t.Cleanup(func() { _ = provider.Shutdown(context.Background()) })
@@ -37,6 +51,11 @@ func TestObserverTracesRealProcessStepAndEffectLifecycle(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Cleanup(observer.Close)
+	return observerHarness{recorder: recorder, reader: reader, observer: observer}
+}
+
+func runObservedProcess(t *testing.T, observer *agentotel.Observer) agent.Result {
+	t.Helper()
 	deployment := testDeployment(t)
 	engine, err := agent.NewEngine(agent.EngineConfig{
 		TreeDurability: agenttest.NewMemoryTreeDurability(),
@@ -56,8 +75,11 @@ func TestObserverTracesRealProcessStepAndEffectLifecycle(t *testing.T) {
 	if err := engine.Close(); err != nil {
 		t.Fatal(err)
 	}
+	return result
+}
 
-	spans := recorder.Ended()
+func assertObservedSpans(t *testing.T, spans []sdktrace.ReadOnlySpan, result agent.Result) {
+	t.Helper()
 	if len(spans) != 4 {
 		for _, span := range spans {
 			t.Logf("span %s parent=%s", span.Name(), span.Parent().SpanID())
@@ -78,21 +100,10 @@ func TestObserverTracesRealProcessStepAndEffectLifecycle(t *testing.T) {
 			t.Fatalf("span %s has negative duration", span.Name())
 		}
 	}
-	if got := stringAttribute(process.Attributes(), "agent.deployment.name"); got != "test.otel" {
-		t.Fatalf("deployment name attribute = %q", got)
-	}
-	if got := stringAttribute(process.Attributes(), "agent.process.activation"); got != "started" {
-		t.Fatalf("process activation attribute = %q", got)
-	}
+	assertObservedSpanIdentity(t, process, effect)
 	incarnationID := stringAttribute(process.Attributes(), "agent.tree.incarnation_id")
 	if incarnationID == "" {
 		t.Fatal("durable Process span is missing tree incarnation attribution")
-	}
-	if got := stringAttribute(effect.Attributes(), "agent.effect.target"); got != "dispatcher" {
-		t.Fatalf("effect target attribute = %q", got)
-	}
-	if got := stringAttribute(effect.Attributes(), "agent.effect.status"); got != "succeeded" {
-		t.Fatalf("effect status attribute = %q", got)
 	}
 	for _, span := range append(steps, effect) {
 		if got := stringAttribute(span.Attributes(), "agent.process.id"); got != result.ProcessID().String() {
@@ -102,6 +113,26 @@ func TestObserverTracesRealProcessStepAndEffectLifecycle(t *testing.T) {
 			t.Fatalf("span %s incarnation = %q, want %q", span.Name(), got, incarnationID)
 		}
 	}
+}
+
+func assertObservedSpanIdentity(t *testing.T, process, effect sdktrace.ReadOnlySpan) {
+	t.Helper()
+	if got := stringAttribute(process.Attributes(), "agent.deployment.name"); got != "test.otel" {
+		t.Fatalf("deployment name attribute = %q", got)
+	}
+	if got := stringAttribute(process.Attributes(), "agent.process.activation"); got != "started" {
+		t.Fatalf("process activation attribute = %q", got)
+	}
+	if got := stringAttribute(effect.Attributes(), "agent.effect.target"); got != "dispatcher" {
+		t.Fatalf("effect target attribute = %q", got)
+	}
+	if got := stringAttribute(effect.Attributes(), "agent.effect.status"); got != "succeeded" {
+		t.Fatalf("effect status attribute = %q", got)
+	}
+}
+
+func assertObservedMetrics(t *testing.T, reader *sdkmetric.ManualReader, result agent.Result) {
+	t.Helper()
 	var metrics metricdata.ResourceMetrics
 	if err := reader.Collect(context.Background(), &metrics); err != nil {
 		t.Fatal(err)
@@ -331,6 +362,13 @@ func TestObserverRejectsTypedNilTracerProvider(t *testing.T) {
 }
 
 func TestObserverIgnoresEventsAfterClose(t *testing.T) {
+	events := captureObserverEvents(t)
+	metrics := collectClosedObserverMetrics(t, events)
+	assertNoRecordedMetrics(t, metrics)
+}
+
+func captureObserverEvents(t *testing.T) []agent.Event {
+	t.Helper()
 	var events []agent.Event
 	engine, err := agent.NewEngine(agent.EngineConfig{EventListeners: []agent.EventListener{
 		agent.EventListenerFunc(func(_ context.Context, event agent.Event) {
@@ -350,7 +388,11 @@ func TestObserverIgnoresEventsAfterClose(t *testing.T) {
 	if closeErr := engine.Close(); closeErr != nil {
 		t.Fatal(closeErr)
 	}
+	return events
+}
 
+func collectClosedObserverMetrics(t *testing.T, events []agent.Event) metricdata.ResourceMetrics {
+	t.Helper()
 	reader := sdkmetric.NewManualReader()
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 	t.Cleanup(func() { _ = meterProvider.Shutdown(context.Background()) })
@@ -366,6 +408,11 @@ func TestObserverIgnoresEventsAfterClose(t *testing.T) {
 	if err := reader.Collect(context.Background(), &metrics); err != nil {
 		t.Fatal(err)
 	}
+	return metrics
+}
+
+func assertNoRecordedMetrics(t *testing.T, metrics metricdata.ResourceMetrics) {
+	t.Helper()
 	for _, scope := range metrics.ScopeMetrics {
 		for _, metric := range scope.Metrics {
 			switch data := metric.Data.(type) {
