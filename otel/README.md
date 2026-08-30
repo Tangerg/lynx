@@ -81,7 +81,7 @@ Observer 发射以下稳定 instrument；所有 duration 都使用秒：
 
 Process、Step 与 Effect span 携带 exact Process/tree、Deployment 和 activation
 归因；durable execution 额外携带 `agent.tree.incarnation_id`。metric 只使用
-Deployment name/version、activation、status/cause、Effect target/status 和稳定
+Deployment name、activation、status/cause、Effect target/status 和稳定
 failure kind/code 等受控维度，不写入 raw payload、Input、Output 或产品身份。
 Process error outcome、失败的 Step attempt 和非成功 Effect settlement 同时设置
 span error status 并记录标准 OTel exception event；exception 由 typed fact 投影，
