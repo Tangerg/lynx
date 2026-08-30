@@ -70,20 +70,6 @@ jobs:
           MODULE: ${{ matrix.module }}
         run: scripts/check.sh build vet test race tidy
 
-      - name: Core API and wire compatibility guards
-        if: matrix.module == 'core'
-        working-directory: core
-        run: >-
-          go test -count=1 ./internal/arch
-          -run '^(TestExportedAPIMatchesBaseline|TestWireTypeCoverage|TestWireContractsMatchGolden|TestWireDTOFieldsExcludeArbitraryRuntimeValues)$'
-
-      - name: Core documentation and examples release gate
-        if: matrix.module == 'core'
-        working-directory: core
-        run: >-
-          go test -count=1 ./...
-          -run '^(Example|TestPublicPackagesHaveDocsAndRunnableExamples)$'
-
       - name: Core coverage budget
         if: matrix.module == 'core'
         run: scripts/check-core-coverage.sh
