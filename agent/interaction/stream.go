@@ -15,7 +15,7 @@ import (
 // ModelResponseDelta is one validated provider-neutral streaming increment.
 // It is observational and never a source for final Output or restoration.
 type ModelResponseDelta struct {
-	response chat.Response
+	delta chat.ResponseDelta
 }
 
 // ParseModelResponseDelta strictly decodes an Interaction model Delta payload.
@@ -24,27 +24,27 @@ func ParseModelResponseDelta(payload json.RawMessage) (ModelResponseDelta, error
 	if err := jsonv2.Unmarshal(payload, &wire, jsonv2.RejectUnknownMembers(true)); err != nil {
 		return ModelResponseDelta{}, fmt.Errorf("interaction: decode model response Delta: %w", err)
 	}
-	if err := wire.Response.Validate(); err != nil {
+	if err := wire.ResponseDelta.Validate(); err != nil {
 		return ModelResponseDelta{}, fmt.Errorf("interaction: model response Delta: %w", err)
 	}
-	return ModelResponseDelta{response: *wire.Response.Clone()}, nil
+	return ModelResponseDelta{delta: *wire.ResponseDelta.Clone()}, nil
 }
 
-// Response returns an independently owned response chunk.
-func (m ModelResponseDelta) Response() *chat.Response {
-	return m.response.Clone()
+// ResponseDelta returns an independently owned transport increment.
+func (m ModelResponseDelta) ResponseDelta() *chat.ResponseDelta {
+	return m.delta.Clone()
 }
 
 type modelResponseDeltaWire struct {
-	Response chat.Response `json:"response"`
+	ResponseDelta chat.ResponseDelta `json:"response_delta"`
 }
 
-func encodeModelResponseDelta(response *chat.Response) (json.RawMessage, error) {
-	if response == nil {
+func encodeModelResponseDelta(delta *chat.ResponseDelta) (json.RawMessage, error) {
+	if delta == nil {
 		return nil, errors.New("interaction: cannot encode a nil model response Delta")
 	}
 	payload, err := json.Marshal(modelResponseDeltaWire{
-		Response: *response.Clone(),
+		ResponseDelta: *delta.Clone(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("interaction: encode model response Delta: %w", err)
@@ -57,12 +57,12 @@ func (d *Dispatcher) callModel(
 	request *chat.Request,
 	emit agent.DeltaEmitter,
 ) (*chat.Response, error) {
-	if !d.stream {
+	if d.streamer == nil {
 		return d.client.Call(ctx, request)
 	}
 	var accumulator chat.ResponseAccumulator
 	seen := false
-	for delta, err := range d.client.Stream(ctx, request) {
+	for delta, err := range d.streamer.Stream(ctx, request) {
 		if err != nil {
 			return nil, err
 		}
@@ -84,5 +84,9 @@ func (d *Dispatcher) callModel(
 	if !seen {
 		return nil, errors.New("model stream ended without a response Delta")
 	}
-	return accumulator.Response(), nil
+	response, err := accumulator.Response()
+	if err != nil {
+		return nil, fmt.Errorf("complete model stream: %w", err)
+	}
+	return response, nil
 }

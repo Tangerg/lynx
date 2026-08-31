@@ -94,39 +94,40 @@ func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Respo
 	return c.protocol.Call(ctx, req)
 }
 
-func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
+func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.ResponseDelta, error] {
 	if c == nil || c.protocol == nil {
-		return func(yield func(*corechat.Response, error) bool) { yield(nil, errors.New("google: nil Chat")) }
+		return func(yield func(*corechat.ResponseDelta, error) bool) { yield(nil, errors.New("google: nil Chat")) }
 	}
 	return c.protocol.Stream(ctx, req)
 }
 
-type OpenAIChatConfig struct {
+type ChatCompletionsConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
 
-func (o OpenAIChatConfig) Validate() error {
-	if o.APIKey == "" {
+func (c ChatCompletionsConfig) Validate() error {
+	if c.APIKey == "" {
 		return errors.New("google: APIKey is required")
 	}
-	if err := o.DefaultOptions.Validate(); err != nil {
+	if err := c.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("google: DefaultOptions: %w", err)
 	}
 	return nil
 }
 
-// OpenAIChat is Google's OpenAI-compatible protocol model.
-type OpenAIChat = openaiprotocol.Chat
+// ChatCompletions is Google's OpenAI-compatible protocol model. It is a distinct
+// endpoint from the native Gemini protocol exposed by Chat.
+type ChatCompletions = openaiprotocol.ChatCompletions
 
-func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
+func NewChatCompletions(config ChatCompletionsConfig) (*ChatCompletions, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	return openaiprotocol.NewCompatibleChat(
-		openaiprotocol.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLOpenAI), HTTPClient: config.HTTPClient},
+	return openaiprotocol.NewCompatibleChatCompletions(
+		openaiprotocol.ChatCompletionsConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLOpenAI), HTTPClient: config.HTTPClient},
 		openaiprotocol.Dialect{Provider: protocolProvider, TokenLimitField: openaiprotocol.TokenLimitMaxTokens},
 	)
 }

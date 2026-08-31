@@ -6,6 +6,8 @@ import (
 )
 
 var (
+	ErrNilExecutor  = errors.New("fs: executor must not be nil")
+	ErrInvalidRoot  = errors.New("fs: executor root is invalid")
 	ErrEmptyPath    = errors.New("fs: path must not be empty")
 	ErrInvalidInput = errors.New("fs: operation input is invalid")
 

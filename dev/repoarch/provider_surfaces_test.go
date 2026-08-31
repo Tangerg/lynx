@@ -13,13 +13,35 @@ import (
 )
 
 var retiredProviderSymbols = map[string]struct{}{
-	"API":          {},
-	"APIConfig":    {},
-	"FetchNative":  {},
-	"NewAPI":       {},
-	"Request":      {},
-	"Response":     {},
-	"SearchNative": {},
+	"API":                 {},
+	"APIConfig":           {},
+	"AnthropicChat":       {},
+	"AnthropicChatConfig": {},
+	"FetchNative":         {},
+	"NewAPI":              {},
+	"NewAnthropicChat":    {},
+	"NewOpenAIChat":       {},
+	"NewResponsesChat":    {},
+	"OpenAIChat":          {},
+	"OpenAIChatConfig":    {},
+	"Request":             {},
+	"Response":            {},
+	"ResponsesChat":       {},
+	"SearchNative":        {},
+}
+
+var retiredProtocolChatSymbols = map[string]struct{}{
+	"Chat":              {},
+	"ChatConfig":        {},
+	"NewChat":           {},
+	"NewCompatibleChat": {},
+}
+
+var coreOwnedChatOptionSymbols = map[string]struct{}{
+	"ParallelToolCalls": {},
+	"ToolChoice":        {},
+	"ToolChoiceMode":    {},
+	"ToolParallelism":   {},
 }
 
 // TestSharedProtocolsArePromotedWithoutDelegatingWrappers keeps exact wire
@@ -134,8 +156,69 @@ func TestModelProvidersOwnTheirPublicSurface(t *testing.T) {
 
 	// Reusable wire protocols are public infrastructure rather than provider
 	// facades, but their semantic APIs must still hide SDK-owned types.
-	assertOwnedPublicSurface(t, filepath.Join(root, "protocol", "anthropic"), nil)
-	assertOwnedPublicSurface(t, filepath.Join(root, "protocol", "openai"), nil)
+	assertOwnedPublicSurface(t, filepath.Join(root, "protocol", "anthropic"), retiredProtocolChatSymbols)
+	assertOwnedPublicSurface(t, filepath.Join(root, "protocol", "openai"), retiredProtocolChatSymbols)
+}
+
+// TestModelProvidersDoNotDuplicateCoreChatOptions keeps portable request
+// semantics at their owning layer. Provider-private wire values may mirror an
+// external schema, but provider public APIs must not make callers choose
+// between Core options and a synonymous provider option.
+func TestModelProvidersDoNotDuplicateCoreChatOptions(t *testing.T) {
+	t.Parallel()
+
+	root := filepath.Join(repositoryRoot(t), "models")
+	entries, err := os.ReadDir(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var dirs []string
+	for _, entry := range entries {
+		if !entry.IsDir() || entry.Name() == "catalog" || entry.Name() == "internal" || entry.Name() == "protocol" {
+			continue
+		}
+		dirs = append(dirs, filepath.Join(root, entry.Name()))
+	}
+	dirs = append(dirs,
+		filepath.Join(root, "protocol", "anthropic"),
+		filepath.Join(root, "protocol", "openai"),
+	)
+
+	for _, dir := range dirs {
+		assertNoCoreOwnedChatOptions(t, dir)
+	}
+}
+
+func assertNoCoreOwnedChatOptions(t *testing.T, dir string) {
+	t.Helper()
+	for _, file := range parseImmediateProductionFiles(t, dir) {
+		for _, declaration := range file.Decls {
+			general, ok := declaration.(*ast.GenDecl)
+			if !ok || general.Tok != token.TYPE {
+				continue
+			}
+			for _, specification := range general.Specs {
+				typeSpec := specification.(*ast.TypeSpec)
+				if !typeSpec.Name.IsExported() {
+					continue
+				}
+				if _, duplicate := coreOwnedChatOptionSymbols[typeSpec.Name.Name]; duplicate {
+					t.Errorf("%s exports Core-owned chat option %s", filepath.ToSlash(dir), typeSpec.Name.Name)
+				}
+				structure, ok := typeSpec.Type.(*ast.StructType)
+				if !ok {
+					continue
+				}
+				for _, field := range structure.Fields.List {
+					for _, name := range field.Names {
+						if _, duplicate := coreOwnedChatOptionSymbols[name.Name]; duplicate {
+							t.Errorf("%s exported %s duplicates a Core-owned chat option", filepath.ToSlash(dir), name.Name)
+						}
+					}
+				}
+			}
+		}
+	}
 }
 
 // TestWebProvidersExposeOnlyNormalizedTransport locks each provider package to

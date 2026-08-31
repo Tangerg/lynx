@@ -3,6 +3,8 @@ package qdrant
 import (
 	"math"
 	"testing"
+
+	qdrantclient "github.com/qdrant/go-client/qdrant"
 )
 
 func TestScoreNormalization(t *testing.T) {
@@ -53,5 +55,30 @@ func TestZeroScoreOmitsProviderThreshold(t *testing.T) {
 
 	if _, ok := DistanceCosine.rawScoreThreshold(0); ok {
 		t.Fatal("rawScoreThreshold(0) ok = true, want false")
+	}
+}
+
+func TestDistanceMetricIdentityAndProviderMapping(t *testing.T) {
+	tests := map[DistanceMetric]qdrantclient.Distance{
+		DistanceCosine:    qdrantclient.Distance_Cosine,
+		DistanceDot:       qdrantclient.Distance_Dot,
+		DistanceEuclid:    qdrantclient.Distance_Euclid,
+		DistanceManhattan: qdrantclient.Distance_Manhattan,
+	}
+	for metric, want := range tests {
+		if !metric.Valid() || metric.String() == "" {
+			t.Fatalf("metric %q is not self-describing", metric)
+		}
+		got, err := metric.qdrant()
+		if err != nil || got != want {
+			t.Fatalf("%s qdrant() = %v, %v, want %v", metric, got, err, want)
+		}
+	}
+	invalid := DistanceMetric("invalid")
+	if invalid.Valid() {
+		t.Fatal("Valid accepted an unknown metric")
+	}
+	if _, err := invalid.qdrant(); err == nil {
+		t.Fatal("qdrant accepted an unknown metric")
 	}
 }

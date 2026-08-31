@@ -22,9 +22,8 @@
 //	r, err = rag.WithRefiners(r, top)
 //	docs, err := rag.Retrieve(ctx, r, q)
 //
-// Optional stages use identity implementations: [IdentityTransformer],
-// [IdentityExpander], [NopRetriever], [IdentityRefiner], and
-// [IdentityAugmenter].
+// [IdentityAugmenter] preserves the query when contextual augmentation is
+// deliberately empty. Other optional stages are omitted from composition.
 //
 // # Parallel retriever fan-out
 //

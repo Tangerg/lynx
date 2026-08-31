@@ -31,10 +31,10 @@ type Options struct {
 	Model            string              `json:"model,omitempty"`
 	OutputFormat     *OutputFormat       `json:"output_format,omitempty"`
 	FrequencyPenalty *float64            `json:"frequency_penalty,omitempty"`
-	MaxTokens        *int64              `json:"max_tokens,omitempty"`
+	MaxOutputTokens  *int64              `json:"max_output_tokens,omitempty"`
 	PresencePenalty  *float64            `json:"presence_penalty,omitempty"`
 	ReasoningEffort  ReasoningEffort     `json:"reasoning_effort,omitempty"`
-	Stop             []string            `json:"stop,omitempty"`
+	Stop             []string            `json:"stop,omitzero"`
 	Temperature      *float64            `json:"temperature,omitempty"`
 	TopK             *int64              `json:"top_k,omitempty"`
 	TopP             *float64            `json:"top_p,omitempty"`
@@ -46,7 +46,7 @@ func (o Options) Clone() Options {
 		Model:            o.Model,
 		OutputFormat:     o.OutputFormat.Clone(),
 		FrequencyPenalty: ptr.Clone(o.FrequencyPenalty),
-		MaxTokens:        ptr.Clone(o.MaxTokens),
+		MaxOutputTokens:  ptr.Clone(o.MaxOutputTokens),
 		PresencePenalty:  ptr.Clone(o.PresencePenalty),
 		ReasoningEffort:  o.ReasoningEffort,
 		Stop:             slices.Clone(o.Stop),
@@ -78,8 +78,8 @@ func (o *Options) applyOverride(override Options) error {
 	if override.FrequencyPenalty != nil {
 		o.FrequencyPenalty = ptr.Clone(override.FrequencyPenalty)
 	}
-	if override.MaxTokens != nil {
-		o.MaxTokens = ptr.Clone(override.MaxTokens)
+	if override.MaxOutputTokens != nil {
+		o.MaxOutputTokens = ptr.Clone(override.MaxOutputTokens)
 	}
 	if override.PresencePenalty != nil {
 		o.PresencePenalty = ptr.Clone(override.PresencePenalty)
@@ -119,8 +119,8 @@ func (o Options) Validate() error {
 	if err := validateFloat("frequency_penalty", o.FrequencyPenalty, minimumPenalty, maximumPenalty); err != nil {
 		return err
 	}
-	if o.MaxTokens != nil && *o.MaxTokens <= 0 {
-		return fmt.Errorf("%w: max_tokens must be greater than zero", ErrInvalidOptions)
+	if o.MaxOutputTokens != nil && *o.MaxOutputTokens <= 0 {
+		return fmt.Errorf("%w: max_output_tokens must be greater than zero", ErrInvalidOptions)
 	}
 	if err := validateFloat("presence_penalty", o.PresencePenalty, minimumPenalty, maximumPenalty); err != nil {
 		return err

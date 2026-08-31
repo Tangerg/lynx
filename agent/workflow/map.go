@@ -29,14 +29,14 @@ type MapConfig[I, O any] struct {
 	// execution window before the next window begins.
 	WindowSize uint32
 
-	// ItemLimit is the positive maximum accepted input length.
-	ItemLimit uint32
+	// MaxItems is the positive maximum accepted input length.
+	MaxItems uint32
 }
 
 type mapStage struct {
 	binding          childBinding
 	windowSize       uint32
-	itemLimit        uint32
+	maxItems         uint32
 	itemInputSchema  agent.Schema
 	itemOutputSchema agent.Schema
 	count            func(json.RawMessage) (uint32, error)
@@ -45,8 +45,8 @@ type mapStage struct {
 }
 
 func (m mapStage) valid() bool {
-	return m.binding.valid() && m.windowSize > 0 && m.itemLimit > 0 &&
-		m.windowSize <= m.itemLimit && m.itemInputSchema.Valid() &&
+	return m.binding.valid() && m.windowSize > 0 && m.maxItems > 0 &&
+		m.windowSize <= m.maxItems && m.itemInputSchema.Valid() &&
 		m.itemOutputSchema.Valid() &&
 		m.count != nil && m.windowInputs != nil && m.collect != nil
 }
@@ -56,7 +56,7 @@ func (m mapStage) valid() bool {
 func Map[I, O any](config MapConfig[I, O]) (Stage, error) {
 	if !validStageID(config.ID) || !config.Deployment.Valid() ||
 		!config.Budget.Valid() || !config.Capabilities.Valid() ||
-		config.WindowSize == 0 || config.ItemLimit == 0 || config.WindowSize > config.ItemLimit {
+		config.WindowSize == 0 || config.MaxItems == 0 || config.WindowSize > config.MaxItems {
 		return Stage{}, ErrInvalidStage
 	}
 	schemas, err := mapSchemasFor[I, O](config.ID)
@@ -68,7 +68,7 @@ func Map[I, O any](config MapConfig[I, O]) (Stage, error) {
 		!schemasEqual(schemas.itemOutput, descriptor.OutputSchema()) {
 		return Stage{}, fmt.Errorf("%w: Map %q child schema mismatch", ErrInvalidStage, config.ID)
 	}
-	codec := mapValueCodec{id: config.ID, itemLimit: config.ItemLimit, schemas: schemas}
+	codec := mapValueCodec{id: config.ID, maxItems: config.MaxItems, schemas: schemas}
 	decodeValues := func(raw json.RawMessage) ([]I, error) {
 		return codec.decode[I](raw)
 	}
@@ -97,7 +97,7 @@ func Map[I, O any](config MapConfig[I, O]) (Stage, error) {
 				deploymentRef: config.Deployment.DeploymentRef(), budget: config.Budget,
 				capabilities: config.Capabilities,
 			},
-			windowSize: config.WindowSize, itemLimit: config.ItemLimit,
+			windowSize: config.WindowSize, maxItems: config.MaxItems,
 			itemInputSchema: schemas.itemInput, itemOutputSchema: schemas.itemOutput, count: count,
 			windowInputs: windowInputs, collect: collect,
 		},
@@ -132,9 +132,9 @@ func mapSchemasFor[I, O any](id string) (mapSchemas, error) {
 }
 
 type mapValueCodec struct {
-	id        string
-	itemLimit uint32
-	schemas   mapSchemas
+	id       string
+	maxItems uint32
+	schemas  mapSchemas
 }
 
 func (m mapValueCodec) decode[I any](raw json.RawMessage) ([]I, error) {
@@ -149,8 +149,8 @@ func (m mapValueCodec) decode[I any](raw json.RawMessage) ([]I, error) {
 	if err != nil {
 		return nil, err
 	}
-	if uint64(len(values)) > uint64(m.itemLimit) || uint64(len(values)) > math.MaxUint32 {
-		return nil, mapItemLimitExceededError{count: uint64(len(values)), limit: m.itemLimit}
+	if uint64(len(values)) > uint64(m.maxItems) || uint64(len(values)) > math.MaxUint32 {
+		return nil, mapMaxItemsExceededError{count: uint64(len(values)), maximum: m.maxItems}
 	}
 	return values, nil
 }
@@ -195,11 +195,11 @@ func (m mapValueCodec) collect[O any](raw []json.RawMessage) (json.RawMessage, e
 	return erased.JSON(), nil
 }
 
-type mapItemLimitExceededError struct {
-	count uint64
-	limit uint32
+type mapMaxItemsExceededError struct {
+	count   uint64
+	maximum uint32
 }
 
-func (m mapItemLimitExceededError) Error() string {
-	return fmt.Sprintf("Map input contains %d items, exceeding limit %d", m.count, m.limit)
+func (m mapMaxItemsExceededError) Error() string {
+	return fmt.Sprintf("Map input contains %d items, exceeding maximum %d", m.count, m.maximum)
 }

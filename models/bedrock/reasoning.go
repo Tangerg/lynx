@@ -62,3 +62,10 @@ func setReasoningKind(part *corechat.Part, kind string) error {
 	}
 	return nil
 }
+
+func setReasoningDeltaKind(part *corechat.PartDelta, kind string) error {
+	if err := part.Metadata.Set(chatReasoningKindKey, kind); err != nil {
+		return fmt.Errorf("bedrock: preserve reasoning delta kind: %w", err)
+	}
+	return nil
+}

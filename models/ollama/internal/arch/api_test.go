@@ -15,8 +15,7 @@ type configValidator interface {
 func TestChatConstructorsCompile(t *testing.T) {
 	t.Parallel()
 	var (
-		_ func(ollama.ChatConfig) (*ollama.Chat, error)             = ollama.NewChat
-		_ func(ollama.OpenAIChatConfig) (*ollama.OpenAIChat, error) = ollama.NewOpenAIChat
+		_ func(ollama.ChatConfig) (*ollama.Chat, error) = ollama.NewChat
 	)
 }
 
@@ -24,7 +23,6 @@ func TestChatConfigsValidate(t *testing.T) {
 	t.Parallel()
 	var (
 		_ configValidator = ollama.ChatConfig{}
-		_ configValidator = ollama.OpenAIChatConfig{}
 	)
 }
 

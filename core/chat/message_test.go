@@ -76,7 +76,7 @@ func TestMessageValidateRolePartMatrix(t *testing.T) {
 			chat.NewReasoningPart("thinking", []byte("signature")),
 			chat.NewTextPart("answer"),
 			chat.NewToolCallPart(validToolCall()),
-			chat.NewToolCallDeltaPart(chat.ToolCallDelta{ID: "stream-call", Name: "weather", Arguments: "{"}),
+			chat.NewRefusalPart("cannot continue"),
 			chat.NewMediaPart(image),
 		),
 		chat.NewToolMessage(validToolResult()),

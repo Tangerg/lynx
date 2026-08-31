@@ -225,8 +225,8 @@ func TestCallCannotEscalateBudgetOrCapabilities(t *testing.T) {
 	), "guarded-child")
 	capability, _ := agent.ParseCapability("test.guarded")
 	capabilities, _ := agent.NewCapabilitySet(capability)
-	largeBudget, _ := agent.NewBudget(64, 64, 64)
-	smallBudget, _ := agent.NewBudget(2, 2, 2)
+	largeBudget, _ := agent.NewBudget(agent.BudgetConfig{Steps: 64, Effects: 64, Signals: 64})
+	smallBudget, _ := agent.NewBudget(agent.BudgetConfig{Steps: 2, Effects: 2, Signals: 2})
 	for _, test := range []struct {
 		name         string
 		budget       agent.Budget

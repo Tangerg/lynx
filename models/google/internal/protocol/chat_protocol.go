@@ -68,28 +68,46 @@ func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Respo
 
 // Stream performs one streaming GenerateContent request. Candidate and logical
 // part offsets are retained only for the lifetime of this stream.
-func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	return func(yield func(*corechat.Response, error) bool) {
+func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.ResponseDelta, error] {
+	return func(yield func(*corechat.ResponseDelta, error) bool) {
 		modelName, contents, config, err := c.buildProtocolRequest(req)
 		if err != nil {
 			yield(nil, err)
 			return
 		}
 		mapper := newProtocolResponseMapper(c.provider)
+		var terminal *corechat.ResponseDelta
 		for response, streamErr := range c.api.chatCompletionStream(ctx, modelName, contents, config) {
 			if streamErr != nil {
 				yield(nil, streamErr)
 				return
 			}
-			mapped, mapErr := mapper.mapResponse(modelName, response)
+			mapped, mapErr := mapper.mapDelta(modelName, response)
 			if mapErr != nil {
 				yield(nil, mapErr)
 				return
+			}
+			if terminal != nil {
+				if !yield(terminal, nil) {
+					return
+				}
+				terminal = mapped
+				continue
+			}
+			if mapper.finished() {
+				terminal = mapped
+				continue
 			}
 			if !yield(mapped, nil) {
 				return
 			}
 		}
+		terminal, err = mapper.complete(terminal)
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		yield(terminal, nil)
 	}
 }
 

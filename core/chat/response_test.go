@@ -17,11 +17,11 @@ func assistantResult(text string) *chat.Output {
 
 func TestFinishReason(t *testing.T) {
 	for _, reason := range []chat.FinishReason{
-		"",
 		chat.FinishReasonStop,
 		chat.FinishReasonLength,
 		chat.FinishReasonToolCalls,
 		chat.FinishReasonContentFilter,
+		chat.FinishReasonRefusal,
 		chat.FinishReasonOther,
 	} {
 		if !reason.Valid() {
@@ -30,6 +30,9 @@ func TestFinishReason(t *testing.T) {
 		if reason.String() != string(reason) {
 			t.Errorf("String(%q) = %q", reason, reason.String())
 		}
+	}
+	if chat.FinishReason("").Valid() {
+		t.Fatal("empty finish reason must be invalid")
 	}
 	if chat.FinishReason("provider-native").Valid() {
 		t.Fatal("provider-native reason must map to Other plus output metadata")
@@ -52,11 +55,10 @@ func TestMessageText(t *testing.T) {
 }
 
 func TestResultValidate(t *testing.T) {
-	metadataOnly := &chat.OutputMetadata{}
 	valid := []*chat.Output{
 		assistantResult("hello"),
 		{FinishReason: chat.FinishReasonStop},
-		{Metadata: metadataOnly},
+		{FinishReason: chat.FinishReasonStop, Metadata: &chat.OutputMetadata{}},
 	}
 	for i := range valid {
 		if err := valid[i].Validate(); err != nil {
@@ -75,10 +77,10 @@ func TestResultValidateRejectsInvalidValues(t *testing.T) {
 	}{
 		{name: "nil", output: nil},
 		{name: "empty", output: &chat.Output{}},
-		{name: "invalid message", output: &chat.Output{Message: &invalidMessage}, also: chat.ErrInvalidMessage},
-		{name: "user message", output: &chat.Output{Message: &user}},
+		{name: "invalid message", output: &chat.Output{Message: &invalidMessage, FinishReason: chat.FinishReasonStop}, also: chat.ErrInvalidMessage},
+		{name: "user message", output: &chat.Output{Message: &user, FinishReason: chat.FinishReasonStop}},
 		{name: "unknown finish", output: &chat.Output{FinishReason: "future"}},
-		{name: "invalid metadata", output: &chat.Output{Metadata: &chat.OutputMetadata{Extra: metadata.Map{"bad": json.RawMessage(`{`)}}}},
+		{name: "invalid metadata", output: &chat.Output{FinishReason: chat.FinishReasonStop, Metadata: &chat.OutputMetadata{Extra: metadata.Map{"bad": json.RawMessage(`{`)}}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -117,6 +119,20 @@ func TestResultHelpersAndJSON(t *testing.T) {
 	var nilResult *chat.Output
 	if nilResult.Text() != "" {
 		t.Fatal("nil Output.Text must be empty")
+	}
+}
+
+func TestNewOutputEstablishesCompleteOutput(t *testing.T) {
+	message := chat.NewAssistantMessage(chat.NewTextPart("answer"))
+	output, err := chat.NewOutput(&message, chat.FinishReasonStop, &chat.OutputMetadata{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if output.Text() != "answer" || output.FinishReason != chat.FinishReasonStop {
+		t.Fatalf("output = %#v", output)
+	}
+	if _, err := chat.NewOutput(&message, "future", nil); !errors.Is(err, chat.ErrInvalidResponse) {
+		t.Fatalf("invalid finish reason error = %v", err)
 	}
 }
 
@@ -170,9 +186,8 @@ func TestResponseZeroAndNilHelpers(t *testing.T) {
 	if response.Output != nil || response.Text() != "" {
 		t.Fatal("empty response helpers must be nil/empty")
 	}
-	encoded, err := json.Marshal(response)
-	if err != nil || string(encoded) != `{}` {
-		t.Fatalf("zero Response JSON = %s, %v", encoded, err)
+	if _, err := json.Marshal(response); !errors.Is(err, chat.ErrInvalidResponse) {
+		t.Fatalf("zero Response marshal error = %v, want ErrInvalidResponse", err)
 	}
 	var nilResponse *chat.Response
 	if nilResponse.Text() != "" {
@@ -188,11 +203,12 @@ func TestResponseValidateRejectsInvalidValues(t *testing.T) {
 		also     error
 	}{
 		{name: "nil", response: nil},
-		{name: "ID whitespace", response: &chat.Response{Metadata: &chat.ResponseMetadata{ID: " id"}}},
-		{name: "model whitespace", response: &chat.Response{Metadata: &chat.ResponseMetadata{Model: "model "}}},
+		{name: "missing output", response: &chat.Response{}},
+		{name: "ID whitespace", response: &chat.Response{Output: assistantResult("x"), Metadata: &chat.ResponseMetadata{ID: " id"}}},
+		{name: "model whitespace", response: &chat.Response{Output: assistantResult("x"), Metadata: &chat.ResponseMetadata{Model: "model "}}},
 		{name: "invalid output", response: &chat.Response{Output: &chat.Output{}}},
-		{name: "invalid usage", response: &chat.Response{Metadata: &chat.ResponseMetadata{Usage: invalidUsage}}, also: chat.ErrInvalidUsage},
-		{name: "invalid metadata", response: &chat.Response{Metadata: &chat.ResponseMetadata{Extra: metadata.Map{"bad": json.RawMessage(`{`)}}}},
+		{name: "invalid usage", response: &chat.Response{Output: assistantResult("x"), Metadata: &chat.ResponseMetadata{Usage: invalidUsage}}, also: chat.ErrInvalidUsage},
+		{name: "invalid metadata", response: &chat.Response{Output: assistantResult("x"), Metadata: &chat.ResponseMetadata{Extra: metadata.Map{"bad": json.RawMessage(`{`)}}}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -235,7 +251,7 @@ func TestResponseJSONRoundTrip(t *testing.T) {
 }
 
 func TestResponseUnmarshalIsAtomic(t *testing.T) {
-	response := &chat.Response{Metadata: &chat.ResponseMetadata{ID: "keep"}}
+	response := &chat.Response{Output: assistantResult("keep"), Metadata: &chat.ResponseMetadata{ID: "keep"}}
 	if err := json.Unmarshal([]byte(`{"output":{}}`), response); !errors.Is(err, chat.ErrInvalidResponse) {
 		t.Fatalf("Unmarshal error = %v", err)
 	}

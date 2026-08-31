@@ -6,6 +6,7 @@ import (
 	"math"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/scope/core/metadata"
 )
@@ -121,8 +122,8 @@ type ResponseMetadata struct {
 	// report usage.
 	Usage *Usage `json:"usage,omitempty"`
 
-	// Created is the provider-reported creation time, Unix seconds.
-	Created int64 `json:"created"`
+	// CreatedAt is the provider-reported creation timestamp.
+	CreatedAt time.Time `json:"created_at,omitzero"`
 
 	// Extra carries JSON-safe provider-specific metadata.
 	Extra metadata.Map `json:"extra,omitzero"`
@@ -139,9 +140,6 @@ func (r *ResponseMetadata) validate() error {
 		if err := r.Usage.validate(); err != nil {
 			return err
 		}
-	}
-	if r.Created < 0 {
-		return fmt.Errorf("%w: created must not be negative", ErrInvalidResponse)
 	}
 	if err := r.Extra.Validate(); err != nil {
 		return fmt.Errorf("%w: response metadata: %w", ErrInvalidResponse, err)

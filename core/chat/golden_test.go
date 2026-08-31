@@ -38,7 +38,7 @@ func TestRequestGolden(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	request.Options = chat.Options{Model: "provider-model", OutputFormat: &format, Temperature: new(0.2), MaxTokens: new(int64(256))}
+	request.Options = chat.Options{Model: "provider-model", OutputFormat: &format, Temperature: new(0.2), MaxOutputTokens: new(int64(256))}
 	assertChatGolden(t, "request.golden.json", request)
 }
 

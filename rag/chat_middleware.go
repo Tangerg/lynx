@@ -109,30 +109,28 @@ func (p preparedChatRequest) history() []chat.Message {
 	return history
 }
 
-func (p preparedChatRequest) attachRetrievalMetadata(response *chat.Response) error {
-	if response.Metadata == nil {
-		response.Metadata = &chat.ResponseMetadata{}
+func (p preparedChatRequest) attachRetrievalMetadata(target **chat.ResponseMetadata) error {
+	if *target == nil {
+		*target = &chat.ResponseMetadata{}
 	}
-	if err := response.Metadata.Extra.Set(retrievedCandidatesMetadataKey, p.candidates); err != nil {
+	metadata := *target
+	if err := metadata.Extra.Set(retrievedCandidatesMetadataKey, p.candidates); err != nil {
 		return err
 	}
 	if len(p.citations) == 0 {
-		delete(response.Metadata.Extra, citationsMetadataKey)
+		delete(metadata.Extra, citationsMetadataKey)
 		return nil
 	}
-	return response.Metadata.Extra.Set(citationsMetadataKey, p.citations)
+	return metadata.Extra.Set(citationsMetadataKey, p.citations)
 }
 
-// CandidatesFromResponse returns the candidates attached to response by
-// [NewMiddleware]. The boolean reports whether retrieval metadata was present.
-func CandidatesFromResponse(response *chat.Response) (Candidates, bool, error) {
-	if response == nil {
-		return nil, false, ErrNilChatResponse
-	}
-	if response.Metadata == nil {
+// CandidatesFromMetadata returns the candidates attached by [NewMiddleware].
+// Complete responses and stream deltas share this metadata vocabulary.
+func CandidatesFromMetadata(metadata *chat.ResponseMetadata) (Candidates, bool, error) {
+	if metadata == nil {
 		return nil, false, nil
 	}
-	candidates, found, err := response.Metadata.Extra.Decode[Candidates](retrievedCandidatesMetadataKey)
+	candidates, found, err := metadata.Extra.Decode[Candidates](retrievedCandidatesMetadataKey)
 	if err != nil {
 		return nil, found, fmt.Errorf("rag: decode retrieved candidates: %w", err)
 	}
@@ -144,17 +142,14 @@ func CandidatesFromResponse(response *chat.Response) (Candidates, bool, error) {
 	return candidates, found, nil
 }
 
-// CitationsFromResponse returns the ordered citation mapping produced by the
+// CitationsFromMetadata returns the ordered citation mapping produced by the
 // configured augmenter. The boolean reports whether citation metadata was
 // present.
-func CitationsFromResponse(response *chat.Response) (Citations, bool, error) {
-	if response == nil {
-		return nil, false, ErrNilChatResponse
-	}
-	if response.Metadata == nil {
+func CitationsFromMetadata(metadata *chat.ResponseMetadata) (Citations, bool, error) {
+	if metadata == nil {
 		return nil, false, nil
 	}
-	citations, found, err := response.Metadata.Extra.Decode[Citations](citationsMetadataKey)
+	citations, found, err := metadata.Extra.Decode[Citations](citationsMetadataKey)
 	if err != nil {
 		return nil, found, fmt.Errorf("rag: decode citations: %w", err)
 	}
@@ -219,14 +214,14 @@ func (m *Middleware) call(ctx context.Context, request *chat.Request, next chat.
 		}
 		return nil, ErrNilChatResponse
 	}
-	if extensionErr := prepared.attachRetrievalMetadata(response); extensionErr != nil {
+	if extensionErr := prepared.attachRetrievalMetadata(&response.Metadata); extensionErr != nil {
 		return response, errors.Join(err, extensionErr)
 	}
 	return response, err
 }
 
-func (m *Middleware) stream(ctx context.Context, request *chat.Request, next chat.Streamer) iter.Seq2[*chat.Response, error] {
-	return func(yield func(*chat.Response, error) bool) {
+func (m *Middleware) stream(ctx context.Context, request *chat.Request, next chat.Streamer) iter.Seq2[*chat.ResponseDelta, error] {
+	return func(yield func(*chat.ResponseDelta, error) bool) {
 		prepared, err := m.prepare(ctx, request)
 		if err != nil {
 			yield(nil, err)
@@ -238,8 +233,8 @@ func (m *Middleware) stream(ctx context.Context, request *chat.Request, next cha
 			yield(nil, ErrNilChatStreamSequence)
 			return
 		}
-		for response, streamErr := range sequence {
-			if response == nil {
+		for delta, streamErr := range sequence {
+			if delta == nil {
 				if streamErr != nil {
 					yield(nil, streamErr)
 					return
@@ -247,15 +242,15 @@ func (m *Middleware) stream(ctx context.Context, request *chat.Request, next cha
 				yield(nil, ErrNilChatResponse)
 				return
 			}
-			if extensionErr := prepared.attachRetrievalMetadata(response); extensionErr != nil {
-				yield(response, errors.Join(streamErr, extensionErr))
+			if extensionErr := prepared.attachRetrievalMetadata(&delta.Metadata); extensionErr != nil {
+				yield(delta, errors.Join(streamErr, extensionErr))
 				return
 			}
 			if streamErr != nil {
-				yield(response, streamErr)
+				yield(delta, streamErr)
 				return
 			}
-			if !yield(response, nil) {
+			if !yield(delta, nil) {
 				return
 			}
 		}
@@ -275,7 +270,7 @@ func (m *Middleware) Stream(next chat.Streamer) chat.Streamer {
 	if lo.IsNil(next) {
 		return nil
 	}
-	return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+	return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
 		return m.stream(ctx, request, next)
 	})
 }

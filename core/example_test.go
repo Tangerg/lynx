@@ -22,12 +22,10 @@ func (echoModel) Call(_ context.Context, request *chat.Request) (*chat.Response,
 }
 
 // Example shows the ordinary path through the module: build a protocol request,
-// wrap a provider model in a client that owns the defaults, and read the
+// wrap a provider model in a client, and read the
 // response through the protocol value rather than a provider type.
 func Example() {
-	client, err := chatclient.New(echoModel{}, chatclient.Config{
-		Defaults: chat.Options{Model: "example-model"},
-	})
+	client, err := chatclient.New(echoModel{}, chatclient.Config{})
 	if err != nil {
 		panic(err)
 	}
@@ -36,6 +34,7 @@ func Example() {
 		Messages: []chat.Message{
 			chat.NewUserMessage(chat.NewTextPart("hello")),
 		},
+		Options: chat.Options{Model: "example-model"},
 	}
 	response, err := client.Call(context.Background(), request)
 	if err != nil {

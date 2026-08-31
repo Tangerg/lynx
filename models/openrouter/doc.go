@@ -1,22 +1,4 @@
-// Package openrouter wraps OpenRouter — a unified gateway that routes
-// to 100+ LLMs across 50+ providers through a single OpenAI-compatible
-// API.
-//
-// Model ids use a "provider/model-name" format. [ModelAuto] delegates model
-// choice to OpenRouter's task-aware router. Suffixes like ":free", ":nitro",
-// and ":floor" select cost or latency variants.
-//
-// OpenRouter-specific features the openai facade plumbs through
-// transparently:
-//
-//   - models array for automatic fallback across alternatives (encode an
-//     OpenAI ChatCompletionNewParams value in the namespaced request extension);
-//   - provider preference routing (provider field in extra body);
-//   - transforms (middle-out compression).
-//
-// This facade adds typed knobs for the two app-attribution headers
-// OpenRouter asks integrations to set (HTTP-Referer and X-Title) so
-// the calling app shows up on the OpenRouter leaderboard.
-//
-// See https://openrouter.ai/docs for the full docs.
+// Package openrouter exposes OpenRouter chat adapters. [NewChat] targets its
+// OpenAI-compatible endpoint; [NewMessages] targets its
+// Anthropic-compatible endpoint.
 package openrouter

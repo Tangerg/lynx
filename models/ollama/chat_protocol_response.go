@@ -2,10 +2,11 @@ package ollama
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"time"
 
 	corechat "github.com/Tangerg/scope/core/chat"
+	"github.com/Tangerg/scope/core/media"
 )
 
 const (
@@ -14,7 +15,6 @@ const (
 	// output that Core does not normalize.
 	ResponseExtensionKey        = "ollama/response"
 	protocolNativeDoneReasonKey = "ollama/native_done_reason"
-	protocolCreatedAtKey        = "ollama/created_at"
 	protocolDurationsKey        = "ollama/durations_ns"
 	protocolMetricsKey          = "ollama/metrics"
 )
@@ -26,34 +26,83 @@ func newProtocolResponseMapper() *protocolResponseMapper {
 }
 
 func (p *protocolResponseMapper) mapResponse(requestModel string, response nativeChatResponse) (*corechat.Response, error) {
+	if !response.Done {
+		return nil, errors.New("ollama: non-streaming chat returned a nonterminal response")
+	}
+	metadata, err := mapProtocolResponseMetadata(requestModel, response)
+	if err != nil {
+		return nil, err
+	}
+	output, err := p.mapOutput(response)
+	if err != nil {
+		return nil, err
+	}
+	mapped := &corechat.Response{Output: output, Metadata: metadata}
+	if err := mapped.Validate(); err != nil {
+		return nil, fmt.Errorf("ollama: mapped response: %w", err)
+	}
+	return mapped, nil
+}
+
+func (p *protocolResponseMapper) mapDelta(requestModel string, response nativeChatResponse) (*corechat.ResponseDelta, error) {
+	metadata, err := mapProtocolResponseMetadata(requestModel, response)
+	if err != nil {
+		return nil, err
+	}
+	mapped := &corechat.ResponseDelta{Metadata: metadata}
+	parts, err := p.mapParts(response.Message)
+	if err != nil {
+		return nil, err
+	}
+	for index := range parts {
+		part := parts[index]
+		switch part.Kind {
+		case corechat.PartText:
+			mapped.Parts = append(mapped.Parts, corechat.NewTextDelta(part.Text))
+		case corechat.PartMedia:
+			mapped.Parts = append(mapped.Parts, corechat.NewMediaDelta(part.Media))
+		case corechat.PartReasoning:
+			mapped.Parts = append(mapped.Parts, corechat.NewReasoningDelta(part.Text, part.ReasoningState))
+		case corechat.PartToolCall:
+			mapped.Parts = append(mapped.Parts, corechat.NewToolCallDelta(corechat.ToolCallDelta{
+				ID: part.ToolCall.ID, Name: part.ToolCall.Name, Arguments: part.ToolCall.Arguments,
+			}))
+		default:
+			return nil, fmt.Errorf("ollama: unsupported stream part %q", part.Kind)
+		}
+	}
+	if response.Done {
+		mapped.FinishReason = normalizeProtocolDoneReason(response.DoneReason)
+		if response.DoneReason != "" {
+			mapped.OutputMetadata = &corechat.OutputMetadata{}
+			if err := mapped.OutputMetadata.Extra.Set(protocolNativeDoneReasonKey, response.DoneReason); err != nil {
+				return nil, err
+			}
+		}
+	}
+	if err := mapped.Validate(); err != nil {
+		return nil, fmt.Errorf("ollama: mapped response delta: %w", err)
+	}
+	return mapped, nil
+}
+
+func mapProtocolResponseMetadata(requestModel string, response nativeChatResponse) (*corechat.ResponseMetadata, error) {
 	modelName := response.Model
 	if modelName == "" {
 		modelName = requestModel
 	}
-	mapped := &corechat.Response{
-		Metadata: &corechat.ResponseMetadata{
-			Model: modelName,
-			Usage: corechat.Usage{
-				InputTokens:  int64(response.PromptEvalCount),
-				OutputTokens: int64(response.EvalCount),
-			},
+	metadata := &corechat.ResponseMetadata{
+		Model: modelName,
+		Usage: corechat.Usage{
+			InputTokens:  int64(response.PromptEvalCount),
+			OutputTokens: int64(response.EvalCount),
 		},
 	}
-	if err := mapped.Metadata.Extra.Set(ResponseExtensionKey, response.raw); err != nil {
+	if err := metadata.Extra.Set(ResponseExtensionKey, response.raw); err != nil {
 		return nil, fmt.Errorf("ollama: preserve native response: %w", err)
 	}
-
-	output, present, err := p.mapOutput(response)
-	if err != nil {
-		return nil, err
-	}
-	if present {
-		mapped.Output = output
-	}
 	if !response.CreatedAt.IsZero() {
-		if err := mapped.Metadata.Extra.Set(protocolCreatedAtKey, response.CreatedAt.UTC().Format(time.RFC3339Nano)); err != nil {
-			return nil, err
-		}
+		metadata.CreatedAt = response.CreatedAt.UTC()
 	}
 	if hasProtocolDurations(response.nativeMetrics) {
 		durations := map[string]int64{
@@ -62,7 +111,7 @@ func (p *protocolResponseMapper) mapResponse(requestModel string, response nativ
 			"prompt_eval": int64(response.PromptEvalDuration),
 			"eval":        int64(response.EvalDuration),
 		}
-		if err := mapped.Metadata.Extra.Set(protocolDurationsKey, durations); err != nil {
+		if err := metadata.Extra.Set(protocolDurationsKey, durations); err != nil {
 			return nil, err
 		}
 	}
@@ -71,40 +120,54 @@ func (p *protocolResponseMapper) mapResponse(requestModel string, response nativ
 			PromptEvalCount: response.PromptEvalCount,
 			EvalCount:       response.EvalCount,
 		}
-		if err := mapped.Metadata.Extra.Set(protocolMetricsKey, metrics); err != nil {
+		if err := metadata.Extra.Set(protocolMetricsKey, metrics); err != nil {
 			return nil, err
 		}
 	}
-	if err := mapped.Validate(); err != nil {
-		return nil, fmt.Errorf("ollama: mapped response: %w", err)
-	}
-	return mapped, nil
+	return metadata, nil
 }
 
-func (p *protocolResponseMapper) mapOutput(response nativeChatResponse) (*corechat.Output, bool, error) {
+func (p *protocolResponseMapper) mapOutput(response nativeChatResponse) (*corechat.Output, error) {
 	output := &corechat.Output{FinishReason: normalizeProtocolDoneReason(response.DoneReason)}
 	if response.DoneReason != "" {
 		output.Metadata = &corechat.OutputMetadata{}
 		if err := output.Metadata.Extra.Set(protocolNativeDoneReasonKey, response.DoneReason); err != nil {
-			return nil, false, err
+			return nil, err
 		}
 	}
+	parts, err := p.mapParts(response.Message)
+	if err != nil {
+		return nil, err
+	}
+	if len(parts) > 0 {
+		output.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
+	}
+	return output, nil
+}
 
+func (p *protocolResponseMapper) mapParts(message nativeMessage) ([]corechat.Part, error) {
 	var parts []corechat.Part
-	if response.Message.Thinking != "" {
-		parts = append(parts, corechat.NewReasoningPart(response.Message.Thinking, nil))
+	if message.Thinking != "" {
+		parts = append(parts, corechat.NewReasoningPart(message.Thinking, nil))
 	}
-	if response.Message.Content != "" {
-		parts = append(parts, corechat.NewTextPart(response.Message.Content))
+	if message.Content != "" {
+		parts = append(parts, corechat.NewTextPart(message.Content))
 	}
-	for i := range response.Message.ToolCalls {
-		toolCall := response.Message.ToolCalls[i]
+	for index := range message.Images {
+		image, err := media.NewBytes("image/*", message.Images[index])
+		if err != nil {
+			return nil, fmt.Errorf("ollama: message.images[%d]: %w", index, err)
+		}
+		parts = append(parts, corechat.NewMediaPart(image))
+	}
+	for i := range message.ToolCalls {
+		toolCall := message.ToolCalls[i]
 		if toolCall.Function.Name == "" {
-			return nil, false, fmt.Errorf("ollama: message.tool_calls[%d]: empty function name", i)
+			return nil, fmt.Errorf("ollama: message.tool_calls[%d]: empty function name", i)
 		}
 		arguments, err := json.Marshal(toolCall.Function.Arguments)
 		if err != nil {
-			return nil, false, fmt.Errorf("ollama: message.tool_calls[%d].arguments: %w", i, err)
+			return nil, fmt.Errorf("ollama: message.tool_calls[%d].arguments: %w", i, err)
 		}
 		id := toolCall.ID
 		if id == "" {
@@ -116,17 +179,13 @@ func (p *protocolResponseMapper) mapOutput(response nativeChatResponse) (*corech
 			Arguments: string(arguments),
 		}))
 	}
-	if len(parts) > 0 {
-		output.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
-	}
-	present := output.Message != nil || output.FinishReason != "" || output.Metadata != nil
-	return output, present, nil
+	return parts, nil
 }
 
 func normalizeProtocolDoneReason(reason string) corechat.FinishReason {
 	switch reason {
 	case "":
-		return ""
+		return corechat.FinishReasonStop
 	case "stop":
 		return corechat.FinishReasonStop
 	case "length":

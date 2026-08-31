@@ -3,6 +3,7 @@ package vectorstore_test
 import (
 	"context"
 	"errors"
+	"slices"
 	"testing"
 
 	"github.com/Tangerg/scope/core/document"
@@ -43,6 +44,30 @@ func TestIndexRequestValidate(t *testing.T) {
 				t.Fatalf("IndexRequest.Validate() error = %v, want %v", err, test.want)
 			}
 		})
+	}
+}
+
+func TestIndexRequestTextsReturnsAnOwnedOrderedProjection(t *testing.T) {
+	request, err := vectorstore.NewIndexRequest([]*document.Document{
+		{ID: "a", Text: "first"},
+		{ID: "b", Text: "second"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	texts, err := request.Texts()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !slices.Equal(texts, []string{"first", "second"}) {
+		t.Fatalf("Texts() = %v", texts)
+	}
+	texts[0] = "changed"
+	if request.Documents[0].Text != "first" {
+		t.Fatalf("Texts() aliases request documents: %#v", request.Documents)
+	}
+	if _, err := (*vectorstore.IndexRequest)(nil).Texts(); !errors.Is(err, vectorstore.ErrInvalidRequest) {
+		t.Fatalf("nil Texts() error = %v", err)
 	}
 }
 

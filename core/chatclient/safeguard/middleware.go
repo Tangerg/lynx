@@ -103,6 +103,20 @@ func (m *Middleware) outputError(ctx context.Context, response *chat.Response) e
 	return nil
 }
 
+func (m *Middleware) outputTextError(ctx context.Context, text string) error {
+	if !m.config.Scope.inspects(ScopeOutput) {
+		return nil
+	}
+	block, err := m.match(ctx, ScopeOutput, text)
+	if err != nil {
+		return err
+	}
+	if block != nil {
+		return m.blocked(ctx, *block)
+	}
+	return nil
+}
+
 // Call is a [chat.CallMiddleware]. Input is screened before the model runs;
 // output is screened before a response becomes visible to the caller.
 func (m *Middleware) Call(next chat.Model) chat.Model {
@@ -126,8 +140,8 @@ func (m *Middleware) Call(next chat.Model) chat.Model {
 // screening so a term split across provider chunks is still detected. The
 // chunk that completes an unsafe match is not yielded.
 func (m *Middleware) Stream(next chat.Streamer) chat.Streamer {
-	return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
-		return func(yield func(*chat.Response, error) bool) {
+	return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+		return func(yield func(*chat.ResponseDelta, error) bool) {
 			if err := m.inputError(ctx, request); err != nil {
 				yield(nil, err)
 				return
@@ -147,12 +161,12 @@ func (m *Middleware) Stream(next chat.Streamer) chat.Streamer {
 type safeguardStream struct {
 	ctx         context.Context
 	middleware  *Middleware
-	yield       func(*chat.Response, error) bool
+	yield       func(*chat.ResponseDelta, error) bool
 	accumulator chat.ResponseAccumulator
 	stopped     bool
 }
 
-func (s *safeguardStream) consume(chunk *chat.Response, streamErr error) bool {
+func (s *safeguardStream) consume(chunk *chat.ResponseDelta, streamErr error) bool {
 	if s.stopped {
 		return false
 	}
@@ -162,7 +176,7 @@ func (s *safeguardStream) consume(chunk *chat.Response, streamErr error) bool {
 	if err := s.accumulator.Add(chunk); err != nil {
 		return s.stop(nil, fmt.Errorf("safeguard: accumulate stream: %w", err))
 	}
-	if err := s.middleware.outputError(s.ctx, s.accumulator.Response()); err != nil {
+	if err := s.middleware.outputTextError(s.ctx, s.accumulator.Text()); err != nil {
 		return s.stop(nil, err)
 	}
 	if !s.yield(chunk, nil) {
@@ -172,7 +186,7 @@ func (s *safeguardStream) consume(chunk *chat.Response, streamErr error) bool {
 	return true
 }
 
-func (s *safeguardStream) stop(response *chat.Response, err error) bool {
+func (s *safeguardStream) stop(response *chat.ResponseDelta, err error) bool {
 	s.stopped = true
 	s.yield(response, err)
 	return false

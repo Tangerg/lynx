@@ -68,15 +68,22 @@ func newHistoryMiddleware(t *testing.T) (historyotel.Middleware, *telemetryRig) 
 	return middleware, &telemetryRig{spans: recorder, reader: reader}
 }
 
-func TestNewMiddlewareRequiresSystemAndPreservesMissingCapabilities(t *testing.T) {
+func TestNewMiddlewareAndDecoratorsPreserveOptionalCapabilities(t *testing.T) {
 	if _, err := historyotel.NewMiddleware(historyotel.MiddlewareConfig{}); !errors.Is(err, historyotel.ErrInvalidConfig) {
 		t.Fatalf("NewHistory() error = %v", err)
 	}
 	middleware, _ := newHistoryMiddleware(t)
 	var store *historyRecorder
 	var lister history.Lister
-	if middleware.Store(store) != nil || middleware.Conversations(lister) != nil {
-		t.Fatal("history instrumentation synthesized a missing capability")
+	if wrapped := middleware.Store(store); wrapped != nil {
+		t.Fatalf("Store(typed nil) = %#v", wrapped)
+	}
+	if wrapped := middleware.Conversations(lister); wrapped != nil {
+		t.Fatalf("Conversations(nil) = %#v", wrapped)
+	}
+	var zero historyotel.Middleware
+	if _, err := zero.Store(&historyRecorder{}).Read(t.Context(), "conversation"); !errors.Is(err, historyotel.ErrInvalidConfig) {
+		t.Fatalf("zero Middleware Store error = %v, want ErrInvalidConfig", err)
 	}
 }
 
@@ -119,7 +126,8 @@ func TestStorePreservesResultsAndRecordsOperations(t *testing.T) {
 
 func TestListerRecordsResultCount(t *testing.T) {
 	middleware, rig := newHistoryMiddleware(t)
-	ids, err := middleware.Conversations(&historyRecorder{}).Conversations(t.Context())
+	lister := middleware.Conversations(&historyRecorder{})
+	ids, err := lister.Conversations(t.Context())
 	if err != nil || len(ids) != 2 {
 		t.Fatalf("Conversations() = %v, %v", ids, err)
 	}

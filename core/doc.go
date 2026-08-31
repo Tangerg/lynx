@@ -69,7 +69,4 @@
 // vocabulary, or OpenTelemetry. Instrumentation lives in the otel module and
 // decorates Core from the outside. Retries, approvals, planning, and durable
 // execution are Agent or Host concerns.
-//
-// See README.md for usage and ARCHITECTURE.md for the invariants these
-// boundaries rest on.
 package core

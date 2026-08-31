@@ -14,6 +14,7 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/scope/core/chat"
 	"github.com/Tangerg/scope/core/document"
@@ -138,6 +139,16 @@ func TestEmbeddingSPIRemainsMinimal(t *testing.T) {
 	assertTopLevelNamesAbsent(t, "embedding", forbidden)
 }
 
+func TestChatRequestKeepsProtocolConcernsAtTheirOwner(t *testing.T) {
+	request := reflect.TypeFor[chat.Request]()
+	if _, exists := request.FieldByName("ToolChoice"); !exists {
+		t.Fatal("chat.Request must own ToolChoice")
+	}
+	if _, duplicate := reflect.TypeFor[chat.Options]().FieldByName("ToolChoice"); duplicate {
+		t.Fatal("chat.Options duplicates Request.ToolChoice")
+	}
+}
+
 // modalitySPIs anchors every modality SPI at compile time so a removed or
 // renamed Model stops the build instead of silently dropping its package out of
 // the family rules. assertModalityInventoryIsComplete guards the other
@@ -193,6 +204,27 @@ func TestModalityErrorVocabularyRemainsUnified(t *testing.T) {
 				t.Fatalf("core/%s exported error sentinels = %v, want exactly %v", packageName, got, shared)
 			}
 		})
+	}
+}
+
+func TestModalityCreationTimestampsUseOneRepresentation(t *testing.T) {
+	metadataTypes := map[string]reflect.Type{
+		"chat":          reflect.TypeFor[chat.ResponseMetadata](),
+		"embedding":     reflect.TypeFor[embedding.ResponseMetadata](),
+		"image":         reflect.TypeFor[image.ResponseMetadata](),
+		"moderation":    reflect.TypeFor[moderation.ResponseMetadata](),
+		"rerank":        reflect.TypeFor[rerank.ResponseMetadata](),
+		"speech":        reflect.TypeFor[speech.ResponseMetadata](),
+		"transcription": reflect.TypeFor[transcription.ResponseMetadata](),
+	}
+	for packageName, typ := range metadataTypes {
+		field, exists := typ.FieldByName("CreatedAt")
+		if !exists {
+			continue
+		}
+		if field.Type != reflect.TypeFor[time.Time]() || field.Tag.Get("json") != "created_at,omitzero" {
+			t.Errorf("core/%s ResponseMetadata.CreatedAt = (%v, %q), want time.Time with created_at,omitzero", packageName, field.Type, field.Tag.Get("json"))
+		}
 	}
 }
 

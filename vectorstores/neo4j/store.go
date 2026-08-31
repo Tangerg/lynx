@@ -228,13 +228,6 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 		return nil
 	}
 	if s.dimensions <= 0 {
-		dimensions, err := s.embeddingClient.Dimensions(ctx)
-		if err != nil {
-			return fmt.Errorf("neo4j: resolve embedding dimensions: %w", err)
-		}
-		s.dimensions = dimensions
-	}
-	if s.dimensions <= 0 {
 		return errors.New("neo4j: Dimensions must be > 0")
 	}
 
@@ -304,7 +297,11 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 
 	for _, batch := range batches {
 		docs := batch.Documents
-		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
+		texts, err := batch.Texts()
+		if err != nil {
+			return fmt.Errorf("vectorstore: project document text: %w", err)
+		}
+		vectors, err := s.embeddingClient.EmbedTexts(ctx, texts)
 		if err != nil {
 			return fmt.Errorf("neo4j: embed documents: %w", err)
 		}
@@ -371,8 +368,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		}
 	}()
 
-	var vector []float64
-	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
+	vector, err := s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("neo4j: embed query: %w", err)
 	}

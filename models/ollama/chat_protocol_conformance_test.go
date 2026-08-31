@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	corechat "github.com/Tangerg/scope/core/chat"
 	"github.com/Tangerg/scope/core/media"
@@ -36,29 +37,29 @@ func TestChat_CoreConformance(t *testing.T) {
 			t.Helper()
 			assertProtocolResponse(t, response)
 		},
-		AssertStream: func(t *testing.T, responses []*corechat.Response) {
+		AssertStream: func(t *testing.T, responses []*corechat.ResponseDelta) {
 			t.Helper()
 			var reasoning, content strings.Builder
 			var toolCall *corechat.ToolCall
-			var final *corechat.Response
+			mediaParts := 0
+			var final *corechat.ResponseDelta
 			for _, response := range responses {
 				final = response
-				if response.Output == nil || response.Output.Message == nil {
-					continue
-				}
-				for _, part := range response.Output.Message.Parts {
+				for _, part := range response.Parts {
 					switch part.Kind {
-					case corechat.PartReasoning:
+					case corechat.PartDeltaReasoning:
 						reasoning.WriteString(part.Text)
-					case corechat.PartText:
+					case corechat.PartDeltaText:
 						content.WriteString(part.Text)
-					case corechat.PartToolCall:
-						toolCall = part.ToolCall
+					case corechat.PartDeltaMedia:
+						mediaParts++
+					case corechat.PartDeltaToolCall:
+						toolCall = &corechat.ToolCall{ID: part.ToolCall.ID, Name: part.ToolCall.Name, Arguments: part.ToolCall.Arguments}
 					}
 				}
 			}
-			if reasoning.String() != "inspect colors" || content.String() != "It is a blue square." {
-				t.Errorf("stream reasoning/text = %q/%q", reasoning.String(), content.String())
+			if reasoning.String() != "inspect colors" || content.String() != "It is a blue square." || mediaParts != 1 {
+				t.Errorf("stream reasoning/text/media = %q/%q/%d", reasoning.String(), content.String(), mediaParts)
 			}
 			if toolCall == nil || toolCall.ID != "ollama/generated/0" || toolCall.Name != "inspect" || toolCall.Arguments != `{"detail":true}` {
 				t.Errorf("stream tool call = %#v", toolCall)
@@ -72,6 +73,16 @@ func TestChat_CoreConformance(t *testing.T) {
 			assertProtocolResponse(t, response)
 		},
 	}.Run(t)
+}
+
+func TestOpenAIChatConstructor(t *testing.T) {
+	model, err := ollama.NewChatCompletions(ollama.ChatCompletionsConfig{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if model == nil {
+		t.Fatal("NewChatCompletions() = nil")
+	}
 }
 
 func TestChat_RejectsUnsupportedInputBeforeProviderIO(t *testing.T) {
@@ -133,6 +144,43 @@ func TestChat_RejectsUnsupportedInputBeforeProviderIO(t *testing.T) {
 	}
 }
 
+func TestChatRejectsToolChoiceAndDuplicateExtensionOptions(t *testing.T) {
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		http.Error(writer, "unexpected provider call", http.StatusInternalServerError)
+	}))
+	t.Cleanup(server.Close)
+	adapter, err := ollama.NewChat(ollama.ChatConfig{
+		DefaultOptions: corechat.Options{Model: "qwen3:8b"}, BaseURL: server.URL,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := &corechat.Request{
+		Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart("hello"))},
+		Tools: []corechat.ToolDefinition{{
+			Name: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`),
+		}},
+		ToolChoice: &corechat.ToolChoice{Mode: corechat.ToolChoiceAuto},
+	}
+	if _, err := adapter.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), "tool choice is not supported") {
+		t.Fatalf("tool choice error = %v", err)
+	}
+	request.ToolChoice = nil
+	if err := request.Options.Extensions.Set(ollama.RequestExtensionKey, map[string]any{
+		"options": map[string]any{"temperature": 0.5},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := adapter.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), "owned by Core chat options") {
+		t.Fatalf("duplicate extension error = %v", err)
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("provider HTTP calls = %d", hits.Load())
+	}
+}
+
 func newProtocolChatRequest(t *testing.T) *corechat.Request {
 	t.Helper()
 	image, err := media.NewBytes("image/png", []byte("image"))
@@ -163,7 +211,7 @@ func newProtocolChatRequest(t *testing.T) *corechat.Request {
 	request.Options = corechat.Options{
 		Model:            "qwen3:8b",
 		FrequencyPenalty: &frequencyPenalty,
-		MaxTokens:        &maxTokens,
+		MaxOutputTokens:  &maxTokens,
 		PresencePenalty:  &presencePenalty,
 		Stop:             []string{"END"},
 		Temperature:      &temperature,
@@ -184,9 +232,8 @@ func newProtocolChatRequest(t *testing.T) *corechat.Request {
 		"keep_alive": "10m",
 		"think":      true,
 		"options": map[string]any{
-			"seed":        42,
-			"num_ctx":     8192,
-			"temperature": 1.5,
+			"seed":    42,
+			"num_ctx": 8192,
 		},
 	}); err != nil {
 		t.Fatalf("SetExtension: %v", err)
@@ -307,23 +354,28 @@ func assertProtocolResponse(t *testing.T, response *corechat.Response) {
 		t.Fatalf("response = %#v", response)
 	}
 	result := response.Output
-	if result.Message == nil || len(result.Message.Parts) != 3 || result.FinishReason != corechat.FinishReasonStop {
+	if result.Message == nil || len(result.Message.Parts) != 4 || result.FinishReason != corechat.FinishReasonStop {
 		t.Fatalf("result = %#v", result)
 	}
 	if result.Message.Parts[0].Kind != corechat.PartReasoning || result.Message.Parts[0].Text != "inspect colors" ||
 		result.Message.Parts[1].Kind != corechat.PartText || result.Message.Parts[1].Text != "It is a blue square." {
 		t.Errorf("reasoning/text = %#v", result.Message.Parts)
 	}
-	call := result.Message.Parts[2].ToolCall
+	mediaPart := result.Message.Parts[2]
+	if mediaPart.Kind != corechat.PartMedia || mediaPart.Media == nil {
+		t.Errorf("media = %#v", mediaPart)
+	} else if data, err := mediaPart.Media.Bytes(); err != nil || string(data) != "image" {
+		t.Errorf("media bytes = %q, %v", data, err)
+	}
+	call := result.Message.Parts[3].ToolCall
 	if call == nil || call.ID != "ollama/generated/0" || call.Name != "inspect" || call.Arguments != `{"detail":true}` {
 		t.Errorf("tool call = %#v", call)
 	}
 	if response.Metadata.Usage.InputTokens != 11 || response.Metadata.Usage.OutputTokens != 5 {
 		t.Errorf("usage = %#v", response.Metadata.Usage)
 	}
-	createdAt := decodeExtension[string](t, response.Metadata.Extra, "ollama/created_at")
-	if createdAt != "2026-07-14T12:00:00Z" {
-		t.Errorf("created_at = %q", createdAt)
+	if want := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC); !response.Metadata.CreatedAt.Equal(want) {
+		t.Errorf("CreatedAt = %s, want %s", response.Metadata.CreatedAt, want)
 	}
 	durations := decodeExtension[map[string]int64](t, response.Metadata.Extra, "ollama/durations_ns")
 	if durations["total"] != 1_250_000_000 || durations["load"] != 100_000_000 || durations["prompt_eval"] != 300_000_000 || durations["eval"] != 700_000_000 {
@@ -360,6 +412,7 @@ func writeProtocolChatStream(writer http.ResponseWriter) {
 	chunks := []string{
 		`{"model":"qwen3:8b","message":{"role":"assistant","thinking":"inspect colors"},"done":false}`,
 		`{"model":"qwen3:8b","message":{"role":"assistant","content":"It is a blue square."},"done":false}`,
+		`{"model":"qwen3:8b","message":{"role":"assistant","images":["aW1hZ2U="]},"done":false}`,
 		`{"model":"qwen3:8b","message":{"role":"assistant","tool_calls":[{"function":{"name":"inspect","arguments":{"detail":true}}}]},"done":false}`,
 		`{"model":"qwen3:8b","created_at":"2026-07-14T12:00:00Z","message":{"role":"assistant","content":""},"done":true,"done_reason":"stop","total_duration":1250000000,"load_duration":100000000,"prompt_eval_count":11,"prompt_eval_duration":300000000,"eval_count":5,"eval_duration":700000000,"future_field":{"kept":true}}`,
 	}
@@ -368,4 +421,4 @@ func writeProtocolChatStream(writer http.ResponseWriter) {
 	}
 }
 
-const protocolChatResponseJSON = `{"model":"qwen3:8b","created_at":"2026-07-14T12:00:00Z","message":{"role":"assistant","thinking":"inspect colors","content":"It is a blue square.","tool_calls":[{"function":{"name":"inspect","arguments":{"detail":true}}}]},"done":true,"done_reason":"stop","total_duration":1250000000,"load_duration":100000000,"prompt_eval_count":11,"prompt_eval_duration":300000000,"eval_count":5,"eval_duration":700000000,"future_field":{"kept":true}}`
+const protocolChatResponseJSON = `{"model":"qwen3:8b","created_at":"2026-07-14T12:00:00Z","message":{"role":"assistant","thinking":"inspect colors","content":"It is a blue square.","images":["aW1hZ2U="],"tool_calls":[{"function":{"name":"inspect","arguments":{"detail":true}}}]},"done":true,"done_reason":"stop","total_duration":1250000000,"load_duration":100000000,"prompt_eval_count":11,"prompt_eval_duration":300000000,"eval_count":5,"eval_duration":700000000,"future_field":{"kept":true}}`

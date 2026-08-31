@@ -32,8 +32,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		}
 	}()
 
-	var vector []float64
-	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
+	vector, err := s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("redis: embed query: %w", err)
 	}

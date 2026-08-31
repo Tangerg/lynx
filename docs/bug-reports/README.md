@@ -10,8 +10,8 @@ preventing the same mistake.
 
 - **Module / package** and the symbol involved.
 - **Observed behavior**: what the code does now, with the input that shows it.
-- **Expected behavior**: the contract it comes from (godoc, ARCHITECTURE.md,
-  or a protocol rule).
+- **Expected behavior**: the contract it comes from (GoDoc, a checked example,
+  an executable architecture guard, or a protocol rule).
 - **Blast radius**: who consumes the symbol, and whether a fix is a breaking
   public API change.
 - **Suggested fix layer**: the root cause's layer, not the symptom's.
@@ -21,5 +21,3 @@ preventing the same mistake.
 | Report | Status |
 |---|---|
 | [001 — testActiveChildLimit deadlocks the whole agent package](001-active-child-limit-test-deadlock.md) | Fixed in the test; no implementation change needed |
-| [002 — API consistency and ergonomics audit](002-api-consistency-audit.md) | Open; findings 2 and 3 are non-breaking, the rest need a decision |
-| [003 — Value semantics, pointers, and ownership](003-value-semantics-and-ownership.md) | Open; mostly rulings that the current shapes are correct, plus one documentation gap |

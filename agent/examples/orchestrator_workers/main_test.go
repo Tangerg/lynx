@@ -57,7 +57,7 @@ func newPlanningDelegateRoot(
 	model *planningDelegateModel,
 ) agent.Deployment {
 	t.Helper()
-	budget, err := agent.NewBudget(32, 32, 64)
+	budget, err := agent.NewBudget(agent.BudgetConfig{Steps: 32, Effects: 32, Signals: 64})
 	if err != nil {
 		t.Fatal(err)
 	}

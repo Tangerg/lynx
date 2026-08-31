@@ -22,9 +22,8 @@ func newProtocolChunkAccumulator(model string) *protocolChunkAccumulator {
 	return &protocolChunkAccumulator{model: model, tools: make(map[int32]protocolToolIdentity)}
 }
 
-func (p *protocolChunkAccumulator) add(event types.ConverseStreamOutput) (*corechat.Response, bool, error) {
-	response := &corechat.Response{Metadata: &corechat.ResponseMetadata{Model: p.model}}
-	var output *corechat.Output
+func (p *protocolChunkAccumulator) add(event types.ConverseStreamOutput) (*corechat.ResponseDelta, bool, error) {
+	response := &corechat.ResponseDelta{Metadata: &corechat.ResponseMetadata{Model: p.model}}
 
 	switch typed := event.(type) {
 	case *types.ConverseStreamOutputMemberContentBlockStart:
@@ -34,21 +33,18 @@ func (p *protocolChunkAccumulator) add(event types.ConverseStreamOutput) (*corec
 		}
 		identity := protocolToolIdentity{id: *tool.Value.ToolUseId, name: *tool.Value.Name}
 		p.tools[*typed.Value.ContentBlockIndex] = identity
-		part := corechat.NewToolCallDeltaPart(corechat.ToolCallDelta{ID: identity.id, Name: identity.name})
-		message := corechat.NewAssistantMessage(part)
-		output = &corechat.Output{Message: &message}
+		response.Parts = []corechat.PartDelta{corechat.NewToolCallDelta(corechat.ToolCallDelta{ID: identity.id, Name: identity.name})}
 	case *types.ConverseStreamOutputMemberContentBlockDelta:
 		part, include, err := p.mapDelta(typed.Value)
 		if err != nil || !include {
 			return nil, false, err
 		}
-		message := corechat.NewAssistantMessage(part)
-		output = &corechat.Output{Message: &message}
+		response.Parts = []corechat.PartDelta{part}
 	case *types.ConverseStreamOutputMemberMessageStop:
-		output = &corechat.Output{FinishReason: mapProtocolStopReason(typed.Value.StopReason)}
-		if output.FinishReason == corechat.FinishReasonOther {
-			output.Metadata = &corechat.OutputMetadata{}
-			if err := output.Metadata.Extra.Set(chatNativeFinishReasonKey, string(typed.Value.StopReason)); err != nil {
+		response.FinishReason = mapProtocolStopReason(typed.Value.StopReason)
+		if response.FinishReason == corechat.FinishReasonOther {
+			response.OutputMetadata = &corechat.OutputMetadata{}
+			if err := response.OutputMetadata.Extra.Set(chatNativeFinishReasonKey, string(typed.Value.StopReason)); err != nil {
 				return nil, false, err
 			}
 		}
@@ -61,63 +57,60 @@ func (p *protocolChunkAccumulator) add(event types.ConverseStreamOutput) (*corec
 		return nil, false, nil
 	}
 
-	if output != nil {
-		response.Output = output
-	}
 	if err := response.Validate(); err != nil {
 		return nil, false, fmt.Errorf("bedrock: stream response: %w", err)
 	}
 	return response, true, nil
 }
 
-func (p *protocolChunkAccumulator) mapDelta(delta types.ContentBlockDeltaEvent) (corechat.Part, bool, error) {
+func (p *protocolChunkAccumulator) mapDelta(delta types.ContentBlockDeltaEvent) (corechat.PartDelta, bool, error) {
 	switch value := delta.Delta.(type) {
 	case *types.ContentBlockDeltaMemberText:
 		if value.Value == "" {
-			return corechat.Part{}, false, nil
+			return corechat.PartDelta{}, false, nil
 		}
-		return corechat.NewTextPart(value.Value), true, nil
+		return corechat.NewTextDelta(value.Value), true, nil
 	case *types.ContentBlockDeltaMemberReasoningContent:
 		switch reasoning := value.Value.(type) {
 		case *types.ReasoningContentBlockDeltaMemberText:
 			if reasoning.Value == "" {
-				return corechat.Part{}, false, nil
+				return corechat.PartDelta{}, false, nil
 			}
-			part := corechat.NewReasoningPart(reasoning.Value, nil)
-			if err := setReasoningKind(&part, chatReasoningText); err != nil {
-				return corechat.Part{}, false, err
+			part := corechat.NewReasoningDelta(reasoning.Value, nil)
+			if err := setReasoningDeltaKind(&part, chatReasoningText); err != nil {
+				return corechat.PartDelta{}, false, err
 			}
 			return part, true, nil
 		case *types.ReasoningContentBlockDeltaMemberSignature:
 			if reasoning.Value == "" {
-				return corechat.Part{}, false, nil
+				return corechat.PartDelta{}, false, nil
 			}
-			part := corechat.NewReasoningPart("", []byte(reasoning.Value))
-			if err := setReasoningKind(&part, chatReasoningText); err != nil {
-				return corechat.Part{}, false, err
+			part := corechat.NewReasoningDelta("", []byte(reasoning.Value))
+			if err := setReasoningDeltaKind(&part, chatReasoningText); err != nil {
+				return corechat.PartDelta{}, false, err
 			}
 			return part, true, nil
 		case *types.ReasoningContentBlockDeltaMemberRedactedContent:
 			if len(reasoning.Value) == 0 {
-				return corechat.Part{}, false, nil
+				return corechat.PartDelta{}, false, nil
 			}
-			part := corechat.NewReasoningPart("", reasoning.Value)
-			if err := setReasoningKind(&part, chatReasoningRedacted); err != nil {
-				return corechat.Part{}, false, err
+			part := corechat.NewReasoningDelta("", reasoning.Value)
+			if err := setReasoningDeltaKind(&part, chatReasoningRedacted); err != nil {
+				return corechat.PartDelta{}, false, err
 			}
 			return part, true, nil
 		}
 	case *types.ContentBlockDeltaMemberToolUse:
 		if value.Value.Input == nil || *value.Value.Input == "" || delta.ContentBlockIndex == nil {
-			return corechat.Part{}, false, nil
+			return corechat.PartDelta{}, false, nil
 		}
 		identity, ok := p.tools[*delta.ContentBlockIndex]
 		if !ok {
-			return corechat.Part{}, false, fmt.Errorf("bedrock: tool delta for unknown content block %d", *delta.ContentBlockIndex)
+			return corechat.PartDelta{}, false, fmt.Errorf("bedrock: tool delta for unknown content block %d", *delta.ContentBlockIndex)
 		}
-		return corechat.NewToolCallDeltaPart(corechat.ToolCallDelta{
+		return corechat.NewToolCallDelta(corechat.ToolCallDelta{
 			ID: identity.id, Name: identity.name, Arguments: *value.Value.Input,
 		}), true, nil
 	}
-	return corechat.Part{}, false, nil
+	return corechat.PartDelta{}, false, nil
 }

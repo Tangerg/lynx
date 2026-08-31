@@ -122,7 +122,7 @@ func NewMultiQueryExpander(config MultiQueryExpanderConfig) (*MultiQueryExpander
 	if err != nil {
 		return nil, err
 	}
-	format, err := chatclient.JSONSchema[multiQueryOutput](multiQueryOutputName)
+	format, err := chatclient.JSONSchema[multiQueryOutput](chatclient.JSONSchemaConfig{Name: multiQueryOutputName})
 	if err != nil {
 		return nil, err
 	}

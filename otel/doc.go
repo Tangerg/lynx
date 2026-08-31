@@ -41,7 +41,4 @@
 // synchronous rather than batched, and an error span is promoted to error level.
 // In production the composition root swaps these for the official OTLP
 // exporters; the wrappers and the Core protocol code do not change.
-//
-// See README.md for usage and ARCHITECTURE.md for the invariants these
-// boundaries rest on.
 package otel

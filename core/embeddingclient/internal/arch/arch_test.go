@@ -3,7 +3,6 @@ package arch
 
 import (
 	"reflect"
-	"slices"
 	"testing"
 
 	"github.com/Tangerg/scope/core/embeddingclient"
@@ -11,12 +10,14 @@ import (
 
 func TestClientSurfaceStaysVectorFocused(t *testing.T) {
 	typeOfClient := reflect.TypeFor[embeddingclient.Client]()
-	methods := make([]string, 0, typeOfClient.NumMethod())
-	for method := range typeOfClient.Methods() {
-		methods = append(methods, method.Name)
+	for _, required := range []string{"EmbedText", "EmbedTexts"} {
+		if _, exists := typeOfClient.MethodByName(required); !exists {
+			t.Errorf("Client is missing %s", required)
+		}
 	}
-	slices.Sort(methods)
-	if !slices.Equal(methods, []string{"Dimensions", "EmbedDocuments", "EmbedText", "EmbedTexts"}) {
-		t.Fatalf("Client methods = %v", methods)
+	for _, forbidden := range []string{"Dimensions", "EmbedDocuments"} {
+		if _, exists := typeOfClient.MethodByName(forbidden); exists {
+			t.Errorf("Client exposes %s outside vector cardinality semantics", forbidden)
+		}
 	}
 }

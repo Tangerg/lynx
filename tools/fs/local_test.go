@@ -37,10 +37,16 @@ func writeTemp(t *testing.T, dir, name, content string) string {
 	return path
 }
 
+func TestNewLocalExecutorRequiresExplicitRoot(t *testing.T) {
+	if _, err := NewLocalExecutor(""); !errors.Is(err, ErrInvalidRoot) {
+		t.Fatalf("NewLocalExecutor(\"\") error = %v, want ErrInvalidRoot", err)
+	}
+}
+
 func TestLocalExecutor_Read_Whole(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "line1\nline2\nline3\n")
-	out, err := NewLocalExecutor(dir).Read(t.Context(), ReadInput{Path: path})
+	out, err := mustLocalExecutor(t, dir).Read(t.Context(), ReadInput{Path: path})
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
@@ -55,7 +61,7 @@ func TestLocalExecutor_Read_Whole(t *testing.T) {
 func TestLocalExecutor_Read_LineRange(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "a\nb\nc\nd\ne\n")
-	out, err := NewLocalExecutor(dir).Read(t.Context(), ReadInput{
+	out, err := mustLocalExecutor(t, dir).Read(t.Context(), ReadInput{
 		Path:   path,
 		Offset: 1, // skip "a"
 		Limit:  2, // take "b", "c"
@@ -72,11 +78,11 @@ func TestLocalExecutor_Read_LineRange(t *testing.T) {
 }
 
 func TestLocalExecutorRejectsInvalidOperationLimits(t *testing.T) {
-	executor := NewLocalExecutor(t.TempDir())
+	executor := mustLocalExecutor(t, t.TempDir())
 	if _, err := executor.Read(t.Context(), ReadInput{Path: "x", Limit: -1}); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("Read error = %v, want ErrInvalidInput", err)
 	}
-	if _, err := executor.Glob(t.Context(), GlobInput{Pattern: "*", MaxResults: -1}); !errors.Is(err, ErrInvalidInput) {
+	if _, err := executor.Glob(t.Context(), GlobRequest{Pattern: "*", MaxResults: -1}); !errors.Is(err, ErrInvalidInput) {
 		t.Fatalf("Glob error = %v, want ErrInvalidInput", err)
 	}
 	if _, err := executor.Grep(t.Context(), GrepInput{Pattern: "x", BeforeContext: maximumContextLines + 1}); !errors.Is(err, ErrInvalidInput) {
@@ -87,7 +93,7 @@ func TestLocalExecutorRejectsInvalidOperationLimits(t *testing.T) {
 func TestLocalExecutor_Read_MaxBytes(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "ab你cd")
-	out, err := NewLocalExecutor(dir).Read(t.Context(), ReadInput{
+	out, err := mustLocalExecutor(t, dir).Read(t.Context(), ReadInput{
 		Path: path, MaxOutputBytes: 4, PartialLine: true,
 	})
 	if err != nil {
@@ -104,7 +110,7 @@ func TestLocalExecutor_Read_MaxBytes(t *testing.T) {
 func TestLocalExecutor_Read_BinaryRejected(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "bin", "hello\x00world")
-	_, err := NewLocalExecutor(dir).Read(t.Context(), ReadInput{Path: path})
+	_, err := mustLocalExecutor(t, dir).Read(t.Context(), ReadInput{Path: path})
 	if !errors.Is(err, ErrBinaryFile) {
 		t.Errorf("Read on binary: err = %v, want ErrBinaryFile", err)
 	}
@@ -113,7 +119,7 @@ func TestLocalExecutor_Read_BinaryRejected(t *testing.T) {
 func TestLocalExecutor_Read_NormalizesCRLFAndBOM(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "\xEF\xBB\xBFa\r\nb\r\nc\r\n")
-	out, err := NewLocalExecutor(dir).Read(t.Context(), ReadInput{Path: path})
+	out, err := mustLocalExecutor(t, dir).Read(t.Context(), ReadInput{Path: path})
 	if err != nil {
 		t.Fatalf("Read: %v", err)
 	}
@@ -128,7 +134,7 @@ func TestLocalExecutor_Read_NormalizesCRLFAndBOM(t *testing.T) {
 func TestLocalExecutor_Write_Overwrite(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "new", "x.txt")
-	out, err := NewLocalExecutor(dir).Write(t.Context(), WriteInput{Path: path, Content: "hi"})
+	out, err := mustLocalExecutor(t, dir).Write(t.Context(), WriteRequest{Path: path, Content: "hi"})
 	if err != nil {
 		t.Fatalf("Write: %v", err)
 	}
@@ -144,7 +150,7 @@ func TestLocalExecutor_Write_Overwrite(t *testing.T) {
 func TestLocalExecutor_Write_PreservesCRLF(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "old\r\ncontent\r\n")
-	_, err := NewLocalExecutor(dir).Write(t.Context(), WriteInput{
+	_, err := mustLocalExecutor(t, dir).Write(t.Context(), WriteRequest{
 		Path: path, Content: "new\nstuff\n",
 	})
 	if err != nil {
@@ -159,7 +165,7 @@ func TestLocalExecutor_Write_PreservesCRLF(t *testing.T) {
 func TestLocalExecutor_Write_PreservesBOM(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "\xEF\xBB\xBFold")
-	_, err := NewLocalExecutor(dir).Write(t.Context(), WriteInput{
+	_, err := mustLocalExecutor(t, dir).Write(t.Context(), WriteRequest{
 		Path: path, Content: "new",
 	})
 	if err != nil {
@@ -174,7 +180,7 @@ func TestLocalExecutor_Write_PreservesBOM(t *testing.T) {
 func TestLocalExecutor_Write_NULRejected(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "x.txt")
-	_, err := NewLocalExecutor(dir).Write(t.Context(), WriteInput{
+	_, err := mustLocalExecutor(t, dir).Write(t.Context(), WriteRequest{
 		Path: path, Content: "abc\x00def",
 	})
 	if !errors.Is(err, ErrBinaryFile) {
@@ -185,13 +191,13 @@ func TestLocalExecutor_Write_NULRejected(t *testing.T) {
 func TestLocalExecutor_Write_ConcurrentSamePath(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "race.txt")
-	exec := NewLocalExecutor(dir)
+	exec := mustLocalExecutor(t, dir)
 	const N = 32
 	var wg sync.WaitGroup
 	for i := range N {
 		wg.Go(func() {
 			content := strings.Repeat("x", 1024) + "\n"
-			_, err := exec.Write(t.Context(), WriteInput{Path: path, Content: content})
+			_, err := exec.Write(t.Context(), WriteRequest{Path: path, Content: content})
 			if err != nil {
 				t.Errorf("Write[%d]: %v", i, err)
 			}
@@ -213,7 +219,7 @@ func TestLocalExecutor_Write_ConcurrentSamePath(t *testing.T) {
 func TestLocalExecutor_Edit_SingleOccurrence(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "alpha beta gamma\n")
-	out, err := NewLocalExecutor(dir).Edit(t.Context(), EditRequest{
+	out, err := mustLocalExecutor(t, dir).Edit(t.Context(), EditRequest{
 		Path: path, OldString: "beta", NewString: "BETA",
 	})
 	if err != nil {
@@ -231,7 +237,7 @@ func TestLocalExecutor_Edit_SingleOccurrence(t *testing.T) {
 func TestLocalExecutor_Edit_MultipleOccurrencesRejected(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "x x x\n")
-	_, err := NewLocalExecutor(dir).Edit(t.Context(), EditRequest{
+	_, err := mustLocalExecutor(t, dir).Edit(t.Context(), EditRequest{
 		Path: path, OldString: "x", NewString: "y",
 	})
 	if err == nil {
@@ -245,7 +251,7 @@ func TestLocalExecutor_Edit_MultipleOccurrencesRejected(t *testing.T) {
 func TestLocalExecutor_Edit_ReplaceAll(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "x x x\n")
-	out, err := NewLocalExecutor(dir).Edit(t.Context(), EditRequest{
+	out, err := mustLocalExecutor(t, dir).Edit(t.Context(), EditRequest{
 		Path: path, OldString: "x", NewString: "y", ReplaceAll: true,
 	})
 	if err != nil {
@@ -263,7 +269,7 @@ func TestLocalExecutor_Edit_ReplaceAll(t *testing.T) {
 func TestLocalExecutor_Edit_NoMatch(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "alpha\n")
-	_, err := NewLocalExecutor(dir).Edit(t.Context(), EditRequest{
+	_, err := mustLocalExecutor(t, dir).Edit(t.Context(), EditRequest{
 		Path: path, OldString: "beta", NewString: "BETA",
 	})
 	if err == nil {
@@ -277,7 +283,7 @@ func TestLocalExecutor_Edit_NoMatch(t *testing.T) {
 func TestLocalExecutor_Edit_PreservesCRLF(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "alpha\r\nbeta\r\n")
-	_, err := NewLocalExecutor(dir).Edit(t.Context(), EditRequest{
+	_, err := mustLocalExecutor(t, dir).Edit(t.Context(), EditRequest{
 		Path: path, OldString: "beta", NewString: "BETA",
 	})
 	if err != nil {
@@ -292,7 +298,7 @@ func TestLocalExecutor_Edit_PreservesCRLF(t *testing.T) {
 func TestLocalExecutor_Edit_BinaryRejected(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "bin", "hello\x00")
-	_, err := NewLocalExecutor(dir).Edit(t.Context(), EditRequest{
+	_, err := mustLocalExecutor(t, dir).Edit(t.Context(), EditRequest{
 		Path: path, OldString: "hello", NewString: "hi",
 	})
 	if !errors.Is(err, ErrBinaryFile) {
@@ -324,7 +330,7 @@ diff --git a/gone.txt b/gone.txt
 @@ -1 +0,0 @@
 -remove me
 `
-	out, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchRequest{Patch: patch})
+	out, err := mustLocalExecutor(t, dir).ApplyPatch(t.Context(), ApplyPatchRequest{Patch: patch})
 	if err != nil {
 		t.Fatalf("ApplyPatch: %v", err)
 	}
@@ -354,7 +360,7 @@ func TestLocalExecutor_ApplyPatch_MismatchLeavesFileUntouched(t *testing.T) {
 -missing
 +MISSING
 `
-	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchRequest{Patch: patch})
+	_, err := mustLocalExecutor(t, dir).ApplyPatch(t.Context(), ApplyPatchRequest{Patch: patch})
 	if err == nil {
 		t.Fatal("ApplyPatch mismatch: want error")
 	}
@@ -381,7 +387,7 @@ func TestLocalExecutor_ApplyPatch_SecondFileMismatchLeavesFirstUntouched(t *test
 -missing
 +MISSING
 `
-	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchRequest{Patch: patch})
+	_, err := mustLocalExecutor(t, dir).ApplyPatch(t.Context(), ApplyPatchRequest{Patch: patch})
 	if err == nil {
 		t.Fatal("ApplyPatch second-file mismatch: want error")
 	}
@@ -411,7 +417,7 @@ func TestLocalExecutor_ApplyPatch_DuplicateFileRejectedLeavesFileUntouched(t *te
 +SECOND
  three
 `
-	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchRequest{Patch: patch})
+	_, err := mustLocalExecutor(t, dir).ApplyPatch(t.Context(), ApplyPatchRequest{Patch: patch})
 	if err == nil {
 		t.Fatal("ApplyPatch duplicate file section: want error")
 	}
@@ -433,7 +439,7 @@ func TestLocalExecutor_ApplyPatch_InvalidRangeRejected(t *testing.T) {
 -one
 +ONE
 `
-	_, err := NewLocalExecutor(dir).ApplyPatch(t.Context(), ApplyPatchRequest{Patch: patch})
+	_, err := mustLocalExecutor(t, dir).ApplyPatch(t.Context(), ApplyPatchRequest{Patch: patch})
 	if err == nil {
 		t.Fatal("ApplyPatch invalid range: want error")
 	}
@@ -450,7 +456,7 @@ func TestLocalExecutor_Glob_BasicAndDoublestar(t *testing.T) {
 	writeTemp(t, dir, "sub/nested/c.go", "")
 	writeTemp(t, dir, "sub/d.txt", "")
 
-	out, err := NewLocalExecutor(dir).Glob(t.Context(), GlobInput{Pattern: "**/*.go"})
+	out, err := mustLocalExecutor(t, dir).Glob(t.Context(), GlobRequest{Pattern: "**/*.go"})
 	if err != nil {
 		t.Fatalf("Glob: %v", err)
 	}
@@ -465,7 +471,7 @@ func TestLocalExecutor_Glob_MaxResults(t *testing.T) {
 	for i := range 10 {
 		writeTemp(t, dir, "file_"+string(rune('a'+i))+".txt", "")
 	}
-	out, err := NewLocalExecutor(dir).Glob(t.Context(), GlobInput{
+	out, err := mustLocalExecutor(t, dir).Glob(t.Context(), GlobRequest{
 		Pattern:    "*.txt",
 		MaxResults: 3,
 	})
@@ -486,7 +492,7 @@ func TestLocalExecutor_Glob_UsesFullDoublestarSyntax(t *testing.T) {
 	writeTemp(t, dir, "src/beta/nested/main.go", "")
 	writeTemp(t, dir, "src/gamma/main.go", "")
 
-	out, err := NewLocalExecutor(dir).Glob(t.Context(), GlobInput{Pattern: "src/{alpha,beta}/**/main.go"})
+	out, err := mustLocalExecutor(t, dir).Glob(t.Context(), GlobRequest{Pattern: "src/{alpha,beta}/**/main.go"})
 	if err != nil {
 		t.Fatalf("Glob: %v", err)
 	}
@@ -515,7 +521,7 @@ func TestLocalExecutor_Grep_Content(t *testing.T) {
 	dir := t.TempDir()
 	writeTemp(t, dir, "a.txt", "foo bar\nbaz foo\nqux\n")
 	writeTemp(t, dir, "b.txt", "no match here\n")
-	out, err := NewLocalExecutor(dir).Grep(t.Context(), GrepInput{Pattern: "foo"})
+	out, err := mustLocalExecutor(t, dir).Grep(t.Context(), GrepInput{Pattern: "foo"})
 	if err != nil {
 		t.Fatalf("Grep: %v", err)
 	}
@@ -535,7 +541,7 @@ func TestLocalExecutor_Grep_FilesWithMatches(t *testing.T) {
 	writeTemp(t, dir, "a.txt", "foo\n")
 	writeTemp(t, dir, "b.txt", "foo\nfoo\n")
 	writeTemp(t, dir, "c.txt", "nothing\n")
-	out, err := NewLocalExecutor(dir).Grep(t.Context(), GrepInput{
+	out, err := mustLocalExecutor(t, dir).Grep(t.Context(), GrepInput{
 		Pattern:    "foo",
 		OutputMode: GrepOutputFilesWithMatches,
 	})
@@ -556,7 +562,7 @@ func TestLocalExecutor_Grep_Count(t *testing.T) {
 	writeTemp(t, dir, "a.txt", "foo\nbar\nfoo\n")
 	writeTemp(t, dir, "b.txt", "foo\n")
 	writeTemp(t, dir, "c.txt", "nothing\n")
-	out, err := NewLocalExecutor(dir).Grep(t.Context(), GrepInput{
+	out, err := mustLocalExecutor(t, dir).Grep(t.Context(), GrepInput{
 		Pattern:    "foo",
 		OutputMode: GrepOutputCount,
 	})
@@ -575,7 +581,7 @@ func TestLocalExecutor_Grep_Count(t *testing.T) {
 
 func TestLocalExecutor_Grep_InvalidMode(t *testing.T) {
 	dir := t.TempDir()
-	_, err := NewLocalExecutor(dir).Grep(t.Context(), GrepInput{
+	_, err := mustLocalExecutor(t, dir).Grep(t.Context(), GrepInput{
 		Pattern:    "foo",
 		OutputMode: "bogus",
 	})
@@ -603,7 +609,7 @@ func TestLocalExecutor_Grep_ReturnsStructuredContext(t *testing.T) {
 	skipWithoutRipgrep(t)
 	dir := t.TempDir()
 	writeTemp(t, dir, "with:colon.txt", "before\nmatch here\nafter\n")
-	out, err := NewLocalExecutor(dir).Grep(t.Context(), GrepInput{
+	out, err := mustLocalExecutor(t, dir).Grep(t.Context(), GrepInput{
 		Pattern: "match", Context: 1,
 	})
 	if err != nil {
@@ -625,7 +631,7 @@ func TestLocalExecutor_Grep_ReturnsStructuredContext(t *testing.T) {
 
 func TestLocalExecutor_GrepRequiresRipgrep(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
-	_, err := NewLocalExecutor(t.TempDir()).Grep(t.Context(), GrepInput{Pattern: "match"})
+	_, err := mustLocalExecutor(t, t.TempDir()).Grep(t.Context(), GrepInput{Pattern: "match"})
 	if !errors.Is(err, ErrRipgrepUnavailable) {
 		t.Fatalf("Grep error = %v, want ErrRipgrepUnavailable", err)
 	}

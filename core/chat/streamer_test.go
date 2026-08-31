@@ -11,13 +11,13 @@ import (
 
 type streamOnlyModel struct{}
 
-func (streamOnlyModel) Stream(_ context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
-	return func(yield func(*chat.Response, error) bool) {
+func (streamOnlyModel) Stream(_ context.Context, request *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+	return func(yield func(*chat.ResponseDelta, error) bool) {
 		if err := request.Validate(); err != nil {
 			yield(nil, err)
 			return
 		}
-		yield(&chat.Response{}, nil)
+		yield(&chat.ResponseDelta{FinishReason: chat.FinishReasonStop}, nil)
 	}
 }
 
@@ -55,7 +55,7 @@ func TestStreamerPublicShape(t *testing.T) {
 	}
 
 	streamType := method.Type
-	wantSequence := reflect.TypeFor[iter.Seq2[*chat.Response, error]]()
+	wantSequence := reflect.TypeFor[iter.Seq2[*chat.ResponseDelta, error]]()
 	if streamType.NumIn() != 2 || streamType.In(0) != reflect.TypeFor[context.Context]() || streamType.In(1) != reflect.TypeFor[*chat.Request]() {
 		t.Fatalf("Stream inputs = %v, want (context.Context, *chat.Request)", streamType)
 	}

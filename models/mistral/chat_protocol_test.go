@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	corechat "github.com/Tangerg/scope/core/chat"
@@ -23,8 +24,8 @@ func TestChatMapsNativeThinkingAndReplaysIt(t *testing.T) {
 		APIKey:  "test-key",
 		BaseURL: server.URL,
 		DefaultOptions: corechat.Options{
-			Model:     "mistral-medium-3-5",
-			MaxTokens: &maxTokens,
+			Model:           "mistral-medium-3-5",
+			MaxOutputTokens: &maxTokens,
 		},
 	})
 	if err != nil {
@@ -36,10 +37,11 @@ func TestChatMapsNativeThinkingAndReplaysIt(t *testing.T) {
 			Name: "lookup", Description: "Look up an ID", InputSchema: json.RawMessage(`{"type":"object","properties":{"id":{"type":"integer"}},"required":["id"]}`),
 		}},
 	}
-	parallel := false
+	firstRequest.ToolChoice = &corechat.ToolChoice{
+		Mode: corechat.ToolChoiceAuto, Parallelism: corechat.ToolParallelismSingle,
+	}
 	if setExtensionErr := firstRequest.Options.Extensions.Set(mistral.RequestExtensionKey, mistral.ChatRequestOptions{
-		ReasoningEffort:   mistral.ReasoningEffortHigh,
-		ParallelToolCalls: &parallel,
+		ReasoningEffort: mistral.ReasoningEffortHigh,
 	}); setExtensionErr != nil {
 		t.Fatalf("SetExtension: %v", setExtensionErr)
 	}
@@ -111,14 +113,15 @@ func newThinkingReplayServer(t *testing.T, requests *[]map[string]any) *httptest
 
 func assertThinkingResponse(t *testing.T, requests []map[string]any, maxTokens int64, response *corechat.Response) *corechat.Message {
 	t.Helper()
-	if len(requests) != 1 || requests[0]["max_tokens"] != float64(maxTokens) || requests[0]["reasoning_effort"] != "high" || requests[0]["parallel_tool_calls"] != false {
+	if len(requests) != 1 || requests[0]["max_tokens"] != float64(maxTokens) || requests[0]["reasoning_effort"] != "high" ||
+		requests[0]["tool_choice"] != "auto" || requests[0]["parallel_tool_calls"] != false {
 		t.Fatalf("first wire request = %#v", requests)
 	}
 	result := response.Output
 	if result.FinishReason != corechat.FinishReasonToolCalls || result.Message == nil || len(result.Message.Parts) != 3 {
 		t.Fatalf("result = %#v", result)
 	}
-	if result.Message.Parts[0].Kind != corechat.PartReasoning || result.Message.Parts[0].Text != "inspect inputs" || len(result.Message.Parts[0].Signature) == 0 {
+	if result.Message.Parts[0].Kind != corechat.PartReasoning || result.Message.Parts[0].Text != "inspect inputs" || len(result.Message.Parts[0].ReasoningState) == 0 {
 		t.Errorf("reasoning = %#v", result.Message.Parts[0])
 	}
 	if result.Message.Parts[1].Text != "I need a lookup." {
@@ -133,6 +136,66 @@ func assertThinkingResponse(t *testing.T, requests []map[string]any, maxTokens i
 		t.Errorf("usage = %#v", usage)
 	}
 	return result.Message
+}
+
+func TestChatMapsReferenceChunksToCitations(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Content-Type", "application/json")
+		fmt.Fprint(writer, `{"id":"cmpl-1","model":"mistral-small-latest","choices":[{"index":0,"finish_reason":"stop","message":{"role":"assistant","content":[{"type":"text","text":"Grounded answer."},{"type":"reference","reference_ids":[7,"doc-9"]}]}}],"usage":{}}`)
+	}))
+	t.Cleanup(server.Close)
+	model, err := mistral.NewChat(mistral.ChatConfig{
+		APIKey: "test-key", BaseURL: server.URL, DefaultOptions: corechat.Options{Model: "mistral-small-latest"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := model.Call(t.Context(), &corechat.Request{Messages: []corechat.Message{
+		corechat.NewUserMessage(corechat.NewTextPart("answer with sources")),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	part := response.Output.Message.Parts[0]
+	if len(part.Citations) != 2 || part.Citations[0].Source.Value != "7" || part.Citations[1].Source.Value != "doc-9" {
+		t.Fatalf("citations = %#v", part.Citations)
+	}
+}
+
+func TestChatRejectsDuplicateToolChoiceSurfacesBeforeProviderIO(t *testing.T) {
+	var hits atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		hits.Add(1)
+		http.Error(writer, "unexpected", http.StatusInternalServerError)
+	}))
+	t.Cleanup(server.Close)
+	model, err := mistral.NewChat(mistral.ChatConfig{
+		APIKey: "test-key", BaseURL: server.URL, DefaultOptions: corechat.Options{Model: "mistral-small-latest"},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	definition := corechat.ToolDefinition{Name: "lookup", InputSchema: json.RawMessage(`{"type":"object"}`)}
+	request := &corechat.Request{
+		Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart("look up"))},
+		Tools:    []corechat.ToolDefinition{definition},
+		ToolChoice: &corechat.ToolChoice{
+			Mode: corechat.ToolChoiceNamed, Name: "lookup",
+		},
+	}
+	if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), "named tool choice") {
+		t.Fatalf("named tool choice error = %v", err)
+	}
+	request.ToolChoice = nil
+	if err := request.Options.Extensions.Set(mistral.RequestExtensionKey, map[string]any{"tool_choice": "auto"}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := model.Call(t.Context(), request); err == nil || !strings.Contains(err.Error(), "owned by the Core ToolChoice") {
+		t.Fatalf("extension tool choice error = %v", err)
+	}
+	if hits.Load() != 0 {
+		t.Fatalf("provider calls = %d", hits.Load())
+	}
 }
 
 func TestChatCoalescesStreamedThinkingForReplay(t *testing.T) {
@@ -170,11 +233,14 @@ func TestChatCoalescesStreamedThinkingForReplay(t *testing.T) {
 		if streamErr != nil {
 			t.Fatalf("Stream: %v", streamErr)
 		}
-		if err := accumulator.Add(response); err != nil {
-			t.Fatalf("accumulate: %v", err)
+		if addErr := accumulator.Add(response); addErr != nil {
+			t.Fatalf("accumulate: %v", addErr)
 		}
 	}
-	aggregated := accumulator.Response()
+	aggregated, err := accumulator.Response()
+	if err != nil {
+		t.Fatalf("aggregate: %v", err)
+	}
 	if aggregated == nil || aggregated.Output == nil || aggregated.Output.Message == nil {
 		t.Fatalf("aggregated = %#v", aggregated)
 	}

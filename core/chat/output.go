@@ -7,8 +7,8 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
-// FinishReason explains why generation stopped. The empty value means that a
-// streaming output has not finished yet.
+// FinishReason explains why generation stopped. Complete outputs require a
+// non-empty value; ResponseDelta uses the empty value before termination.
 type FinishReason string
 
 const (
@@ -16,6 +16,7 @@ const (
 	FinishReasonLength        FinishReason = "length"
 	FinishReasonToolCalls     FinishReason = "tool_calls"
 	FinishReasonContentFilter FinishReason = "content_filter"
+	FinishReasonRefusal       FinishReason = "refusal"
 	FinishReasonOther         FinishReason = "other"
 )
 
@@ -23,7 +24,7 @@ func (f FinishReason) String() string { return string(f) }
 
 func (f FinishReason) Valid() bool {
 	switch f {
-	case "", FinishReasonStop, FinishReasonLength, FinishReasonToolCalls, FinishReasonContentFilter, FinishReasonOther:
+	case FinishReasonStop, FinishReasonLength, FinishReasonToolCalls, FinishReasonContentFilter, FinishReasonRefusal, FinishReasonOther:
 		return true
 	default:
 		return false
@@ -74,9 +75,9 @@ func (o *OutputMetadata) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Output is the single provider generation produced by a chat call. Message
-// may be nil on a streaming chunk that only carries a finish reason or output
-// metadata.
+// Output is the complete single provider generation produced by a chat call.
+// Message may be nil when the provider completed without a portable content
+// item, but FinishReason is always present.
 type Output struct {
 	Message      *Message        `json:"message,omitempty"`
 	FinishReason FinishReason    `json:"finish_reason,omitempty"`
@@ -102,9 +103,6 @@ func (o *Output) Validate() error {
 	if o == nil {
 		return fmt.Errorf("%w: output must not be nil", ErrInvalidResponse)
 	}
-	if o.Message == nil && o.FinishReason == "" && o.Metadata == nil {
-		return fmt.Errorf("%w: output has no message, finish reason, or metadata", ErrInvalidResponse)
-	}
 	if o.Message != nil {
 		if err := o.Message.Validate(); err != nil {
 			return fmt.Errorf("%w: message: %w", ErrInvalidResponse, err)
@@ -114,7 +112,7 @@ func (o *Output) Validate() error {
 		}
 	}
 	if !o.FinishReason.Valid() {
-		return fmt.Errorf("%w: unknown finish reason %q", ErrInvalidResponse, o.FinishReason)
+		return fmt.Errorf("%w: missing or unknown finish reason %q", ErrInvalidResponse, o.FinishReason)
 	}
 	if err := o.Metadata.validate(); err != nil {
 		return err

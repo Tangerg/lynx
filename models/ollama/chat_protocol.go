@@ -71,8 +71,8 @@ func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Respo
 // Stream bridges Ollama's callback stream into Core's pull sequence. Returning
 // false from yield aborts the HTTP stream without surfacing a cancellation
 // error to the caller.
-func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	return func(yield func(*corechat.Response, error) bool) {
+func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.ResponseDelta, error] {
+	return func(yield func(*corechat.ResponseDelta, error) bool) {
 		apiReq, err := c.buildProtocolRequest(req, true)
 		if err != nil {
 			yield(nil, err)
@@ -82,7 +82,7 @@ func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*cor
 		mapper := newProtocolResponseMapper()
 		consumerStopped := false
 		err = c.api.chat(ctx, apiReq, func(chunk nativeChatResponse) error {
-			mapped, mapErr := mapper.mapResponse(apiReq.Model, chunk)
+			mapped, mapErr := mapper.mapDelta(apiReq.Model, chunk)
 			if mapErr != nil {
 				return mapErr
 			}

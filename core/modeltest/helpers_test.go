@@ -28,8 +28,12 @@ func helloRequest(t *testing.T) *chat.Request {
 	return request
 }
 
-func chunkResponse(id string) *chat.Response {
-	return &chat.Response{Metadata: &chat.ResponseMetadata{ID: id}}
+func completeResponse(id string) *chat.Response {
+	return &chat.Response{Output: &chat.Output{FinishReason: chat.FinishReasonStop}, Metadata: &chat.ResponseMetadata{ID: id}}
+}
+
+func responseDelta(id string) *chat.ResponseDelta {
+	return &chat.ResponseDelta{Metadata: &chat.ResponseMetadata{ID: id}, FinishReason: chat.FinishReasonStop}
 }
 
 // blockingChat is the minimal provider shape the behavior suite is written
@@ -43,16 +47,16 @@ func (b blockingChat) Call(ctx context.Context, _ *chat.Request) (*chat.Response
 	if err := b.wait(ctx); err != nil {
 		return nil, err
 	}
-	return chunkResponse("call"), nil
+	return completeResponse("call"), nil
 }
 
-func (b blockingChat) Stream(ctx context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
-	return func(yield func(*chat.Response, error) bool) {
+func (b blockingChat) Stream(ctx context.Context, _ *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+	return func(yield func(*chat.ResponseDelta, error) bool) {
 		if err := b.wait(ctx); err != nil {
 			yield(nil, err)
 			return
 		}
-		yield(chunkResponse("stream"), nil)
+		yield(responseDelta("stream"), nil)
 	}
 }
 
@@ -80,8 +84,8 @@ type streamingChat struct {
 	url string
 }
 
-func (s streamingChat) Stream(ctx context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
-	return func(yield func(*chat.Response, error) bool) {
+func (s streamingChat) Stream(ctx context.Context, _ *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+	return func(yield func(*chat.ResponseDelta, error) bool) {
 		request, err := http.NewRequestWithContext(ctx, http.MethodGet, s.url, nil)
 		if err != nil {
 			yield(nil, err)
@@ -97,7 +101,7 @@ func (s streamingChat) Stream(ctx context.Context, _ *chat.Request) iter.Seq2[*c
 			yield(nil, err)
 			return
 		}
-		if !yield(chunkResponse("stream"), nil) {
+		if !yield(responseDelta("stream"), nil) {
 			return
 		}
 		<-ctx.Done()
@@ -109,9 +113,9 @@ func (s streamingChat) Stream(ctx context.Context, _ *chat.Request) iter.Seq2[*c
 // shape "first error terminates" is written against.
 type failingChat struct{}
 
-func (failingChat) Stream(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-	return func(yield func(*chat.Response, error) bool) {
-		if !yield(chunkResponse("stream"), nil) {
+func (failingChat) Stream(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+	return func(yield func(*chat.ResponseDelta, error) bool) {
+		if !yield(responseDelta("stream"), nil) {
 			return
 		}
 		yield(nil, errors.New("provider failed"))
@@ -548,6 +552,25 @@ func TestRunIntegrationEmbeddingSkipsWithoutAKey(t *testing.T) {
 	}
 	if built {
 		t.Fatal("the probe built a model without a key")
+	}
+}
+
+func TestRunIntegrationEmbeddingCallsTheConfiguredModel(t *testing.T) {
+	t.Setenv("SCOPE_TEST_EMBEDDINGPROBE_KEY", "secret")
+	built := false
+	called := false
+	modeltest.RunIntegrationEmbedding(t, modeltest.IntegrationEmbeddingProbe{
+		Provider: "embeddingprobe",
+		Build: func(_ *testing.T, key string) embedding.Model {
+			built = key == "secret"
+			return embedding.ModelFunc(func(_ context.Context, request *embedding.Request) (*embedding.Response, error) {
+				called = true
+				return fakeEmbedding{}.Call(t.Context(), request)
+			})
+		},
+	})
+	if !built || !called {
+		t.Fatalf("integration probe = built:%t called:%t", built, called)
 	}
 }
 

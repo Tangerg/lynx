@@ -44,7 +44,7 @@ func NewDeployment(config DeploymentConfig) (Deployment, error) {
 		return Deployment{}, fmt.Errorf("%w: dispatcher is required", ErrInvalidDeployment)
 	}
 	descriptor := config.Definition.Descriptor()
-	reference, err := NewDeploymentRef(descriptor, config.ImplementationDigest, config.ConfigurationDigest)
+	reference, err := newDeploymentRef(descriptor, config.ImplementationDigest, config.ConfigurationDigest)
 	if err != nil {
 		return Deployment{}, fmt.Errorf("%w: %w", ErrInvalidDeployment, err)
 	}

@@ -47,7 +47,7 @@ func (Evaluator) Evaluate(ctx context.Context, sample Sample) (eval.Report, erro
 	}
 	details = append(details, task)
 	if sample.Expected.Tools != nil {
-		tools, toolErr := toolReport(sample.Actual.ToolCalls, sample.Expected.Tools.Calls)
+		tools, toolErr := toolReport(sample.Actual.toolCalls, sample.Expected.Tools.Calls)
 		if toolErr != nil {
 			return eval.Report{}, toolErr
 		}
@@ -84,17 +84,17 @@ func (Evaluator) Evaluate(ctx context.Context, sample Sample) (eval.Report, erro
 }
 
 func taskReport(sample Sample) (eval.Report, error) {
-	passed := sample.Actual.Termination.Status() == sample.Expected.Status
+	passed := sample.Actual.termination.Status() == sample.Expected.Status
 	feedback := "terminal status matched"
 	if !passed {
 		feedback = fmt.Sprintf(
 			"terminal status was %s, expected %s",
-			sample.Actual.Termination.Status(), sample.Expected.Status,
+			sample.Actual.termination.Status(), sample.Expected.Status,
 		)
 	}
 	if passed && sample.Expected.Output != nil {
-		passed = sample.Actual.Output != nil &&
-			bytes.Equal(sample.Actual.Output.JSON(), sample.Expected.Output.JSON())
+		passed = sample.Actual.output != nil &&
+			bytes.Equal(sample.Actual.output.JSON(), sample.Expected.Output.JSON())
 		if passed {
 			feedback = "terminal status and output matched"
 		} else {
@@ -165,7 +165,7 @@ func limitReports(actual Trajectory, limits Limits) ([]eval.Report, error) {
 	if limits.CommittedSteps != nil {
 		report, err := measurementReport(
 			MetricCommittedSteps, metricUnitCount,
-			float64(actual.Usage.CommittedSteps), actual.Usage.CommittedSteps <= *limits.CommittedSteps,
+			float64(actual.usage.CommittedSteps), actual.usage.CommittedSteps <= *limits.CommittedSteps,
 			*limits.CommittedSteps,
 		)
 		if err != nil {
@@ -176,7 +176,7 @@ func limitReports(actual Trajectory, limits Limits) ([]eval.Report, error) {
 	if limits.PreparedEffects != nil {
 		report, err := measurementReport(
 			MetricPreparedEffects, metricUnitCount,
-			float64(actual.Usage.PreparedEffects), actual.Usage.PreparedEffects <= *limits.PreparedEffects,
+			float64(actual.usage.PreparedEffects), actual.usage.PreparedEffects <= *limits.PreparedEffects,
 			*limits.PreparedEffects,
 		)
 		if err != nil {
@@ -187,7 +187,7 @@ func limitReports(actual Trajectory, limits Limits) ([]eval.Report, error) {
 	if limits.AcceptedSignals != nil {
 		report, err := measurementReport(
 			MetricAcceptedSignals, metricUnitCount,
-			float64(actual.Usage.AcceptedSignals), actual.Usage.AcceptedSignals <= *limits.AcceptedSignals,
+			float64(actual.usage.AcceptedSignals), actual.usage.AcceptedSignals <= *limits.AcceptedSignals,
 			*limits.AcceptedSignals,
 		)
 		if err != nil {
@@ -198,7 +198,7 @@ func limitReports(actual Trajectory, limits Limits) ([]eval.Report, error) {
 	if limits.DroppedDeltas != nil {
 		report, err := measurementReport(
 			MetricDroppedDeltas, metricUnitCount,
-			float64(actual.Usage.DroppedDeltas), actual.Usage.DroppedDeltas <= *limits.DroppedDeltas,
+			float64(actual.usage.DroppedDeltas), actual.usage.DroppedDeltas <= *limits.DroppedDeltas,
 			*limits.DroppedDeltas,
 		)
 		if err != nil {
@@ -223,7 +223,7 @@ func limitReports(actual Trajectory, limits Limits) ([]eval.Report, error) {
 	if limits.Duration != nil {
 		report, err := measurementReport(
 			MetricDuration, metricUnitSecond,
-			actual.Duration.Seconds(), actual.Duration <= *limits.Duration,
+			actual.duration.Seconds(), actual.duration <= *limits.Duration,
 			limits.Duration.Seconds(),
 		)
 		if err != nil {

@@ -1,6 +1,6 @@
 # Scope design philosophy
 
-This conceptual document explains why Scope is shaped the way it is. [`AGENTS.md`](AGENTS.md) contains the short repository rules, and [`REFACTORING.md`](REFACTORING.md) turns these principles into an editing and verification method. Module-specific contracts remain in each module's `ARCHITECTURE.md`.
+This conceptual document explains why Scope is shaped the way it is. [`AGENTS.md`](AGENTS.md) contains the short repository rules, and [`REFACTORING.md`](REFACTORING.md) turns these principles into an editing and verification method. Package-specific contracts live with their GoDoc and checked examples.
 
 ## The governing idea
 
@@ -171,7 +171,7 @@ The Host binds exporters and World Wide Web Consortium (W3C) propagation once at
 
 The trace identifier originates at the entry point and propagates through every boundary. Telemetry records stable identities, counts, durations, outcomes, and low-cardinality classifications. Prompts, documents, media, credentials, and raw provider messages do not become attributes. Prefer semantic conventions; custom keys carry no Scope brand. The instrumentation scope may use the library path because it identifies the instrumentation library rather than domain data.
 
-A detached goroutine preserves trace values with `context.WithoutCancel` rather than starting from `context.Background()`. The complete signal and propagation contracts live in [`otel/ARCHITECTURE.md`](otel/ARCHITECTURE.md).
+A detached goroutine preserves trace values with `context.WithoutCancel` rather than starting from `context.Background()`.
 
 ## Performance follows evidence
 

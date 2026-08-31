@@ -247,7 +247,7 @@ func (c *crashTreeExecution) startRootChild(signals []agent.Signal) (agent.Trans
 	if err != nil {
 		return agent.Transition{}, err
 	}
-	budget, err := agent.NewBudget(crashTreeChildStepBudget, crashTreeChildEffectBudget, crashTreeChildSignalBudget)
+	budget, err := agent.NewBudget(agent.BudgetConfig{Steps: crashTreeChildStepBudget, Effects: crashTreeChildEffectBudget, Signals: crashTreeChildSignalBudget})
 	if err != nil {
 		return agent.Transition{}, err
 	}

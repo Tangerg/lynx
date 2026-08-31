@@ -297,11 +297,10 @@ func (c *compositionExecution) startChildren() (agent.Transition, error) {
 	}})
 	localKey, _ := agent.ParseChildKey("local")
 	modelKey, _ := agent.ParseChildKey("model")
-	budget, _ := agent.NewBudget(
-		compositionChildBudgetSteps,
-		compositionChildBudgetEffects,
-		compositionChildBudgetSignals,
-	)
+	budget, _ := agent.NewBudget(agent.BudgetConfig{
+		Steps: compositionChildBudgetSteps, Effects: compositionChildBudgetEffects,
+		Signals: compositionChildBudgetSignals,
+	})
 	localEffect, err := agent.StartChild(agent.ChildSpec{
 		Key: localKey, DeploymentRef: c.local, Input: localInput, Budget: budget,
 	})

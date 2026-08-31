@@ -15,7 +15,7 @@ type ChatSuite struct {
 	New              func(t *testing.T) (chat.Model, chat.Streamer)
 	Request          func(t *testing.T) *chat.Request
 	AssertCall       func(t *testing.T, response *chat.Response)
-	AssertStream     func(t *testing.T, responses []*chat.Response)
+	AssertStream     func(t *testing.T, deltas []*chat.ResponseDelta)
 	AssertAggregated func(t *testing.T, response *chat.Response)
 }
 
@@ -56,33 +56,46 @@ func (c ChatSuite) Run(t *testing.T) {
 		}
 		request := c.validRequest(t)
 		before := requestWire(t, request)
-		var responses []*chat.Response
+		var deltas []*chat.ResponseDelta
 		var accumulator chat.ResponseAccumulator
-		for response, err := range streamer.Stream(t.Context(), request) {
+		for delta, err := range streamer.Stream(t.Context(), request) {
 			if err != nil {
 				t.Fatalf("Stream: %v", err)
 			}
-			assertResponse(t, response)
-			if err := accumulator.Add(response); err != nil {
+			assertResponseDelta(t, delta)
+			if err := accumulator.Add(delta); err != nil {
 				t.Fatalf("ResponseAccumulator.Add: %v", err)
 			}
-			responses = append(responses, response)
+			deltas = append(deltas, delta)
 		}
-		if len(responses) == 0 {
-			t.Fatal("Stream yielded no responses")
+		if len(deltas) == 0 {
+			t.Fatal("Stream yielded no response deltas")
 		}
 		if after := requestWire(t, request); !bytes.Equal(before, after) {
 			t.Fatalf("Stream mutated Request\nbefore: %s\nafter:  %s", before, after)
 		}
 		if c.AssertStream != nil {
-			c.AssertStream(t, responses)
+			c.AssertStream(t, deltas)
 		}
-		aggregated := accumulator.Response()
+		aggregated, err := accumulator.Response()
+		if err != nil {
+			t.Fatalf("ResponseAccumulator.Response: %v", err)
+		}
 		assertResponse(t, aggregated)
 		if c.AssertAggregated != nil {
 			c.AssertAggregated(t, aggregated)
 		}
 	})
+}
+
+func assertResponseDelta(t *testing.T, delta *chat.ResponseDelta) {
+	t.Helper()
+	if delta == nil {
+		t.Fatal("provider yielded nil ResponseDelta without error")
+	}
+	if err := delta.Validate(); err != nil {
+		t.Fatalf("ResponseDelta.Validate: %v", err)
+	}
 }
 
 func (c ChatSuite) validRequest(t *testing.T) *chat.Request {

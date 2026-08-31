@@ -1,5 +1,4 @@
-// Package anthropic exposes Anthropic's native Messages adapter, token
-// estimator, and first-party OpenAI-compatible endpoint. All constructors
-// return Anthropic-owned types; shared wire implementations remain private to
-// the models module.
+// Package anthropic exposes Anthropic adapters. [NewChat] targets the Messages
+// API, [NewChatCompletions] targets the OpenAI-compatible endpoint, and
+// [NewTextEstimator] serves isolated text-token estimation.
 package anthropic

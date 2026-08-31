@@ -2,7 +2,9 @@ package interaction
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"errors"
 	"testing"
 
 	agent "github.com/Tangerg/scope/agent"
@@ -15,6 +17,16 @@ type fuzzDelegateInput struct {
 
 type fuzzDelegateOutput struct {
 	Result string `json:"result"`
+}
+
+type fuzzDispatcher struct{}
+
+func (fuzzDispatcher) Dispatch(context.Context, agent.EffectRequest, agent.DeltaEmitter) (agent.Settlement, error) {
+	return agent.Settlement{}, errors.New("fuzz deployment does not dispatch effects")
+}
+
+func (fuzzDispatcher) ReplayPolicy(agent.Effect) agent.ReplayPolicy {
+	return agent.ReplayPolicyNever
 }
 
 func FuzzExecutionStateRestore(f *testing.F) {
@@ -61,22 +73,23 @@ func fuzzInteractionDefinition(f testing.TB) *Definition {
 	if err != nil {
 		f.Fatal(err)
 	}
-	descriptor, err := agent.NewDescriptor(agent.DescriptorConfig{
+	workerDefinition, err := NewDefinition(DefinitionConfig{
 		Name: "interaction.fuzz_worker", Description: "Provide a deterministic fuzz worker contract.",
-		InputSchema: inputSchema, OutputSchema: outputSchema,
+		MaxModelCalls: 1,
 	})
 	if err != nil {
 		f.Fatal(err)
 	}
-	reference, err := agent.NewDeploymentRef(
-		descriptor,
-		agent.ComputeDigest([]byte("interaction-fuzz-worker-implementation")),
-		agent.ComputeDigest([]byte("interaction-fuzz-worker-configuration")),
-	)
+	workerDeployment, err := agent.NewDeployment(agent.DeploymentConfig{
+		Definition: workerDefinition, Dispatcher: fuzzDispatcher{},
+		ImplementationDigest: agent.ComputeDigest([]byte("interaction-fuzz-worker-implementation")),
+		ConfigurationDigest:  agent.ComputeDigest([]byte("interaction-fuzz-worker-configuration")),
+	})
 	if err != nil {
 		f.Fatal(err)
 	}
-	budget, _ := agent.NewBudget(10, 10, 10)
+	reference := workerDeployment.DeploymentRef()
+	budget, _ := agent.NewBudget(agent.BudgetConfig{Steps: 10, Effects: 10, Signals: 10})
 	delegate := Delegate{
 		definition: chat.ToolDefinition{
 			Name: "delegate_fuzz", Description: "Delegate one fuzz task to the exact worker.",

@@ -266,7 +266,9 @@ func newIterationDeployment(
 	optimizer agent.Deployment,
 	evaluator agent.Deployment,
 ) (agent.Deployment, error) {
-	workerBudget, err := agent.NewBudget(workerBudgetSteps, workerBudgetEffects, workerBudgetSignals)
+	workerBudget, err := agent.NewBudget(agent.BudgetConfig{
+		Steps: workerBudgetSteps, Effects: workerBudgetEffects, Signals: workerBudgetSignals,
+	})
 	if err != nil {
 		return agent.Deployment{}, err
 	}
@@ -320,7 +322,9 @@ func newOptimizationRoot(
 	if err != nil {
 		return agent.Deployment{}, err
 	}
-	iterationBudget, err := agent.NewBudget(iterationBudgetSteps, iterationBudgetEffects, iterationBudgetSignals)
+	iterationBudget, err := agent.NewBudget(agent.BudgetConfig{
+		Steps: iterationBudgetSteps, Effects: iterationBudgetEffects, Signals: iterationBudgetSignals,
+	})
 	if err != nil {
 		return agent.Deployment{}, err
 	}

@@ -18,8 +18,10 @@ const (
 )
 
 type protocolResponseMapper struct {
-	partOffset int
-	provider   string
+	partOffset   int
+	provider     string
+	lastPartKind corechat.PartKind
+	finish       corechat.FinishReason
 }
 
 func newProtocolResponseMapper(provider string) *protocolResponseMapper {
@@ -30,58 +32,118 @@ func (p *protocolResponseMapper) mapResponse(requestModel string, response *gena
 	if response == nil {
 		return nil, errors.New("google: nil response")
 	}
+	if len(response.Candidates) != 1 {
+		return nil, fmt.Errorf("google: response has %d candidates; Core supports one output", len(response.Candidates))
+	}
+	metadata, err := p.mapMetadata(requestModel, response)
+	if err != nil {
+		return nil, err
+	}
+	candidate, err := p.candidate(response.Candidates[0])
+	if err != nil {
+		return nil, err
+	}
+	output, err := p.mapCandidate(candidate)
+	if err != nil {
+		return nil, fmt.Errorf("google: output: %w", err)
+	}
+	mapped := &corechat.Response{Output: output, Metadata: metadata}
+	if err := mapped.Validate(); err != nil {
+		return nil, fmt.Errorf("google: mapped response: %w", err)
+	}
+	return mapped, nil
+}
+
+func (p *protocolResponseMapper) mapDelta(requestModel string, response *genai.GenerateContentResponse) (*corechat.ResponseDelta, error) {
+	if response == nil {
+		return nil, errors.New("google: nil stream response")
+	}
+	if len(response.Candidates) > 1 {
+		return nil, fmt.Errorf("google: stream response has %d candidates; Core supports one output", len(response.Candidates))
+	}
+	metadata, err := p.mapMetadata(requestModel, response)
+	if err != nil {
+		return nil, err
+	}
+	mapped := &corechat.ResponseDelta{Metadata: metadata}
+	if len(response.Candidates) == 1 {
+		candidate, err := p.candidate(response.Candidates[0])
+		if err != nil {
+			return nil, err
+		}
+		if err := p.mapCandidateDelta(candidate, mapped); err != nil {
+			return nil, fmt.Errorf("google: stream output: %w", err)
+		}
+		if mapped.FinishReason != "" {
+			if p.finish != "" {
+				return nil, errors.New("google: stream emitted more than one finish reason")
+			}
+			p.finish = mapped.FinishReason
+			mapped.FinishReason = ""
+		}
+	}
+	if err := mapped.Validate(); err != nil {
+		return nil, fmt.Errorf("google: mapped response delta: %w", err)
+	}
+	return mapped, nil
+}
+
+func (p *protocolResponseMapper) finished() bool {
+	return p.finish != ""
+}
+
+func (p *protocolResponseMapper) complete(delta *corechat.ResponseDelta) (*corechat.ResponseDelta, error) {
+	if delta == nil || p.finish == "" {
+		return nil, fmt.Errorf("google: stream: %w: missing terminal response", corechat.ErrInvalidResponse)
+	}
+	delta.FinishReason = p.finish
+	if err := delta.Validate(); err != nil {
+		return nil, fmt.Errorf("google: terminal stream response: %w", err)
+	}
+	return delta, nil
+}
+
+func (p *protocolResponseMapper) candidate(candidate *genai.Candidate) (*genai.Candidate, error) {
+	if candidate == nil {
+		return nil, errors.New("google: nil candidate")
+	}
+	if candidate.Index != 0 {
+		return nil, fmt.Errorf("google: candidate index is %d, want 0", candidate.Index)
+	}
+	return candidate, nil
+}
+
+func (p *protocolResponseMapper) mapMetadata(requestModel string, response *genai.GenerateContentResponse) (*corechat.ResponseMetadata, error) {
 	modelName := response.ModelVersion
 	if modelName == "" {
 		modelName = requestModel
 	}
-	mapped := &corechat.Response{
-		Metadata: &corechat.ResponseMetadata{ID: response.ResponseID, Model: modelName},
-	}
-	if err := mapped.Metadata.Extra.Set(protocolKey(p.provider, "response"), response); err != nil {
+	metadata := &corechat.ResponseMetadata{ID: response.ResponseID, Model: modelName}
+	if err := metadata.Extra.Set(protocolKey(p.provider, "response"), response); err != nil {
 		return nil, fmt.Errorf("google: preserve native response: %w", err)
 	}
-	if len(response.Candidates) > 1 {
-		return nil, fmt.Errorf("google: response has %d candidates; Core supports one output", len(response.Candidates))
-	}
-	if len(response.Candidates) == 1 {
-		candidate := response.Candidates[0]
-		if candidate == nil {
-			return nil, errors.New("google: nil candidate")
-		}
-		if candidate.Index != 0 {
-			return nil, fmt.Errorf("google: candidate index is %d, want 0", candidate.Index)
-		}
-		output, err := p.mapCandidate(candidate)
-		if err != nil {
-			return nil, fmt.Errorf("google: output: %w", err)
-		}
-		mapped.Output = output
-	}
 	if response.UsageMetadata != nil {
-		mapped.Metadata.Usage = mapProtocolUsage(response.UsageMetadata)
-		if err := mapped.Metadata.Extra.Set(protocolKey(p.provider, "usage"), protocolUsageExtensionFrom(response.UsageMetadata)); err != nil {
+		metadata.Usage = mapProtocolUsage(response.UsageMetadata)
+		if err := metadata.Extra.Set(protocolKey(p.provider, "usage"), protocolUsageExtensionFrom(response.UsageMetadata)); err != nil {
 			return nil, err
 		}
 		if response.UsageMetadata.ToolUsePromptTokenCount != 0 {
-			if err := mapped.Metadata.Extra.Set(protocolKey(p.provider, "tool_use_prompt_tokens"), int64(response.UsageMetadata.ToolUsePromptTokenCount)); err != nil {
+			if err := metadata.Extra.Set(protocolKey(p.provider, "tool_use_prompt_tokens"), int64(response.UsageMetadata.ToolUsePromptTokenCount)); err != nil {
 				return nil, err
 			}
 		}
 	}
 	if response.ModelVersion != "" {
-		if err := mapped.Metadata.Extra.Set(protocolKey(p.provider, "model_version"), response.ModelVersion); err != nil {
+		if err := metadata.Extra.Set(protocolKey(p.provider, "model_version"), response.ModelVersion); err != nil {
 			return nil, err
 		}
 	}
 	if response.PromptFeedback != nil {
-		if err := mapped.Metadata.Extra.Set(protocolKey(p.provider, "prompt_feedback"), response.PromptFeedback); err != nil {
+		if err := metadata.Extra.Set(protocolKey(p.provider, "prompt_feedback"), response.PromptFeedback); err != nil {
 			return nil, err
 		}
 	}
-	if err := mapped.Validate(); err != nil {
-		return nil, fmt.Errorf("google: mapped response: %w", err)
-	}
-	return mapped, nil
+	return metadata, nil
 }
 
 func (p *protocolResponseMapper) mapCandidate(candidate *genai.Candidate) (*corechat.Output, error) {
@@ -114,27 +176,36 @@ func (p *protocolResponseMapper) mapCandidate(candidate *genai.Candidate) (*core
 		if part == nil {
 			return nil, fmt.Errorf("content.parts[%d]: nil part", partIndex)
 		}
-		mapped, err := mapProtocolCandidatePart(p.provider, offset+partIndex, part)
+		mapped, include, err := mapProtocolCandidatePart(p.provider, offset+partIndex, part)
 		if err != nil {
 			return nil, fmt.Errorf("content.parts[%d]: %w", partIndex, err)
 		}
-		parts = append(parts, mapped)
+		if include {
+			parts = append(parts, mapped)
+		}
 	}
 	p.partOffset = offset + len(candidate.Content.Parts)
+	attachProtocolCitations(parts, candidate.CitationMetadata)
+	if len(parts) == 0 {
+		return output, nil
+	}
 	output.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
 	return output, nil
 }
 
-func mapProtocolCandidatePart(provider string, partIndex int, part *genai.Part) (corechat.Part, error) {
+func mapProtocolCandidatePart(provider string, partIndex int, part *genai.Part) (corechat.Part, bool, error) {
 	var mapped corechat.Part
 	switch {
 	case part.FunctionCall != nil:
 		if part.FunctionCall.Name == "" {
-			return corechat.Part{}, errors.New("function call has no name")
+			return corechat.Part{}, false, errors.New("function call has no name")
 		}
-		arguments, err := protocolJSON(part.FunctionCall.Args)
+		if len(part.FunctionCall.PartialArgs) != 0 {
+			return corechat.Part{}, false, errors.New("structured partial function arguments have no portable JSON-fragment representation")
+		}
+		arguments, err := protocolToolArguments(part.FunctionCall.Args)
 		if err != nil {
-			return corechat.Part{}, fmt.Errorf("function call arguments: %w", err)
+			return corechat.Part{}, false, fmt.Errorf("function call arguments: %w", err)
 		}
 		id := part.FunctionCall.ID
 		if id == "" {
@@ -148,28 +219,160 @@ func mapProtocolCandidatePart(provider string, partIndex int, part *genai.Part) 
 	case part.InlineData != nil:
 		value, err := media.NewBytes(part.InlineData.MIMEType, part.InlineData.Data)
 		if err != nil {
-			return corechat.Part{}, err
+			return corechat.Part{}, false, err
 		}
 		value.Name = part.InlineData.DisplayName
 		mapped = corechat.NewMediaPart(value)
 	case part.FileData != nil:
 		value, err := media.NewURI(part.FileData.MIMEType, part.FileData.FileURI)
 		if err != nil {
-			return corechat.Part{}, err
+			return corechat.Part{}, false, err
 		}
 		value.Name = part.FileData.DisplayName
 		mapped = corechat.NewMediaPart(value)
 	default:
-		// Some official parts (server tools, executable code, and the empty
-		// signed part emitted at the end of a stream) have no Core semantic
-		// payload. A metadata-only text part keeps their exact position and
-		// makes them replayable without inventing a false common abstraction.
-		mapped = corechat.Part{Kind: corechat.PartText}
+		return corechat.Part{}, false, nil
 	}
 	if err := mapped.Metadata.Set(protocolKey(provider, "native_part"), part); err != nil {
-		return corechat.Part{}, fmt.Errorf("preserve native part: %w", err)
+		return corechat.Part{}, false, fmt.Errorf("preserve native part: %w", err)
 	}
-	return mapped, nil
+	return mapped, true, nil
+}
+
+func (p *protocolResponseMapper) mapCandidateDelta(candidate *genai.Candidate, response *corechat.ResponseDelta) error {
+	response.FinishReason = normalizeProtocolFinishReason(candidate.FinishReason)
+	response.OutputMetadata = &corechat.OutputMetadata{}
+	if candidate.FinishReason != "" {
+		if err := response.OutputMetadata.Extra.Set(protocolKey(p.provider, "native_finish_reason"), candidate.FinishReason); err != nil {
+			return err
+		}
+	}
+	if len(candidate.SafetyRatings) > 0 {
+		if err := response.OutputMetadata.Extra.Set(protocolKey(p.provider, "safety_ratings"), candidate.SafetyRatings); err != nil {
+			return err
+		}
+	}
+	if candidate.FinishMessage != "" {
+		if err := response.OutputMetadata.Extra.Set(protocolKey(p.provider, "finish_message"), candidate.FinishMessage); err != nil {
+			return err
+		}
+	}
+	if candidate.Content == nil {
+		return nil
+	}
+	offset := p.partOffset
+	for partIndex, part := range candidate.Content.Parts {
+		if part == nil {
+			return fmt.Errorf("content.parts[%d]: nil part", partIndex)
+		}
+		delta, kind, include, err := mapProtocolCandidatePartDelta(p.provider, offset+partIndex, part)
+		if err != nil {
+			return fmt.Errorf("content.parts[%d]: %w", partIndex, err)
+		}
+		if include {
+			response.Parts = append(response.Parts, delta)
+			p.lastPartKind = kind
+		}
+	}
+	p.partOffset = offset + len(candidate.Content.Parts)
+	if p.lastPartKind == corechat.PartText {
+		for _, citation := range protocolCitations(candidate.CitationMetadata) {
+			response.Parts = append(response.Parts, corechat.NewCitationDelta(citation))
+		}
+	}
+	return nil
+}
+
+func mapProtocolCandidatePartDelta(provider string, partIndex int, part *genai.Part) (corechat.PartDelta, corechat.PartKind, bool, error) {
+	var mapped corechat.PartDelta
+	var kind corechat.PartKind
+	switch {
+	case part.FunctionCall != nil:
+		if part.FunctionCall.Name == "" {
+			return corechat.PartDelta{}, "", false, errors.New("function call has no name")
+		}
+		if len(part.FunctionCall.PartialArgs) != 0 {
+			return corechat.PartDelta{}, "", false, errors.New("structured partial function arguments have no portable JSON-fragment representation")
+		}
+		arguments, err := protocolToolArguments(part.FunctionCall.Args)
+		if err != nil {
+			return corechat.PartDelta{}, "", false, fmt.Errorf("function call arguments: %w", err)
+		}
+		id := part.FunctionCall.ID
+		if id == "" {
+			id = fmt.Sprintf("%s%d", protocolGeneratedToolPrefixFor(provider), partIndex)
+		}
+		mapped = corechat.NewToolCallDelta(corechat.ToolCallDelta{ID: id, Name: part.FunctionCall.Name, Arguments: arguments})
+		kind = corechat.PartToolCall
+	case part.Thought:
+		mapped = corechat.NewReasoningDelta(part.Text, part.ThoughtSignature)
+		kind = corechat.PartReasoning
+	case part.Text != "":
+		mapped = corechat.NewTextDelta(part.Text)
+		kind = corechat.PartText
+	case part.InlineData != nil:
+		value, err := media.NewBytes(part.InlineData.MIMEType, part.InlineData.Data)
+		if err != nil {
+			return corechat.PartDelta{}, "", false, err
+		}
+		value.Name = part.InlineData.DisplayName
+		mapped = corechat.NewMediaDelta(value)
+		kind = corechat.PartMedia
+	case part.FileData != nil:
+		value, err := media.NewURI(part.FileData.MIMEType, part.FileData.FileURI)
+		if err != nil {
+			return corechat.PartDelta{}, "", false, err
+		}
+		value.Name = part.FileData.DisplayName
+		mapped = corechat.NewMediaDelta(value)
+		kind = corechat.PartMedia
+	default:
+		return corechat.PartDelta{}, "", false, nil
+	}
+	if err := mapped.Metadata.Set(protocolKey(provider, "native_part"), part); err != nil {
+		return corechat.PartDelta{}, "", false, fmt.Errorf("preserve native part: %w", err)
+	}
+	return mapped, kind, true, nil
+}
+
+func protocolToolArguments(arguments map[string]any) (string, error) {
+	if arguments == nil {
+		return "", nil
+	}
+	return protocolJSON(arguments)
+}
+
+func attachProtocolCitations(parts []corechat.Part, citations *genai.CitationMetadata) {
+	mapped := protocolCitations(citations)
+	if len(mapped) == 0 {
+		return
+	}
+	for index := len(parts) - 1; index >= 0; index-- {
+		if parts[index].Kind == corechat.PartText {
+			parts[index].Citations = append(parts[index].Citations, mapped...)
+			return
+		}
+	}
+}
+
+func protocolCitations(metadata *genai.CitationMetadata) []corechat.Citation {
+	if metadata == nil {
+		return nil
+	}
+	result := make([]corechat.Citation, 0, len(metadata.Citations))
+	for _, citation := range metadata.Citations {
+		if citation == nil || citation.URI == "" {
+			continue
+		}
+		mapped := corechat.Citation{
+			Source: corechat.CitationSource{Kind: corechat.CitationSourceURI, Value: citation.URI},
+			Title:  citation.Title,
+		}
+		if mapped.Validate() == nil {
+			result = append(result, mapped)
+		}
+	}
+	return result
 }
 
 func protocolJSON(value any) (string, error) {

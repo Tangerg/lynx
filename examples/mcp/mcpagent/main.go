@@ -239,9 +239,28 @@ func (s *stubModel) Call(_ context.Context, request *chat.Request) (*chat.Respon
 	return responseWithText(`{"sources":["https://example.com/agents-2026"]}`)
 }
 
-func (s *stubModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+func (s *stubModel) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
 	response, err := s.Call(ctx, request)
-	return func(yield func(*chat.Response, error) bool) { yield(response, err) }
+	return func(yield func(*chat.ResponseDelta, error) bool) {
+		if err != nil {
+			yield(nil, err)
+			return
+		}
+		delta := &chat.ResponseDelta{FinishReason: response.Output.FinishReason, Metadata: response.Metadata}
+		if response.Output.Message != nil {
+			for _, part := range response.Output.Message.Parts {
+				switch part.Kind {
+				case chat.PartText:
+					delta.Parts = append(delta.Parts, chat.NewTextDelta(part.Text))
+				case chat.PartToolCall:
+					delta.Parts = append(delta.Parts, chat.NewToolCallDelta(chat.ToolCallDelta{
+						ID: part.ToolCall.ID, Name: part.ToolCall.Name, Arguments: part.ToolCall.Arguments,
+					}))
+				}
+			}
+		}
+		yield(delta, nil)
+	}
 }
 
 func hasToolMessage(messages []chat.Message) bool {

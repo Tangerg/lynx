@@ -29,43 +29,43 @@ type ChatConfig struct {
 
 func (c ChatConfig) Validate() error { return c.protocol().Validate() }
 
-func (c ChatConfig) protocol() anthropicprotocol.ChatConfig {
-	return anthropicprotocol.ChatConfig{APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
+func (c ChatConfig) protocol() anthropicprotocol.MessagesConfig {
+	return anthropicprotocol.MessagesConfig{APIKey: c.APIKey, DefaultOptions: c.DefaultOptions, BaseURL: c.BaseURL, HTTPClient: c.HTTPClient}
 }
 
 // Chat is the Anthropic Messages protocol model.
-type Chat = anthropicprotocol.Chat
+type Chat = anthropicprotocol.Messages
 
 func NewChat(config ChatConfig) (*Chat, error) {
-	return anthropicprotocol.NewChat(config.protocol())
+	return anthropicprotocol.NewMessages(config.protocol())
 }
 
-type OpenAIChatConfig struct {
+type ChatCompletionsConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
 
-func (o OpenAIChatConfig) Validate() error {
-	if o.APIKey == "" {
+func (c ChatCompletionsConfig) Validate() error {
+	if c.APIKey == "" {
 		return errors.New("anthropic: APIKey is required")
 	}
-	if err := o.DefaultOptions.Validate(); err != nil {
+	if err := c.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("anthropic: DefaultOptions: %w", err)
 	}
 	return nil
 }
 
-// OpenAIChat is Anthropic's OpenAI-compatible protocol model.
-type OpenAIChat = openaiprotocol.Chat
+// ChatCompletions implements Anthropic's OpenAI-compatible endpoint.
+type ChatCompletions = openaiprotocol.ChatCompletions
 
-func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
+func NewChatCompletions(config ChatCompletionsConfig) (*ChatCompletions, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	return openaiprotocol.NewCompatibleChat(
-		openaiprotocol.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLOpenAI), HTTPClient: config.HTTPClient},
+	return openaiprotocol.NewCompatibleChatCompletions(
+		openaiprotocol.ChatCompletionsConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLOpenAI), HTTPClient: config.HTTPClient},
 		openaiprotocol.Dialect{Provider: "anthropic", TokenLimitField: openaiprotocol.TokenLimitMaxTokens},
 	)
 }

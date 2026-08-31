@@ -48,9 +48,9 @@ func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Respo
 	return (*protocol.Chat)(c).Call(ctx, req)
 }
 
-func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
+func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.ResponseDelta, error] {
 	if c == nil {
-		return func(yield func(*corechat.Response, error) bool) { yield(nil, errors.New("vertexai: nil Chat")) }
+		return func(yield func(*corechat.ResponseDelta, error) bool) { yield(nil, errors.New("vertexai: nil Chat")) }
 	}
 	return (*protocol.Chat)(c).Stream(ctx, req)
 }

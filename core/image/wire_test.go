@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/scope/core/image"
 	"github.com/Tangerg/scope/core/media"
@@ -101,8 +102,8 @@ func TestResponseRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	response, err := image.NewResponse([]*image.Output{output}, &image.ResponseMetadata{
-		Created: 1700000000,
-		Extra:   metadata.Map{"provider/region": json.RawMessage(`"eu"`)},
+		CreatedAt: time.Unix(1700000000, 0).UTC(),
+		Extra:     metadata.Map{"provider/region": json.RawMessage(`"eu"`)},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -128,7 +129,7 @@ func TestResponseRoundTrip(t *testing.T) {
 	if string(bytes) != "\x89PNG" {
 		t.Fatalf("Response round trip lost image bytes: %q", bytes)
 	}
-	if decoded.Metadata == nil || decoded.Metadata.Created != 1700000000 {
+	if decoded.Metadata == nil || !decoded.Metadata.CreatedAt.Equal(time.Unix(1700000000, 0)) {
 		t.Fatalf("Response round trip lost metadata: %#v", decoded.Metadata)
 	}
 }
@@ -150,7 +151,7 @@ func TestOutputAndResponseMetadataRoundTrip(t *testing.T) {
 		t.Fatalf("Output round trip = %#v", decodedOutput)
 	}
 
-	responseMetadata := image.ResponseMetadata{Created: 7}
+	responseMetadata := image.ResponseMetadata{CreatedAt: time.Unix(7, 0).UTC()}
 	encoded, err = json.Marshal(responseMetadata)
 	if err != nil {
 		t.Fatal(err)
@@ -159,7 +160,7 @@ func TestOutputAndResponseMetadataRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(encoded, &decodedMetadata); err != nil {
 		t.Fatal(err)
 	}
-	if decodedMetadata.Created != responseMetadata.Created {
+	if decodedMetadata.CreatedAt != responseMetadata.CreatedAt {
 		t.Fatalf("ResponseMetadata round trip = %#v, want %#v", decodedMetadata, responseMetadata)
 	}
 }
@@ -238,11 +239,11 @@ func TestDecodedValuesAreValidatedBeforeAssignment(t *testing.T) {
 		t.Fatalf("failed Output decode mutated receiver: %#v", output)
 	}
 
-	responseMetadata := image.ResponseMetadata{Created: 7}
-	if err := json.Unmarshal([]byte(`{"created":-1}`), &responseMetadata); !errors.Is(err, image.ErrInvalidResponse) {
+	responseMetadata := image.ResponseMetadata{CreatedAt: time.Unix(7, 0).UTC()}
+	if err := json.Unmarshal([]byte(`{"created_at":"not-a-time"}`), &responseMetadata); !errors.Is(err, image.ErrInvalidResponse) {
 		t.Fatalf("ResponseMetadata decode error = %v", err)
 	}
-	if responseMetadata.Created != 7 {
+	if !responseMetadata.CreatedAt.Equal(time.Unix(7, 0)) {
 		t.Fatalf("failed ResponseMetadata decode mutated receiver: %#v", responseMetadata)
 	}
 
@@ -268,7 +269,6 @@ func TestInvalidValuesFailToMarshal(t *testing.T) {
 		"negative seed":           {value: image.Options{Seed: int64Pointer(-1)}, want: image.ErrInvalidOptions},
 		"empty prompt":            {value: image.Request{}, want: image.ErrInvalidRequest},
 		"missing output media":    {value: image.Output{}, want: image.ErrInvalidResponse},
-		"negative created":        {value: image.ResponseMetadata{Created: -1}, want: image.ErrInvalidResponse},
 		"invalid extra":           {value: image.ResponseMetadata{Extra: brokenExtra}, want: image.ErrInvalidResponse},
 		"response without output": {value: image.Response{}, want: image.ErrInvalidResponse},
 	}

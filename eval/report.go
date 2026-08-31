@@ -82,7 +82,7 @@ func (r Report) validate(depth int) error {
 		return fmt.Errorf("%w: metadata: %w", ErrInvalidReport, err)
 	}
 	if !r.hasOutcome() {
-		return fmt.Errorf("%w: at least one verdict, score, measurement, feedback, metadata value, or detail is required", ErrInvalidReport)
+		return fmt.Errorf("%w: at least one verdict, score, measurement, feedback, or detail is required", ErrInvalidReport)
 	}
 	for index, detail := range r.Details {
 		if err := detail.validate(depth + 1); err != nil {
@@ -119,5 +119,5 @@ func (r *Report) UnmarshalJSON(data []byte) error {
 
 func (r Report) hasOutcome() bool {
 	return r.Verdict.Decided() || r.Score != nil || r.Measurement != nil ||
-		strings.TrimSpace(r.Feedback) != "" || len(r.Metadata) > 0 || len(r.Details) > 0
+		strings.TrimSpace(r.Feedback) != "" || len(r.Details) > 0
 }

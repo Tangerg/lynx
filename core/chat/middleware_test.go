@@ -21,9 +21,9 @@ func TestModelFuncDelegates(t *testing.T) {
 }
 
 func TestStreamerFuncDelegates(t *testing.T) {
-	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-		return func(yield func(*chat.Response, error) bool) {
-			yield(&chat.Response{Metadata: &chat.ResponseMetadata{ID: "chunk"}}, nil)
+	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+		return func(yield func(*chat.ResponseDelta, error) bool) {
+			yield(&chat.ResponseDelta{Metadata: &chat.ResponseMetadata{ID: "chunk"}}, nil)
 		}
 	})
 	for response, err := range streamer.Stream(context.Background(), nil) {
@@ -66,10 +66,10 @@ func TestWrapStreamOrdering(t *testing.T) {
 	var order []string
 	middleware := func(name string) chat.StreamMiddleware {
 		return func(next chat.Streamer) chat.Streamer {
-			return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+			return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
 				order = append(order, "before:"+name)
 				inner := next.Stream(ctx, request)
-				return func(yield func(*chat.Response, error) bool) {
+				return func(yield func(*chat.ResponseDelta, error) bool) {
 					for response, err := range inner {
 						if !yield(response, err) {
 							return
@@ -80,10 +80,10 @@ func TestWrapStreamOrdering(t *testing.T) {
 			})
 		}
 	}
-	endpoint := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-		return func(yield func(*chat.Response, error) bool) {
+	endpoint := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+		return func(yield func(*chat.ResponseDelta, error) bool) {
 			order = append(order, "endpoint")
-			yield(&chat.Response{}, nil)
+			yield(&chat.ResponseDelta{FinishReason: chat.FinishReasonStop}, nil)
 		}
 	})
 

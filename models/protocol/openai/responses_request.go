@@ -14,9 +14,9 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
-func (r *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses.ResponseNewParams, error) {
+func (r *Responses) buildResponsesRequest(req *corechat.Request) (*responses.ResponseNewParams, error) {
 	if r == nil || r.api == nil {
-		return nil, errors.New("openai responses: nil ResponsesChat")
+		return nil, errors.New("openai responses: nil Responses")
 	}
 	if err := req.Validate(); err != nil {
 		return nil, fmt.Errorf("openai responses: request: %w", err)
@@ -43,14 +43,28 @@ func (r *ResponsesChat) buildResponsesRequest(req *corechat.Request) (*responses
 		return nil, errors.New("openai responses: frequency_penalty, presence_penalty, top_k, and stop are not supported")
 	}
 	params.Model = shared.ResponsesModel(options.Model)
-	if options.MaxTokens != nil {
-		params.MaxOutputTokens = openaisdk.Int(*options.MaxTokens)
+	if options.MaxOutputTokens != nil {
+		params.MaxOutputTokens = openaisdk.Int(*options.MaxOutputTokens)
 	}
 	if options.Temperature != nil {
 		params.Temperature = openaisdk.Float(*options.Temperature)
 	}
 	if options.TopP != nil {
 		params.TopP = openaisdk.Float(*options.TopP)
+	}
+	if req.ToolChoice != nil {
+		switch req.ToolChoice.Mode {
+		case corechat.ToolChoiceAuto, corechat.ToolChoiceNone, corechat.ToolChoiceRequired:
+			params.ToolChoice.OfToolChoiceMode = openaisdk.Opt(responses.ToolChoiceOptions(req.ToolChoice.Mode))
+		case corechat.ToolChoiceNamed:
+			params.ToolChoice.OfFunctionTool = &responses.ToolChoiceFunctionParam{Name: req.ToolChoice.Name}
+		}
+		switch req.ToolChoice.Parallelism {
+		case corechat.ToolParallelismAllow:
+			params.ParallelToolCalls = openaisdk.Bool(true)
+		case corechat.ToolParallelismSingle:
+			params.ParallelToolCalls = openaisdk.Bool(false)
+		}
 	}
 	reasoningEffort, err := mapReasoningEffort(options.ReasoningEffort)
 	if err != nil {
@@ -103,6 +117,11 @@ func rejectCoreOwnedResponsesExtension(extensions metadata.Extensions) error {
 	}
 	if !found {
 		return nil
+	}
+	for _, field := range []string{"parallel_tool_calls", "tool_choice"} {
+		if _, exists := fields[field]; exists {
+			return fmt.Errorf("openai responses: extension %q field %q is owned by options.tool_choice", ResponsesRequestExtensionKey, field)
+		}
 	}
 	if raw, exists := fields["reasoning"]; exists {
 		var reasoningFields map[string]json.RawMessage
@@ -233,11 +252,13 @@ func mapResponsesAssistantItems(parts []corechat.Part) ([]responses.ResponseInpu
 		switch part.Kind {
 		case corechat.PartText:
 			items = append(items, responsesEasyMessage(responses.EasyInputMessageRoleAssistant, part.Text))
+		case corechat.PartRefusal:
+			items = append(items, responsesEasyMessage(responses.EasyInputMessageRoleAssistant, part.Text))
 		case corechat.PartReasoning:
-			if len(part.Signature) == 0 {
+			if len(part.ReasoningState) == 0 {
 				continue
 			}
-			reasoningItems, framed, err := decodeResponsesReasoningFrames(part.Signature)
+			reasoningItems, framed, err := decodeResponsesReasoningFrames(part.ReasoningState)
 			if err != nil {
 				return nil, fmt.Errorf("parts[%d].reasoning signature: %w", partIndex, err)
 			}

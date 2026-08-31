@@ -31,7 +31,7 @@ func TestManagedDelegatePreservesMixedToolCallOrder(t *testing.T) {
 	child := delegateWorkflow(t, "interaction.delegate_worker", func(input delegateRequest) (delegateResponse, error) {
 		return delegateResponse{Value: strings.ToUpper(input.Value)}, nil
 	})
-	budget, err := agent.NewBudget(50, 50, 50)
+	budget, err := agent.NewBudget(agent.BudgetConfig{Steps: 50, Effects: 50, Signals: 50})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +95,7 @@ func TestDelegateRejectsNonObjectInputAndToolNameCollision(t *testing.T) {
 	primitive := delegateWorkflow(t, "interaction.primitive_worker", func(value int) (int, error) {
 		return value, nil
 	})
-	budget, _ := agent.NewBudget(10, 10, 10)
+	budget, _ := agent.NewBudget(agent.BudgetConfig{Steps: 10, Effects: 10, Signals: 10})
 	if _, err := interaction.NewDelegate(interaction.DelegateConfig{
 		Name: "primitive", Description: "Delegate one primitive value.",
 		Deployment: primitive, Budget: budget,
@@ -169,7 +169,7 @@ func TestManagedDelegateReturnsArgumentAndStartFailuresToModel(t *testing.T) {
 	child := delegateWorkflow(t, "interaction.unavailable_worker", func(input delegateRequest) (delegateResponse, error) {
 		return delegateResponse(input), nil
 	})
-	budget, _ := agent.NewBudget(10, 10, 10)
+	budget, _ := agent.NewBudget(agent.BudgetConfig{Steps: 10, Effects: 10, Signals: 10})
 	delegate, err := interaction.NewDelegate(interaction.DelegateConfig{
 		Name: "delegate_unavailable", Description: "Delegate work to an exact worker that may be unavailable.",
 		Deployment: child, Budget: budget,
@@ -218,7 +218,7 @@ type delegateRestoreFixture struct {
 func newDelegateRestoreFixture(t *testing.T) delegateRestoreFixture {
 	t.Helper()
 	child := pausingDelegateDeployment(t)
-	budget, _ := agent.NewBudget(20, 20, 20)
+	budget, _ := agent.NewBudget(agent.BudgetConfig{Steps: 20, Effects: 20, Signals: 20})
 	delegate, err := interaction.NewDelegate(interaction.DelegateConfig{
 		Name: "delegate_paused", Description: "Delegate work that may pause before producing its result.",
 		Deployment: child, Budget: budget,

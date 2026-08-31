@@ -36,15 +36,15 @@ func invocationFor(t *testing.T, executable toolcontract.Tool, arguments string)
 // must never be serialized behind an accidental key.
 func TestReadOnlyToolsDeclareNoConflict(t *testing.T) {
 	root := t.TempDir()
-	executor := NewLocalExecutor(root)
+	executor := mustLocalExecutor(t, root)
 
 	cases := map[string]struct {
 		tool      toolcontract.Tool
 		arguments string
 	}{
-		"read": {tool: NewReadTool(executor), arguments: `{"path":"a.txt"}`},
-		"glob": {tool: NewGlobTool(executor), arguments: `{"pattern":"**/*.go"}`},
-		"grep": {tool: NewGrepTool(executor), arguments: `{"pattern":"scope"}`},
+		"read": {tool: mustReadTool(t, executor), arguments: `{"path":"a.txt"}`},
+		"glob": {tool: mustGlobTool(t, executor), arguments: `{"pattern":"**/*.go"}`},
+		"grep": {tool: mustGrepTool(t, executor), arguments: `{"pattern":"scope"}`},
 	}
 	for name, testCase := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -69,11 +69,11 @@ func TestReadOnlyToolsDeclareNoConflict(t *testing.T) {
 // tool.
 func TestMutatingToolsConflictOnTheirTargetPath(t *testing.T) {
 	root := t.TempDir()
-	executor := NewLocalExecutor(root)
+	executor := mustLocalExecutor(t, root)
 
 	tools := map[string]toolcontract.Tool{
-		"edit":  NewEditTool(executor),
-		"write": NewWriteTool(executor),
+		"edit":  mustEditTool(t, executor),
+		"write": mustWriteTool(t, executor),
 	}
 	for name, executable := range tools {
 		t.Run(name, func(t *testing.T) {

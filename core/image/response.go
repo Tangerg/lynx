@@ -6,6 +6,7 @@ import (
 	"mime"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/scope/core/media"
 	"github.com/Tangerg/scope/core/metadata"
@@ -73,8 +74,8 @@ func (o *Output) UnmarshalJSON(data []byte) error {
 // ResponseMetadata holds response-level metadata for an image
 // generation request.
 type ResponseMetadata struct {
-	// Created is the provider-reported creation time, Unix seconds.
-	Created int64 `json:"created"`
+	// CreatedAt is the provider-reported creation timestamp.
+	CreatedAt time.Time `json:"created_at,omitzero"`
 
 	// Extra carries JSON-safe provider-specific metadata.
 	Extra metadata.Map `json:"extra,omitzero"`
@@ -83,9 +84,6 @@ type ResponseMetadata struct {
 func (r *ResponseMetadata) validate() error {
 	if r == nil {
 		return nil
-	}
-	if r.Created < 0 {
-		return fmt.Errorf("%w: created must not be negative", ErrInvalidResponse)
 	}
 	if err := r.Extra.Validate(); err != nil {
 		return fmt.Errorf("%w: response metadata: %w", ErrInvalidResponse, err)

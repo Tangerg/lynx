@@ -116,6 +116,10 @@ type StoreConfig struct {
 	// metric is used to create it.
 	DistanceMetric DistanceMetric
 
+	// Dimensions stays explicit because schema verification must not trigger a
+	// hidden, billable embedding request.
+	Dimensions int
+
 	// InitializeSchema indicates whether to automatically create the collection
 	// if it does not exist. When set to true, the collection will be created
 	// with vector configuration based on EmbeddingModel dimensions.
@@ -149,6 +153,9 @@ func (s StoreConfig) Validate() error {
 	if s.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
 	}
+	if s.InitializeSchema && s.Dimensions <= 0 {
+		return fmt.Errorf("qdrant: Dimensions must be > 0 when InitializeSchema is enabled")
+	}
 	return nil
 }
 
@@ -165,6 +172,7 @@ type Store struct {
 	documentBatcher  vectorstore.Batcher
 	collectionName   string
 	distanceMetric   DistanceMetric
+	dimensions       int
 	initializeSchema bool
 }
 
@@ -184,6 +192,7 @@ func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 		documentBatcher:  config.DocumentBatcher,
 		collectionName:   config.CollectionName,
 		distanceMetric:   config.DistanceMetric,
+		dimensions:       config.Dimensions,
 		initializeSchema: config.InitializeSchema,
 	}
 
@@ -204,11 +213,6 @@ func (s *Store) initialize(ctx context.Context) error {
 		return fmt.Errorf("qdrant: check collection existence: %w", err)
 	}
 
-	dimensions, err := s.embeddingClient.Dimensions(ctx)
-	if err != nil {
-		return fmt.Errorf("qdrant: resolve embedding dimensions: %w", err)
-	}
-
 	distance, err := s.distanceMetric.qdrant()
 	if err != nil {
 		return err
@@ -218,7 +222,7 @@ func (s *Store) initialize(ctx context.Context) error {
 		if getCollectionInfoErr != nil {
 			return fmt.Errorf("qdrant: inspect existing collection %s: %w", s.collectionName, getCollectionInfoErr)
 		}
-		if getCollectionInfoErr = validateCollectionSchema(info, dimensions, distance); getCollectionInfoErr != nil {
+		if getCollectionInfoErr = validateCollectionSchema(info, s.dimensions, distance); getCollectionInfoErr != nil {
 			return fmt.Errorf("qdrant: collection %s: %w", s.collectionName, getCollectionInfoErr)
 		}
 		return nil
@@ -227,7 +231,7 @@ func (s *Store) initialize(ctx context.Context) error {
 	err = s.client.CreateCollection(ctx, &qdrant.CreateCollection{
 		CollectionName: s.collectionName,
 		VectorsConfig: qdrant.NewVectorsConfig(&qdrant.VectorParams{
-			Size:     uint64(dimensions),
+			Size:     uint64(s.dimensions),
 			Distance: distance,
 		}),
 	})
@@ -275,7 +279,11 @@ func (s *Store) buildUpsertPoints(ctx context.Context, request *vectorstore.Inde
 
 	for _, batch := range batches {
 		docs := batch.Documents
-		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
+		texts, err := batch.Texts()
+		if err != nil {
+			return nil, fmt.Errorf("qdrant: project document text: %w", err)
+		}
+		vectors, err := s.embeddingClient.EmbedTexts(ctx, texts)
 		if err != nil {
 			return nil, fmt.Errorf("qdrant: embed documents: %w", err)
 		}

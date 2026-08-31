@@ -11,7 +11,4 @@
 // tools or its owning domain module, where it gets a contract and tests. An
 // example that needs a provider key reads it from the environment and says so
 // when it is missing, rather than failing with a transport error.
-//
-// See README.md for how to run one and ARCHITECTURE.md for the rules this
-// rests on.
 package examples

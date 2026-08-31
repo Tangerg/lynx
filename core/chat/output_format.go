@@ -11,11 +11,13 @@ import (
 	corejsonschema "github.com/Tangerg/scope/core/jsonschema"
 )
 
-var ErrInvalidOutputFormat = errors.New("chat: invalid output format")
+var (
+	ErrInvalidOutputFormat     = errors.New("chat: invalid output format")
+	ErrUnsupportedOutputFormat = errors.New("chat: unsupported output format")
+)
 
 // OutputFormatType identifies the representation requested for a chat result.
-// Provider adapters map the format to a native control when available and may
-// fall back to equivalent prompt instructions otherwise.
+// Provider adapters map the format to an equivalent native control or reject it.
 type OutputFormatType string
 
 const (
@@ -26,8 +28,7 @@ const (
 
 // OutputFormat is the provider-neutral representation contract for one model
 // result. Name, Description, and Schema belong only to OutputFormatJSONSchema.
-// Provider adapters decode Schema into their native SDK shape when supported;
-// otherwise FallbackInstruction derives the single equivalent prompt contract.
+// Provider adapters decode Schema into their native SDK shape when supported.
 // Schema bytes are always snapshotted at construction and cloning boundaries.
 type OutputFormat struct {
 	Type        OutputFormatType `json:"type"`
@@ -44,8 +45,19 @@ func NewOutputFormat(formatType OutputFormatType) (OutputFormat, error) {
 	return format, nil
 }
 
-func NewJSONSchemaOutputFormat(name string, schema json.RawMessage) (OutputFormat, error) {
-	format := OutputFormat{Type: OutputFormatJSONSchema, Name: name, Schema: bytes.Clone(schema)}
+type JSONSchemaConfig struct {
+	Name        string
+	Description string
+	Schema      json.RawMessage
+}
+
+func NewJSONSchemaOutputFormat(config JSONSchemaConfig) (OutputFormat, error) {
+	format := OutputFormat{
+		Type:        OutputFormatJSONSchema,
+		Name:        config.Name,
+		Description: config.Description,
+		Schema:      bytes.Clone(config.Schema),
+	}
 	if err := format.Validate(); err != nil {
 		return OutputFormat{}, fmt.Errorf("chat: create JSON Schema output format: %w", err)
 	}
@@ -77,27 +89,6 @@ func (o *OutputFormat) SchemaAs[T any]() (T, error) {
 		return zero, fmt.Errorf("chat: decode output schema: %w", err)
 	}
 	return schema, nil
-}
-
-// FallbackInstruction returns an equivalent model instruction for adapters
-// whose native protocol cannot represent o. A nil or text format needs no
-// instruction.
-func (o *OutputFormat) FallbackInstruction() (string, error) {
-	if o == nil || o.Type == OutputFormatText {
-		return "", nil
-	}
-	if err := o.Validate(); err != nil {
-		return "", err
-	}
-	const prefix = "Return only one valid JSON object. Do not include markdown fences, explanations, commentary, or leading or trailing text."
-	if o.Type == OutputFormatJSON {
-		return prefix, nil
-	}
-	var schema bytes.Buffer
-	if err := json.Compact(&schema, o.Schema); err != nil {
-		return "", fmt.Errorf("chat: build fallback output instruction: compact schema: %w", err)
-	}
-	return prefix + " The object must conform to this JSON Schema:\n" + schema.String(), nil
 }
 
 func (o OutputFormat) Validate() error {

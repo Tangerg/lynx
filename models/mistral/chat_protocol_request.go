@@ -62,17 +62,23 @@ func (c *Chat) buildRequest(request *corechat.Request, stream bool) (*chatComple
 	if err != nil {
 		return nil, err
 	}
+	toolChoice, parallelToolCalls, err := mapMistralToolChoice(request.ToolChoice)
+	if err != nil {
+		return nil, err
+	}
 	return &chatCompletionRequest{
 		Model:              options.Model,
 		Messages:           messages,
 		Temperature:        options.Temperature,
 		TopP:               options.TopP,
-		MaxTokens:          options.MaxTokens,
+		MaxTokens:          options.MaxOutputTokens,
 		Stream:             stream,
 		Stop:               slices.Clone(options.Stop),
 		PresencePenalty:    options.PresencePenalty,
 		FrequencyPenalty:   options.FrequencyPenalty,
 		Tools:              tools,
+		ToolChoice:         toolChoice,
+		ParallelToolCalls:  parallelToolCalls,
 		ResponseFormat:     responseFormat,
 		ChatRequestOptions: extension,
 	}, nil
@@ -224,8 +230,10 @@ func mapMistralAssistantMessage(parts []corechat.Part) (chatMessage, error) {
 		switch part.Kind {
 		case corechat.PartText:
 			content = append(content, textChunk{Type: contentTypeText, Text: part.Text})
+		case corechat.PartRefusal:
+			content = append(content, textChunk{Type: contentTypeText, Text: part.Text})
 		case corechat.PartReasoning:
-			frames, framed, err := decodeThinkingFrames(part.Signature)
+			frames, framed, err := decodeThinkingFrames(part.ReasoningState)
 			if err != nil {
 				return chatMessage{}, fmt.Errorf("parts[%d].reasoning signature: %w", partIndex, err)
 			}
@@ -293,4 +301,34 @@ func mapChatTools(definitions []corechat.ToolDefinition) ([]chatTool, error) {
 		})
 	}
 	return tools, nil
+}
+
+func mapMistralToolChoice(choice *corechat.ToolChoice) (toolChoice, *bool, error) {
+	if choice == nil {
+		return "", nil, nil
+	}
+	var mode toolChoice
+	switch choice.Mode {
+	case corechat.ToolChoiceAuto:
+		mode = toolChoiceAuto
+	case corechat.ToolChoiceNone:
+		mode = toolChoiceNone
+	case corechat.ToolChoiceRequired:
+		mode = toolChoiceAny
+	case corechat.ToolChoiceNamed:
+		return "", nil, errors.New("mistral: named tool choice is not supported")
+	default:
+		return "", nil, fmt.Errorf("mistral: unsupported tool choice mode %q", choice.Mode)
+	}
+	var parallel *bool
+	switch choice.Parallelism {
+	case "":
+	case corechat.ToolParallelismAllow:
+		parallel = new(true)
+	case corechat.ToolParallelismSingle:
+		parallel = new(false)
+	default:
+		return "", nil, fmt.Errorf("mistral: unsupported tool parallelism %q", choice.Parallelism)
+	}
+	return mode, parallel, nil
 }

@@ -126,6 +126,11 @@ func (m Middleware) Call(next corechat.Model) corechat.Model {
 	if lo.IsNil(next) {
 		return nil
 	}
+	if err := m.validate(); err != nil {
+		return corechat.ModelFunc(func(context.Context, *corechat.Request) (*corechat.Response, error) {
+			return nil, err
+		})
+	}
 	return corechat.ModelFunc(func(ctx context.Context, request *corechat.Request) (*corechat.Response, error) {
 		started := time.Now()
 		ctx, span := m.start(ctx, request)
@@ -144,8 +149,15 @@ func (m Middleware) Stream(next corechat.Streamer) corechat.Streamer {
 	if lo.IsNil(next) {
 		return nil
 	}
-	return corechat.StreamerFunc(func(ctx context.Context, request *corechat.Request) iter.Seq2[*corechat.Response, error] {
-		return func(yield func(*corechat.Response, error) bool) {
+	if err := m.validate(); err != nil {
+		return corechat.StreamerFunc(func(context.Context, *corechat.Request) iter.Seq2[*corechat.ResponseDelta, error] {
+			return func(yield func(*corechat.ResponseDelta, error) bool) {
+				yield(nil, err)
+			}
+		})
+	}
+	return corechat.StreamerFunc(func(ctx context.Context, request *corechat.Request) iter.Seq2[*corechat.ResponseDelta, error] {
+		return func(yield func(*corechat.ResponseDelta, error) bool) {
 			started := time.Now()
 			spanCtx, span := m.start(ctx, request)
 			var (
@@ -155,7 +167,8 @@ func (m Middleware) Stream(next corechat.Streamer) corechat.Streamer {
 				stopped     bool
 			)
 			defer func() {
-				m.finish(spanCtx, span, request, accumulator.Response(), streamErr, time.Since(started))
+				response, _ := accumulator.Response()
+				m.finish(spanCtx, span, request, response, streamErr, time.Since(started))
 			}()
 
 			sequence := next.Stream(spanCtx, request)
@@ -164,7 +177,7 @@ func (m Middleware) Stream(next corechat.Streamer) corechat.Streamer {
 				yield(nil, streamErr)
 				return
 			}
-			sequence(func(chunk *corechat.Response, err error) bool {
+			sequence(func(chunk *corechat.ResponseDelta, err error) bool {
 				if stopped {
 					return false
 				}
@@ -193,13 +206,21 @@ func (m Middleware) Stream(next corechat.Streamer) corechat.Streamer {
 	})
 }
 
+func (m Middleware) validate() error {
+	if lo.IsNil(m.tracer) || lo.IsNil(m.duration.Inst()) || lo.IsNil(m.tokens.Inst()) ||
+		lo.IsNil(m.firstTokenDuration) {
+		return fmt.Errorf("%w: middleware must be constructed with NewMiddleware", ErrInvalidConfig)
+	}
+	return nil
+}
+
 func (m Middleware) recordTimeToFirstToken(
 	ctx context.Context,
 	request *corechat.Request,
-	response *corechat.Response,
+	delta *corechat.ResponseDelta,
 	elapsed time.Duration,
 ) {
-	attributes := metricAttributes(request, response)
+	attributes := metricAttributesForMetadata(request, delta.Metadata)
 	attributes = append(attributes,
 		semconv.GenAIOperationNameChat,
 		semconv.GenAIProviderNameKey.String(m.provider),
@@ -297,8 +318,8 @@ func requestAttributes(request *corechat.Request) []attribute.KeyValue {
 	if options.Model != "" {
 		attrs = append(attrs, semconv.GenAIRequestModel(options.Model))
 	}
-	if options.MaxTokens != nil {
-		attrs = append(attrs, semconv.GenAIRequestMaxTokensKey.Int64(*options.MaxTokens))
+	if options.MaxOutputTokens != nil {
+		attrs = append(attrs, semconv.GenAIRequestMaxTokensKey.Int64(*options.MaxOutputTokens))
 	}
 	if options.Temperature != nil {
 		attrs = append(attrs, semconv.GenAIRequestTemperature(*options.Temperature))
@@ -347,13 +368,21 @@ func responseAttributes(response *corechat.Response) []attribute.KeyValue {
 }
 
 func metricAttributes(request *corechat.Request, response *corechat.Response) []attribute.KeyValue {
+	var metadata *corechat.ResponseMetadata
+	if response != nil {
+		metadata = response.Metadata
+	}
+	return metricAttributesForMetadata(request, metadata)
+}
+
+func metricAttributesForMetadata(request *corechat.Request, metadata *corechat.ResponseMetadata) []attribute.KeyValue {
 	var attrs []attribute.KeyValue
 	if model := requestModel(request); model != "" {
 		attrs = append(attrs, semconv.GenAIRequestModel(model))
 	}
 	responseModel := ""
-	if response != nil && response.Metadata != nil {
-		responseModel = response.Metadata.Model
+	if metadata != nil {
+		responseModel = metadata.Model
 	}
 	if responseModel == "" {
 		responseModel = requestModel(request)
@@ -371,11 +400,11 @@ func requestModel(request *corechat.Request) string {
 	return request.Options.Model
 }
 
-func hasGeneratedContent(response *corechat.Response) bool {
-	if response == nil {
+func hasGeneratedContent(delta *corechat.ResponseDelta) bool {
+	if delta == nil {
 		return false
 	}
-	return response.Output != nil && response.Output.Message != nil && len(response.Output.Message.Parts) > 0
+	return len(delta.Parts) > 0
 }
 
 func errorTypeAttribute(err error) attribute.KeyValue {

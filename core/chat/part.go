@@ -17,20 +17,19 @@ const (
 	PartText PartKind = "text"
 	// PartMedia carries an image, audio, document, or other media value.
 	PartMedia PartKind = "media"
-	// PartReasoning carries visible reasoning and an optional opaque signature.
+	// PartReasoning carries visible reasoning and optional opaque replay state.
 	PartReasoning PartKind = "reasoning"
 	// PartToolCall carries one tool invocation request.
 	PartToolCall PartKind = "tool_call"
-	// PartToolCallDelta carries one streaming tool-call fragment. It is response-
-	// only and [ResponseAccumulator] promotes it into PartToolCall.
-	PartToolCallDelta PartKind = "tool_call_delta"
 	// PartToolResult carries one tool execution result.
 	PartToolResult PartKind = "tool_result"
+	// PartRefusal carries a model refusal separately from ordinary output text.
+	PartRefusal PartKind = "refusal"
 )
 
 func (p PartKind) Valid() bool {
 	switch p {
-	case PartText, PartMedia, PartReasoning, PartToolCall, PartToolCallDelta, PartToolResult:
+	case PartText, PartMedia, PartReasoning, PartToolCall, PartToolResult, PartRefusal:
 		return true
 	default:
 		return false
@@ -38,18 +37,18 @@ func (p PartKind) Valid() bool {
 }
 
 // Part is a tagged protocol value. Kind selects exactly one payload shape:
-// Text, Media, reasoning Text/Signature, ToolCall, or ToolResult. Metadata
-// retains JSON-safe, part-scoped provider state without weakening the common
-// semantic payload.
+// Text, Media, reasoning Text/ReasoningState, ToolCall, or ToolResult. Citations
+// annotate only text parts. Metadata retains JSON-safe, part-scoped provider
+// state without weakening the common semantic payload.
 type Part struct {
-	Kind          PartKind       `json:"kind"`
-	Text          string         `json:"text,omitempty"`
-	Media         *media.Media   `json:"media,omitempty"`
-	Signature     []byte         `json:"signature,omitempty"`
-	ToolCall      *ToolCall      `json:"tool_call,omitempty"`
-	ToolCallDelta *ToolCallDelta `json:"tool_call_delta,omitempty"`
-	ToolResult    *ToolResult    `json:"tool_result,omitempty"`
-	Metadata      metadata.Map   `json:"metadata,omitzero"`
+	Kind           PartKind     `json:"kind"`
+	Text           string       `json:"text,omitempty"`
+	Media          *media.Media `json:"media,omitempty"`
+	ReasoningState []byte       `json:"reasoning_state,omitempty"`
+	ToolCall       *ToolCall    `json:"tool_call,omitempty"`
+	ToolResult     *ToolResult  `json:"tool_result,omitempty"`
+	Citations      []Citation   `json:"citations,omitempty"`
+	Metadata       metadata.Map `json:"metadata,omitzero"`
 }
 
 type partPayload uint8
@@ -57,22 +56,24 @@ type partPayload uint8
 const (
 	payloadText partPayload = 1 << iota
 	payloadMedia
-	payloadSignature
+	payloadReasoningState
 	payloadToolCall
-	payloadToolCallDelta
 	payloadToolResult
 )
 
 func (p Part) Clone() Part {
 	clone := p
-	clone.Signature = slices.Clone(p.Signature)
+	clone.ReasoningState = slices.Clone(p.ReasoningState)
 	clone.Media = p.Media.Clone()
 	clone.Metadata = p.Metadata.Clone()
+	if p.Citations != nil {
+		clone.Citations = make([]Citation, len(p.Citations))
+		for index := range p.Citations {
+			clone.Citations[index] = p.Citations[index].Clone()
+		}
+	}
 	if p.ToolCall != nil {
 		clone.ToolCall = new(*p.ToolCall)
-	}
-	if p.ToolCallDelta != nil {
-		clone.ToolCallDelta = new(*p.ToolCallDelta)
 	}
 	if p.ToolResult != nil {
 		result := p.ToolResult.Clone()
@@ -89,20 +90,20 @@ func NewMediaPart(value *media.Media) Part {
 	return Part{Kind: PartMedia, Media: value}
 }
 
-func NewReasoningPart(text string, signature []byte) Part {
-	return Part{Kind: PartReasoning, Text: text, Signature: slices.Clone(signature)}
+func NewReasoningPart(text string, state []byte) Part {
+	return Part{Kind: PartReasoning, Text: text, ReasoningState: slices.Clone(state)}
 }
 
 func NewToolCallPart(call ToolCall) Part {
 	return Part{Kind: PartToolCall, ToolCall: new(call)}
 }
 
-func NewToolCallDeltaPart(delta ToolCallDelta) Part {
-	return Part{Kind: PartToolCallDelta, ToolCallDelta: new(delta)}
-}
-
 func NewToolResultPart(result ToolResult) Part {
 	return Part{Kind: PartToolResult, ToolResult: new(result)}
+}
+
+func NewRefusalPart(text string) Part {
+	return Part{Kind: PartRefusal, Text: text}
 }
 
 func (p Part) Validate() error {
@@ -123,10 +124,10 @@ func (p Part) Validate() error {
 		return p.validateReasoningPayload(payload)
 	case PartToolCall:
 		return validatePartPayload(p.Kind, payload, payloadToolCall, func() error { return p.ToolCall.Validate() })
-	case PartToolCallDelta:
-		return validatePartPayload(p.Kind, payload, payloadToolCallDelta, func() error { return p.ToolCallDelta.Validate() })
 	case PartToolResult:
 		return validatePartPayload(p.Kind, payload, payloadToolResult, func() error { return p.ToolResult.Validate() })
+	case PartRefusal:
+		return p.validateRefusalPayload(payload)
 	}
 	return nil
 }
@@ -139,14 +140,11 @@ func (p Part) payload() partPayload {
 	if p.Media != nil {
 		payload |= payloadMedia
 	}
-	if len(p.Signature) != 0 {
-		payload |= payloadSignature
+	if len(p.ReasoningState) != 0 {
+		payload |= payloadReasoningState
 	}
 	if p.ToolCall != nil {
 		payload |= payloadToolCall
-	}
-	if p.ToolCallDelta != nil {
-		payload |= payloadToolCallDelta
 	}
 	if p.ToolResult != nil {
 		payload |= payloadToolResult
@@ -155,13 +153,21 @@ func (p Part) payload() partPayload {
 }
 
 func (p Part) validateTextPayload(payload partPayload) error {
-	if payload == payloadText || payload == 0 && len(p.Metadata) > 0 {
-		return nil
+	if payload != payloadText {
+		return fmt.Errorf("%w: kind %q requires non-empty text and no other payload", ErrInvalidPart, p.Kind)
 	}
-	return fmt.Errorf("%w: kind %q requires text or metadata and no other payload", ErrInvalidPart, p.Kind)
+	for index := range p.Citations {
+		if err := p.Citations[index].Validate(); err != nil {
+			return fmt.Errorf("%w: citations[%d]: %w", ErrInvalidPart, index, err)
+		}
+	}
+	return nil
 }
 
 func (p Part) validateMediaPayload(payload partPayload) error {
+	if len(p.Citations) != 0 {
+		return fmt.Errorf("%w: kind %q cannot carry citations", ErrInvalidPart, p.Kind)
+	}
 	if payload != payloadMedia {
 		return fmt.Errorf("%w: kind %q requires media and no other payload", ErrInvalidPart, p.Kind)
 	}
@@ -172,9 +178,19 @@ func (p Part) validateMediaPayload(payload partPayload) error {
 }
 
 func (p Part) validateReasoningPayload(payload partPayload) error {
-	const allowed = payloadText | payloadSignature
+	if len(p.Citations) != 0 {
+		return fmt.Errorf("%w: kind %q cannot carry citations", ErrInvalidPart, p.Kind)
+	}
+	const allowed = payloadText | payloadReasoningState
 	if payload == 0 || payload&^allowed != 0 {
-		return fmt.Errorf("%w: kind %q requires text or signature and no other payload", ErrInvalidPart, p.Kind)
+		return fmt.Errorf("%w: kind %q requires text or reasoning state and no other payload", ErrInvalidPart, p.Kind)
+	}
+	return nil
+}
+
+func (p Part) validateRefusalPayload(payload partPayload) error {
+	if len(p.Citations) != 0 || payload != payloadText {
+		return fmt.Errorf("%w: kind %q requires non-empty text and no other payload", ErrInvalidPart, p.Kind)
 	}
 	return nil
 }

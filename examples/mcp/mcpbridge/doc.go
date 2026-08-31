@@ -9,5 +9,5 @@
 //
 // The example uses an in-memory transport pair so it runs offline;
 // for real deployments swap to sdkmcp.StdioTransport{} (or the SDK's
-// Streamable HTTP handler). See scope/mcp/ARCHITECTURE.md §5.
+// Streamable HTTP handler).
 package main

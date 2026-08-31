@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/openai/openai-go/v3"
 
@@ -129,7 +130,11 @@ func (i *ImageModel) buildImageResponse(resp *openai.ImagesResponse, mimeType st
 		outputs = append(outputs, output)
 	}
 
-	return image.NewResponse(outputs, &image.ResponseMetadata{Created: resp.Created})
+	responseMetadata := &image.ResponseMetadata{}
+	if resp.Created > 0 {
+		responseMetadata.CreatedAt = time.Unix(resp.Created, 0).UTC()
+	}
+	return image.NewResponse(outputs, responseMetadata)
 }
 
 func openAIImageMedia(mimeType, uri, encoded string) (*media.Media, error) {

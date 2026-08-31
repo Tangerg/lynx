@@ -159,7 +159,7 @@ func newTreeRuntimeTestDeployment(t testing.TB) (Deployment, *treeRuntimeTestPro
 	}
 	implementation := ComputeDigest([]byte("tree-runtime-test-implementation"))
 	configuration := ComputeDigest([]byte("tree-runtime-test-configuration"))
-	reference, err := NewDeploymentRef(descriptor, implementation, configuration)
+	reference, err := newDeploymentRef(descriptor, implementation, configuration)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -241,7 +241,7 @@ func (t *treeRuntimeTestExecution) stepRoot(signals []Signal) (Transition, error
 	for _, role := range roles {
 		input, _ := EncodeInput(treeRuntimeTestInput{Role: role})
 		key, _ := ParseChildKey(role)
-		budget, _ := NewBudget(4, 4, 4)
+		budget, _ := NewBudget(BudgetConfig{Steps: 4, Effects: 4, Signals: 4})
 		effect, err := StartChild(ChildSpec{
 			Key: key, DeploymentRef: t.definition.reference, Input: input, Budget: budget,
 		})

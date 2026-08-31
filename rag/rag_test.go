@@ -133,7 +133,7 @@ func candidate(doc *document.Document, score ...float64) rag.Candidate {
 	if len(score) > 0 {
 		value = score[0]
 	}
-	return rag.Candidate{Document: doc, Score: value}
+	return rag.Candidate{Document: doc, Score: rag.Score(value)}
 }
 
 func (f *fakeRetriever) Retrieve(_ context.Context, q rag.Query) (rag.Candidates, error) {
@@ -405,21 +405,8 @@ func TestWithExpanderValidatesAllQueriesBeforeRetrieval(t *testing.T) {
 
 func TestIdentityDefaults(t *testing.T) {
 	q, _ := rag.NewQuery("hi")
-
-	if got, _ := rag.IdentityExpander().Expand(t.Context(), q); len(got) != 1 || got[0].Text() != q.Text() {
-		t.Fatal("Expand should pass through")
-	}
-	if got, _ := rag.IdentityTransformer().Transform(t.Context(), q); got.Text() != q.Text() {
-		t.Fatal("Transform should pass through")
-	}
 	if got, _ := rag.IdentityAugmenter().Augment(t.Context(), q, nil); got.Text() != q.Text() {
 		t.Fatal("Augment should preserve query text")
-	}
-	if got, _ := rag.NopRetriever().Retrieve(t.Context(), q); got != nil {
-		t.Fatal("Retrieve should return nil")
-	}
-	if got, _ := rag.IdentityRefiner().Refine(t.Context(), q, nil); got != nil {
-		t.Fatal("Refine should pass through nil")
 	}
 }
 

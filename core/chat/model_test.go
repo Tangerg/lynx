@@ -14,7 +14,7 @@ func (callOnlyModel) Call(_ context.Context, request *chat.Request) (*chat.Respo
 	if err := request.Validate(); err != nil {
 		return nil, err
 	}
-	return &chat.Response{}, nil
+	return &chat.Response{Output: assistantResult("ok")}, nil
 }
 
 var _ chat.Model = callOnlyModel{}

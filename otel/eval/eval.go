@@ -135,11 +135,11 @@ func reportAttributes(report coreeval.Report) []attribute.KeyValue {
 
 func metricIdentityAttributes(metricValue coreeval.Metric) []attribute.KeyValue {
 	attributes := make([]attribute.KeyValue, 0, 2)
-	if metricValue.Namespace != "" {
-		attributes = append(attributes, attribute.String(metricNamespaceAttribute, metricValue.Namespace))
+	if metricValue.Namespace() != "" {
+		attributes = append(attributes, attribute.String(metricNamespaceAttribute, metricValue.Namespace()))
 	}
-	if metricValue.Name != "" {
-		attributes = append(attributes, attribute.String(metricNameAttribute, string(metricValue.Name)))
+	if metricValue.Name() != "" {
+		attributes = append(attributes, attribute.String(metricNameAttribute, string(metricValue.Name())))
 	}
 	return attributes
 }

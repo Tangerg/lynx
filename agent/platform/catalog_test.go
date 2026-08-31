@@ -27,13 +27,7 @@ func TestCatalogResolvesOnlyExactDeploymentReferences(t *testing.T) {
 			t.Fatalf("Resolve(%s) = %s, %v", want.DeploymentRef(), got.DeploymentRef(), resolveErr)
 		}
 	}
-	missingReference, err := agent.NewDeploymentRef(
-		first.Descriptor(), first.DeploymentRef().ImplementationDigest(),
-		agent.ComputeDigest([]byte("missing configuration")),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
+	missingReference := catalogDeployment(t, "test.writer", "missing configuration").DeploymentRef()
 	if _, err := catalog.Resolve(missingReference); !errors.Is(err, platform.ErrDeploymentNotFound) {
 		t.Fatalf("same-name missing reference error = %v", err)
 	}

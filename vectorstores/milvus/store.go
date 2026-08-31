@@ -55,6 +55,10 @@ type StoreConfig struct {
 	// Required: must be provided.
 	DocumentBatcher vectorstore.Batcher
 
+	// Dimensions stays explicit because creating a collection must not trigger
+	// a hidden, billable embedding request.
+	Dimensions int
+
 	// MetricType is the similarity metric used when creating the vector index.
 	// Optional: defaults to entity.COSINE.
 	MetricType entity.MetricType
@@ -73,6 +77,9 @@ func (s StoreConfig) Validate() error {
 	}
 	if s.DocumentBatcher == nil {
 		return ErrMissingDocumentBatcher
+	}
+	if s.InitializeSchema && s.Dimensions <= 0 {
+		return fmt.Errorf("milvus: Dimensions must be > 0 when InitializeSchema is enabled")
 	}
 	switch s.MetricType {
 	case entity.COSINE, entity.L2, entity.IP:
@@ -102,6 +109,7 @@ type Store struct {
 	documentBatcher  vectorstore.Batcher
 	collectionName   string
 	metricType       entity.MetricType
+	dimensions       int
 	initializeSchema bool
 }
 
@@ -122,6 +130,7 @@ func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 		documentBatcher:  config.DocumentBatcher,
 		collectionName:   config.CollectionName,
 		metricType:       config.MetricType,
+		dimensions:       config.Dimensions,
 		initializeSchema: config.InitializeSchema,
 	}
 
@@ -163,14 +172,9 @@ func (s *Store) initialize(ctx context.Context) error {
 	}
 
 	if !exists {
-		dimensions, dimensionsErr := s.embeddingClient.Dimensions(ctx)
-		if dimensionsErr != nil {
-			return fmt.Errorf("milvus: resolve embedding dimensions: %w", dimensionsErr)
-		}
-
-		schema := s.createSchema(int64(dimensions))
-		if dimensionsErr = s.client.CreateCollection(ctx, milvusclient.NewCreateCollectionOption(s.collectionName, schema)); dimensionsErr != nil {
-			return fmt.Errorf("milvus: create collection %s: %w", s.collectionName, dimensionsErr)
+		schema := s.createSchema(int64(s.dimensions))
+		if err = s.client.CreateCollection(ctx, milvusclient.NewCreateCollectionOption(s.collectionName, schema)); err != nil {
+			return fmt.Errorf("milvus: create collection %s: %w", s.collectionName, err)
 		}
 
 		idx := index.NewAutoIndex(s.metricType)
@@ -178,8 +182,8 @@ func (s *Store) initialize(ctx context.Context) error {
 		if createErr != nil {
 			return fmt.Errorf("milvus: create index on collection %s: %w", s.collectionName, createErr)
 		}
-		if dimensionsErr = indexTask.Await(ctx); dimensionsErr != nil {
-			return fmt.Errorf("milvus: await index creation on collection %s: %w", s.collectionName, dimensionsErr)
+		if err = indexTask.Await(ctx); err != nil {
+			return fmt.Errorf("milvus: await index creation on collection %s: %w", s.collectionName, err)
 		}
 	}
 
@@ -240,7 +244,11 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 
 	for _, batch := range batches {
 		docs := batch.Documents
-		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
+		texts, err := batch.Texts()
+		if err != nil {
+			return fmt.Errorf("vectorstore: project document text: %w", err)
+		}
+		vectors, err := s.embeddingClient.EmbedTexts(ctx, texts)
 		if err != nil {
 			return fmt.Errorf("milvus: embed documents: %w", err)
 		}
@@ -356,8 +364,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		}
 	}()
 
-	var vector []float64
-	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
+	vector, err := s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("milvus: embed query: %w", err)
 	}

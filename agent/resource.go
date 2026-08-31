@@ -120,8 +120,14 @@ type Budget struct {
 	Signals uint64 `json:"signals"`
 }
 
-func NewBudget(steps, effects, signals uint64) (Budget, error) {
-	budget := Budget{Steps: steps, Effects: effects, Signals: signals}
+type BudgetConfig struct {
+	Steps   uint64
+	Effects uint64
+	Signals uint64
+}
+
+func NewBudget(config BudgetConfig) (Budget, error) {
+	budget := Budget(config)
 	if !budget.Valid() {
 		return Budget{}, ErrResourceLimitExceeded
 	}

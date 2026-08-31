@@ -11,7 +11,7 @@ import (
 
 func TestChatMapsCoreReasoningEffort(t *testing.T) {
 	request := validReasoningRequest(t, "high")
-	model := &Chat{
+	model := &ChatCompletions{
 		api:      &api{},
 		defaults: corechat.Options{Model: "gpt-5"},
 		dialect:  Dialect{Provider: "openai", TokenLimitField: TokenLimitMaxCompletionTokens},
@@ -34,7 +34,7 @@ func TestChatMapsCoreReasoningEffort(t *testing.T) {
 
 func TestResponsesMapsCoreReasoningEffortAndTokenProjection(t *testing.T) {
 	request := validReasoningRequest(t, "xhigh")
-	model := &ResponsesChat{api: &api{}, defaults: corechat.Options{Model: "gpt-5"}}
+	model := &Responses{api: &api{}, defaults: corechat.Options{Model: "gpt-5"}}
 	params, err := model.buildResponsesRequest(request)
 	if err != nil {
 		t.Fatal(err)
@@ -49,7 +49,6 @@ func TestResponsesMapsCoreReasoningEffortAndTokenProjection(t *testing.T) {
 	if projected.Reasoning.Effort != openaisdk.ReasoningEffortXhigh {
 		t.Fatalf("projected reasoning.effort = %q", projected.Reasoning.Effort)
 	}
-
 	if err := request.Options.Extensions.Set(ResponsesRequestExtensionKey, map[string]any{
 		"reasoning": map[string]any{"effort": "low"},
 	}); err != nil {
@@ -62,7 +61,7 @@ func TestResponsesMapsCoreReasoningEffortAndTokenProjection(t *testing.T) {
 
 func TestReasoningEffortRejectsUnknownProviderValue(t *testing.T) {
 	request := validReasoningRequest(t, "turbo")
-	model := &ResponsesChat{api: &api{}, defaults: corechat.Options{Model: "gpt-5"}}
+	model := &Responses{api: &api{}, defaults: corechat.Options{Model: "gpt-5"}}
 	if _, err := model.buildResponsesRequest(request); err == nil || !strings.Contains(err.Error(), "unsupported value") {
 		t.Fatalf("error = %v", err)
 	}

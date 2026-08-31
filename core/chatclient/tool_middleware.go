@@ -9,16 +9,19 @@ import (
 	"github.com/Tangerg/scope/core/tool"
 )
 
-var ErrInvalidToolMiddleware = errors.New("chatclient: invalid tool middleware")
+var (
+	ErrInvalidToolMiddleware = errors.New("chatclient: invalid tool middleware")
+)
 
 type toolMiddleware struct {
 	bindings    map[string]tool.Binding
 	definitions []chat.ToolDefinition
 }
 
-// NewToolMiddleware keeps direct Client usage useful for the small case where
-// model-requested Tools only need schema validation and serial execution. Agent
-// control flow and execution policy deliberately remain outside this boundary.
+// NewToolMiddleware keeps direct Client usage useful for one model-requested
+// Tool batch. It advertises a frozen Tool set, validates and executes the first
+// returned batch serially, then makes one follow-up model call. Further rounds
+// and execution policy deliberately remain outside this boundary.
 func NewToolMiddleware(executables ...tool.Tool) (chat.CallMiddleware, error) {
 	if len(executables) == 0 {
 		return nil, fmt.Errorf("%w: at least one Tool is required", ErrInvalidToolMiddleware)
@@ -30,7 +33,7 @@ func NewToolMiddleware(executables ...tool.Tool) (chat.CallMiddleware, error) {
 	for index, executable := range executables {
 		binding, err := tool.Bind(executable)
 		if err != nil {
-			return nil, fmt.Errorf("%w: Tools[%d]: %w", ErrInvalidToolMiddleware, index, err)
+			return nil, fmt.Errorf("%w: tools[%d]: %w", ErrInvalidToolMiddleware, index, err)
 		}
 		definition := binding.Definition()
 		if _, duplicate := middleware.bindings[definition.Name]; duplicate {
@@ -53,36 +56,35 @@ func (t *toolMiddleware) call(
 	next chat.Model,
 	request *chat.Request,
 ) (*chat.Response, error) {
-	if len(request.Tools) != 0 {
+	if request == nil {
+		return nil, fmt.Errorf("%w: nil Request", ErrInvalidToolMiddleware)
+	}
+	if len(request.Tools) != 0 || request.ToolChoice != nil {
 		return nil, fmt.Errorf(
-			"%w: Request.Tools must be empty because the middleware owns the executable Tool manifest",
+			"%w: request tools and tool choice must be empty because the middleware owns the tool contract",
 			ErrInvalidToolMiddleware,
 		)
 	}
 	current := request.Clone()
 	current.Tools = t.cloneDefinitions()
-	for {
-		response, err := next.Call(ctx, current)
-		if err != nil {
-			return nil, err
-		}
-		calls, err := toolCalls(response)
-		if err != nil {
-			return nil, err
-		}
-		if len(calls) == 0 {
-			return response, nil
-		}
-		results, err := t.execute(ctx, calls)
-		if err != nil {
-			return nil, err
-		}
-		current.Messages = append(
-			current.Messages,
-			response.Output.Message.Clone(),
-			chat.NewToolMessage(results...),
-		)
+	response, err := next.Call(ctx, current)
+	if err != nil {
+		return nil, err
 	}
+	calls, err := toolCalls(response)
+	if err != nil || len(calls) == 0 {
+		return response, err
+	}
+	results, err := t.execute(ctx, calls)
+	if err != nil {
+		return nil, err
+	}
+	current.Messages = append(
+		current.Messages,
+		response.Output.Message.Clone(),
+		chat.NewToolMessage(results...),
+	)
+	return next.Call(ctx, current)
 }
 
 func (t *toolMiddleware) execute(ctx context.Context, calls []chat.ToolCall) ([]chat.ToolResult, error) {
@@ -90,18 +92,18 @@ func (t *toolMiddleware) execute(ctx context.Context, calls []chat.ToolCall) ([]
 	for index, call := range calls {
 		binding, exists := t.bindings[call.Name]
 		if !exists {
-			return nil, fmt.Errorf("chatclient: execute ToolCall[%d]: Tool %q is not bound", index, call.Name)
+			return nil, fmt.Errorf("chatclient: execute tool call[%d]: tool %q is not bound", index, call.Name)
 		}
 		invocation, err := binding.Prepare(call)
 		if err != nil {
-			return nil, fmt.Errorf("chatclient: prepare ToolCall[%d]: %w", index, err)
+			return nil, fmt.Errorf("chatclient: prepare tool call[%d]: %w", index, err)
 		}
 		output, err := binding.Call(ctx, invocation)
 		if err != nil {
-			return nil, fmt.Errorf("chatclient: execute ToolCall[%d] %q: %w", index, call.Name, err)
+			return nil, fmt.Errorf("chatclient: execute tool call[%d] %q: %w", index, call.Name, err)
 		}
 		if err := output.Validate(); err != nil {
-			return nil, fmt.Errorf("chatclient: validate ToolCall[%d] %q output: %w", index, call.Name, err)
+			return nil, fmt.Errorf("chatclient: validate tool call[%d] %q output: %w", index, call.Name, err)
 		}
 		results = append(results, chat.ToolResult{ID: call.ID, Name: call.Name, Output: output.Clone()})
 	}
@@ -118,21 +120,15 @@ func (t *toolMiddleware) cloneDefinitions() []chat.ToolDefinition {
 
 func toolCalls(response *chat.Response) ([]chat.ToolCall, error) {
 	if err := response.Validate(); err != nil {
-		return nil, fmt.Errorf("chatclient: Tool middleware received an invalid response: %w", err)
+		return nil, fmt.Errorf("chatclient: tool middleware received an invalid response: %w", err)
 	}
 	if response.Output == nil || response.Output.Message == nil {
 		return nil, nil
 	}
 	var calls []chat.ToolCall
-	for index, part := range response.Output.Message.Parts {
-		switch part.Kind {
-		case chat.PartToolCall:
+	for _, part := range response.Output.Message.Parts {
+		if part.Kind == chat.PartToolCall {
 			calls = append(calls, *part.ToolCall)
-		case chat.PartToolCallDelta:
-			return nil, fmt.Errorf(
-				"chatclient: Tool middleware requires complete ToolCalls; response part[%d] is a delta",
-				index,
-			)
 		}
 	}
 	return calls, nil

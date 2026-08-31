@@ -15,9 +15,10 @@ var ErrInvalidRequest = errors.New("chat: invalid request")
 // snapshot every mutable nested protocol value before middleware or providers
 // receive it.
 type Request struct {
-	Messages []Message        `json:"messages"`
-	Tools    []ToolDefinition `json:"tools,omitempty"`
-	Options  Options          `json:"options,omitzero"`
+	Messages   []Message        `json:"messages"`
+	Tools      []ToolDefinition `json:"tools,omitempty"`
+	ToolChoice *ToolChoice      `json:"tool_choice,omitempty"`
+	Options    Options          `json:"options,omitzero"`
 }
 
 func (r *Request) Clone() *Request {
@@ -25,9 +26,10 @@ func (r *Request) Clone() *Request {
 		return nil
 	}
 	clone := &Request{
-		Messages: make([]Message, len(r.Messages)),
-		Tools:    make([]ToolDefinition, len(r.Tools)),
-		Options:  r.Options.Clone(),
+		Messages:   make([]Message, len(r.Messages)),
+		Tools:      make([]ToolDefinition, len(r.Tools)),
+		ToolChoice: r.ToolChoice.Clone(),
+		Options:    r.Options.Clone(),
 	}
 	for index := range r.Messages {
 		clone.Messages[index] = r.Messages[index].Clone()
@@ -40,6 +42,9 @@ func (r *Request) Clone() *Request {
 
 func NewRequest(messages ...Message) (*Request, error) {
 	r := &Request{Messages: slices.Clone(messages)}
+	for index := range r.Messages {
+		r.Messages[index] = r.Messages[index].Clone()
+	}
 	if err := r.Validate(); err != nil {
 		return nil, err
 	}
@@ -57,10 +62,8 @@ func (r *Request) Validate() error {
 		if err := r.Messages[i].Validate(); err != nil {
 			return fmt.Errorf("%w: messages[%d]: %w", ErrInvalidRequest, i, err)
 		}
-		for partIndex := range r.Messages[i].Parts {
-			if r.Messages[i].Parts[partIndex].Kind == PartToolCallDelta {
-				return fmt.Errorf("%w: messages[%d].parts[%d]: tool call deltas are response-only", ErrInvalidRequest, i, partIndex)
-			}
+		if r.Messages[i].Role == RoleSystem && i > 0 && r.Messages[i-1].Role != RoleSystem {
+			return fmt.Errorf("%w: system messages must form a leading prefix", ErrInvalidRequest)
 		}
 	}
 
@@ -73,6 +76,19 @@ func (r *Request) Validate() error {
 			return fmt.Errorf("%w: duplicate tool name %q", ErrInvalidRequest, r.Tools[i].Name)
 		}
 		toolNames[r.Tools[i].Name] = struct{}{}
+	}
+	if r.ToolChoice != nil {
+		if len(r.Tools) == 0 {
+			return fmt.Errorf("%w: tool_choice requires at least one tool", ErrInvalidRequest)
+		}
+		if err := r.ToolChoice.Validate(); err != nil {
+			return fmt.Errorf("%w: tool_choice: %w", ErrInvalidRequest, err)
+		}
+		if r.ToolChoice.Mode == ToolChoiceNamed {
+			if _, exists := toolNames[r.ToolChoice.Name]; !exists {
+				return fmt.Errorf("%w: tool_choice names undefined tool %q", ErrInvalidRequest, r.ToolChoice.Name)
+			}
+		}
 	}
 	if err := r.Options.Validate(); err != nil {
 		return fmt.Errorf("%w: %w", ErrInvalidRequest, err)

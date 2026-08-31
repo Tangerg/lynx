@@ -10,7 +10,20 @@ import (
 	"github.com/Tangerg/scope/models/minimax"
 )
 
-func TestOpenAIChatUsesSplitReasoningByDefault(t *testing.T) {
+func TestAnthropicChatConstructorValidatesCredential(t *testing.T) {
+	if _, err := minimax.NewMessages(minimax.MessagesConfig{}); err == nil {
+		t.Fatal("NewMessages() accepted an absent credential")
+	}
+	model, err := minimax.NewMessages(minimax.MessagesConfig{APIKey: "test-key"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if model == nil {
+		t.Fatal("NewMessages() = nil")
+	}
+}
+
+func TestChatUsesSplitReasoningByDefault(t *testing.T) {
 	var body map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
@@ -23,13 +36,13 @@ func TestOpenAIChatUsesSplitReasoningByDefault(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	model, err := minimax.NewOpenAIChat(minimax.OpenAIChatConfig{
+	model, err := minimax.NewChat(minimax.ChatConfig{
 		APIKey:         "test-key",
 		BaseURL:        server.URL,
 		DefaultOptions: corechat.Options{Model: "MiniMax-M3"},
 	})
 	if err != nil {
-		t.Fatalf("NewOpenAIChat: %v", err)
+		t.Fatalf("NewChat: %v", err)
 	}
 	response, err := model.Call(t.Context(), &corechat.Request{Messages: []corechat.Message{
 		corechat.NewUserMessage(corechat.NewTextPart("solve")),
@@ -46,7 +59,7 @@ func TestOpenAIChatUsesSplitReasoningByDefault(t *testing.T) {
 	}
 }
 
-func TestOpenAIChatRespectsExplicitReasoningSplit(t *testing.T) {
+func TestChatRespectsExplicitReasoningSplit(t *testing.T) {
 	var body map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
@@ -59,13 +72,13 @@ func TestOpenAIChatRespectsExplicitReasoningSplit(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	model, err := minimax.NewOpenAIChat(minimax.OpenAIChatConfig{
+	model, err := minimax.NewChat(minimax.ChatConfig{
 		APIKey:         "test-key",
 		BaseURL:        server.URL,
 		DefaultOptions: corechat.Options{Model: "MiniMax-M3"},
 	})
 	if err != nil {
-		t.Fatalf("NewOpenAIChat: %v", err)
+		t.Fatalf("NewChat: %v", err)
 	}
 	request := &corechat.Request{Messages: []corechat.Message{
 		corechat.NewUserMessage(corechat.NewTextPart("solve")),
@@ -82,7 +95,7 @@ func TestOpenAIChatRespectsExplicitReasoningSplit(t *testing.T) {
 	}
 }
 
-func TestOpenAIChatReplaysStructuredReasoningDetails(t *testing.T) {
+func TestChatReplaysStructuredReasoningDetails(t *testing.T) {
 	requests := make([]map[string]any, 0, 2)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		var body map[string]any
@@ -97,13 +110,13 @@ func TestOpenAIChatReplaysStructuredReasoningDetails(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	model, err := minimax.NewOpenAIChat(minimax.OpenAIChatConfig{
+	model, err := minimax.NewChat(minimax.ChatConfig{
 		APIKey:         "test-key",
 		BaseURL:        server.URL,
 		DefaultOptions: corechat.Options{Model: minimax.ModelM3},
 	})
 	if err != nil {
-		t.Fatalf("NewOpenAIChat: %v", err)
+		t.Fatalf("NewChat: %v", err)
 	}
 	userMessage := corechat.NewUserMessage(corechat.NewTextPart("look up"))
 	response, err := model.Call(t.Context(), &corechat.Request{Messages: []corechat.Message{userMessage}})
@@ -111,7 +124,7 @@ func TestOpenAIChatReplaysStructuredReasoningDetails(t *testing.T) {
 		t.Fatalf("first Call: %v", err)
 	}
 	assistantMessage := response.Output.Message
-	if assistantMessage == nil || len(assistantMessage.Parts) != 2 || len(assistantMessage.Parts[0].Signature) == 0 {
+	if assistantMessage == nil || len(assistantMessage.Parts) != 2 || len(assistantMessage.Parts[0].ReasoningState) == 0 {
 		t.Fatalf("assistant message = %#v", assistantMessage)
 	}
 	if _, err := model.Call(t.Context(), &corechat.Request{Messages: []corechat.Message{

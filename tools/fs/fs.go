@@ -14,7 +14,7 @@ type Reader interface {
 }
 
 type Writer interface {
-	Write(ctx context.Context, in WriteInput) (WriteResponse, error)
+	Write(ctx context.Context, request WriteRequest) (WriteResponse, error)
 }
 
 type Editor interface {
@@ -26,7 +26,7 @@ type PatchApplier interface {
 }
 
 type Globber interface {
-	Glob(ctx context.Context, in GlobInput) (GlobResponse, error)
+	Glob(ctx context.Context, request GlobRequest) (GlobResponse, error)
 }
 
 type Grepper interface {
@@ -53,24 +53,10 @@ type ReadOutput struct {
 	Truncated  bool
 }
 
-type WriteInput struct {
-	Path    string
-	Content string
-}
-
 type editOperation struct {
 	OldString  string
 	NewString  string
 	ReplaceAll bool
-}
-
-// GlobInput uses doublestar syntax. Path narrows the executor's immutable
-// authority to a relative subtree; it can never replace or broaden that root.
-type GlobInput struct {
-	Pattern    string
-	Path       string // "" = executor's authority root
-	IgnoreCase bool
-	MaxResults int // 0 = executor default
 }
 
 // GrepOutputMode controls what GrepResponse populates.

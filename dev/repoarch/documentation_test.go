@@ -35,19 +35,19 @@ func TestWorkspaceModulesKeepDocumentationEntryPoints(t *testing.T) {
 		module := modules[modulePath]
 		t.Run(module.dir, func(t *testing.T) {
 			t.Parallel()
-			for _, name := range []string{"README.md", "ARCHITECTURE.md", "doc.go"} {
-				path := filepath.Join(root, filepath.FromSlash(module.dir), name)
-				info, err := os.Stat(path)
-				if err != nil {
-					t.Errorf("module %s is missing %s: %v", module.path, name, err)
-					continue
-				}
-				if !info.Mode().IsRegular() || info.Size() == 0 {
-					t.Errorf("module %s has no readable content in %s", module.path, name)
-					continue
-				}
-				if name == "doc.go" {
-					assertPackageOverview(t, path)
+			path := filepath.Join(root, filepath.FromSlash(module.dir), "doc.go")
+			info, err := os.Stat(path)
+			if err != nil {
+				t.Fatalf("module %s is missing doc.go: %v", module.path, err)
+			}
+			if !info.Mode().IsRegular() || info.Size() == 0 {
+				t.Fatalf("module %s has no readable content in doc.go", module.path)
+			}
+			assertPackageOverview(t, path)
+			for _, retired := range []string{"README.md", "ARCHITECTURE.md"} {
+				retiredPath := filepath.Join(root, filepath.FromSlash(module.dir), retired)
+				if _, err := os.Stat(retiredPath); !os.IsNotExist(err) {
+					t.Errorf("module %s keeps retired parallel documentation %s", module.path, retired)
 				}
 			}
 		})
@@ -84,7 +84,7 @@ func TestRepositoryGuidanceHasOneCanonicalSource(t *testing.T) {
 			return nil
 		}
 		if entry.Name() == "AGENTS.md" || entry.Name() == "CLAUDE.md" {
-			t.Errorf("%s duplicates repository guidance; put module contracts in ARCHITECTURE.md", filepath.ToSlash(relativePath))
+			t.Errorf("%s duplicates repository guidance; put package contracts in GoDoc", filepath.ToSlash(relativePath))
 		}
 		return nil
 	})

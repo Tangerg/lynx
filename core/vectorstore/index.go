@@ -56,6 +56,18 @@ func (i *IndexRequest) Validate() error {
 	return nil
 }
 
+// Texts returns an owned, order-preserving projection of document text.
+func (i *IndexRequest) Texts() ([]string, error) {
+	if err := i.Validate(); err != nil {
+		return nil, err
+	}
+	texts := make([]string, len(i.Documents))
+	for index, indexedDocument := range i.Documents {
+		texts[index] = indexedDocument.Text
+	}
+	return texts, nil
+}
+
 func (i IndexRequest) MarshalJSON() ([]byte, error) {
 	if err := (&i).Validate(); err != nil {
 		return nil, err

@@ -3,18 +3,17 @@
 //
 // Constructors:
 //
-//   - [NewChat] — native /v1/messages. Full Claude surface:
+//   - [NewMessages] — native /v1/messages. Full Claude surface:
 //     extended thinking blocks, tool_use with signature continuity,
 //     citations, fine-grained tool-result content blocks,
 //     cache_control.
 //
 // Provider packages exposing an Anthropic-compatible endpoint reuse the
-// Messages protocol through [NewCompatibleChat] and select one typed [Dialect].
-// Application code continues to use the provider's own chat type.
+// Messages protocol through [NewCompatibleMessages] and select one typed
+// [Dialect]. Application code continues to use the provider's own chat type.
 //
-// Token measurement: [Chat.CountMessageInputTokens] maps the same complete
-// Messages request as Call before using /v1/messages/count_tokens.
-// [NewTextEstimator] uses that endpoint for isolated text workflows.
+// [Messages.CountInputTokens] exposes the provider-specific complete-request
+// token endpoint. [NewTextEstimator] serves isolated text workflows.
 //
 // Anthropic's Message Batches API (~50% pricing, up to 24h
 // asynchronous) doesn't fit core/chat's synchronous request/response shape and

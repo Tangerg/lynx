@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
-	"strings"
 	"testing"
 
 	"github.com/Tangerg/scope/core/chat"
@@ -30,11 +29,12 @@ func TestOutputFormatConstructorsAndJSON(t *testing.T) {
 	}
 
 	schema := json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}}}`)
-	format, err := chat.NewJSONSchemaOutputFormat("answer", schema)
+	format, err := chat.NewJSONSchemaOutputFormat(chat.JSONSchemaConfig{
+		Name: "answer", Description: "The answer payload", Schema: schema,
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	format.Description = "The answer payload"
 	schema[0] = '['
 	if format.Schema[0] != '{' {
 		t.Fatal("NewJSONSchemaOutputFormat retained caller-owned schema bytes")
@@ -44,36 +44,10 @@ func TestOutputFormatConstructorsAndJSON(t *testing.T) {
 	}
 }
 
-func TestOutputFormatFallbackInstruction(t *testing.T) {
-	var nilFormat *chat.OutputFormat
-	if got, err := nilFormat.FallbackInstruction(); err != nil || got != "" {
-		t.Fatalf("nil = (%q, %v)", got, err)
-	}
-	text, err := chat.NewOutputFormat(chat.OutputFormatText)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, fallbackInstructionErr := text.FallbackInstruction(); fallbackInstructionErr != nil || got != "" {
-		t.Fatalf("text = (%q, %v)", got, fallbackInstructionErr)
-	}
-	jsonFormat, err := chat.NewOutputFormat(chat.OutputFormatJSON)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, fallbackInstructionErr := jsonFormat.FallbackInstruction(); fallbackInstructionErr != nil || !strings.Contains(got, "only one valid JSON object") {
-		t.Fatalf("json = (%q, %v)", got, fallbackInstructionErr)
-	}
-	schema, err := chat.NewJSONSchemaOutputFormat("answer", json.RawMessage(`{ "type": "object" }`))
-	if err != nil {
-		t.Fatal(err)
-	}
-	if got, err := schema.FallbackInstruction(); err != nil || !strings.Contains(got, `{"type":"object"}`) {
-		t.Fatalf("json_schema = (%q, %v)", got, err)
-	}
-}
-
 func TestOutputFormatSchemaAs(t *testing.T) {
-	format, err := chat.NewJSONSchemaOutputFormat("answer", json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}}}`))
+	format, err := chat.NewJSONSchemaOutputFormat(chat.JSONSchemaConfig{
+		Name: "answer", Schema: json.RawMessage(`{"type":"object","properties":{"answer":{"type":"string"}}}`),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +96,9 @@ func TestOutputFormatRejectsInvalidContracts(t *testing.T) {
 }
 
 func TestOutputFormatCloneAndAtomicUnmarshal(t *testing.T) {
-	format, err := chat.NewJSONSchemaOutputFormat("answer", json.RawMessage(`{"type":"object"}`))
+	format, err := chat.NewJSONSchemaOutputFormat(chat.JSONSchemaConfig{
+		Name: "answer", Schema: json.RawMessage(`{"type":"object"}`),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

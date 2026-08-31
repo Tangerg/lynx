@@ -5,6 +5,7 @@ import (
 	"errors"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/scope/core/metadata"
 	"github.com/Tangerg/scope/core/moderation"
@@ -59,10 +60,10 @@ func TestResponseRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	response, err := moderation.NewResponse([]*moderation.Output{output}, &moderation.ResponseMetadata{
-		ID:      "modr-1",
-		Model:   "moderation-model",
-		Created: 1700000000,
-		Extra:   metadata.Map{"provider/region": json.RawMessage(`"eu"`)},
+		ID:        "modr-1",
+		Model:     "moderation-model",
+		CreatedAt: time.Unix(1700000000, 0).UTC(),
+		Extra:     metadata.Map{"provider/region": json.RawMessage(`"eu"`)},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -81,7 +82,7 @@ func TestResponseRoundTrip(t *testing.T) {
 	if first == nil || !first.Categories.Flagged() || first.Categories["violence"].Score != 0.91 {
 		t.Fatalf("Response round trip lost categories: %#v", decoded)
 	}
-	if decoded.Metadata == nil || decoded.Metadata.ID != "modr-1" || decoded.Metadata.Created != 1700000000 {
+	if decoded.Metadata == nil || decoded.Metadata.ID != "modr-1" || !decoded.Metadata.CreatedAt.Equal(time.Unix(1700000000, 0)) {
 		t.Fatalf("Response round trip lost metadata: %#v", decoded.Metadata)
 	}
 }
@@ -116,10 +117,10 @@ func TestVerdictAndCategoriesRoundTrip(t *testing.T) {
 
 func TestResponseMetadataRoundTrip(t *testing.T) {
 	responseMetadata := moderation.ResponseMetadata{
-		ID:      "id",
-		Model:   "model",
-		Created: 7,
-		Extra:   metadata.Map{"provider/region": json.RawMessage(`"eu"`)},
+		ID:        "id",
+		Model:     "model",
+		CreatedAt: time.Unix(7, 0).UTC(),
+		Extra:     metadata.Map{"provider/region": json.RawMessage(`"eu"`)},
 	}
 	encoded, err := json.Marshal(responseMetadata)
 	if err != nil {
@@ -131,7 +132,7 @@ func TestResponseMetadataRoundTrip(t *testing.T) {
 	}
 	if decoded.ID != responseMetadata.ID ||
 		decoded.Model != responseMetadata.Model ||
-		decoded.Created != responseMetadata.Created ||
+		decoded.CreatedAt != responseMetadata.CreatedAt ||
 		!decoded.Extra.Equal(responseMetadata.Extra) {
 		t.Fatalf("ResponseMetadata round trip = %#v, want %#v", decoded, responseMetadata)
 	}
@@ -220,10 +221,9 @@ func TestCategoriesRejectInvalidKeys(t *testing.T) {
 
 func TestResponseMetadataValidation(t *testing.T) {
 	cases := map[string]moderation.ResponseMetadata{
-		"padded id":       {ID: " id "},
-		"padded model":    {Model: " model "},
-		"negative create": {Created: -1},
-		"invalid extra":   {Extra: metadata.Map{"broken": json.RawMessage(`{`)}},
+		"padded id":     {ID: " id "},
+		"padded model":  {Model: " model "},
+		"invalid extra": {Extra: metadata.Map{"broken": json.RawMessage(`{`)}},
 	}
 	for name, responseMetadata := range cases {
 		t.Run(name, func(t *testing.T) {

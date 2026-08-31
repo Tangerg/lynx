@@ -3,6 +3,7 @@ package fs
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,7 +17,7 @@ type typedNilBackend struct{}
 func (*typedNilBackend) Read(context.Context, ReadInput) (ReadOutput, error) {
 	panic("typed nil backend was used")
 }
-func (*typedNilBackend) Write(context.Context, WriteInput) (WriteResponse, error) {
+func (*typedNilBackend) Write(context.Context, WriteRequest) (WriteResponse, error) {
 	panic("typed nil backend was used")
 }
 func (*typedNilBackend) Edit(context.Context, EditRequest) (EditResponse, error) {
@@ -25,7 +26,7 @@ func (*typedNilBackend) Edit(context.Context, EditRequest) (EditResponse, error)
 func (*typedNilBackend) ApplyPatch(context.Context, ApplyPatchRequest) (ApplyPatchResponse, error) {
 	panic("typed nil backend was used")
 }
-func (*typedNilBackend) Glob(context.Context, GlobInput) (GlobResponse, error) {
+func (*typedNilBackend) Glob(context.Context, GlobRequest) (GlobResponse, error) {
 	panic("typed nil backend was used")
 }
 func (*typedNilBackend) Grep(context.Context, GrepInput) (GrepResponse, error) {
@@ -40,12 +41,12 @@ func TestTools_Definitions(t *testing.T) {
 		name string
 		got  string
 	}{
-		{"read", NewReadTool(nil).Definition().Name},
-		{"write", NewWriteTool(nil).Definition().Name},
-		{"edit", NewEditTool(nil).Definition().Name},
-		{"apply_patch", NewApplyPatchTool(nil).Definition().Name},
-		{"glob", NewGlobTool(nil).Definition().Name},
-		{"grep", NewGrepTool(nil).Definition().Name},
+		{"read", mustReadTool(t, mustLocalExecutor(t, ".")).Definition().Name},
+		{"write", mustWriteTool(t, mustLocalExecutor(t, ".")).Definition().Name},
+		{"edit", mustEditTool(t, mustLocalExecutor(t, ".")).Definition().Name},
+		{"apply_patch", mustApplyPatchTool(t, mustLocalExecutor(t, ".")).Definition().Name},
+		{"glob", mustGlobTool(t, mustLocalExecutor(t, ".")).Definition().Name},
+		{"grep", mustGrepTool(t, mustLocalExecutor(t, ".")).Definition().Name},
 	}
 	for _, tc := range cases {
 		if tc.got != tc.name {
@@ -54,18 +55,36 @@ func TestTools_Definitions(t *testing.T) {
 	}
 }
 
-func TestToolConstructorsTreatTypedNilAsDefaultBackend(t *testing.T) {
+func TestToolConstructorsRejectTypedNilExecutor(t *testing.T) {
 	var backend *typedNilBackend
-	for name, definition := range map[string]string{
-		"read":        NewReadTool(backend).Definition().Name,
-		"write":       NewWriteTool(backend).Definition().Name,
-		"edit":        NewEditTool(backend).Definition().Name,
-		"apply_patch": NewApplyPatchTool(backend).Definition().Name,
-		"glob":        NewGlobTool(backend).Definition().Name,
-		"grep":        NewGrepTool(backend).Definition().Name,
+	for name, construct := range map[string]func() error{
+		"read": func() error {
+			_, err := NewReadTool(backend)
+			return err
+		},
+		"write": func() error {
+			_, err := NewWriteTool(backend)
+			return err
+		},
+		"edit": func() error {
+			_, err := NewEditTool(backend)
+			return err
+		},
+		"apply_patch": func() error {
+			_, err := NewApplyPatchTool(backend)
+			return err
+		},
+		"glob": func() error {
+			_, err := NewGlobTool(backend)
+			return err
+		},
+		"grep": func() error {
+			_, err := NewGrepTool(backend)
+			return err
+		},
 	} {
-		if definition != name {
-			t.Fatalf("%s definition = %q", name, definition)
+		if err := construct(); !errors.Is(err, ErrNilExecutor) {
+			t.Errorf("%s constructor error = %v, want ErrNilExecutor", name, err)
 		}
 	}
 }
@@ -76,12 +95,12 @@ func TestToolContractsUseOneStrictFileVocabulary(t *testing.T) {
 		tool             toolcontract.Tool
 		removedArguments string
 	}{
-		{"read", NewReadTool(nil), `{"file_path":"old.txt"}`},
-		{"write", NewWriteTool(nil), `{"path":"new.txt","content":"x","append":true}`},
-		{"edit", NewEditTool(nil), `{"file_path":"old.txt","old_string":"a","new_string":"b"}`},
-		{"apply_patch", NewApplyPatchTool(nil), `{"patch":"x","unknown":true}`},
-		{"glob", NewGlobTool(nil), `{"pattern":"**/*","max_results":1001}`},
-		{"grep", NewGrepTool(nil), `{"pattern":"x","head_limit":1}`},
+		{"read", mustReadTool(t, mustLocalExecutor(t, ".")), `{"file_path":"old.txt"}`},
+		{"write", mustWriteTool(t, mustLocalExecutor(t, ".")), `{"path":"new.txt","content":"x","append":true}`},
+		{"edit", mustEditTool(t, mustLocalExecutor(t, ".")), `{"file_path":"old.txt","old_string":"a","new_string":"b"}`},
+		{"apply_patch", mustApplyPatchTool(t, mustLocalExecutor(t, ".")), `{"patch":"x","unknown":true}`},
+		{"glob", mustGlobTool(t, mustLocalExecutor(t, ".")), `{"pattern":"**/*","max_results":1001}`},
+		{"grep", mustGrepTool(t, mustLocalExecutor(t, ".")), `{"pattern":"x","head_limit":1}`},
 	} {
 		t.Run(candidate.name, func(t *testing.T) {
 			definition := candidate.tool.Definition()
@@ -96,7 +115,7 @@ func TestToolContractsUseOneStrictFileVocabulary(t *testing.T) {
 }
 
 func TestGrepContractRejectsAmbiguousPagingAndContextFields(t *testing.T) {
-	grep := NewGrepTool(nil)
+	grep := mustGrepTool(t, mustLocalExecutor(t, "."))
 	for _, arguments := range []string{
 		`{"pattern":"x","glob":"**/*.go"}`,
 		`{"pattern":"x","type":"go"}`,
@@ -116,7 +135,7 @@ func TestReadTool_OneBasedStartLineTranslation(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "line1\nline2\nline3\nline4\n")
 
-	tool := NewReadTool(NewLocalExecutor(dir))
+	tool := mustReadTool(t, mustLocalExecutor(t, dir))
 
 	// start_line=2 means "start at line 2"; max_lines=2 takes line2,line3.
 	output, err := invokeTestTool(t.Context(), tool, `{"path":"`+path+`","start_line":2,"max_lines":2}`)
@@ -141,7 +160,7 @@ func TestReadTool_OneBasedStartLineTranslation(t *testing.T) {
 func TestReadTool_OmittedStartLineMeansFirstLine(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "a\nb\nc\n")
-	output, err := invokeTestTool(t.Context(), NewReadTool(NewLocalExecutor(dir)), `{"path":"`+path+`","max_lines":1}`)
+	output, err := invokeTestTool(t.Context(), mustReadTool(t, mustLocalExecutor(t, dir)), `{"path":"`+path+`","max_lines":1}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -158,14 +177,14 @@ func TestReadTool_RejectsUnknownPagingArguments(t *testing.T) {
 		`{"path":"a.txt","limit":20}`,
 		`{"path":"a.txt","start_line":0}`,
 	} {
-		if _, err := invokeTestTool(t.Context(), NewReadTool(nil), arguments); err == nil {
+		if _, err := invokeTestTool(t.Context(), mustReadTool(t, mustLocalExecutor(t, ".")), arguments); err == nil {
 			t.Fatalf("read accepted ambiguous paging arguments: %s", arguments)
 		}
 	}
 }
 
 func TestReadTool_EmptyPath(t *testing.T) {
-	_, err := invokeTestTool(t.Context(), NewReadTool(nil), `{"path":""}`)
+	_, err := invokeTestTool(t.Context(), mustReadTool(t, mustLocalExecutor(t, ".")), `{"path":""}`)
 	if err == nil {
 		t.Fatal("Call with empty path: want error")
 	}
@@ -174,7 +193,7 @@ func TestReadTool_EmptyPath(t *testing.T) {
 func TestWriteTool_RoundTrip(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "x.txt")
-	output, err := invokeTestTool(t.Context(), NewWriteTool(NewLocalExecutor(dir)), `{"path":"`+path+`","content":"hi"}`)
+	output, err := invokeTestTool(t.Context(), mustWriteTool(t, mustLocalExecutor(t, dir)), `{"path":"`+path+`","content":"hi"}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -194,7 +213,7 @@ func TestWriteTool_RoundTrip(t *testing.T) {
 func TestEditTool_HappyPath(t *testing.T) {
 	dir := t.TempDir()
 	path := writeTemp(t, dir, "a.txt", "alpha beta\n")
-	output, err := invokeTestTool(t.Context(), NewEditTool(NewLocalExecutor(dir)),
+	output, err := invokeTestTool(t.Context(), mustEditTool(t, mustLocalExecutor(t, dir)),
 		`{"path":"`+path+`","old_string":"beta","new_string":"BETA"}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
@@ -220,7 +239,7 @@ func TestApplyPatchTool_HappyPath(t *testing.T) {
 -beta
 +BETA
 `
-	output, err := invokeTestTool(t.Context(), NewApplyPatchTool(NewLocalExecutor(dir)), string(mustJSON(t, ApplyPatchRequest{Patch: patch})))
+	output, err := invokeTestTool(t.Context(), mustApplyPatchTool(t, mustLocalExecutor(t, dir)), string(mustJSON(t, ApplyPatchRequest{Patch: patch})))
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -241,7 +260,7 @@ func TestGrepTool_ContentMode(t *testing.T) {
 	skipWithoutRipgrep(t)
 	dir := t.TempDir()
 	writeTemp(t, dir, "a.txt", "foo bar\n")
-	output, err := invokeTestTool(t.Context(), NewGrepTool(NewLocalExecutor(dir)), `{"pattern":"foo"}`)
+	output, err := invokeTestTool(t.Context(), mustGrepTool(t, mustLocalExecutor(t, dir)), `{"pattern":"foo"}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
 	}
@@ -259,7 +278,7 @@ func TestGrepTool_FilesWithMatchesMode(t *testing.T) {
 	dir := t.TempDir()
 	writeTemp(t, dir, "a.txt", "foo\n")
 	writeTemp(t, dir, "b.txt", "bar\n")
-	output, err := invokeTestTool(t.Context(), NewGrepTool(NewLocalExecutor(dir)),
+	output, err := invokeTestTool(t.Context(), mustGrepTool(t, mustLocalExecutor(t, dir)),
 		`{"pattern":"foo","output_mode":"files_with_matches"}`)
 	if err != nil {
 		t.Fatalf("Call: %v", err)
@@ -281,7 +300,7 @@ func TestGrepTool_FilesWithMatchesMode(t *testing.T) {
 }
 
 func TestGlobTool_Description(t *testing.T) {
-	def := NewGlobTool(nil).Definition()
+	def := mustGlobTool(t, mustLocalExecutor(t, ".")).Definition()
 	for _, kw := range []string{"**/*.go", "doublestar", "grep"} {
 		if !strings.Contains(def.Description, kw) {
 			t.Errorf("Description missing %q: %q", kw, def.Description)
@@ -290,7 +309,7 @@ func TestGlobTool_Description(t *testing.T) {
 }
 
 func TestGrepTool_Description(t *testing.T) {
-	def := NewGrepTool(nil).Definition()
+	def := mustGrepTool(t, mustLocalExecutor(t, ".")).Definition()
 	for _, kw := range []string{"ripgrep", "multiline", "files_with_matches"} {
 		if !strings.Contains(def.Description, kw) {
 			t.Errorf("Description missing %q: %q", kw, def.Description)
@@ -303,12 +322,12 @@ func TestBadJSONArguments(t *testing.T) {
 		name string
 		tool toolcontract.Tool
 	}{
-		{"read", NewReadTool(nil)},
-		{"write", NewWriteTool(nil)},
-		{"edit", NewEditTool(nil)},
-		{"apply_patch", NewApplyPatchTool(nil)},
-		{"glob", NewGlobTool(nil)},
-		{"grep", NewGrepTool(nil)},
+		{"read", mustReadTool(t, mustLocalExecutor(t, "."))},
+		{"write", mustWriteTool(t, mustLocalExecutor(t, "."))},
+		{"edit", mustEditTool(t, mustLocalExecutor(t, "."))},
+		{"apply_patch", mustApplyPatchTool(t, mustLocalExecutor(t, "."))},
+		{"glob", mustGlobTool(t, mustLocalExecutor(t, "."))},
+		{"grep", mustGrepTool(t, mustLocalExecutor(t, "."))},
 	}
 	for _, tc := range tools {
 		t.Run(tc.name, func(t *testing.T) {

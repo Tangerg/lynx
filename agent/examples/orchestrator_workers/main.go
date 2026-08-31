@@ -144,7 +144,9 @@ func newOrchestratorWorkers() (agent.Deployment, deploymentResolver, error) {
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
-	budget, err := agent.NewBudget(workerBudgetSteps, workerBudgetEffects, workerBudgetSignals)
+	budget, err := agent.NewBudget(agent.BudgetConfig{
+		Steps: workerBudgetSteps, Effects: workerBudgetEffects, Signals: workerBudgetSignals,
+	})
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
@@ -174,7 +176,7 @@ func newOrchestratorWorkers() (agent.Deployment, deploymentResolver, error) {
 	}
 	execute, err := workflow.Map(workflow.MapConfig[workerTask, workerResult]{
 		ID: "execute", Deployment: worker, Budget: budget,
-		WindowSize: workerParallelism, ItemLimit: maximumPlannedTasks,
+		WindowSize: workerParallelism, MaxItems: maximumPlannedTasks,
 	})
 	if err != nil {
 		return agent.Deployment{}, nil, err

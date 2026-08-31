@@ -99,10 +99,6 @@ func TestResponseValidation(t *testing.T) {
 	if (&image.Response{}).First() != nil || (*image.Response)(nil).First() != nil {
 		t.Fatal("empty response returned a output")
 	}
-	response.Metadata.Created = -1
-	if err := response.Validate(); err == nil {
-		t.Fatal("Validate accepted a negative creation time")
-	}
 }
 
 func TestOptionsResolveAndCopies(t *testing.T) {
@@ -158,6 +154,10 @@ func TestResponseMetadataAndErrors(t *testing.T) {
 	}
 	if _, err := image.NewResponse([]*image.Output{nil}, responseMetadata); err == nil {
 		t.Fatal("NewResponse accepted nil output")
+	}
+	invalidMetadata := &image.ResponseMetadata{Extra: metadata.Map{"": nil}}
+	if _, err := image.NewResponse([]*image.Output{output}, invalidMetadata); !errors.Is(err, image.ErrInvalidResponse) {
+		t.Fatalf("NewResponse metadata error = %v, want %v", err, image.ErrInvalidResponse)
 	}
 	if _, err := image.NewResponse([]*image.Output{output}, nil); err != nil {
 		t.Fatalf("NewResponse rejected optional metadata: %v", err)

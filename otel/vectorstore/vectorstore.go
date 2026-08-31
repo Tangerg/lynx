@@ -44,7 +44,9 @@ const (
 	queryMinScoreKey                   = attribute.Key("db.vector.query.similarity_threshold")
 )
 
-var ErrInvalidConfig = errors.New("otel/vectorstore: invalid config")
+var (
+	ErrInvalidConfig = errors.New("otel/vectorstore: invalid config")
+)
 
 // MiddlewareConfig identifies the database observed by vector-store
 // instrumentation. System is the OpenTelemetry db.system.name value.
@@ -121,6 +123,9 @@ func (m Middleware) Index(next corevectorstore.Indexer) corevectorstore.Indexer 
 	if lo.IsNil(next) {
 		return nil
 	}
+	if err := m.validate(); err != nil {
+		return invalidIndexer{err: err}
+	}
 	return indexer{middleware: m, next: next}
 }
 
@@ -128,6 +133,9 @@ func (m Middleware) Index(next corevectorstore.Indexer) corevectorstore.Indexer 
 func (m Middleware) Search(next corevectorstore.Searcher) corevectorstore.Searcher {
 	if lo.IsNil(next) {
 		return nil
+	}
+	if err := m.validate(); err != nil {
+		return invalidSearcher{err: err}
 	}
 	return searcher{middleware: m, next: next}
 }
@@ -137,6 +145,9 @@ func (m Middleware) DeleteIDs(next corevectorstore.IDDeleter) corevectorstore.ID
 	if lo.IsNil(next) {
 		return nil
 	}
+	if err := m.validate(); err != nil {
+		return invalidIDDeleter{err: err}
+	}
 	return idDeleter{middleware: m, next: next}
 }
 
@@ -145,7 +156,17 @@ func (m Middleware) DeleteWhere(next corevectorstore.FilterDeleter) corevectorst
 	if lo.IsNil(next) {
 		return nil
 	}
+	if err := m.validate(); err != nil {
+		return invalidFilterDeleter{err: err}
+	}
 	return filterDeleter{middleware: m, next: next}
+}
+
+func (m Middleware) validate() error {
+	if lo.IsNil(m.tracer) || lo.IsNil(m.duration) || lo.IsNil(m.searchRows) {
+		return fmt.Errorf("%w: middleware must be constructed with NewMiddleware", ErrInvalidConfig)
+	}
+	return nil
 }
 
 func (m Middleware) start(
@@ -242,6 +263,10 @@ type indexer struct {
 	next       corevectorstore.Indexer
 }
 
+type invalidIndexer struct{ err error }
+
+func (i invalidIndexer) Index(context.Context, *corevectorstore.IndexRequest) error { return i.err }
+
 func (i indexer) Index(ctx context.Context, request *corevectorstore.IndexRequest) error {
 	var extra []attribute.KeyValue
 	if request != nil && len(request.Documents) > 1 {
@@ -256,6 +281,12 @@ func (i indexer) Index(ctx context.Context, request *corevectorstore.IndexReques
 type searcher struct {
 	middleware Middleware
 	next       corevectorstore.Searcher
+}
+
+type invalidSearcher struct{ err error }
+
+func (i invalidSearcher) Search(context.Context, *corevectorstore.SearchRequest) (*corevectorstore.SearchResponse, error) {
+	return nil, i.err
 }
 
 func (s searcher) Search(ctx context.Context, request *corevectorstore.SearchRequest) (*corevectorstore.SearchResponse, error) {
@@ -283,6 +314,10 @@ type idDeleter struct {
 	next       corevectorstore.IDDeleter
 }
 
+type invalidIDDeleter struct{ err error }
+
+func (i invalidIDDeleter) DeleteIDs(context.Context, []string) error { return i.err }
+
 func (i idDeleter) DeleteIDs(ctx context.Context, ids []string) error {
 	var extra []attribute.KeyValue
 	if len(ids) > 1 {
@@ -298,6 +333,10 @@ type filterDeleter struct {
 	middleware Middleware
 	next       corevectorstore.FilterDeleter
 }
+
+type invalidFilterDeleter struct{ err error }
+
+func (i invalidFilterDeleter) DeleteWhere(context.Context, filter.Predicate) error { return i.err }
 
 func (f filterDeleter) DeleteWhere(ctx context.Context, predicate filter.Predicate) error {
 	ctx, observation := f.middleware.start(ctx, operationDeleteWhere)

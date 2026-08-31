@@ -104,7 +104,7 @@ func TestEventRejectsMismatchedFrameworkFactContracts(t *testing.T) {
 
 func FuzzEventJSONRoundTrip(f *testing.F) {
 	descriptor := testDescriptorForFuzz(f)
-	reference, err := NewDeploymentRef(
+	reference, err := newDeploymentRef(
 		descriptor,
 		ComputeDigest([]byte("event fuzz implementation")),
 		ComputeDigest([]byte("event fuzz configuration")),

@@ -74,8 +74,8 @@ type StageTopology struct {
 	Bindings []BindingTopology `json:"bindings,omitempty"`
 	// WindowSize is the fixed Fork or Map execution-window size.
 	WindowSize uint32 `json:"window_size,omitempty"`
-	// ItemLimit is the maximum accepted Map input length.
-	ItemLimit uint32 `json:"item_limit,omitempty"`
+	// MaxItems is the maximum accepted Map input length.
+	MaxItems uint32 `json:"max_items,omitempty"`
 	// MaxIterations is the hard Loop body-start limit.
 	MaxIterations uint32 `json:"max_iterations,omitempty"`
 }
@@ -130,7 +130,7 @@ func (s Stage) topology() StageTopology {
 		}
 	case stageKindMap:
 		projected.WindowSize = s.mapper.windowSize
-		projected.ItemLimit = s.mapper.itemLimit
+		projected.MaxItems = s.mapper.maxItems
 		projected.Bindings = []BindingTopology{s.mapper.binding.topology(
 			BindingRoleItem, "",
 			s.mapper.itemInputSchema, s.mapper.itemOutputSchema,

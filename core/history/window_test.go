@@ -141,7 +141,7 @@ func TestWindowStorePreservesStandaloneNewestUserTurn(t *testing.T) {
 
 func TestWindowStorePreservesSystemPartStructure(t *testing.T) {
 	base := new(inmemory.Store)
-	part := chat.NewTextPart("")
+	part := chat.NewTextPart("metadata-bearing instruction")
 	part.Metadata = metadata.Map{}
 	if err := part.Metadata.Set("provider", "preserved"); err != nil {
 		t.Fatal(err)

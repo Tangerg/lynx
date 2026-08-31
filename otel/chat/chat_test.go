@@ -58,7 +58,7 @@ func request(model string) *chat.Request {
 		Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("hello"))},
 		Options: chat.Options{
 			Model:            model,
-			MaxTokens:        &maxTokens,
+			MaxOutputTokens:  &maxTokens,
 			Temperature:      &temperature,
 			TopP:             &topP,
 			TopK:             &topK,
@@ -78,6 +78,20 @@ func response(text string, finish chat.FinishReason, input, output int64) *chat.
 			Usage: chat.Usage{InputTokens: input, OutputTokens: output},
 		},
 	}
+}
+
+func responseDelta(text string, finish chat.FinishReason, input, output int64) *chat.ResponseDelta {
+	delta := &chat.ResponseDelta{
+		FinishReason: finish,
+		Metadata: &chat.ResponseMetadata{
+			ID: "response-1", Model: "served-model",
+			Usage: chat.Usage{InputTokens: input, OutputTokens: output},
+		},
+	}
+	if text != "" {
+		delta.Parts = []chat.PartDelta{chat.NewTextDelta(text)}
+	}
+	return delta
 }
 
 func TestNewMiddlewareValidatesAndNormalizesProvider(t *testing.T) {
@@ -115,6 +129,27 @@ func TestMiddlewarePreservesMissingCapabilities(t *testing.T) {
 	}
 	if middleware.Stream(streamer) != nil {
 		t.Fatal("Stream synthesized a streaming capability")
+	}
+}
+
+func TestZeroMiddlewareReportsInvalidConfigWithoutPanicking(t *testing.T) {
+	var middleware otelchat.Middleware
+	model := middleware.Call(chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
+		return &chat.Response{}, nil
+	}))
+	if _, err := model.Call(t.Context(), request("model")); !errors.Is(err, otelchat.ErrInvalidConfig) {
+		t.Fatalf("Call error = %v, want ErrInvalidConfig", err)
+	}
+
+	streamer := middleware.Stream(chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+		return func(func(*chat.ResponseDelta, error) bool) {}
+	}))
+	var got error
+	for _, err := range streamer.Stream(t.Context(), request("model")) {
+		got = err
+	}
+	if !errors.Is(got, otelchat.ErrInvalidConfig) {
+		t.Fatalf("Stream error = %v, want ErrInvalidConfig", got)
 	}
 }
 
@@ -233,13 +268,13 @@ func TestCallClassifiesWrappedErrorsByCause(t *testing.T) {
 func TestStreamIsLazyAndAggregatesForObservation(t *testing.T) {
 	middleware, rig := newRig(t, "openai")
 	called := false
-	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
 		called = true
-		return func(yield func(*chat.Response, error) bool) {
-			first := response("hel", "", 0, 0)
+		return func(yield func(*chat.ResponseDelta, error) bool) {
+			first := responseDelta("hel", "", 0, 0)
 			first.Metadata.ID = ""
 			first.Metadata.Model = ""
-			second := response("lo", chat.FinishReasonStop, 9, 3)
+			second := responseDelta("lo", chat.FinishReasonStop, 9, 3)
 			yield(first, nil)
 			yield(second, nil)
 		}
@@ -248,7 +283,7 @@ func TestStreamIsLazyAndAggregatesForObservation(t *testing.T) {
 	if called || len(rig.spans.Ended()) != 0 {
 		t.Fatal("stream instrumentation ran before iteration")
 	}
-	var chunks []*chat.Response
+	var chunks []*chat.ResponseDelta
 	for chunk, err := range sequence {
 		if err != nil {
 			t.Fatal(err)
@@ -284,17 +319,17 @@ func TestStreamIsLazyAndAggregatesForObservation(t *testing.T) {
 func TestStreamEndsSynchronouslyOnConsumerStop(t *testing.T) {
 	middleware, rig := newRig(t, "openai")
 	released := false
-	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-		return func(yield func(*chat.Response, error) bool) {
+	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+		return func(yield func(*chat.ResponseDelta, error) bool) {
 			defer func() { released = true }()
-			if !yield(response("first", "", 0, 0), nil) {
+			if !yield(responseDelta("first", "", 0, 0), nil) {
 				return
 			}
-			yield(response("second", chat.FinishReasonStop, 0, 0), nil)
+			yield(responseDelta("second", chat.FinishReasonStop, 0, 0), nil)
 		}
 	})
 	seen := 0
-	middleware.Stream(streamer).Stream(t.Context(), request("gpt"))(func(*chat.Response, error) bool {
+	middleware.Stream(streamer).Stream(t.Context(), request("gpt"))(func(*chat.ResponseDelta, error) bool {
 		seen++
 		return false
 	})
@@ -309,7 +344,7 @@ func TestStreamEndsSynchronouslyOnConsumerStop(t *testing.T) {
 func TestStreamReportsNilAndProviderErrors(t *testing.T) {
 	t.Run("nil sequence", func(t *testing.T) {
 		middleware, rig := newRig(t, "openai")
-		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] { return nil })
+		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] { return nil })
 		var got error
 		for _, err := range middleware.Stream(streamer).Stream(t.Context(), request("gpt")) {
 			got = err
@@ -322,8 +357,8 @@ func TestStreamReportsNilAndProviderErrors(t *testing.T) {
 	t.Run("provider error", func(t *testing.T) {
 		middleware, rig := newRig(t, "openai")
 		want := errors.New("stream failed")
-		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-			return func(yield func(*chat.Response, error) bool) { yield(nil, want) }
+		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+			return func(yield func(*chat.ResponseDelta, error) bool) { yield(nil, want) }
 		})
 		var got error
 		for _, err := range middleware.Stream(streamer).Stream(t.Context(), request("gpt")) {
@@ -337,11 +372,11 @@ func TestStreamReportsNilAndProviderErrors(t *testing.T) {
 	t.Run("partial response and provider error", func(t *testing.T) {
 		middleware, rig := newRig(t, "openai")
 		want := errors.New("stream failed after a partial response")
-		partial := response("partial", chat.FinishReasonStop, 3, 1)
-		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-			return func(yield func(*chat.Response, error) bool) { yield(partial, want) }
+		partial := responseDelta("partial", chat.FinishReasonStop, 3, 1)
+		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+			return func(yield func(*chat.ResponseDelta, error) bool) { yield(partial, want) }
 		})
-		var gotResponse *chat.Response
+		var gotResponse *chat.ResponseDelta
 		var gotErr error
 		for chunk, err := range middleware.Stream(streamer).Stream(t.Context(), request("gpt")) {
 			gotResponse, gotErr = chunk, err
@@ -359,11 +394,11 @@ func TestStreamReportsNilAndProviderErrors(t *testing.T) {
 
 func TestStreamDoesNotTurnObservationFailureIntoBusinessFailure(t *testing.T) {
 	middleware, rig := newRig(t, "openai")
-	invalid := &chat.Response{Output: &chat.Output{}}
-	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-		return func(yield func(*chat.Response, error) bool) { yield(invalid, nil) }
+	invalid := &chat.ResponseDelta{}
+	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+		return func(yield func(*chat.ResponseDelta, error) bool) { yield(invalid, nil) }
 	})
-	var got *chat.Response
+	var got *chat.ResponseDelta
 	for chunk, err := range middleware.Stream(streamer).Stream(t.Context(), request("gpt")) {
 		if err != nil {
 			t.Fatalf("observation changed business result: %v", err)

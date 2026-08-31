@@ -102,11 +102,11 @@ func (c ChatBehaviorSuite) Run(t *testing.T) {
 		}
 		request := c.validRequest(t)
 		count := 0
-		for response, err := range test.Streamer.Stream(t.Context(), request) {
+		for delta, err := range test.Streamer.Stream(t.Context(), request) {
 			if err != nil {
 				t.Fatalf("Stream before early stop: %v", err)
 			}
-			assertResponse(t, response)
+			assertResponseDelta(t, delta)
 			count++
 			break
 		}
@@ -140,14 +140,14 @@ func (c ChatBehaviorSuite) validRequest(t *testing.T) *chat.Request {
 }
 
 type streamYield struct {
-	response *chat.Response
-	err      error
+	delta *chat.ResponseDelta
+	err   error
 }
 
-func drainStream(sequence func(func(*chat.Response, error) bool)) []streamYield {
+func drainStream(sequence func(func(*chat.ResponseDelta, error) bool)) []streamYield {
 	var outcome []streamYield
-	for response, err := range sequence {
-		outcome = append(outcome, streamYield{response: response, err: err})
+	for delta, err := range sequence {
+		outcome = append(outcome, streamYield{delta: delta, err: err})
 	}
 	return outcome
 }
@@ -164,18 +164,18 @@ func assertTerminalError(t *testing.T, outcome []streamYield, requireSuccess boo
 		yielded := outcome[i]
 		switch {
 		case yielded.err != nil:
-			if yielded.response != nil {
-				t.Fatalf("yield %d returned response and error", i)
+			if yielded.delta != nil {
+				t.Fatalf("yield %d returned response delta and error", i)
 			}
 			if errorIndex >= 0 {
 				t.Fatalf("Stream yielded multiple errors at %d and %d", errorIndex, i)
 			}
 			errorIndex = i
 			terminal = yielded.err
-		case yielded.response == nil:
-			t.Fatalf("yield %d returned nil response without error", i)
+		case yielded.delta == nil:
+			t.Fatalf("yield %d returned nil response delta without error", i)
 		default:
-			assertResponse(t, yielded.response)
+			assertResponseDelta(t, yielded.delta)
 			successes++
 		}
 	}

@@ -1,3 +1,3 @@
-// Package embeddingclient provides direct conveniences around Core embedding
-// models for callers that only need vectors.
+// Package embeddingclient projects validated Core embedding responses into
+// independently owned single or batch vectors.
 package embeddingclient

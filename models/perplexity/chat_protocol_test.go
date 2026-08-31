@@ -10,7 +10,7 @@ import (
 	"github.com/Tangerg/scope/models/perplexity"
 )
 
-func TestOpenAIChatMapsOfficialSonarOptionsAndResponse(t *testing.T) {
+func TestChatMapsOfficialSonarOptionsAndResponse(t *testing.T) {
 	var body map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if request.URL.Path != "/chat/completions" {
@@ -35,7 +35,7 @@ func TestOpenAIChatMapsOfficialSonarOptionsAndResponse(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	model, err := perplexity.NewOpenAIChat(perplexity.OpenAIChatConfig{
+	model, err := perplexity.NewChat(perplexity.ChatConfig{
 		APIKey:  "test-key",
 		BaseURL: server.URL,
 		DefaultOptions: corechat.Options{
@@ -43,7 +43,7 @@ func TestOpenAIChatMapsOfficialSonarOptionsAndResponse(t *testing.T) {
 		},
 	})
 	if err != nil {
-		t.Fatalf("NewOpenAIChat: %v", err)
+		t.Fatalf("NewChat: %v", err)
 	}
 	request := &corechat.Request{Messages: []corechat.Message{
 		corechat.NewUserMessage(corechat.NewTextPart("question")),
@@ -92,13 +92,13 @@ func TestOpenAIChatMapsOfficialSonarOptionsAndResponse(t *testing.T) {
 	}
 }
 
-func TestOpenAIChatRejectsProSearchWithoutStreaming(t *testing.T) {
-	model, err := perplexity.NewOpenAIChat(perplexity.OpenAIChatConfig{
+func TestChatRejectsProSearchWithoutStreaming(t *testing.T) {
+	model, err := perplexity.NewChat(perplexity.ChatConfig{
 		APIKey:         "test-key",
 		DefaultOptions: corechat.Options{Model: perplexity.ModelSonarPro},
 	})
 	if err != nil {
-		t.Fatalf("NewOpenAIChat: %v", err)
+		t.Fatalf("NewChat: %v", err)
 	}
 	request := &corechat.Request{Messages: []corechat.Message{
 		corechat.NewUserMessage(corechat.NewTextPart("question")),

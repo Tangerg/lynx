@@ -453,10 +453,7 @@ func responseToolCalls(response *chat.Response) ([]chat.ToolCall, *chat.Message,
 		return nil, nil, nil
 	}
 	for _, part := range response.Output.Message.Parts {
-		switch part.Kind {
-		case chat.PartToolCallDelta:
-			return nil, nil, errors.New("interaction: finalized model response contains a tool call delta")
-		case chat.PartToolCall:
+		if part.Kind == chat.PartToolCall {
 			if _, duplicate := seenCallIDs[part.ToolCall.ID]; duplicate {
 				return nil, nil, fmt.Errorf("interaction: duplicate tool call ID %q", part.ToolCall.ID)
 			}

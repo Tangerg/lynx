@@ -19,20 +19,23 @@ import (
 
 func TestRecorderAndEvaluatorCoverAgentRegressionDimensions(t *testing.T) {
 	recorded := runTrajectory(t)
-	root := recorded.RootProcessID
-	response := &chat.Response{Metadata: &chat.ResponseMetadata{
-		Usage: chat.Usage{InputTokens: 3, OutputTokens: 2},
-	}}
+	root := recorded.RootProcessID()
+	response := &chat.Response{
+		Output: &chat.Output{FinishReason: chat.FinishReasonStop},
+		Metadata: &chat.ResponseMetadata{
+			Usage: chat.Usage{InputTokens: 3, OutputTokens: 2},
+		},
+	}
 	result := chat.ToolResult{
 		ID: "call-1", Name: "weather", Output: chat.NewTextToolOutput("sunny"),
 	}
 	recorded, err := trajectory.New(trajectory.Config{
-		RootProcessID: recorded.RootProcessID,
-		Termination:   recorded.Termination,
-		Output:        recorded.Output,
-		Usage:         recorded.Usage,
-		Duration:      recorded.Duration,
-		Events:        recorded.Events,
+		RootProcessID: recorded.RootProcessID(),
+		Termination:   recorded.Termination(),
+		Output:        recorded.Output(),
+		Usage:         recorded.Usage(),
+		Duration:      recorded.Duration(),
+		Events:        recorded.Events(),
 		ModelCalls: []trajectory.ModelCall{{
 			ProcessID: root, StepSequence: 1, CallSequence: 1, Response: response,
 		}},
@@ -57,7 +60,7 @@ func TestRecorderAndEvaluatorCoverAgentRegressionDimensions(t *testing.T) {
 		Actual: recorded,
 		Expected: trajectory.Expectation{
 			Status: agent.StatusCompleted,
-			Output: recorded.Output,
+			Output: recorded.Output(),
 			Tools: &trajectory.ToolSequence{Calls: []trajectory.ToolExpectation{{
 				Name: "weather", Arguments: &paris,
 				Outcome: trajectory.ToolOutcomeSucceeded,
@@ -137,10 +140,10 @@ func TestRecorderCapturesInteractionModelAndToolFacts(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(recorded.ModelCalls) != 2 || len(recorded.ToolCalls) != 1 {
-		t.Fatalf("recorded %d model calls and %d tool calls", len(recorded.ModelCalls), len(recorded.ToolCalls))
+	if len(recorded.ModelCalls()) != 2 || len(recorded.ToolCalls()) != 1 {
+		t.Fatalf("recorded %d model calls and %d tool calls", len(recorded.ModelCalls()), len(recorded.ToolCalls()))
 	}
-	call := recorded.ToolCalls[0]
+	call := recorded.ToolCalls()[0]
 	if call.Call.Name != "weather" || call.Call.Arguments != `{"city":"Paris"}` ||
 		call.Outcome != trajectory.ToolOutcomeSucceeded || call.Result == nil {
 		t.Fatalf("recorded tool call = %#v", call)
@@ -150,7 +153,7 @@ func TestRecorderCapturesInteractionModelAndToolFacts(t *testing.T) {
 func TestBehaviorDigestExcludesTimingAndProviderAccounting(t *testing.T) {
 	baseline := decorateBehaviorTrajectory(t, runTrajectory(t), "response-a", "call-a", 3)
 	candidate := decorateBehaviorTrajectory(t, runTrajectory(t), "response-b", "call-b", 300)
-	if baseline.RootProcessID == candidate.RootProcessID {
+	if baseline.RootProcessID() == candidate.RootProcessID() {
 		t.Fatal("independent runs unexpectedly reused one Process identity")
 	}
 	left, err := baseline.BehaviorDigest()
@@ -164,16 +167,16 @@ func TestBehaviorDigestExcludesTimingAndProviderAccounting(t *testing.T) {
 	if left != right {
 		t.Fatalf("non-semantic execution identity changed digest: %s != %s", left, right)
 	}
-	changedCalls := append([]trajectory.ToolCall(nil), candidate.ToolCalls...)
+	changedCalls := append([]trajectory.ToolCall(nil), candidate.ToolCalls()...)
 	changedCalls[0].Call.Arguments = `{"city":"Berlin"}`
 	changed, err := trajectory.New(trajectory.Config{
-		RootProcessID: candidate.RootProcessID,
-		Termination:   candidate.Termination,
-		Output:        candidate.Output,
-		Usage:         candidate.Usage,
-		Duration:      candidate.Duration,
-		Events:        candidate.Events,
-		ModelCalls:    candidate.ModelCalls,
+		RootProcessID: candidate.RootProcessID(),
+		Termination:   candidate.Termination(),
+		Output:        candidate.Output(),
+		Usage:         candidate.Usage(),
+		Duration:      candidate.Duration(),
+		Events:        candidate.Events(),
+		ModelCalls:    candidate.ModelCalls(),
 		ToolCalls:     changedCalls,
 	})
 	if err != nil {
@@ -196,24 +199,27 @@ func decorateBehaviorTrajectory(
 	inputTokens int64,
 ) trajectory.Trajectory {
 	t.Helper()
-	response := &chat.Response{Metadata: &chat.ResponseMetadata{
-		ID: responseID, Model: "fixture", Usage: chat.Usage{InputTokens: inputTokens, OutputTokens: 2},
-	}}
+	response := &chat.Response{
+		Output: &chat.Output{FinishReason: chat.FinishReasonStop},
+		Metadata: &chat.ResponseMetadata{
+			ID: responseID, Model: "fixture", Usage: chat.Usage{InputTokens: inputTokens, OutputTokens: 2},
+		},
+	}
 	result := chat.ToolResult{
 		ID: toolCallID, Name: "weather", Output: chat.NewTextToolOutput("sunny"),
 	}
 	decorated, err := trajectory.New(trajectory.Config{
-		RootProcessID: base.RootProcessID,
-		Termination:   base.Termination,
-		Output:        base.Output,
-		Usage:         base.Usage,
-		Duration:      base.Duration + time.Duration(inputTokens),
-		Events:        base.Events,
+		RootProcessID: base.RootProcessID(),
+		Termination:   base.Termination(),
+		Output:        base.Output(),
+		Usage:         base.Usage(),
+		Duration:      base.Duration() + time.Duration(inputTokens),
+		Events:        base.Events(),
 		ModelCalls: []trajectory.ModelCall{{
-			ProcessID: base.RootProcessID, StepSequence: 1, CallSequence: 1, Response: response,
+			ProcessID: base.RootProcessID(), StepSequence: 1, CallSequence: 1, Response: response,
 		}},
 		ToolCalls: []trajectory.ToolCall{{
-			ProcessID: base.RootProcessID, StepSequence: 1, ModelCall: 1,
+			ProcessID: base.RootProcessID(), StepSequence: 1, ModelCall: 1,
 			Call:    chat.ToolCall{ID: toolCallID, Name: "weather", Arguments: `{"city":"Paris"}`},
 			Outcome: trajectory.ToolOutcomeSucceeded, Result: &result,
 		}},
@@ -356,8 +362,8 @@ func (f *fixtureInteractionClient) Call(context.Context, *chat.Request) (*chat.R
 func (*fixtureInteractionClient) Stream(
 	context.Context,
 	*chat.Request,
-) iter.Seq2[*chat.Response, error] {
-	return func(func(*chat.Response, error) bool) {}
+) iter.Seq2[*chat.ResponseDelta, error] {
+	return func(func(*chat.ResponseDelta, error) bool) {}
 }
 
 type fixtureWeatherTool struct{}

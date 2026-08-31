@@ -54,14 +54,14 @@ func TestEvaluatorCalculatesRankingMetricsAtCutoff(t *testing.T) {
 			if report.Score == nil || math.Abs(report.Score.Float64()-test.want) > 1e-12 {
 				t.Fatalf("score = %v, want %v", report.Score, test.want)
 			}
-			if report.Metric.Namespace != "ranking" || report.Metric.Name != eval.MetricName(test.metric) {
+			if report.Metric.Namespace() != "ranking" || report.Metric.Name() != eval.MetricName(test.metric) {
 				t.Fatalf("metric = %#v", report.Metric)
 			}
-			cutoff, found, err := report.Metric.Parameters.Decode[int]("cutoff")
+			cutoff, found, err := report.Metric.Parameters().Decode[int]("cutoff")
 			if err != nil || !found || cutoff != 4 {
 				t.Fatalf("metric cutoff = (%d, %v, %v)", cutoff, found, err)
 			}
-			gotThreshold, found, err := report.Metric.Parameters.Decode[eval.Score]("threshold")
+			gotThreshold, found, err := report.Metric.Parameters().Decode[eval.Score]("threshold")
 			if err != nil || !found || gotThreshold != threshold {
 				t.Fatalf("metric threshold = (%v, %v, %v)", gotThreshold, found, err)
 			}

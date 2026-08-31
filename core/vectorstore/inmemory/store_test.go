@@ -32,8 +32,6 @@ func (fakeEmbeddingModel) Call(_ context.Context, req *embedding.Request) (*embe
 	return embedding.NewResponse(results, &embedding.ResponseMetadata{Model: "fake"})
 }
 
-func (fakeEmbeddingModel) Dimensions(context.Context) (int, error) { return 4, nil }
-
 // vectorFor maps a text to a deterministic 4-dim float vector.
 // Designed so that texts sharing a common prefix have higher cosine
 // similarity — gives the unit tests something realistic to assert on.

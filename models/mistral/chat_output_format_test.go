@@ -8,7 +8,9 @@ import (
 )
 
 func TestNewResponseFormat(t *testing.T) {
-	format, err := corechat.NewJSONSchemaOutputFormat("answer", json.RawMessage(`{"type":"object"}`))
+	format, err := corechat.NewJSONSchemaOutputFormat(corechat.JSONSchemaConfig{
+		Name: "answer", Schema: json.RawMessage(`{"type":"object"}`),
+	})
 	if err != nil {
 		t.Fatal(err)
 	}

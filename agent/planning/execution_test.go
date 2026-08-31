@@ -352,7 +352,7 @@ func TestManagedPlanningExecutesChildProcessAction(t *testing.T) {
 		Name: "action.delegate", Description: "Delegate completion to an exact child Deployment.",
 		Effects: []planning.Condition{done},
 	})
-	budget, err := agent.NewBudget(32, 32, 64)
+	budget, err := agent.NewBudget(agent.BudgetConfig{Steps: 32, Effects: 32, Signals: 64})
 	if err != nil {
 		t.Fatal(err)
 	}

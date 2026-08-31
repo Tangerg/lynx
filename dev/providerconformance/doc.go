@@ -15,6 +15,4 @@
 // A new provider joins these checks by existing. If adding one makes a check
 // fail, the provider is inconsistent with the family: fix the provider before
 // relaxing the check.
-//
-// See README.md for how to run it and ARCHITECTURE.md for what it owns.
 package providerconformance

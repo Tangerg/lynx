@@ -15,35 +15,35 @@ const (
 	OpenAIStreamChunkExtensionKey = "deepseek/openai_stream_chunk"
 )
 
-type OpenAIChatConfig struct {
+type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
 
-func (o OpenAIChatConfig) Validate() error {
-	if o.APIKey == "" {
+func (c ChatConfig) Validate() error {
+	if c.APIKey == "" {
 		return errors.New("deepseek: APIKey is required")
 	}
-	if err := o.DefaultOptions.Validate(); err != nil {
+	if err := c.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("deepseek: DefaultOptions: %w", err)
 	}
-	if err := (RequestOptions{}).ValidateFor(o.DefaultOptions, nil, false); err != nil {
+	if err := (RequestOptions{}).ValidateFor(c.DefaultOptions, nil, false); err != nil {
 		return fmt.Errorf("deepseek: DefaultOptions: %w", err)
 	}
 	return nil
 }
 
 var (
-	_ corechat.Model    = (*OpenAIChat)(nil)
-	_ corechat.Streamer = (*OpenAIChat)(nil)
+	_ corechat.Model    = (*Chat)(nil)
+	_ corechat.Streamer = (*Chat)(nil)
 )
 
-// OpenAIChat implements DeepSeek's OpenAI-compatible chat protocol.
-type OpenAIChat = openai.Chat
+// Chat implements DeepSeek's chat protocol.
+type Chat = openai.ChatCompletions
 
-func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
+func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -53,8 +53,8 @@ func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
 	}
 	dialect.PrepareRequest = requestDialect{defaults: config.DefaultOptions.Clone()}.prepareRequest
 	dialect.DisableRawRequestExtension = true
-	protocol, err := openai.NewCompatibleChat(
-		openai.ChatConfig{
+	protocol, err := openai.NewCompatibleChatCompletions(
+		openai.ChatCompletionsConfig{
 			APIKey:         config.APIKey,
 			DefaultOptions: config.DefaultOptions,
 			BaseURL:        cmp.Or(config.BaseURL, BaseURL),

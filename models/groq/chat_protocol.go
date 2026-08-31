@@ -17,35 +17,35 @@ const (
 )
 
 var (
-	_ corechat.Model    = (*OpenAIChat)(nil)
-	_ corechat.Streamer = (*OpenAIChat)(nil)
+	_ corechat.Model    = (*Chat)(nil)
+	_ corechat.Streamer = (*Chat)(nil)
 )
 
-// OpenAIChat implements Groq's OpenAI-compatible endpoint.
-type OpenAIChat = openai.Chat
+// Chat implements Groq's chat endpoint.
+type Chat = openai.ChatCompletions
 
-type OpenAIChatConfig struct {
+type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
 
-func (o OpenAIChatConfig) Validate() error {
-	if o.APIKey == "" {
+func (c ChatConfig) Validate() error {
+	if c.APIKey == "" {
 		return errors.New("groq: APIKey is required")
 	}
-	if err := o.DefaultOptions.Validate(); err != nil {
+	if err := c.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("groq: DefaultOptions: %w", err)
 	}
 	return nil
 }
 
-func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
+func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURL), HTTPClient: config.HTTPClient}, openai.ReasoningDialect("groq"))
+	protocol, err := openai.NewCompatibleChatCompletions(openai.ChatCompletionsConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURL), HTTPClient: config.HTTPClient}, openai.ReasoningDialect("groq"))
 	if err != nil {
 		return nil, fmt.Errorf("groq: construct OpenAI-compatible chat: %w", err)
 	}

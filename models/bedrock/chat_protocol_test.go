@@ -104,7 +104,7 @@ func TestMapProtocolConverseResponse(t *testing.T) {
 		}
 	}
 	kind, found, err := ReasoningBlockKindOf(parts[1])
-	if err != nil || !found || kind != ReasoningBlockRedacted || string(parts[1].Signature) != "opaque" {
+	if err != nil || !found || kind != ReasoningBlockRedacted || string(parts[1].ReasoningState) != "opaque" {
 		t.Fatalf("redacted reasoning = %#v/%q/%v/%v", parts[1], kind, found, err)
 	}
 	usage := response.Metadata.Usage
@@ -123,7 +123,7 @@ func TestProtocolChunkAccumulatorRetainsToolIdentity(t *testing.T) {
 		}},
 	}}
 	response, include, err := accumulator.add(start)
-	if err != nil || !include || response.Output.Message.Parts[0].ToolCallDelta.Name != "weather" {
+	if err != nil || !include || response.Parts[0].ToolCall.Name != "weather" {
 		t.Fatalf("start = %#v, %v, %v", response, include, err)
 	}
 
@@ -136,9 +136,62 @@ func TestProtocolChunkAccumulatorRetainsToolIdentity(t *testing.T) {
 	if err != nil || !include {
 		t.Fatalf("delta = %#v, %v, %v", response, include, err)
 	}
-	call := response.Output.Message.Parts[0].ToolCallDelta
+	call := response.Parts[0].ToolCall
 	if call.ID != "call-1" || call.Name != "weather" || call.Arguments != arguments {
 		t.Fatalf("tool call = %#v", call)
+	}
+}
+
+func TestProtocolChunkAccumulatorPreservesReasoningKind(t *testing.T) {
+	accumulator := newProtocolChunkAccumulator("model")
+	index := int32(0)
+	event := &types.ConverseStreamOutputMemberContentBlockDelta{Value: types.ContentBlockDeltaEvent{
+		ContentBlockIndex: &index,
+		Delta: &types.ContentBlockDeltaMemberReasoningContent{Value: &types.ReasoningContentBlockDeltaMemberText{
+			Value: "thinking",
+		}},
+	}}
+	delta, include, err := accumulator.add(event)
+	if err != nil || !include || len(delta.Parts) != 1 {
+		t.Fatalf("reasoning delta = %#v, %v, %v", delta, include, err)
+	}
+	part := delta.Parts[0]
+	kind, found, err := part.Metadata.Decode[string](chatReasoningKindKey)
+	if err != nil || !found || kind != chatReasoningText || part.Text != "thinking" {
+		t.Fatalf("reasoning part = %#v, %q, %v, %v", part, kind, found, err)
+	}
+}
+
+func TestMapProtocolToolsPreservesPortableChoice(t *testing.T) {
+	definitions := []corechat.ToolDefinition{{Name: "weather", InputSchema: json.RawMessage(`{"type":"object"}`)}}
+
+	configuration, err := mapProtocolTools(definitions, &corechat.ToolChoice{Mode: corechat.ToolChoiceRequired})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, ok := configuration.ToolChoice.(*types.ToolChoiceMemberAny); !ok {
+		t.Fatalf("required choice = %#v", configuration.ToolChoice)
+	}
+
+	configuration, err = mapProtocolTools(definitions, &corechat.ToolChoice{Mode: corechat.ToolChoiceNamed, Name: "weather"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	named, ok := configuration.ToolChoice.(*types.ToolChoiceMemberTool)
+	if !ok || aws.ToString(named.Value.Name) != "weather" {
+		t.Fatalf("named choice = %#v", configuration.ToolChoice)
+	}
+
+	configuration, err = mapProtocolTools(definitions, &corechat.ToolChoice{Mode: corechat.ToolChoiceNone})
+	if err != nil || configuration != nil {
+		t.Fatalf("none choice = %#v, %v", configuration, err)
+	}
+
+	_, err = mapProtocolTools(definitions, &corechat.ToolChoice{
+		Mode: corechat.ToolChoiceAuto, Parallelism: corechat.ToolParallelismSingle,
+	})
+	if err == nil {
+		t.Fatal("single parallelism was silently ignored")
 	}
 }
 

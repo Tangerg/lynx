@@ -44,7 +44,9 @@ const (
 
 func (h historyOperation) spanName() string { return "history." + string(h) }
 
-var ErrInvalidConfig = errors.New("otel/history: invalid config")
+var (
+	ErrInvalidConfig = errors.New("otel/history: invalid config")
+)
 
 // MiddlewareConfig identifies the storage system observed by history
 // instrumentation.
@@ -105,6 +107,9 @@ func (m Middleware) Store(next corehistory.Store) corehistory.Store {
 	if lo.IsNil(next) {
 		return nil
 	}
+	if err := m.validate(); err != nil {
+		return invalidHistoryStore{err: err}
+	}
 	return historyStore{middleware: m, next: next}
 }
 
@@ -114,7 +119,17 @@ func (m Middleware) Conversations(next corehistory.Lister) corehistory.Lister {
 	if lo.IsNil(next) {
 		return nil
 	}
+	if err := m.validate(); err != nil {
+		return invalidHistoryLister{err: err}
+	}
 	return historyLister{middleware: m, next: next}
+}
+
+func (m Middleware) validate() error {
+	if lo.IsNil(m.tracer) || lo.IsNil(m.duration) {
+		return fmt.Errorf("%w: middleware must be constructed with NewMiddleware", ErrInvalidConfig)
+	}
+	return nil
 }
 
 func (m Middleware) start(
@@ -188,6 +203,20 @@ type historyStore struct {
 	next       corehistory.Store
 }
 
+type invalidHistoryStore struct{ err error }
+
+func (i invalidHistoryStore) Read(context.Context, corehistory.ConversationID) ([]chat.Message, error) {
+	return nil, i.err
+}
+
+func (i invalidHistoryStore) Write(context.Context, corehistory.ConversationID, ...chat.Message) error {
+	return i.err
+}
+
+func (i invalidHistoryStore) Clear(context.Context, corehistory.ConversationID) error {
+	return i.err
+}
+
 func (h historyStore) Read(ctx context.Context, conversationID corehistory.ConversationID) ([]chat.Message, error) {
 	ctx, observation := h.middleware.start(ctx, operationRead, conversationID)
 	messages, err := h.next.Read(ctx, conversationID)
@@ -215,6 +244,12 @@ func (h historyStore) Clear(ctx context.Context, conversationID corehistory.Conv
 type historyLister struct {
 	middleware Middleware
 	next       corehistory.Lister
+}
+
+type invalidHistoryLister struct{ err error }
+
+func (i invalidHistoryLister) Conversations(context.Context) ([]corehistory.ConversationID, error) {
+	return nil, i.err
 }
 
 func (h historyLister) Conversations(ctx context.Context) ([]corehistory.ConversationID, error) {

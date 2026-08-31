@@ -1,4 +1,4 @@
-// Package google exposes Google Gemini's native chat, embedding, image,
-// speech, transcription, token-estimation adapters, and its first-party
-// OpenAI-compatible endpoint. All constructors return Google-owned types.
+// Package google exposes native Gemini chat, embedding, image, speech,
+// transcription, and token-estimation adapters. [NewChatCompletions] targets
+// Gemini's OpenAI-compatible chat endpoint.
 package google

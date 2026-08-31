@@ -2,6 +2,7 @@ package embedding_test
 
 import (
 	"context"
+	"errors"
 	"math"
 	"testing"
 
@@ -133,6 +134,9 @@ func TestProtocolConstructorsRejectInvalidValues(t *testing.T) {
 	}
 	if (&embedding.Response{}).First() != nil || (*embedding.Response)(nil).First() != nil {
 		t.Fatal("empty response returned a output")
+	}
+	if _, err := embedding.NewResponse([]*embedding.Output{output}, &embedding.ResponseMetadata{Model: " padded "}); !errors.Is(err, embedding.ErrInvalidResponse) {
+		t.Fatalf("NewResponse metadata error = %v, want %v", err, embedding.ErrInvalidResponse)
 	}
 	invalid := &embedding.Response{
 		Outputs:  []*embedding.Output{{Embedding: []float64{math.NaN()}}},

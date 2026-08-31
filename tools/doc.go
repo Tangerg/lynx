@@ -28,10 +28,9 @@
 // # Assembly
 //
 // There is no global registry: a caller registers exactly the tools it wants.
-// New(nil) means "use the local backend" for a capability that has one, such as
-// shell and fs. For a capability that must be configured, such as web and
-// httpreq, New(nil) returns an error, because there is no safe local fallback
-// for a network call.
+// Every tool receives its executor or client explicitly. Filesystem roots,
+// shell access, network clients, and other authorities are never inferred from
+// nil or ambient process state.
 //
 // # Concurrency and limits
 //
@@ -40,7 +39,4 @@
 // path, so the loop parallelizes different files and serializes the same file.
 // Output over a limit is truncated and marked, never turned into an error, so
 // the model can decide what to do next.
-//
-// See README.md for usage and ARCHITECTURE.md for the invariants these
-// boundaries rest on.
 package tools

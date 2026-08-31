@@ -2,7 +2,7 @@
 
 Scope is a Go workspace of independently versioned AI infrastructure modules. It is a framework and library, not an application platform. Flame owns product sessions, desktop workflows, dashboards, marketplaces, billing, and deployment catalogs. The repository root stays a workspace without a Go module, and every module path starts with `github.com/Tangerg/scope`.
 
-Module contracts live in each module's `ARCHITECTURE.md`. Read [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md) before designing a capability and [`REFACTORING.md`](REFACTORING.md) before refactoring.
+Package contracts live in GoDoc and checked examples. Read [`DESIGN_PHILOSOPHY.md`](DESIGN_PHILOSOPHY.md) before designing a capability and [`REFACTORING.md`](REFACTORING.md) before refactoring.
 
 - Do not preserve backward compatibility. Fix a wrong design at its owning layer, then remove obsolete APIs, schemas, aliases, fallbacks, migrations, and shims.
 - Prefer explicit, readable, flat, sparse code. Implement a proven need as the smallest complete end-to-end slice, keep necessary complexity visible, and reject speculative or hard-to-explain indirection.
@@ -14,8 +14,8 @@ Module contracts live in each module's `ARCHITECTURE.md`. Read [`DESIGN_PHILOSOP
 - Use the Go version in `go.work` and its current standard library. Receivers use their type's lowercase initial, parameters never shadow imported packages, and typed-nil checks call `lo.IsNil` directly.
 - Do not guess where performance matters. Measure first, optimize only a dominant bottleneck, and measure again. Assume `n` is small until data proves otherwise, prefer straightforward algorithms and structures, and fix the data model before adding clever code.
 - Do not reintroduce a framework-wide retry layer, transient-error taxonomy, second structured-output conversion chain, fat interface, duplicate public type, speculative service provider interface, or provider-owned OAuth refresh.
-- Keep OpenTelemetry outside Core and capability modules. Integrations decorate protocol boundaries from the outside; detailed rules live in [`otel/ARCHITECTURE.md`](otel/ARCHITECTURE.md).
-- Tests protect observable contracts and architecture boundaries with exact expectations. Every module keeps `README.md`, `ARCHITECTURE.md`, and `doc.go`; update code, tests, documentation, and architecture guards together, and do not preserve point-in-time audits as permanent documentation.
+- Keep OpenTelemetry outside Core and capability modules. Integrations decorate protocol boundaries from the outside; the repository design documents own the cross-module observability rules.
+- Tests protect observable contracts and architecture boundaries with exact expectations. Every module keeps `doc.go` as its sole module entry; public usage lives in GoDoc and checked examples, not parallel module Markdown. Update code, tests, documentation, and architecture guards together, and do not preserve point-in-time audits as permanent documentation.
 - Preserve unrelated user changes. Discuss a breaking exported API, wire, or schema change before applying it, then replace the old design without a compatibility layer. Ask before adding a document.
 - Reply to the user in Chinese. Keep code, identifiers, comments, errors, and repository documentation in English. Comments explain why, not what.
 - Before committing, run build, vet, test, race, tidy, isolation, architecture, and lint checks for the affected workspace. Keep commits independently revertible and push unless the user asks to stay local.

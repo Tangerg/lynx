@@ -91,10 +91,10 @@ func (e *execution) advance(signals []agent.Signal) (agent.Transition, error) {
 	case stageKindMap:
 		count, err := stage.fanoutCount(e.state.CurrentValue)
 		if err != nil {
-			if _, ok := errors.AsType[mapItemLimitExceededError](err); ok {
+			if _, ok := errors.AsType[mapMaxItemsExceededError](err); ok {
 				return e.failContract(
-					0, stage.failureCode("item_limit_exceeded"),
-					"Map Stage "+stage.id+" input exceeds its configured item limit",
+					0, stage.failureCode("max_items_exceeded"),
+					"Map Stage "+stage.id+" input exceeds its configured maximum items",
 				)
 			}
 			return agent.Transition{}, err

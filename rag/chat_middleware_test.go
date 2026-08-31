@@ -55,9 +55,12 @@ func (e *echoChatModel) Call(_ context.Context, req *chat.Request) (*chat.Respon
 	return textResponse(e.capture(req)), nil
 }
 
-func (e *echoChatModel) Stream(_ context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
-	return func(yield func(*chat.Response, error) bool) {
-		yield(textResponse(e.capture(req)), nil)
+func (e *echoChatModel) Stream(_ context.Context, req *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+	return func(yield func(*chat.ResponseDelta, error) bool) {
+		yield(&chat.ResponseDelta{
+			Parts:        []chat.PartDelta{chat.NewTextDelta(e.capture(req))},
+			FinishReason: chat.FinishReasonStop,
+		}, nil)
 	}
 }
 
@@ -111,7 +114,7 @@ func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 	if !strings.Contains(model.captured, "retrieved info") {
 		t.Fatalf("augmented user message did not embed retrieved doc: %q", model.captured)
 	}
-	docs, ok, err := rag.CandidatesFromResponse(response)
+	docs, ok, err := rag.CandidatesFromMetadata(response.Metadata)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,7 +124,7 @@ func TestMiddlewareAugmentsRequestAndAttachesDocs(t *testing.T) {
 	if len(docs) != 1 {
 		t.Fatalf("attached docs len = %d, want 1", len(docs))
 	}
-	citations, found, err := rag.CitationsFromResponse(response)
+	citations, found, err := rag.CitationsFromMetadata(response.Metadata)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -190,7 +193,7 @@ func TestMiddlewareStreamAugmentsOnceAndAttachesDocs(t *testing.T) {
 			t.Fatal(streamErr)
 		}
 		chunks++
-		if _, ok, decodeErr := rag.CandidatesFromResponse(response); decodeErr != nil || !ok {
+		if _, ok, decodeErr := rag.CandidatesFromMetadata(response.Metadata); decodeErr != nil || !ok {
 			t.Fatalf("document extension = present %v, error %v", ok, decodeErr)
 		}
 	}
@@ -273,7 +276,7 @@ func TestMiddlewarePreservesPartialModelResponse(t *testing.T) {
 	if response != partial || !errors.Is(err, wantErr) {
 		t.Fatalf("response/error = %p/%v, want %p/%v", response, err, partial, wantErr)
 	}
-	if _, found, decodeErr := rag.CandidatesFromResponse(response); decodeErr != nil || !found {
+	if _, found, decodeErr := rag.CandidatesFromMetadata(response.Metadata); decodeErr != nil || !found {
 		t.Fatalf("partial response document extension = present %v, error %v", found, decodeErr)
 	}
 }

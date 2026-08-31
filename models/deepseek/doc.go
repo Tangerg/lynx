@@ -1,7 +1,7 @@
 // Package deepseek wraps DeepSeek's OpenAI-compatible API.
 //
 // DeepSeek derives from the OpenAI Chat Completions protocol while retaining
-// its provider-specific reasoning semantics behind [OpenAIChat].
+// its provider-specific reasoning semantics behind [Chat].
 //
 // Provider-specific behavior handled transparently:
 //
@@ -11,7 +11,7 @@
 //
 // Provider-specific request controls use the typed [RequestOptions] extension;
 // the OpenAI SDK request shape is intentionally not exposed. Prefix completion
-// remains a separate beta protocol and is not accepted by [OpenAIChat].
+// remains a separate beta protocol and is not accepted by [Chat].
 //
 // See https://api-docs.deepseek.com/ for the full API reference.
 package deepseek

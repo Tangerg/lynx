@@ -14,7 +14,7 @@ Do not retain a known-wrong name, field, type, wire shape, or call path to reduc
 
 Audit before editing:
 
-1. Read the owning package, its `ARCHITECTURE.md`, its callers, and the relevant contract tests.
+1. Read the owning package's GoDoc, checked examples, callers, and relevant contract tests.
 2. Search for every constructor, method, field, serialized name, interface implementation, example, and documentation reference in the blast radius.
 3. Classify the finding by ownership: naming, misplaced behavior, duplicate API, dependency direction, lifecycle, error semantics, data representation, performance, or documentation drift.
 4. Identify the source of truth and the symptom sites. Plan to change the source first.
@@ -232,8 +232,6 @@ Do not add incidental `slog` calls to domain code as a substitute for an owned s
 
 Prefer OpenTelemetry semantic conventions. Custom attribute keys carry no Scope brand. The Host binds exporters, the `slog` bridge, and World Wide Web Consortium (W3C) propagation once at the composition root.
 
-Read [`otel/ARCHITECTURE.md`](otel/ARCHITECTURE.md) before moving instrumentation or changing trace propagation.
-
 ## Write comments only for information code cannot express
 
 First try naming, a richer type, a smaller function, or a clearer state transition. Add a comment only when code cannot carry the constraint itself.
@@ -264,9 +262,9 @@ Use deterministic synchronization instead of sleeps and scheduling assumptions. 
 
 ## Keep documentation executable and current
 
-Every workspace module keeps three entry points: `README.md` for usage, `ARCHITECTURE.md` for ownership and boundaries, and `doc.go` for Go package discovery. Update all three when their shared model changes.
+Every workspace module keeps `doc.go` as its single documentation entry. Ownership, boundaries, and public API usage belong in GoDoc and checked examples so Markdown cannot become a second, stale API. Repository-wide principles remain in the root design documents.
 
-Module-specific contracts belong in that module's existing documents. Ask before adding another document. Do not create permanent point-in-time audits, review diaries, or coverage reports; turn a finding into code, an executable gate, or a current ruling in the owning document.
+Ask before adding another document. Do not create permanent point-in-time audits, review diaries, or coverage reports; turn a finding into code, an executable gate, or a current ruling in GoDoc or the root design documents.
 
 Update links, examples, package names, error names, and code-shaped Markdown in the same batch as a rename. Documentation that teaches a retired path is a second API.
 
@@ -322,5 +320,5 @@ Before completing a batch, verify:
 - [ ] Packages and files reflect responsibility rather than visual symmetry.
 - [ ] Concurrency, cancellation, cleanup, and observation still have one owner.
 - [ ] Tests assert exact contracts and fail when the protected behavior is removed.
-- [ ] `README.md`, `ARCHITECTURE.md`, `doc.go`, examples, and architecture gates match the code.
+- [ ] `doc.go`, examples, root documentation, and architecture gates match the code.
 - [ ] Focused and workspace verification are green for the batch's risk.

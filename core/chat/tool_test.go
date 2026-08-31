@@ -75,11 +75,39 @@ func TestToolOutputPreservesStructuredAndMediaContent(t *testing.T) {
 	}
 }
 
-func TestToolCallDeltaValidate(t *testing.T) {
-	if err := (chat.ToolCallDelta{ID: "call", Name: "tool", Arguments: "{"}).Validate(); err != nil {
+func TestToolOutputJSONOwnsValidation(t *testing.T) {
+	original, err := chat.NewJSONToolOutput(json.RawMessage(`{"ok":true}`))
+	if err != nil {
 		t.Fatal(err)
 	}
-	if err := (chat.ToolCallDelta{Name: "tool"}).Validate(); !errors.Is(err, chat.ErrInvalidToolCall) {
-		t.Fatalf("error = %v, want ErrInvalidToolCall", err)
+	data, err := json.Marshal(original)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var decoded chat.ToolOutput
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		t.Fatal(err)
+	}
+	if text, ok := decoded.Text(); !ok || text != `{"ok":true}` {
+		t.Fatalf("round-trip Text = %q, %v", text, ok)
+	}
+
+	invalid := chat.ToolOutput{Content: []chat.Part{chat.NewToolCallPart(validToolCall())}}
+	if _, err := json.Marshal(invalid); !errors.Is(err, chat.ErrInvalidToolOutput) {
+		t.Fatalf("Marshal error = %v, want ErrInvalidToolOutput", err)
+	}
+
+	decoded = original
+	malformed := []byte(`{"content":[{"kind":"tool_call","tool_call":{"id":"call","name":"tool"}}]}`)
+	if err := json.Unmarshal(malformed, &decoded); !errors.Is(err, chat.ErrInvalidToolOutput) {
+		t.Fatalf("Unmarshal error = %v, want ErrInvalidToolOutput", err)
+	}
+	if text, ok := decoded.Text(); !ok || text != `{"ok":true}` {
+		t.Fatalf("failed Unmarshal mutated receiver: Text = %q, %v", text, ok)
+	}
+
+	var nilOutput *chat.ToolOutput
+	if err := nilOutput.UnmarshalJSON([]byte(`{}`)); !errors.Is(err, chat.ErrInvalidToolOutput) {
+		t.Fatalf("nil receiver error = %v, want ErrInvalidToolOutput", err)
 	}
 }

@@ -20,26 +20,26 @@ const (
 // Absolute timing and provider responses remain available in the record, but
 // BehaviorDigest deliberately excludes them from replay comparison.
 type Trajectory struct {
-	RootProcessID agent.ProcessID   `json:"root_process_id"`
-	Termination   agent.Termination `json:"termination"`
-	Output        *agent.Output     `json:"output,omitempty"`
-	Usage         agent.Usage       `json:"usage"`
-	Duration      time.Duration     `json:"duration"`
-	Events        []agent.Event     `json:"events"`
-	ModelCalls    []ModelCall       `json:"model_calls,omitempty"`
-	ToolCalls     []ToolCall        `json:"tool_calls,omitempty"`
+	rootProcessID agent.ProcessID
+	termination   agent.Termination
+	output        *agent.Output
+	usage         agent.Usage
+	duration      time.Duration
+	events        []agent.Event
+	modelCalls    []ModelCall
+	toolCalls     []ToolCall
 }
 
 func New(config Config) (Trajectory, error) {
 	trajectory := Trajectory{
-		RootProcessID: config.RootProcessID,
-		Termination:   config.Termination,
-		Output:        cloneOutput(config.Output),
-		Usage:         config.Usage,
-		Duration:      config.Duration,
-		Events:        slices.Clone(config.Events),
-		ModelCalls:    cloneModelCalls(config.ModelCalls),
-		ToolCalls:     cloneToolCalls(config.ToolCalls),
+		rootProcessID: config.RootProcessID,
+		termination:   config.Termination,
+		output:        cloneOutput(config.Output),
+		usage:         config.Usage,
+		duration:      config.Duration,
+		events:        slices.Clone(config.Events),
+		modelCalls:    cloneModelCalls(config.ModelCalls),
+		toolCalls:     cloneToolCalls(config.ToolCalls),
 	}
 	if err := trajectory.canonicalize(); err != nil {
 		return Trajectory{}, err
@@ -63,28 +63,57 @@ type Config struct {
 }
 
 func (t Trajectory) Clone() (Trajectory, error) {
-	return New(Config(t))
+	return New(t.config())
+}
+
+func (t Trajectory) RootProcessID() agent.ProcessID { return t.rootProcessID }
+func (t Trajectory) Termination() agent.Termination { return t.termination }
+func (t Trajectory) Output() *agent.Output          { return cloneOutput(t.output) }
+func (t Trajectory) Usage() agent.Usage             { return t.usage }
+func (t Trajectory) Duration() time.Duration        { return t.duration }
+func (t Trajectory) Events() []agent.Event          { return slices.Clone(t.events) }
+func (t Trajectory) ModelCalls() []ModelCall        { return cloneModelCalls(t.modelCalls) }
+func (t Trajectory) ToolCalls() []ToolCall          { return cloneToolCalls(t.toolCalls) }
+
+func (t Trajectory) config() Config {
+	return Config{
+		RootProcessID: t.rootProcessID, Termination: t.termination,
+		Output: t.output, Usage: t.usage, Duration: t.duration,
+		Events: t.events, ModelCalls: t.modelCalls, ToolCalls: t.toolCalls,
+	}
+}
+
+type trajectoryWire struct {
+	RootProcessID agent.ProcessID   `json:"root_process_id"`
+	Termination   agent.Termination `json:"termination"`
+	Output        *agent.Output     `json:"output,omitempty"`
+	Usage         agent.Usage       `json:"usage"`
+	Duration      time.Duration     `json:"duration"`
+	Events        []agent.Event     `json:"events"`
+	ModelCalls    []ModelCall       `json:"model_calls,omitempty"`
+	ToolCalls     []ToolCall        `json:"tool_calls,omitempty"`
 }
 
 func (t Trajectory) MarshalJSON() ([]byte, error) {
 	if err := t.Validate(); err != nil {
 		return nil, err
 	}
-	type trajectoryWire Trajectory
-	return json.Marshal(trajectoryWire(t))
+	return json.Marshal(trajectoryWire{
+		RootProcessID: t.rootProcessID, Termination: t.termination,
+		Output: t.output, Usage: t.usage, Duration: t.duration,
+		Events: t.events, ModelCalls: t.modelCalls, ToolCalls: t.toolCalls,
+	})
 }
 
 func (t *Trajectory) UnmarshalJSON(data []byte) error {
 	if t == nil {
 		return fmt.Errorf("%w: nil receiver", ErrInvalidTrajectory)
 	}
-	type trajectoryWire Trajectory
 	var decoded trajectoryWire
 	if err := json.Unmarshal(data, &decoded); err != nil {
 		return fmt.Errorf("%w: decode: %w", ErrInvalidTrajectory, err)
 	}
-	value := Trajectory(decoded)
-	canonical, err := New(Config(value))
+	canonical, err := New(Config(decoded))
 	if err != nil {
 		return err
 	}
@@ -93,32 +122,32 @@ func (t *Trajectory) UnmarshalJSON(data []byte) error {
 }
 
 func (t Trajectory) Validate() error {
-	if !t.RootProcessID.Valid() || !t.Termination.Valid() || t.Duration < 0 {
+	if !t.rootProcessID.Valid() || !t.termination.Valid() || t.duration < 0 {
 		return fmt.Errorf("%w: root outcome is incomplete", ErrInvalidTrajectory)
 	}
-	if t.Termination.Status() == agent.StatusCompleted {
-		if t.Output == nil || !t.Output.Valid() {
+	if t.termination.Status() == agent.StatusCompleted {
+		if t.output == nil || !t.output.Valid() {
 			return fmt.Errorf("%w: completed trajectory requires output", ErrInvalidTrajectory)
 		}
-	} else if t.Output != nil {
+	} else if t.output != nil {
 		return fmt.Errorf("%w: non-completed trajectory cannot carry output", ErrInvalidTrajectory)
 	}
-	if len(t.Events) == 0 {
+	if len(t.events) == 0 {
 		return fmt.Errorf("%w: at least one agent event is required", ErrInvalidTrajectory)
 	}
-	paths, err := processPaths(t.RootProcessID, t.Events)
+	paths, err := processPaths(t.rootProcessID, t.events)
 	if err != nil {
 		return err
 	}
-	if !slices.IsSortedFunc(t.Events, func(left, right agent.Event) int {
+	if !slices.IsSortedFunc(t.events, func(left, right agent.Event) int {
 		return compareEvent(left, right, paths)
 	}) {
 		return fmt.Errorf("%w: events are not in canonical process order", ErrInvalidTrajectory)
 	}
 	finished := 0
 	sequences := make(map[agent.ProcessID]uint64)
-	for index, event := range t.Events {
-		if !event.Valid() || event.Relation().RootID() != t.RootProcessID {
+	for index, event := range t.events {
+		if !event.Valid() || event.Relation().RootID() != t.rootProcessID {
 			return fmt.Errorf("%w: events[%d] is invalid or belongs to another tree", ErrInvalidTrajectory, index)
 		}
 		want := sequences[event.ProcessID()] + 1
@@ -126,9 +155,9 @@ func (t Trajectory) Validate() error {
 			return fmt.Errorf("%w: events[%d] breaks process-local order", ErrInvalidTrajectory, index)
 		}
 		sequences[event.ProcessID()] = want
-		if event.ProcessID() == t.RootProcessID && event.Name() == agent.EventProcessFinished {
+		if event.ProcessID() == t.rootProcessID && event.Name() == agent.EventProcessFinished {
 			fact, present := event.ProcessFinished()
-			if !present || fact.Status() != t.Termination.Status() || fact.Usage() != t.Usage {
+			if !present || fact.Status() != t.termination.Status() || fact.Usage() != t.usage {
 				return fmt.Errorf("%w: root finished event disagrees with outcome", ErrInvalidTrajectory)
 			}
 			finished++
@@ -137,25 +166,25 @@ func (t Trajectory) Validate() error {
 	if finished != 1 {
 		return fmt.Errorf("%w: root must have exactly one finished event", ErrInvalidTrajectory)
 	}
-	for index, call := range t.ModelCalls {
+	for index, call := range t.modelCalls {
 		if err := call.Validate(); err != nil {
 			return fmt.Errorf("%w: model_calls[%d]: %w", ErrInvalidTrajectory, index, err)
 		}
 		if _, present := paths[call.ProcessID]; !present {
 			return fmt.Errorf("%w: model_calls[%d] belongs to another tree", ErrInvalidTrajectory, index)
 		}
-		if index > 0 && compareModelCall(t.ModelCalls[index-1], call, paths) >= 0 {
+		if index > 0 && compareModelCall(t.modelCalls[index-1], call, paths) >= 0 {
 			return fmt.Errorf("%w: model_calls must have unique canonical attribution", ErrInvalidTrajectory)
 		}
 	}
-	for index, call := range t.ToolCalls {
+	for index, call := range t.toolCalls {
 		if err := call.Validate(); err != nil {
 			return fmt.Errorf("%w: tool_calls[%d]: %w", ErrInvalidTrajectory, index, err)
 		}
 		if _, present := paths[call.ProcessID]; !present {
 			return fmt.Errorf("%w: tool_calls[%d] belongs to another tree", ErrInvalidTrajectory, index)
 		}
-		if index > 0 && compareToolCall(t.ToolCalls[index-1], call, paths) >= 0 {
+		if index > 0 && compareToolCall(t.toolCalls[index-1], call, paths) >= 0 {
 			return fmt.Errorf("%w: tool_calls must have unique canonical attribution", ErrInvalidTrajectory)
 		}
 	}
@@ -167,7 +196,7 @@ func (t Trajectory) TotalTokens() (int64, error) {
 		return 0, err
 	}
 	var total int64
-	for _, call := range t.ModelCalls {
+	for _, call := range t.modelCalls {
 		if call.Response.Metadata == nil {
 			continue
 		}
@@ -181,17 +210,17 @@ func (t Trajectory) TotalTokens() (int64, error) {
 }
 
 func (t *Trajectory) canonicalize() error {
-	paths, err := processPaths(t.RootProcessID, t.Events)
+	paths, err := processPaths(t.rootProcessID, t.events)
 	if err != nil {
 		return err
 	}
-	slices.SortFunc(t.Events, func(left, right agent.Event) int {
+	slices.SortFunc(t.events, func(left, right agent.Event) int {
 		return compareEvent(left, right, paths)
 	})
-	slices.SortFunc(t.ModelCalls, func(left, right ModelCall) int {
+	slices.SortFunc(t.modelCalls, func(left, right ModelCall) int {
 		return compareModelCall(left, right, paths)
 	})
-	slices.SortFunc(t.ToolCalls, func(left, right ToolCall) int {
+	slices.SortFunc(t.toolCalls, func(left, right ToolCall) int {
 		return compareToolCall(left, right, paths)
 	})
 	return nil

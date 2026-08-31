@@ -423,7 +423,7 @@ func (i *ImageModel) buildResponse(apiResp *imageInteractionResponse) (*image.Re
 		if err != nil {
 			return nil, fmt.Errorf("google: image: invalid provider creation time %q: %w", apiResp.Created, err)
 		}
-		meta.Created = created.Unix()
+		meta.CreatedAt = created.UTC()
 	}
 	if err := meta.Extra.Set(ImageResponseExtensionKey, apiResp.Raw); err != nil {
 		return nil, err

@@ -30,13 +30,13 @@ func TestChat_OmitsUnsignedReasoningFromPortableHistory(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	model, err := anthropic.NewChat(anthropic.ChatConfig{
+	model, err := anthropic.NewMessages(anthropic.MessagesConfig{
 		APIKey:         "test-key",
 		DefaultOptions: corechat.Options{Model: "claude-test"},
 		BaseURL:        server.URL,
 	})
 	if err != nil {
-		t.Fatalf("NewChat: %v", err)
+		t.Fatalf("NewMessages: %v", err)
 	}
 	_, err = model.Call(t.Context(), &corechat.Request{Messages: []corechat.Message{
 		corechat.NewUserMessage(corechat.NewTextPart("first")),

@@ -94,13 +94,6 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 		return nil
 	}
 	if s.dimensions <= 0 {
-		dimensions, err := s.embeddingClient.Dimensions(ctx)
-		if err != nil {
-			return fmt.Errorf("redis: resolve embedding dimensions: %w", err)
-		}
-		s.dimensions = dimensions
-	}
-	if s.dimensions <= 0 {
 		return errors.New("redis: Dimensions must be > 0")
 	}
 

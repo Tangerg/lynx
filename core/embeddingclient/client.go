@@ -8,7 +8,6 @@ import (
 
 	"github.com/samber/lo"
 
-	"github.com/Tangerg/scope/core/document"
 	"github.com/Tangerg/scope/core/embedding"
 )
 
@@ -17,8 +16,7 @@ var ErrNilModel = errors.New("embeddingclient: nil model")
 // Client is an immutable, concurrency-safe projection of [embedding.Model] for
 // callers that need vectors rather than protocol responses. It validates both
 // model boundaries, preserves input order, and returns independently owned
-// vectors. Dimensions deliberately probes once per call instead of hiding a
-// cache lifetime; provider metadata remains available only through the model.
+// vectors. Provider metadata remains available only through the model.
 type Client struct {
 	model embedding.Model
 }
@@ -60,6 +58,8 @@ func (c Client) EmbedTexts(ctx context.Context, texts []string) ([][]float64, er
 	return vectors, nil
 }
 
+// EmbedText embeds one text without exposing batch cardinality to a caller that
+// has exactly one input.
 func (c Client) EmbedText(ctx context.Context, text string) ([]float64, error) {
 	vectors, err := c.EmbedTexts(ctx, []string{text})
 	if err != nil {
@@ -68,44 +68,8 @@ func (c Client) EmbedText(ctx context.Context, text string) ([]float64, error) {
 	return vectors[0], nil
 }
 
-func (c Client) Dimensions(ctx context.Context) (int, error) {
-	vector, err := c.EmbedText(ctx, "dimension probe")
-	if err != nil {
-		return 0, fmt.Errorf("embeddingclient: dimensions: %w", err)
-	}
-	return len(vector), nil
-}
-
-func (c Client) EmbedDocuments(ctx context.Context, docs []*document.Document) ([][]float64, error) {
-	texts, err := c.documentTexts(docs)
-	if err != nil {
-		return nil, err
-	}
-	return c.EmbedTexts(ctx, texts)
-}
-
-func (Client) documentTexts(docs []*document.Document) ([]string, error) {
-	if len(docs) == 0 {
-		return nil, errors.New("embeddingclient: embed documents: documents must not be empty")
-	}
-	texts := make([]string, len(docs))
-	for i, doc := range docs {
-		if doc == nil {
-			return nil, fmt.Errorf("embeddingclient: embed documents: document %d is nil", i)
-		}
-		if err := doc.Validate(); err != nil {
-			return nil, fmt.Errorf("embeddingclient: embed documents: document %d is invalid: %w", i, err)
-		}
-		if doc.Text == "" {
-			return nil, fmt.Errorf("embeddingclient: embed documents: document %d has no text", i)
-		}
-		texts[i] = doc.Text
-	}
-	return texts, nil
-}
-
 func (c Client) validate() error {
-	if c.model == nil || lo.IsNil(c.model) {
+	if lo.IsNil(c.model) {
 		return ErrNilModel
 	}
 	return nil

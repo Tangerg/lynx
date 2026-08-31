@@ -74,8 +74,8 @@ func TestStreamingUsesBoundedBestEffortDeltaQueue(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-		return func(yield func(*chat.Response, error) bool) {
+	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+		return func(yield func(*chat.ResponseDelta, error) bool) {
 			if !yield(streamTextChunk("x", ""), nil) {
 				return
 			}
@@ -182,7 +182,7 @@ func newStreamingDeployment(t *testing.T, streamer chat.Streamer) agent.Deployme
 		t.Fatal(err)
 	}
 	dispatcher, err := interaction.NewDispatcher(definition, interaction.DispatcherConfig{
-		Client: client, StreamModelResponses: true,
+		Client: client, ResponseMode: interaction.ModelResponseStream,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -210,9 +210,9 @@ func interactionInput(t *testing.T, text string) agent.Input {
 	return input
 }
 
-func responseStream(chunks ...*chat.Response) chat.Streamer {
-	return chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-		return func(yield func(*chat.Response, error) bool) {
+func responseStream(chunks ...*chat.ResponseDelta) chat.Streamer {
+	return chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+		return func(yield func(*chat.ResponseDelta, error) bool) {
 			for _, chunk := range chunks {
 				if !yield(chunk, nil) {
 					return
@@ -222,14 +222,13 @@ func responseStream(chunks ...*chat.Response) chat.Streamer {
 	})
 }
 
-func streamTextChunk(text string, finish chat.FinishReason) *chat.Response {
-	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	return &chat.Response{Output: &chat.Output{Message: &message, FinishReason: finish}}
+func streamTextChunk(text string, finish chat.FinishReason) *chat.ResponseDelta {
+	return &chat.ResponseDelta{Parts: []chat.PartDelta{chat.NewTextDelta(text)}, FinishReason: finish}
 }
 
 type deltaCollector struct {
-	mu        sync.Mutex
-	responses []*chat.Response
+	mu     sync.Mutex
+	deltas []*chat.ResponseDelta
 }
 
 func (d *deltaCollector) OnDelta(_ context.Context, delta agent.Delta) {
@@ -238,18 +237,18 @@ func (d *deltaCollector) OnDelta(_ context.Context, delta agent.Delta) {
 		return
 	}
 	d.mu.Lock()
-	d.responses = append(d.responses, decoded.Response())
+	d.deltas = append(d.deltas, decoded.ResponseDelta())
 	d.mu.Unlock()
 }
 
-func (d *deltaCollector) Responses() []*chat.Response {
+func (d *deltaCollector) Responses() []*chat.ResponseDelta {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	responses := make([]*chat.Response, len(d.responses))
-	for index := range d.responses {
-		responses[index] = d.responses[index].Clone()
+	deltas := make([]*chat.ResponseDelta, len(d.deltas))
+	for index := range d.deltas {
+		deltas[index] = d.deltas[index].Clone()
 	}
-	return responses
+	return deltas
 }
 
 type passiveDeltaListener struct{}

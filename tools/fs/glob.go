@@ -10,6 +10,8 @@ import (
 	toolcontract "github.com/Tangerg/scope/core/tool"
 )
 
+// GlobRequest narrows the executor's immutable authority to a relative subtree;
+// Path can never replace or broaden that root.
 type GlobRequest struct {
 	Pattern    string `json:"pattern" jsonschema:"minLength=1" jsonschema_description:"Doublestar path pattern, such as **/*.go or src/**/*.ts."`
 	Path       string `json:"path,omitempty" jsonschema_description:"Directory to search under. Defaults to the workspace root."`
@@ -29,12 +31,12 @@ type GlobTool struct {
 	typed    toolcontract.Func[GlobRequest, GlobResponse]
 }
 
-func NewGlobTool(executor Globber) *GlobTool {
+func NewGlobTool(executor Globber) (*GlobTool, error) {
 	if lo.IsNil(executor) {
-		executor = NewLocalExecutor("")
+		return nil, ErrNilExecutor
 	}
 	t := &GlobTool{executor: executor}
-	t.typed = mustTypedTool(
+	typed, err := toolcontract.NewFunc(
 		toolcontract.FuncConfig{
 			Name: "glob",
 			Description: "List file paths matching a doublestar pattern. Use patterns such as **/*.go or src/**/*.ts. " +
@@ -42,7 +44,11 @@ func NewGlobTool(executor Globber) *GlobTool {
 		},
 		t.glob,
 	)
-	return t
+	if err != nil {
+		return nil, fmt.Errorf("fs.NewGlobTool: %w", err)
+	}
+	t.typed = typed
+	return t, nil
 }
 
 func (g *GlobTool) Definition() chat.ToolDefinition {
@@ -60,7 +66,7 @@ func (g *GlobTool) Call(ctx context.Context, invocation toolcontract.Invocation)
 }
 
 func (g *GlobTool) glob(ctx context.Context, req GlobRequest) (GlobResponse, error) {
-	res, err := g.executor.Glob(ctx, GlobInput(req))
+	res, err := g.executor.Glob(ctx, req)
 	if err != nil {
 		return GlobResponse{}, fmt.Errorf("fs.glob: %w", err)
 	}

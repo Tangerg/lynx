@@ -259,7 +259,7 @@ func (i *ImageModel) response(ctx context.Context, effectiveOptions image.Option
 		if err != nil {
 			return nil, fmt.Errorf("replicate: invalid prediction created_at %q: %w", final.CreatedAt, err)
 		}
-		meta.Created = createdAt.Unix()
+		meta.CreatedAt = createdAt.UTC()
 	}
 	if err := meta.Extra.Set("replicate/model", effectiveOptions.Model); err != nil {
 		return nil, err

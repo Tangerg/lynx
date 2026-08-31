@@ -127,7 +127,7 @@ func TestResponseErrorBoundaries(t *testing.T) {
 	if _, err := transcription.NewResponse(output, nil); err != nil {
 		t.Fatalf("NewResponse rejected optional metadata: %v", err)
 	}
-	if err := (&transcription.Response{Output: output, Metadata: &transcription.ResponseMetadata{Created: -1}}).Validate(); err == nil {
-		t.Fatal("Validate accepted a negative creation time")
+	if _, err := transcription.NewResponse(output, &transcription.ResponseMetadata{Model: " padded "}); !errors.Is(err, transcription.ErrInvalidResponse) {
+		t.Fatalf("NewResponse metadata error = %v, want %v", err, transcription.ErrInvalidResponse)
 	}
 }

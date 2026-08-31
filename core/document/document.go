@@ -1,6 +1,7 @@
 package document
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"unicode/utf8"
@@ -34,6 +35,31 @@ func (d *Document) Clone() *Document {
 	clone.Media = d.Media.Clone()
 	clone.Metadata = d.Metadata.Clone()
 	return &clone
+}
+
+func (d Document) MarshalJSON() ([]byte, error) {
+	if err := (&d).Validate(); err != nil {
+		return nil, err
+	}
+	type wireDocument Document
+	return json.Marshal(wireDocument(d))
+}
+
+func (d *Document) UnmarshalJSON(data []byte) error {
+	if d == nil {
+		return fmt.Errorf("%w: nil receiver", ErrInvalidDocument)
+	}
+	type wireDocument Document
+	var decoded wireDocument
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("%w: decode: %w", ErrInvalidDocument, err)
+	}
+	candidate := Document(decoded)
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	*d = candidate
+	return nil
 }
 
 func NewDocument(text string, payload *media.Media) (*Document, error) {

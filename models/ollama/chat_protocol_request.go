@@ -30,6 +30,9 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, stream
 	if options.Model == "" {
 		return nil, errors.New("ollama: model is required in defaults or request options")
 	}
+	if req.ToolChoice != nil {
+		return nil, errors.New("ollama: tool choice is not supported by the native chat API")
+	}
 
 	apiReq, err := decodeProtocolRequestExtension(req)
 	if err != nil {
@@ -55,8 +58,8 @@ func mapProtocolRequest(defaults corechat.Options, req *corechat.Request, stream
 	if options.FrequencyPenalty != nil {
 		apiReq.Options["frequency_penalty"] = float32(*options.FrequencyPenalty)
 	}
-	if options.MaxTokens != nil {
-		value, err := protocolInt("max_tokens", *options.MaxTokens)
+	if options.MaxOutputTokens != nil {
+		value, err := protocolInt("max_tokens", *options.MaxOutputTokens)
 		if err != nil {
 			return nil, err
 		}
@@ -114,8 +117,27 @@ func decodeProtocolRequestExtension(req *corechat.Request) (*nativeChatRequest, 
 	if err := json.Unmarshal(raw, &fields); err != nil {
 		return nil, fmt.Errorf("ollama: extension %q: %w", RequestExtensionKey, err)
 	}
-	if _, exists := fields["format"]; exists {
-		return nil, fmt.Errorf("ollama: extension %q field %q is owned by options.output_format", RequestExtensionKey, "format")
+	for field := range fields {
+		switch field {
+		case "model", "messages", "stream", "tools":
+			return nil, fmt.Errorf("ollama: extension %q field %q is owned by the Core request", RequestExtensionKey, field)
+		case "format":
+			return nil, fmt.Errorf("ollama: extension %q field %q is owned by options.output_format", RequestExtensionKey, field)
+		case "tool_choice", "parallel_tool_calls":
+			return nil, fmt.Errorf("ollama: extension %q field %q is owned by options.tool_choice", RequestExtensionKey, field)
+		}
+	}
+	if rawOptions, exists := fields["options"]; exists {
+		var optionFields map[string]json.RawMessage
+		if err := json.Unmarshal(rawOptions, &optionFields); err != nil {
+			return nil, fmt.Errorf("ollama: extension %q field %q: %w", RequestExtensionKey, "options", err)
+		}
+		for field := range optionFields {
+			switch field {
+			case "frequency_penalty", "num_predict", "presence_penalty", "stop", "temperature", "top_k", "top_p":
+				return nil, fmt.Errorf("ollama: extension %q field %q.%s is owned by Core chat options", RequestExtensionKey, "options", field)
+			}
+		}
 	}
 	if err := json.Unmarshal(raw, apiReq); err != nil {
 		return nil, fmt.Errorf("ollama: extension %q: %w", RequestExtensionKey, err)
@@ -220,8 +242,10 @@ func mapProtocolAssistantMessage(message corechat.Message) (nativeMessage, error
 		switch part.Kind {
 		case corechat.PartText:
 			text.WriteString(part.Text)
+		case corechat.PartRefusal:
+			text.WriteString(part.Text)
 		case corechat.PartReasoning:
-			if len(part.Signature) > 0 {
+			if len(part.ReasoningState) > 0 {
 				return nativeMessage{}, fmt.Errorf("parts[%d]: reasoning signature is unsupported", i)
 			}
 			reasoning.WriteString(part.Text)

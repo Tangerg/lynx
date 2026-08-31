@@ -23,10 +23,10 @@ func (c callOnly) Call(ctx context.Context, request *chat.Request) (*chat.Respon
 }
 
 type streamOnly struct {
-	stream func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error]
+	stream func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error]
 }
 
-func (s streamOnly) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
+func (s streamOnly) Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
 	return s.stream(ctx, request)
 }
 
@@ -43,7 +43,7 @@ func (*pointerModel) Call(context.Context, *chat.Request) (*chat.Response, error
 
 type pointerStreamer struct{}
 
-func (*pointerStreamer) Stream(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+func (*pointerStreamer) Stream(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
 	return nil
 }
 
@@ -51,7 +51,6 @@ func TestNewRejectsInvalidConstruction(t *testing.T) {
 	model := callOnly{call: successfulCall}
 	var typedNilModel *pointerModel
 	var typedNilStreamer *pointerStreamer
-	negative := int64(-1)
 
 	tests := []struct {
 		name   string
@@ -61,7 +60,6 @@ func TestNewRejectsInvalidConstruction(t *testing.T) {
 	}{
 		{name: "nil model", want: ErrNilModel},
 		{name: "typed nil model", model: typedNilModel, want: ErrNilModel},
-		{name: "invalid defaults", model: model, config: Config{Defaults: chat.Options{MaxTokens: &negative}}, want: chat.ErrInvalidOptions},
 		{name: "typed nil explicit streamer", model: model, config: Config{Streamer: typedNilStreamer}},
 		{
 			name:  "middleware returns typed nil model",
@@ -74,8 +72,8 @@ func TestNewRejectsInvalidConstruction(t *testing.T) {
 			name:  "middleware returns typed nil streamer",
 			model: model,
 			config: Config{
-				Streamer: streamOnly{stream: func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-					return func(func(*chat.Response, error) bool) {}
+				Streamer: streamOnly{stream: func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+					return func(func(*chat.ResponseDelta, error) bool) {}
 				}},
 				StreamMiddleware: []chat.StreamMiddleware{func(chat.Streamer) chat.Streamer { return typedNilStreamer }},
 			},
@@ -95,20 +93,17 @@ func TestNewRejectsInvalidConstruction(t *testing.T) {
 	}
 }
 
-func TestCallResolvesDefaultsAndProtectsCallerRequest(t *testing.T) {
-	request, defaults, callerMaxTokens := newProtectedCallFixture(t)
+func TestCallProtectsCallerRequest(t *testing.T) {
+	request, callerMaxTokens := newProtectedCallFixture(t)
 	model := callOnly{call: func(_ context.Context, received *chat.Request) (*chat.Response, error) {
 		assertResolvedRequest(t, received, request)
 		mutateRequestReferences(received)
 		return &chat.Response{Metadata: &chat.ResponseMetadata{ID: "response-1"}}, nil
 	}}
-	client, err := New(model, Config{Defaults: defaults})
+	client, err := New(model, Config{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	// New snapshots configuration-owned reference values.
-	*defaults.Temperature = 1.5
-	defaults.Stop[0] = "MUTATED"
 	response, err := client.Call(context.Background(), request)
 	if err != nil {
 		t.Fatal(err)
@@ -119,7 +114,7 @@ func TestCallResolvesDefaultsAndProtectsCallerRequest(t *testing.T) {
 	assertCallerRequestUnchanged(t, request, *callerMaxTokens)
 }
 
-func newProtectedCallFixture(t *testing.T) (*chat.Request, chat.Options, *int64) {
+func newProtectedCallFixture(t *testing.T) (*chat.Request, *int64) {
 	t.Helper()
 	inline, err := media.NewBytes("image/png", []byte{1, 2, 3})
 	if err != nil {
@@ -140,6 +135,8 @@ func newProtectedCallFixture(t *testing.T) (*chat.Request, chat.Options, *int64)
 	toolMessage := chat.NewToolMessage(chat.ToolResult{ID: "call-1", Name: "weather", Output: chat.NewTextToolOutput("sunny")})
 
 	requestMaxTokens := int64(7)
+	temperature := 0.25
+	topP := 0.8
 	request := &chat.Request{
 		Messages: []chat.Message{message, assistant, toolMessage},
 		Tools: []chat.ToolDefinition{{
@@ -147,26 +144,18 @@ func newProtectedCallFixture(t *testing.T) (*chat.Request, chat.Options, *int64)
 			InputSchema: []byte(`{"type":"object"}`),
 		}},
 		Options: chat.Options{
-			Model:     "request-model",
-			MaxTokens: &requestMaxTokens,
-			Stop:      []string{},
+			Model:           "request-model",
+			MaxOutputTokens: &requestMaxTokens,
+			Stop:            []string{},
+			Temperature:     &temperature,
+			TopP:            &topP,
 		},
 	}
 	if setErr := request.Options.Extensions.Set("test/value", "caller"); setErr != nil {
 		t.Fatal(setErr)
 	}
 
-	temperature := 0.25
-	topP := 0.8
-	defaultMaxTokens := int64(99)
-	defaults := chat.Options{
-		Model:       "default-model",
-		MaxTokens:   &defaultMaxTokens,
-		Stop:        []string{"END"},
-		Temperature: &temperature,
-		TopP:        &topP,
-	}
-	return request, defaults, &requestMaxTokens
+	return request, &requestMaxTokens
 }
 
 func assertResolvedRequest(t *testing.T, received, original *chat.Request) {
@@ -177,8 +166,8 @@ func assertResolvedRequest(t *testing.T, received, original *chat.Request) {
 	if received.Options.Model != "request-model" {
 		t.Fatalf("model = %q, want request-model", received.Options.Model)
 	}
-	if received.Options.MaxTokens == nil || *received.Options.MaxTokens != 7 {
-		t.Fatalf("max tokens = %v, want 7", received.Options.MaxTokens)
+	if received.Options.MaxOutputTokens == nil || *received.Options.MaxOutputTokens != 7 {
+		t.Fatalf("max tokens = %v, want 7", received.Options.MaxOutputTokens)
 	}
 	if received.Options.Temperature == nil || *received.Options.Temperature != 0.25 {
 		t.Fatalf("temperature = %v, want snapshotted 0.25", received.Options.Temperature)
@@ -195,14 +184,14 @@ func mutateRequestReferences(received *chat.Request) {
 	received.Messages[0].Metadata["turn"][0] = '9'
 	received.Messages[0].Parts[0].Media.Source.Bytes[0] = 9
 	received.Messages[0].Parts[0].Media.Metadata["origin"][1] = 'X'
-	received.Messages[1].Parts[0].Signature[0] = 9
+	received.Messages[1].Parts[0].ReasoningState[0] = 9
 	received.Messages[1].Parts[1].ToolCall.Name = "mutated"
 	received.Messages[2].Parts[0].ToolResult.Output.Content[0].Text = "mutated"
 	received.Tools[0].InputSchema[2] = 'X'
 	if err := received.Options.Extensions.Set("test/value", "changed"); err != nil {
 		panic(err)
 	}
-	*received.Options.MaxTokens = 8
+	*received.Options.MaxOutputTokens = 8
 	*received.Options.Temperature = 2
 }
 
@@ -217,7 +206,7 @@ func assertCallerRequestUnchanged(t *testing.T, request *chat.Request, callerMax
 	if got := request.Messages[0].Parts[0].Media.Metadata["origin"]; string(got) != `"caller"` {
 		t.Fatalf("caller media metadata mutated: %s", got)
 	}
-	if got := request.Messages[1].Parts[0].Signature; !reflect.DeepEqual(got, []byte{4, 5}) {
+	if got := request.Messages[1].Parts[0].ReasoningState; !reflect.DeepEqual(got, []byte{4, 5}) {
 		t.Fatalf("caller reasoning signature mutated: %v", got)
 	}
 	if got := request.Messages[1].Parts[1].ToolCall.Name; got != "weather" {
@@ -265,7 +254,7 @@ func TestClientForwardsContextCancellationAndErrors(t *testing.T) {
 		call: func(ctx context.Context, _ *chat.Request) (*chat.Response, error) {
 			return nil, ctx.Err()
 		},
-		stream: func(ctx context.Context, _ *chat.Request) iter.Seq2[*chat.Response, error] {
+		stream: func(ctx context.Context, _ *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
 			return errorSequence(ctx.Err())
 		},
 	}
@@ -287,74 +276,6 @@ func TestClientForwardsContextCancellationAndErrors(t *testing.T) {
 	}
 	if count != 1 {
 		t.Fatalf("stream yield count = %d, want 1", count)
-	}
-}
-
-func TestOptionsResolveUsesEveryExplicitOverride(t *testing.T) {
-	defaults := chat.Options{
-		Model:            "default",
-		FrequencyPenalty: new(0.1),
-		MaxTokens:        new(int64(1)),
-		PresencePenalty:  new(0.2),
-		Stop:             []string{"default"},
-		Temperature:      new(0.3),
-		TopK:             new(int64(2)),
-		TopP:             new(0.4),
-	}
-	overrides := chat.Options{
-		Model:            "override",
-		FrequencyPenalty: new(1.1),
-		MaxTokens:        new(int64(10)),
-		PresencePenalty:  new(1.2),
-		Stop:             []string{"override"},
-		Temperature:      new(1.3),
-		TopK:             new(int64(20)),
-		TopP:             new(0.9),
-	}
-
-	resolved, err := defaults.Resolve(overrides)
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
-	}
-	if !reflect.DeepEqual(resolved, overrides) {
-		t.Fatalf("resolved = %#v, want %#v", resolved, overrides)
-	}
-	*resolved.FrequencyPenalty = 0
-	*resolved.MaxTokens = 99
-	*resolved.PresencePenalty = 0
-	resolved.Stop[0] = "mutated"
-	*resolved.Temperature = 0
-	*resolved.TopK = 99
-	*resolved.TopP = 0
-	if *overrides.FrequencyPenalty != 1.1 || *overrides.MaxTokens != 10 ||
-		*overrides.PresencePenalty != 1.2 || overrides.Stop[0] != "override" ||
-		*overrides.Temperature != 1.3 || *overrides.TopK != 20 || *overrides.TopP != 0.9 {
-		t.Fatalf("resolved options alias overrides: %#v", overrides)
-	}
-}
-
-func TestOptionsResolveKeepsDefaultsForUnspecifiedFields(t *testing.T) {
-	defaults := chat.Options{
-		Model:            "default",
-		FrequencyPenalty: new(0.1),
-		MaxTokens:        new(int64(1)),
-		PresencePenalty:  new(0.2),
-		Stop:             []string{"default"},
-		Temperature:      new(0.3),
-		TopK:             new(int64(2)),
-		TopP:             new(0.4),
-	}
-	resolved, err := defaults.Resolve(chat.Options{})
-	if err != nil {
-		t.Fatalf("Resolve: %v", err)
-	}
-	if !reflect.DeepEqual(resolved, defaults) {
-		t.Fatalf("resolved = %#v, want %#v", resolved, defaults)
-	}
-	*resolved.MaxTokens = 99
-	resolved.Stop[0] = "mutated"
-	if *defaults.MaxTokens != 1 || defaults.Stop[0] != "default" {
-		t.Fatalf("resolved defaults alias input: %#v", defaults)
 	}
 }
 
@@ -394,14 +315,14 @@ func TestStreamAutoDiscoversCapabilitySnapshotsRequestAndReleasesOnStop(t *testi
 	var seenText string
 	model := callAndStream{
 		call: successfulCall,
-		stream: func(_ context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
-			return func(yield func(*chat.Response, error) bool) {
+		stream: func(_ context.Context, request *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+			return func(yield func(*chat.ResponseDelta, error) bool) {
 				defer close(released)
 				seenText = request.Messages[0].Text()
-				if !yield(&chat.Response{Metadata: &chat.ResponseMetadata{ID: "first"}}, nil) {
+				if !yield(&chat.ResponseDelta{Metadata: &chat.ResponseMetadata{ID: "first"}}, nil) {
 					return
 				}
-				yield(&chat.Response{Metadata: &chat.ResponseMetadata{ID: "second"}}, nil)
+				yield(&chat.ResponseDelta{Metadata: &chat.ResponseMetadata{ID: "second"}, FinishReason: chat.FinishReasonStop}, nil)
 			}
 		},
 	}
@@ -438,12 +359,12 @@ func TestConfiguredStreamerOverridesModelCapability(t *testing.T) {
 	modelStreamCalled := false
 	model := callAndStream{
 		call: successfulCall,
-		stream: func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+		stream: func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
 			modelStreamCalled = true
 			return oneResponse("model")
 		},
 	}
-	explicit := streamOnly{stream: func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+	explicit := streamOnly{stream: func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
 		return oneResponse("explicit")
 	}}
 	client, err := New(model, Config{Streamer: explicit})
@@ -505,8 +426,8 @@ func TestStreamMiddlewareOrder(t *testing.T) {
 	var events []string
 	middleware := func(name string) chat.StreamMiddleware {
 		return func(next chat.Streamer) chat.Streamer {
-			return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
-				return func(yield func(*chat.Response, error) bool) {
+			return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+				return func(yield func(*chat.ResponseDelta, error) bool) {
 					events = append(events, name+":before")
 					for response, err := range next.Stream(ctx, request) {
 						if !yield(response, err) {
@@ -518,10 +439,10 @@ func TestStreamMiddlewareOrder(t *testing.T) {
 			})
 		}
 	}
-	streamer := streamOnly{stream: func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-		return func(yield func(*chat.Response, error) bool) {
+	streamer := streamOnly{stream: func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+		return func(yield func(*chat.ResponseDelta, error) bool) {
 			events = append(events, "streamer")
-			yield(&chat.Response{}, nil)
+			yield(&chat.ResponseDelta{FinishReason: chat.FinishReasonStop}, nil)
 		}
 	}}
 	client, err := New(
@@ -550,12 +471,12 @@ func TestClientConfigurationIsSafeForConcurrentCalls(t *testing.T) {
 	client, err := New(
 		callOnly{call: func(_ context.Context, request *chat.Request) (*chat.Response, error) {
 			if request.Options.Temperature == nil || *request.Options.Temperature != 0.4 {
-				return nil, errors.New("missing default temperature")
+				return nil, errors.New("missing request temperature")
 			}
 			calls.Add(1)
 			return &chat.Response{}, nil
 		}},
-		Config{Defaults: chat.Options{Temperature: new(0.4)}},
+		Config{},
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -566,7 +487,9 @@ func TestClientConfigurationIsSafeForConcurrentCalls(t *testing.T) {
 	errorsFound := make(chan error, goroutines)
 	for range goroutines {
 		wait.Go(func() {
-			_, callErr := client.Call(context.Background(), textRequest("hello"))
+			request := textRequest("hello")
+			request.Options.Temperature = new(0.4)
+			_, callErr := client.Call(context.Background(), request)
 			errorsFound <- callErr
 		})
 	}
@@ -585,7 +508,7 @@ func TestClientConfigurationIsSafeForConcurrentCalls(t *testing.T) {
 func TestNilStreamSequenceBecomesTerminalError(t *testing.T) {
 	client, err := New(
 		callOnly{call: successfulCall},
-		Config{Streamer: streamOnly{stream: func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+		Config{Streamer: streamOnly{stream: func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
 			return nil
 		}}},
 	)
@@ -605,12 +528,12 @@ func TestNilStreamSequenceBecomesTerminalError(t *testing.T) {
 }
 
 func successfulCall(context.Context, *chat.Request) (*chat.Response, error) {
-	return &chat.Response{}, nil
+	return &chat.Response{Output: &chat.Output{FinishReason: chat.FinishReasonStop}}, nil
 }
 
-func oneResponse(id string) iter.Seq2[*chat.Response, error] {
-	return func(yield func(*chat.Response, error) bool) {
-		yield(&chat.Response{Metadata: &chat.ResponseMetadata{ID: id}}, nil)
+func oneResponse(id string) iter.Seq2[*chat.ResponseDelta, error] {
+	return func(yield func(*chat.ResponseDelta, error) bool) {
+		yield(&chat.ResponseDelta{Metadata: &chat.ResponseMetadata{ID: id}, FinishReason: chat.FinishReasonStop}, nil)
 	}
 }
 

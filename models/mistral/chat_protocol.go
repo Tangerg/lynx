@@ -19,6 +19,7 @@ const (
 	RequestExtensionKey     = "mistral/request"
 	responseExtensionKey    = "mistral/response"
 	streamChunkExtensionKey = "mistral/chunk"
+	nativeFinishReasonKey   = "mistral/native_finish_reason"
 	mistralStreamDone       = "[DONE]"
 	mistralStreamMaxBytes   = 16 << 20
 	responseFormatField     = "response_format"
@@ -45,22 +46,17 @@ func (r ReasoningEffort) Validate() error {
 // ChatRequestOptions exposes Mistral-specific Chat Completions parameters that
 // have no provider-neutral Core equivalent. Store it under RequestExtensionKey.
 type ChatRequestOptions struct {
-	ReasoningEffort   ReasoningEffort   `json:"reasoning_effort,omitempty"`
-	RandomSeed        *int64            `json:"random_seed,omitempty"`
-	SafePrompt        *bool             `json:"safe_prompt,omitempty"`
-	ParallelToolCalls *bool             `json:"parallel_tool_calls,omitempty"`
-	PromptCacheKey    string            `json:"prompt_cache_key,omitempty"`
-	ToolChoice        json.RawMessage   `json:"tool_choice,omitempty"`
-	Metadata          map[string]any    `json:"metadata,omitempty"`
-	Guardrails        []json.RawMessage `json:"guardrails,omitempty"`
+	ReasoningEffort ReasoningEffort   `json:"reasoning_effort,omitempty"`
+	RandomSeed      *int64            `json:"random_seed,omitempty"`
+	SafePrompt      *bool             `json:"safe_prompt,omitempty"`
+	PromptCacheKey  string            `json:"prompt_cache_key,omitempty"`
+	Metadata        map[string]any    `json:"metadata,omitempty"`
+	Guardrails      []json.RawMessage `json:"guardrails,omitempty"`
 }
 
 func (c ChatRequestOptions) Validate() error {
 	if err := c.ReasoningEffort.Validate(); err != nil {
 		return err
-	}
-	if len(c.ToolChoice) > 0 && !json.Valid(c.ToolChoice) {
-		return errors.New("tool_choice contains invalid JSON")
 	}
 	for index := range c.Guardrails {
 		if !json.Valid(c.Guardrails[index]) {
@@ -75,13 +71,21 @@ func (c *ChatRequestOptions) UnmarshalJSON(data []byte) error {
 		return errors.New("mistral: nil ChatRequestOptions")
 	}
 	var reserved struct {
-		ResponseFormat json.RawMessage `json:"response_format"`
+		ResponseFormat    json.RawMessage `json:"response_format"`
+		ToolChoice        json.RawMessage `json:"tool_choice"`
+		ParallelToolCalls json.RawMessage `json:"parallel_tool_calls"`
 	}
 	if err := json.Unmarshal(data, &reserved); err != nil {
 		return fmt.Errorf("decode Mistral request options: %w", err)
 	}
 	if len(reserved.ResponseFormat) != 0 {
 		return fmt.Errorf("field %q is owned by chat options output format", responseFormatField)
+	}
+	if len(reserved.ToolChoice) != 0 {
+		return errors.New("field \"tool_choice\" is owned by the Core ToolChoice")
+	}
+	if len(reserved.ParallelToolCalls) != 0 {
+		return errors.New("field \"parallel_tool_calls\" is owned by the Core ToolChoice")
 	}
 	type wireOptions ChatRequestOptions
 	var decoded wireOptions
@@ -152,8 +156,8 @@ func (c *Chat) Call(ctx context.Context, request *corechat.Request) (*corechat.R
 	return mapChatCompletion(wireResponse)
 }
 
-func (c *Chat) Stream(ctx context.Context, request *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	return func(yield func(*corechat.Response, error) bool) {
+func (c *Chat) Stream(ctx context.Context, request *corechat.Request) iter.Seq2[*corechat.ResponseDelta, error] {
+	return func(yield func(*corechat.ResponseDelta, error) bool) {
 		wireRequest, err := c.buildRequest(request, true)
 		if err != nil {
 			yield(nil, err)

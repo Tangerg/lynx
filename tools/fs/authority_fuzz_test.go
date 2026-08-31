@@ -7,7 +7,7 @@ import (
 
 func FuzzLocalExecutorAuthorize(f *testing.F) {
 	root := f.TempDir()
-	executor := NewLocalExecutor(root)
+	executor := mustLocalExecutor(f, root)
 	for _, seed := range []string{
 		"",
 		".",

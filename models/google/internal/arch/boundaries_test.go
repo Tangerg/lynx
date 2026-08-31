@@ -27,9 +27,8 @@ func TestProviderConstructorsCompile(t *testing.T) {
 	t.Parallel()
 
 	var (
-		_ func(google.ChatConfig) (*google.Chat, error)             = google.NewChat
-		_ func(google.OpenAIChatConfig) (*google.OpenAIChat, error) = google.NewOpenAIChat
-		_ func(vertexai.ChatConfig) (*vertexai.Chat, error)         = vertexai.NewChat
+		_ func(google.ChatConfig) (*google.Chat, error)     = google.NewChat
+		_ func(vertexai.ChatConfig) (*vertexai.Chat, error) = vertexai.NewChat
 	)
 }
 
@@ -37,7 +36,6 @@ func TestProviderConfigsValidate(t *testing.T) {
 	t.Parallel()
 	var (
 		_ configValidator = google.ChatConfig{}
-		_ configValidator = google.OpenAIChatConfig{}
 		_ configValidator = vertexai.ChatConfig{}
 	)
 }

@@ -23,7 +23,7 @@ func TestLocalExecutorRejectsLexicalPathEscapes(t *testing.T) {
 	if err := os.WriteFile(secret, []byte("secret"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	executor := NewLocalExecutor(rootPath)
+	executor := mustLocalExecutor(t, rootPath)
 
 	operations := []struct {
 		name string
@@ -39,7 +39,7 @@ func TestLocalExecutorRejectsLexicalPathEscapes(t *testing.T) {
 		{
 			name: "write absolute outside",
 			call: func() error {
-				_, err := executor.Write(t.Context(), WriteInput{Path: filepath.Join(outsidePath, "written.txt"), Content: "no"})
+				_, err := executor.Write(t.Context(), WriteRequest{Path: filepath.Join(outsidePath, "written.txt"), Content: "no"})
 				return err
 			},
 		},
@@ -64,14 +64,14 @@ func TestLocalExecutorRejectsLexicalPathEscapes(t *testing.T) {
 		{
 			name: "glob root override",
 			call: func() error {
-				_, err := executor.Glob(t.Context(), GlobInput{Pattern: "**/*", Path: outsidePath})
+				_, err := executor.Glob(t.Context(), GlobRequest{Pattern: "**/*", Path: outsidePath})
 				return err
 			},
 		},
 		{
 			name: "glob pattern traversal",
 			call: func() error {
-				_, err := executor.Glob(t.Context(), GlobInput{Pattern: "../outside/**/*"})
+				_, err := executor.Glob(t.Context(), GlobRequest{Pattern: "../outside/**/*"})
 				return err
 			},
 		},
@@ -118,7 +118,7 @@ func TestLocalExecutorRejectsSymlinkEscapes(t *testing.T) {
 	if err := os.Symlink(outsidePath, filepath.Join(rootPath, "escape")); err != nil {
 		t.Skipf("symlink unavailable: %v", err)
 	}
-	executor := NewLocalExecutor(rootPath)
+	executor := mustLocalExecutor(t, rootPath)
 
 	operations := []struct {
 		name string
@@ -134,7 +134,7 @@ func TestLocalExecutorRejectsSymlinkEscapes(t *testing.T) {
 		{
 			name: "write",
 			call: func() error {
-				_, err := executor.Write(t.Context(), WriteInput{Path: "escape/written.txt", Content: "no"})
+				_, err := executor.Write(t.Context(), WriteRequest{Path: "escape/written.txt", Content: "no"})
 				return err
 			},
 		},
@@ -159,7 +159,7 @@ func TestLocalExecutorRejectsSymlinkEscapes(t *testing.T) {
 		{
 			name: "glob",
 			call: func() error {
-				_, err := executor.Glob(t.Context(), GlobInput{Pattern: "**/*", Path: "escape"})
+				_, err := executor.Glob(t.Context(), GlobRequest{Pattern: "**/*", Path: "escape"})
 				return err
 			},
 		},
@@ -195,9 +195,9 @@ func TestLocalExecutorSearchSubtreeKeepsWorkspaceRelativePaths(t *testing.T) {
 	writeTemp(t, rootPath, "src/one.txt", "needle\n")
 	writeTemp(t, rootPath, "src/nested/two.txt", "needle\n")
 	writeTemp(t, rootPath, "other.txt", "needle\n")
-	executor := NewLocalExecutor(rootPath)
+	executor := mustLocalExecutor(t, rootPath)
 
-	glob, err := executor.Glob(t.Context(), GlobInput{Pattern: "**/*.txt", Path: "src"})
+	glob, err := executor.Glob(t.Context(), GlobRequest{Pattern: "**/*.txt", Path: "src"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -225,8 +225,8 @@ func TestLocalExecutorSearchSubtreeKeepsWorkspaceRelativePaths(t *testing.T) {
 
 func TestLocalExecutorReclaimsIdlePathLocks(t *testing.T) {
 	rootPath := t.TempDir()
-	executor := NewLocalExecutor(rootPath)
-	if _, err := executor.Write(t.Context(), WriteInput{Path: "file.txt", Content: "content"}); err != nil {
+	executor := mustLocalExecutor(t, rootPath)
+	if _, err := executor.Write(t.Context(), WriteRequest{Path: "file.txt", Content: "content"}); err != nil {
 		t.Fatal(err)
 	}
 	executor.pathLocksMu.Lock()

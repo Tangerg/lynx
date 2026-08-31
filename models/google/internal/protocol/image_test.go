@@ -63,8 +63,8 @@ func TestImageModelCallUsesInteractionsAPI(t *testing.T) {
 	if out.Outputs[1].Media.MIME != "image/jpeg" {
 		t.Fatalf("second MIME = %q", out.Outputs[1].Media.MIME)
 	}
-	if got := out.Metadata.Created; got != time.Date(2026, 7, 31, 10, 20, 30, 0, time.UTC).Unix() {
-		t.Fatalf("Created = %d", got)
+	if got := out.Metadata.CreatedAt; !got.Equal(time.Date(2026, 7, 31, 10, 20, 30, 0, time.UTC)) {
+		t.Fatalf("CreatedAt = %s", got)
 	}
 	if _, ok, err := out.Metadata.Extra.Decode[map[string]any](protocol.ImageResponseExtensionKey); err != nil || !ok {
 		t.Fatalf("native response extension: exists=%t err=%v", ok, err)

@@ -27,6 +27,14 @@ type toolType string
 
 const toolTypeFunction toolType = "function"
 
+type toolChoice string
+
+const (
+	toolChoiceAuto toolChoice = "auto"
+	toolChoiceNone toolChoice = "none"
+	toolChoiceAny  toolChoice = "any"
+)
+
 type outputFormatType string
 
 const (
@@ -57,17 +65,19 @@ type jsonSchemaDefinition struct {
 }
 
 type chatCompletionRequest struct {
-	Model            string          `json:"model"`
-	Messages         []chatMessage   `json:"messages"`
-	Temperature      *float64        `json:"temperature,omitempty"`
-	TopP             *float64        `json:"top_p,omitempty"`
-	MaxTokens        *int64          `json:"max_tokens,omitempty"`
-	Stream           bool            `json:"stream"`
-	Stop             []string        `json:"stop,omitempty"`
-	PresencePenalty  *float64        `json:"presence_penalty,omitempty"`
-	FrequencyPenalty *float64        `json:"frequency_penalty,omitempty"`
-	Tools            []chatTool      `json:"tools,omitempty"`
-	ResponseFormat   *responseFormat `json:"response_format,omitempty"`
+	Model             string          `json:"model"`
+	Messages          []chatMessage   `json:"messages"`
+	Temperature       *float64        `json:"temperature,omitempty"`
+	TopP              *float64        `json:"top_p,omitempty"`
+	MaxTokens         *int64          `json:"max_tokens,omitempty"`
+	Stream            bool            `json:"stream"`
+	Stop              []string        `json:"stop,omitempty"`
+	PresencePenalty   *float64        `json:"presence_penalty,omitempty"`
+	FrequencyPenalty  *float64        `json:"frequency_penalty,omitempty"`
+	Tools             []chatTool      `json:"tools,omitempty"`
+	ToolChoice        toolChoice      `json:"tool_choice,omitempty"`
+	ParallelToolCalls *bool           `json:"parallel_tool_calls,omitempty"`
+	ResponseFormat    *responseFormat `json:"response_format,omitempty"`
 	ChatRequestOptions
 }
 

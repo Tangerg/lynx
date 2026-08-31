@@ -50,7 +50,7 @@ func assertProtocolChatCall(t *testing.T, response *corechat.Response) {
 		t.Fatalf("result = %#v", result)
 	}
 	reasoning := result.Message.Parts[0]
-	if reasoning.Kind != corechat.PartReasoning || reasoning.Text != "verify result" || string(reasoning.Signature) != "sig-google" {
+	if reasoning.Kind != corechat.PartReasoning || reasoning.Text != "verify result" || string(reasoning.ReasoningState) != "sig-google" {
 		t.Errorf("reasoning = %#v", reasoning)
 	}
 	call := result.Message.Parts[2].ToolCall
@@ -65,7 +65,7 @@ func assertProtocolChatCall(t *testing.T, response *corechat.Response) {
 	}
 }
 
-func assertProtocolChatStream(t *testing.T, responses []*corechat.Response) {
+func assertProtocolChatStream(t *testing.T, responses []*corechat.ResponseDelta) {
 	t.Helper()
 	var text, reasoning strings.Builder
 	var signature []byte
@@ -73,17 +73,14 @@ func assertProtocolChatStream(t *testing.T, responses []*corechat.Response) {
 	var finalUsage corechat.Usage
 	for _, response := range responses {
 		finalUsage = response.Metadata.Usage
-		if response.Output == nil || response.Output.Message == nil {
-			continue
-		}
-		for _, part := range response.Output.Message.Parts {
+		for _, part := range response.Parts {
 			switch part.Kind {
-			case corechat.PartText:
+			case corechat.PartDeltaText:
 				text.WriteString(part.Text)
-			case corechat.PartReasoning:
+			case corechat.PartDeltaReasoning:
 				reasoning.WriteString(part.Text)
-				signature = append(signature, part.Signature...)
-			case corechat.PartToolCall:
+				signature = append(signature, part.ReasoningState...)
+			case corechat.PartDeltaToolCall:
 				toolID = part.ToolCall.ID
 			}
 		}
@@ -109,7 +106,7 @@ func assertProtocolChatAggregated(t *testing.T, response *corechat.Response) {
 		t.Fatalf("aggregated result = %#v", result)
 	}
 	call := result.Message.Parts[2].ToolCall
-	if result.Message.Parts[0].Text != "verify result" || string(result.Message.Parts[0].Signature) != "sig-google" ||
+	if result.Message.Parts[0].Text != "verify result" || string(result.Message.Parts[0].ReasoningState) != "sig-google" ||
 		result.Message.Parts[1].Text != "The value is four." || call == nil || call.ID != "google/generated/2" {
 		t.Errorf("aggregated parts = %#v", result.Message.Parts)
 	}
@@ -172,12 +169,12 @@ func newProtocolChatRequest(t *testing.T) *corechat.Request {
 	topK := int64(32)
 	topP := 0.9
 	request.Options = corechat.Options{
-		Model:       "gemini-3-pro",
-		MaxTokens:   &maxTokens,
-		Stop:        []string{"STOP"},
-		Temperature: &temperature,
-		TopK:        &topK,
-		TopP:        &topP,
+		Model:           "gemini-3-pro",
+		MaxOutputTokens: &maxTokens,
+		Stop:            []string{"STOP"},
+		Temperature:     &temperature,
+		TopK:            &topK,
+		TopP:            &topP,
 	}
 	request.Tools = []corechat.ToolDefinition{{
 		Name:        "calculate",

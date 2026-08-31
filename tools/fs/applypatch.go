@@ -40,12 +40,12 @@ type ApplyPatchTool struct {
 	typed    toolcontract.Func[ApplyPatchRequest, ApplyPatchResponse]
 }
 
-func NewApplyPatchTool(executor PatchApplier) *ApplyPatchTool {
+func NewApplyPatchTool(executor PatchApplier) (*ApplyPatchTool, error) {
 	if lo.IsNil(executor) {
-		executor = NewLocalExecutor("")
+		return nil, ErrNilExecutor
 	}
 	t := &ApplyPatchTool{executor: executor}
-	t.typed = mustTypedTool(
+	typed, err := toolcontract.NewFunc(
 		toolcontract.FuncConfig{
 			Name: "apply_patch",
 			Description: "Apply one Git-compatible unified diff across one or more files, including create, modify, delete, and rename operations. " +
@@ -54,7 +54,11 @@ func NewApplyPatchTool(executor PatchApplier) *ApplyPatchTool {
 		},
 		t.apply,
 	)
-	return t
+	if err != nil {
+		return nil, fmt.Errorf("fs.NewApplyPatchTool: %w", err)
+	}
+	t.typed = typed
+	return t, nil
 }
 
 func (a *ApplyPatchTool) Definition() chat.ToolDefinition {

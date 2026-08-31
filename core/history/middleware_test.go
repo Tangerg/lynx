@@ -38,8 +38,8 @@ func TestCallReplaysInStableOrderAndPersistsOnlyFreshExchange(t *testing.T) {
 		return response(chat.NewAssistantMessage(chat.NewTextPart("answer"))), nil
 	})
 	request := mustRequest(t,
-		chat.NewUserMessage(chat.NewTextPart("fresh user")),
 		chat.NewSystemMessage("live system"),
+		chat.NewUserMessage(chat.NewTextPart("fresh user")),
 	)
 	got, err := middleware.Call(model).Call(boundContext(t), request)
 	if err != nil {
@@ -228,9 +228,9 @@ func TestStreamIsLazyAndPersistsOnlyNaturalCompletion(t *testing.T) {
 	middleware := mustMiddleware(t, store)
 	started := false
 	closed := false
-	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
 		started = true
-		return func(yield func(*chat.Response, error) bool) {
+		return func(yield func(*chat.ResponseDelta, error) bool) {
 			defer func() { closed = true }()
 			if !yield(chunk("hel", ""), nil) {
 				return
@@ -270,9 +270,9 @@ func TestStreamWithoutConversationForwardsWithoutHistory(t *testing.T) {
 	middleware := mustMiddleware(t, store)
 	request := mustRequest(t, chat.NewUserMessage(chat.NewTextPart("hello")))
 	samePointer := false
-	streamer := chat.StreamerFunc(func(_ context.Context, got *chat.Request) iter.Seq2[*chat.Response, error] {
+	streamer := chat.StreamerFunc(func(_ context.Context, got *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
 		samePointer = got == request
-		return func(yield func(*chat.Response, error) bool) {
+		return func(yield func(*chat.ResponseDelta, error) bool) {
 			yield(chunk("answer", chat.FinishReasonStop), nil)
 		}
 	})
@@ -290,7 +290,7 @@ func TestStreamWithoutConversationForwardsWithoutHistory(t *testing.T) {
 		t.Fatalf("store calls = read %d, write %d", reads, writes)
 	}
 
-	nilStreamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] { return nil })
+	nilStreamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] { return nil })
 	var gotErr error
 	for _, err := range middleware.Stream(nilStreamer).Stream(t.Context(), request) {
 		gotErr = err
@@ -305,8 +305,8 @@ func TestStreamDoesNotPersistOnEarlyStopProviderErrorOrMalformedChunk(t *testing
 		store := &recordingStore{}
 		middleware := mustMiddleware(t, store)
 		closed := false
-		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-			return func(yield func(*chat.Response, error) bool) {
+		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+			return func(yield func(*chat.ResponseDelta, error) bool) {
 				defer func() { closed = true }()
 				if !yield(chunk("first", ""), nil) {
 					return
@@ -315,7 +315,7 @@ func TestStreamDoesNotPersistOnEarlyStopProviderErrorOrMalformedChunk(t *testing
 			}
 		})
 		sequence := middleware.Stream(streamer).Stream(boundContext(t), mustRequest(t, chat.NewUserMessage(chat.NewTextPart("hello"))))
-		sequence(func(*chat.Response, error) bool { return false })
+		sequence(func(*chat.ResponseDelta, error) bool { return false })
 		if !closed {
 			t.Fatal("provider resources were not released")
 		}
@@ -328,8 +328,8 @@ func TestStreamDoesNotPersistOnEarlyStopProviderErrorOrMalformedChunk(t *testing
 		providerErr := errors.New("provider failed")
 		store := &recordingStore{}
 		middleware := mustMiddleware(t, store)
-		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-			return func(yield func(*chat.Response, error) bool) {
+		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+			return func(yield func(*chat.ResponseDelta, error) bool) {
 				if !yield(chunk("partial", ""), nil) {
 					return
 				}
@@ -353,9 +353,9 @@ func TestStreamDoesNotPersistOnEarlyStopProviderErrorOrMalformedChunk(t *testing
 	t.Run("malformed chunk", func(t *testing.T) {
 		store := &recordingStore{}
 		middleware := mustMiddleware(t, store)
-		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-			return func(yield func(*chat.Response, error) bool) {
-				yield(&chat.Response{Output: &chat.Output{}}, nil)
+		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+			return func(yield func(*chat.ResponseDelta, error) bool) {
+				yield(&chat.ResponseDelta{}, nil)
 			}
 		})
 		var errorsSeen int
@@ -377,8 +377,8 @@ func TestStreamReportsWriteFailureAndNilSequence(t *testing.T) {
 	writeErr := errors.New("write failed")
 	store := &recordingStore{writeErr: writeErr}
 	middleware := mustMiddleware(t, store)
-	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-		return func(yield func(*chat.Response, error) bool) {
+	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+		return func(yield func(*chat.ResponseDelta, error) bool) {
 			yield(chunk("answer", chat.FinishReasonStop), nil)
 		}
 	})
@@ -397,7 +397,7 @@ func TestStreamReportsWriteFailureAndNilSequence(t *testing.T) {
 
 	store = &recordingStore{}
 	middleware = mustMiddleware(t, store)
-	nilStreamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] { return nil })
+	nilStreamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] { return nil })
 	gotErr = nil
 	for _, err := range middleware.Stream(nilStreamer).Stream(boundContext(t), mustRequest(t, chat.NewUserMessage(chat.NewTextPart("hello")))) {
 		gotErr = err
@@ -520,7 +520,10 @@ func response(message chat.Message) *chat.Response {
 	return &chat.Response{Output: &chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}}
 }
 
-func chunk(text string, finish chat.FinishReason) *chat.Response {
-	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	return &chat.Response{Output: &chat.Output{Message: &message, FinishReason: finish}}
+func chunk(text string, finish chat.FinishReason) *chat.ResponseDelta {
+	delta := &chat.ResponseDelta{FinishReason: finish}
+	if text != "" {
+		delta.Parts = []chat.PartDelta{chat.NewTextDelta(text)}
+	}
+	return delta
 }

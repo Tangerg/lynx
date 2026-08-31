@@ -1,7 +1,7 @@
 # docs
 
-Repository-wide documentation. Anything that belongs to one module lives in that
-module's `README.md`, `ARCHITECTURE.md`, and `doc.go` instead.
+Repository-wide documentation. Anything that belongs to one module lives in
+that module's GoDoc and checked examples instead.
 
 | Path | Contents |
 |---|---|

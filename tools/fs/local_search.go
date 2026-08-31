@@ -23,7 +23,7 @@ const (
 	maximumContextLines   = 20
 )
 
-func (l *LocalExecutor) Glob(ctx context.Context, in GlobInput) (_ GlobResponse, err error) {
+func (l *LocalExecutor) Glob(ctx context.Context, in GlobRequest) (_ GlobResponse, err error) {
 	if in.MaxResults < 0 {
 		return GlobResponse{}, fmt.Errorf("%w: max_results must not be negative", ErrInvalidInput)
 	}

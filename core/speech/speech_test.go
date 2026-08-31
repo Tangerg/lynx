@@ -150,7 +150,4 @@ func TestResponseAndRequestErrorBoundaries(t *testing.T) {
 	if _, err := speech.NewResponse(output, nil); err != nil {
 		t.Fatalf("NewResponse rejected optional metadata: %v", err)
 	}
-	if err := (&speech.Response{Output: output, Metadata: &speech.ResponseMetadata{Created: -1}}).Validate(); err == nil {
-		t.Fatal("Validate accepted a negative creation time")
-	}
 }

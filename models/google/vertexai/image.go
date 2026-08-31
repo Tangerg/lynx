@@ -204,7 +204,7 @@ func (i *ImageModel) buildResponse(apiResp *genai.GenerateContentResponse) (*ima
 
 	metadata := &image.ResponseMetadata{}
 	if !apiResp.CreateTime.IsZero() {
-		metadata.Created = apiResp.CreateTime.Unix()
+		metadata.CreatedAt = apiResp.CreateTime.UTC()
 	}
 	if err := metadata.Extra.Set(ImageResponseExtensionKey, apiResp); err != nil {
 		return nil, err

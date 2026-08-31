@@ -46,7 +46,7 @@ func TestEvaluatorSupportsNonTextSubjectsAndMedianSampling(t *testing.T) {
 	if report.Verdict != eval.VerdictPass || report.Score == nil || *report.Score != 0.7 || report.Feedback != "middle" {
 		t.Fatalf("report = %#v", report)
 	}
-	configuration, found, err := report.Metric.Parameters.Decode[struct {
+	configuration, found, err := report.Metric.Parameters().Decode[struct {
 		Aggregation string     `json:"aggregation"`
 		Samples     int        `json:"samples"`
 		Threshold   eval.Score `json:"threshold"`
@@ -62,8 +62,12 @@ func TestEvaluatorSupportsNonTextSubjectsAndMedianSampling(t *testing.T) {
 
 func TestEvaluatorDoesNotInventVerdictWithoutThreshold(t *testing.T) {
 	model := &fakeModel{replies: []string{"{\"score\":0.9}"}}
+	metric, err := eval.NewMetric(eval.MetricConfig{Name: "quality"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	evaluator, err := judge.NewEvaluator(judge.Config[string]{
-		Model: model, Metric: eval.Metric{Name: "quality"}, Prompt: validPrompt,
+		Model: model, Metric: metric, Prompt: validPrompt,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -78,7 +82,10 @@ func TestEvaluatorDoesNotInventVerdictWithoutThreshold(t *testing.T) {
 }
 
 func TestEvaluatorValidatesGenericJudgeConfiguration(t *testing.T) {
-	metric := eval.Metric{Name: "quality"}
+	metric, err := eval.NewMetric(eval.MetricConfig{Name: "quality"})
+	if err != nil {
+		t.Fatal(err)
+	}
 	model := &fakeModel{replies: []string{"{\"score\":0.5}"}}
 	for _, config := range []judge.Config[string]{
 		{Metric: metric, Prompt: func(string) (chat.Message, error) { return chat.Message{}, nil }},

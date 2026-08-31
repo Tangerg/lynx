@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -18,48 +19,56 @@ const (
 	pipeCloseDelay        = time.Second
 )
 
-// LocalExecutor runs commands on the local host via the configured
-// shell. Default shell is "/bin/sh -c".
-type LocalExecutor struct {
-	// Shell is the interpreter; defaults to "/bin/sh".
-	Shell string
-
-	// Dir is the working directory commands run in. "" inherits the
-	// host process's cwd (os/exec's default). Set it to confine a
-	// command's relative-path resolution to a project root — the shell
-	// working directory policy for shell execution. Unlike the immutable rooted
-	// authority of fs.LocalExecutor, it does NOT jail the command
-	// (a command can still cd / touch absolute paths); jailing is the
-	// caller's job via OS sandbox / container.
-	Dir string
-
-	// MaxOutputBytes caps the captured size of each stream (stdout
-	// and stderr independently). 0 = use [defaultMaxOutputBytes].
-	// Bytes beyond the cap are dropped and a "[N bytes truncated]"
-	// marker is appended.
+// LocalConfig makes the local process authority visible at construction. The
+// directory controls relative-path resolution but is not a filesystem jail;
+// callers that need confinement must supply an OS sandbox or container.
+type LocalConfig struct {
+	Directory      string
+	Shell          string
 	MaxOutputBytes int
 }
 
-func NewLocalExecutor() *LocalExecutor {
-	return &LocalExecutor{Shell: defaultShell}
+// LocalExecutor runs commands on the local host through one immutable
+// construction-time configuration.
+type LocalExecutor struct {
+	directory      string
+	shell          string
+	maxOutputBytes int
 }
 
-func (l *LocalExecutor) maxOutput() int {
-	return cmp.Or(l.MaxOutputBytes, defaultMaxOutputBytes)
+func NewLocalExecutor(config LocalConfig) (*LocalExecutor, error) {
+	if config.Directory == "" {
+		return nil, fmt.Errorf("%w: directory must not be empty", ErrInvalidConfig)
+	}
+	if strings.TrimSpace(config.Shell) == "" && config.Shell != "" {
+		return nil, fmt.Errorf("%w: shell must not be blank", ErrInvalidConfig)
+	}
+	if config.MaxOutputBytes < 0 {
+		return nil, fmt.Errorf("%w: maximum output bytes must not be negative", ErrInvalidConfig)
+	}
+	directory, err := filepath.Abs(config.Directory)
+	if err != nil {
+		return nil, fmt.Errorf("shell.NewLocalExecutor: resolve directory %q: %w", config.Directory, err)
+	}
+	return &LocalExecutor{
+		directory:      filepath.Clean(directory),
+		shell:          cmp.Or(config.Shell, defaultShell),
+		maxOutputBytes: cmp.Or(config.MaxOutputBytes, defaultMaxOutputBytes),
+	}, nil
 }
 
 func (l *LocalExecutor) Run(ctx context.Context, in Input) (Output, error) {
 	if l == nil {
 		return Output{}, ErrNilExecutor
 	}
+	if l.directory == "" || l.shell == "" || l.maxOutputBytes <= 0 {
+		return Output{}, ErrInvalidConfig
+	}
 	if strings.TrimSpace(in.Cmd) == "" {
 		return Output{}, ErrEmptyCommand
 	}
 	if in.Timeout < 0 {
 		return Output{}, fmt.Errorf("%w: timeout must not be negative", ErrInvalidInput)
-	}
-	if l.MaxOutputBytes < 0 {
-		return Output{}, fmt.Errorf("%w: maximum output bytes must not be negative", ErrInvalidConfig)
 	}
 
 	runCtx := ctx
@@ -69,16 +78,16 @@ func (l *LocalExecutor) Run(ctx context.Context, in Input) (Output, error) {
 		defer cancel()
 	}
 
-	cmd := exec.CommandContext(runCtx, cmp.Or(l.Shell, defaultShell), shellCommandFlag, in.Cmd)
-	cmd.Dir = l.Dir // "" leaves exec to inherit the host process cwd
+	cmd := exec.CommandContext(runCtx, l.shell, shellCommandFlag, in.Cmd)
+	cmd.Dir = l.directory
 	// On a timeout/ctx kill, force-close the command's pipes shortly after so
 	// Wait returns promptly even when a child the shell spawned still holds them
 	// (otherwise Wait blocks until that child exits — the command runs its full
 	// duration despite the kill, which is exactly what slow CI runners surface).
 	cmd.WaitDelay = pipeCloseDelay
 
-	stdout := newBoundedBuffer(l.maxOutput())
-	stderr := newBoundedBuffer(l.maxOutput())
+	stdout := newBoundedBuffer(l.maxOutputBytes)
+	stderr := newBoundedBuffer(l.maxOutputBytes)
 	cmd.Stdout = stdout
 	cmd.Stderr = stderr
 

@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"iter"
 	"math"
 	"slices"
 
@@ -21,14 +20,29 @@ import (
 type ModelClient interface {
 	// Call invokes the configured model for one complete response.
 	Call(ctx context.Context, request *chat.Request) (*chat.Response, error)
-	// Stream invokes the configured model as a lazy response sequence.
-	Stream(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error]
+}
+
+// ModelResponseMode selects the single model response lifecycle used by a
+// Dispatcher. Streaming is observational; both modes settle the same complete
+// provider-neutral Response.
+type ModelResponseMode string
+
+const (
+	ModelResponseComplete ModelResponseMode = ""
+	ModelResponseStream   ModelResponseMode = "stream"
+)
+
+func (m ModelResponseMode) Valid() bool {
+	return m == ModelResponseComplete || m == ModelResponseStream
 }
 
 // DispatcherConfig binds external capabilities for one Deployment.
 type DispatcherConfig struct {
-	// Client provides complete and optional streaming model calls.
+	// Client is the single model dependency. Stream mode requires the same value
+	// to implement chat.Streamer so call and stream settings cannot diverge.
 	Client ModelClient
+	// ResponseMode selects complete or streaming model responses.
+	ResponseMode ModelResponseMode
 
 	// Tools is the frozen ordinary model-visible and executable Tool manifest.
 	// Managed Delegate definitions come from the bound Definition.
@@ -43,10 +57,6 @@ type DispatcherConfig struct {
 	// Zero preserves serial execution; negative values are invalid. Undeclared
 	// calls and calls with the same non-empty concurrency key remain serial.
 	MaxConcurrentToolCalls int
-
-	// StreamModelResponses selects Client.Stream and publishes each validated
-	// response chunk as a best-effort ModelResponseDelta. False uses Client.Call.
-	StreamModelResponses bool
 
 	// Observer receives exact settled Interaction facts. It is intentionally
 	// separate from Engine Events/Deltas: those describe execution mechanics,
@@ -75,11 +85,11 @@ type boundTool struct {
 // Processes concurrently when the supplied Client and Tools support concurrent use.
 type Dispatcher struct {
 	client              ModelClient
+	streamer            chat.Streamer
 	tools               map[string]boundTool
 	delegates           map[string]struct{}
 	initialDefinitions  []chat.ToolDefinition
 	deferredToolNames   map[string]struct{}
-	stream              bool
 	maxParallel         int
 	observer            ExecutionObserver
 	observationFailures observationFailureCounters
@@ -102,10 +112,20 @@ func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher
 	if config.MaxConcurrentToolCalls < 0 {
 		return nil, fmt.Errorf("%w: MaxConcurrentToolCalls must not be negative", ErrInvalidDispatcherConfig)
 	}
+	if !config.ResponseMode.Valid() {
+		return nil, fmt.Errorf("%w: invalid ResponseMode %q", ErrInvalidDispatcherConfig, config.ResponseMode)
+	}
 	if config.ModelContextReducer != nil && lo.IsNil(config.ModelContextReducer) {
 		return nil, fmt.Errorf("%w: ModelContextReducer is typed nil", ErrInvalidDispatcherConfig)
 	}
 	maxParallel := max(1, config.MaxConcurrentToolCalls)
+	var streamer chat.Streamer
+	if config.ResponseMode == ModelResponseStream {
+		streamer, _ = config.Client.(chat.Streamer)
+		if lo.IsNil(streamer) {
+			return nil, fmt.Errorf("%w: Client does not support streaming", ErrInvalidDispatcherConfig)
+		}
+	}
 	dispatcher := &Dispatcher{
 		client:    config.Client,
 		tools:     make(map[string]boundTool, len(config.Tools)+len(config.DeferredTools)),
@@ -114,7 +134,7 @@ func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher
 			[]chat.ToolDefinition, 0, len(config.Tools)+len(definition.delegates),
 		),
 		deferredToolNames: make(map[string]struct{}, len(config.DeferredTools)),
-		stream:            config.StreamModelResponses,
+		streamer:          streamer,
 		maxParallel:       maxParallel,
 		observer:          config.Observer,
 		contextReducer:    config.ModelContextReducer,

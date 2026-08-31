@@ -11,7 +11,20 @@ import (
 	"github.com/Tangerg/scope/models/openrouter"
 )
 
-func TestOpenAIChatPreservesStructuredReasoningDetails(t *testing.T) {
+func TestAnthropicChatConstructorValidatesCredential(t *testing.T) {
+	if _, err := openrouter.NewMessages(openrouter.MessagesConfig{}); err == nil {
+		t.Fatal("NewMessages() accepted an absent credential")
+	}
+	model, err := openrouter.NewMessages(openrouter.MessagesConfig{APIKey: "test-key"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if model == nil {
+		t.Fatal("NewMessages() = nil")
+	}
+}
+
+func TestChatPreservesStructuredReasoningDetails(t *testing.T) {
 	requests := make([]map[string]any, 0, 2)
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		var body map[string]any
@@ -43,13 +56,13 @@ func TestOpenAIChatPreservesStructuredReasoningDetails(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	model, err := openrouter.NewOpenAIChat(openrouter.OpenAIChatConfig{
+	model, err := openrouter.NewChat(openrouter.ChatConfig{
 		APIKey:         "test-key",
 		BaseURL:        server.URL,
 		DefaultOptions: corechat.Options{Model: "anthropic/claude-sonnet"},
 	})
 	if err != nil {
-		t.Fatalf("NewOpenAIChat: %v", err)
+		t.Fatalf("NewChat: %v", err)
 	}
 	firstRequest := &corechat.Request{Messages: []corechat.Message{
 		corechat.NewUserMessage(corechat.NewTextPart("solve it")),
@@ -62,10 +75,10 @@ func TestOpenAIChatPreservesStructuredReasoningDetails(t *testing.T) {
 	if message == nil || len(message.Parts) != 4 {
 		t.Fatalf("response message = %#v", message)
 	}
-	if message.Parts[0].Text != "step one" || len(message.Parts[0].Signature) == 0 {
+	if message.Parts[0].Text != "step one" || len(message.Parts[0].ReasoningState) == 0 {
 		t.Errorf("text reasoning = %#v", message.Parts[0])
 	}
-	if message.Parts[1].Text != "" || len(message.Parts[1].Signature) == 0 {
+	if message.Parts[1].Text != "" || len(message.Parts[1].ReasoningState) == 0 {
 		t.Errorf("encrypted reasoning = %#v", message.Parts[1])
 	}
 	if message.Parts[2].Text != "short summary" || message.Parts[3].Text != "final answer" {
@@ -97,7 +110,7 @@ func TestOpenAIChatPreservesStructuredReasoningDetails(t *testing.T) {
 	assertReasoningDetail(t, details[2], "reasoning.summary", "summary", "short summary")
 }
 
-func TestOpenAIChatCoalescesStreamedReasoningDetailsForReplay(t *testing.T) {
+func TestChatCoalescesStreamedReasoningDetailsForReplay(t *testing.T) {
 	var replayRequest map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		var body map[string]any
@@ -120,13 +133,13 @@ func TestOpenAIChatCoalescesStreamedReasoningDetailsForReplay(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	model, err := openrouter.NewOpenAIChat(openrouter.OpenAIChatConfig{
+	model, err := openrouter.NewChat(openrouter.ChatConfig{
 		APIKey:         "test-key",
 		BaseURL:        server.URL,
 		DefaultOptions: corechat.Options{Model: "model"},
 	})
 	if err != nil {
-		t.Fatalf("NewOpenAIChat: %v", err)
+		t.Fatalf("NewChat: %v", err)
 	}
 	first := corechat.NewUserMessage(corechat.NewTextPart("solve"))
 	var accumulator corechat.ResponseAccumulator
@@ -134,11 +147,14 @@ func TestOpenAIChatCoalescesStreamedReasoningDetailsForReplay(t *testing.T) {
 		if streamErr != nil {
 			t.Fatalf("Stream: %v", streamErr)
 		}
-		if err := accumulator.Add(response); err != nil {
-			t.Fatalf("accumulate: %v", err)
+		if addErr := accumulator.Add(response); addErr != nil {
+			t.Fatalf("accumulate: %v", addErr)
 		}
 	}
-	aggregated := accumulator.Response()
+	aggregated, err := accumulator.Response()
+	if err != nil {
+		t.Fatalf("promote stream: %v", err)
+	}
 	if aggregated == nil || aggregated.Output == nil || aggregated.Output.Message == nil {
 		t.Fatalf("aggregated response = %#v", aggregated)
 	}

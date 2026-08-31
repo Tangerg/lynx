@@ -105,7 +105,7 @@ func positiveOr[T ~int | ~int64](value, fallback T) T {
 	return fallback
 }
 
-func (l *LocalExecutor) Write(ctx context.Context, in WriteInput) (_ WriteResponse, err error) {
+func (l *LocalExecutor) Write(ctx context.Context, in WriteRequest) (_ WriteResponse, err error) {
 	if strings.ContainsRune(in.Content, 0) {
 		return WriteResponse{}, fmt.Errorf("fs.LocalExecutor.Write: %w", ErrBinaryFile)
 	}

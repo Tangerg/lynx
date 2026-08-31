@@ -143,7 +143,11 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 
 	for _, batch := range batches {
 		docs := batch.Documents
-		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
+		texts, err := batch.Texts()
+		if err != nil {
+			return fmt.Errorf("vectorstore: project document text: %w", err)
+		}
+		vectors, err := s.embeddingClient.EmbedTexts(ctx, texts)
 		if err != nil {
 			return fmt.Errorf("%s.Store.Index: embed documents: %w", s.provider, err)
 		}
@@ -202,8 +206,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		}
 	}()
 
-	var vector []float64
-	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
+	vector, err := s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("%s.Store.Search: embed query: %w", s.provider, err)
 	}

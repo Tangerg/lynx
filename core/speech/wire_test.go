@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/scope/core/metadata"
 	"github.com/Tangerg/scope/core/speech"
@@ -60,9 +61,9 @@ func TestResponseRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	response, err := speech.NewResponse(output, &speech.ResponseMetadata{
-		Model:   "tts-model",
-		Created: 1700000000,
-		Extra:   metadata.Map{"provider/region": json.RawMessage(`"eu"`)},
+		Model:     "tts-model",
+		CreatedAt: time.Unix(1700000000, 0).UTC(),
+		Extra:     metadata.Map{"provider/region": json.RawMessage(`"eu"`)},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -80,7 +81,7 @@ func TestResponseRoundTrip(t *testing.T) {
 	if decoded.Output == nil || string(decoded.Output.Audio) != "audio" {
 		t.Fatalf("Response round trip lost audio: %#v", decoded.Output)
 	}
-	if decoded.Metadata == nil || decoded.Metadata.Model != "tts-model" || decoded.Metadata.Created != 1700000000 {
+	if decoded.Metadata == nil || decoded.Metadata.Model != "tts-model" || !decoded.Metadata.CreatedAt.Equal(time.Unix(1700000000, 0)) {
 		t.Fatalf("Response round trip lost metadata: %#v", decoded.Metadata)
 	}
 	if !decoded.Metadata.Extra.Equal(response.Metadata.Extra) {
@@ -105,7 +106,7 @@ func TestOutputAndResponseMetadataRoundTrip(t *testing.T) {
 		t.Fatalf("Output round trip = %#v", decodedOutput)
 	}
 
-	responseMetadata := speech.ResponseMetadata{Model: "tts-model", Created: 7}
+	responseMetadata := speech.ResponseMetadata{Model: "tts-model", CreatedAt: time.Unix(7, 0).UTC()}
 	encoded, err = json.Marshal(responseMetadata)
 	if err != nil {
 		t.Fatal(err)
@@ -114,7 +115,7 @@ func TestOutputAndResponseMetadataRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(encoded, &decodedMetadata); err != nil {
 		t.Fatal(err)
 	}
-	if decodedMetadata.Model != responseMetadata.Model || decodedMetadata.Created != responseMetadata.Created {
+	if decodedMetadata.Model != responseMetadata.Model || decodedMetadata.CreatedAt != responseMetadata.CreatedAt {
 		t.Fatalf("ResponseMetadata round trip = %#v, want %#v", decodedMetadata, responseMetadata)
 	}
 }
@@ -221,7 +222,6 @@ func TestInvalidValuesFailToMarshal(t *testing.T) {
 		"empty request text":      {value: speech.Request{}, want: speech.ErrInvalidRequest},
 		"empty output audio":      {value: speech.Output{}, want: speech.ErrInvalidResponse},
 		"invalid output metadata": {value: speech.Output{Audio: []byte("a"), Metadata: brokenExtra}, want: speech.ErrInvalidResponse},
-		"negative created":        {value: speech.ResponseMetadata{Created: -1}, want: speech.ErrInvalidResponse},
 		"invalid extra":           {value: speech.ResponseMetadata{Extra: brokenExtra}, want: speech.ErrInvalidResponse},
 		"missing response output": {value: speech.Response{}, want: speech.ErrInvalidResponse},
 	}

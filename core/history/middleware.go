@@ -59,8 +59,8 @@ func (m Middleware) Call(next chat.Model) chat.Model {
 // until the returned sequence is iterated. Fresh input and the accumulated
 // assistant response are persisted only after natural, error-free completion.
 func (m Middleware) Stream(next chat.Streamer) chat.Streamer {
-	return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.Response, error] {
-		return func(yield func(*chat.Response, error) bool) {
+	return chat.StreamerFunc(func(ctx context.Context, request *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+		return func(yield func(*chat.ResponseDelta, error) bool) {
 			m.stream(ctx, next, request, yield)
 		}
 	})
@@ -70,7 +70,7 @@ func (m Middleware) stream(
 	ctx context.Context,
 	next chat.Streamer,
 	request *chat.Request,
-	yield func(*chat.Response, error) bool,
+	yield func(*chat.ResponseDelta, error) bool,
 ) {
 	conversationID, bound := ConversationIDFromContext(ctx)
 	if !bound {
@@ -94,7 +94,12 @@ func (m Middleware) stream(
 	if !stream.natural {
 		return
 	}
-	assistant, persist := m.persistableAssistant(stream.accumulator.Response())
+	response, err := stream.accumulator.Response()
+	if err != nil {
+		yield(nil, fmt.Errorf("history: middleware: complete stream: %w", err))
+		return
+	}
+	assistant, persist := m.persistableAssistant(response)
 	if !persist {
 		return
 	}
@@ -104,12 +109,12 @@ func (m Middleware) stream(
 }
 
 type historyStream struct {
-	yield       func(*chat.Response, error) bool
+	yield       func(*chat.ResponseDelta, error) bool
 	accumulator chat.ResponseAccumulator
 	natural     bool
 }
 
-func (h *historyStream) consume(chunk *chat.Response, streamErr error) bool {
+func (h *historyStream) consume(chunk *chat.ResponseDelta, streamErr error) bool {
 	if !h.natural {
 		return false
 	}
@@ -126,7 +131,7 @@ func (h *historyStream) consume(chunk *chat.Response, streamErr error) bool {
 	return true
 }
 
-func (h *historyStream) stop(response *chat.Response, err error) bool {
+func (h *historyStream) stop(response *chat.ResponseDelta, err error) bool {
 	h.natural = false
 	h.yield(response, err)
 	return false
@@ -209,7 +214,7 @@ func (m Middleware) persistableAssistant(response *chat.Response) (chat.Message,
 	return response.Output.Message.Clone(), true
 }
 
-func (m Middleware) forward(sequence iter.Seq2[*chat.Response, error], yield func(*chat.Response, error) bool) {
+func (m Middleware) forward(sequence iter.Seq2[*chat.ResponseDelta, error], yield func(*chat.ResponseDelta, error) bool) {
 	if sequence == nil {
 		yield(nil, ErrNilStream)
 		return

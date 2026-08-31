@@ -179,8 +179,8 @@ func TestCallInputIgnoresPriorAssistantAndToolMessages(t *testing.T) {
 func TestStreamDetectsMatchesSplitAcrossChunksBeforeYieldingTrigger(t *testing.T) {
 	middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.MiddlewareConfig{Scope: safeguard.ScopeOutput})
 	closed := false
-	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-		return func(yield func(*chat.Response, error) bool) {
+	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+		return func(yield func(*chat.ResponseDelta, error) bool) {
 			defer func() { closed = true }()
 			if !yield(chunk("se"), nil) {
 				return
@@ -205,9 +205,9 @@ func TestStreamDetectsMatchesSplitAcrossChunksBeforeYieldingTrigger(t *testing.T
 func TestStreamRejectsUnsafeInputWithoutStartingProvider(t *testing.T) {
 	middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.MiddlewareConfig{})
 	started := false
-	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
+	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
 		started = true
-		return func(func(*chat.Response, error) bool) {}
+		return func(func(*chat.ResponseDelta, error) bool) {}
 	})
 	var gotErr error
 	for _, err := range middleware.Stream(streamer).Stream(t.Context(), mustRequest(t, chat.NewUserMessage(chat.NewTextPart("secret")))) {
@@ -222,8 +222,8 @@ func TestStreamPreservesEarlyStopAndProviderFailures(t *testing.T) {
 	t.Run("early stop", func(t *testing.T) {
 		middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.MiddlewareConfig{})
 		closed := false
-		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-			return func(yield func(*chat.Response, error) bool) {
+		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+			return func(yield func(*chat.ResponseDelta, error) bool) {
 				defer func() { closed = true }()
 				if !yield(chunk("one"), nil) {
 					return
@@ -231,7 +231,7 @@ func TestStreamPreservesEarlyStopAndProviderFailures(t *testing.T) {
 				yield(chunk("two"), nil)
 			}
 		})
-		middleware.Stream(streamer).Stream(t.Context(), mustRequest(t, chat.NewUserMessage(chat.NewTextPart("hello"))))(func(*chat.Response, error) bool {
+		middleware.Stream(streamer).Stream(t.Context(), mustRequest(t, chat.NewUserMessage(chat.NewTextPart("hello"))))(func(*chat.ResponseDelta, error) bool {
 			return false
 		})
 		if !closed {
@@ -242,8 +242,8 @@ func TestStreamPreservesEarlyStopAndProviderFailures(t *testing.T) {
 	t.Run("provider error", func(t *testing.T) {
 		providerErr := errors.New("provider failed")
 		middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.MiddlewareConfig{})
-		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-			return func(yield func(*chat.Response, error) bool) { yield(nil, providerErr) }
+		streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+			return func(yield func(*chat.ResponseDelta, error) bool) { yield(nil, providerErr) }
 		})
 		var gotErr error
 		for _, err := range middleware.Stream(streamer).Stream(t.Context(), mustRequest(t, chat.NewUserMessage(chat.NewTextPart("hello")))) {
@@ -258,7 +258,7 @@ func TestStreamPreservesEarlyStopAndProviderFailures(t *testing.T) {
 func TestStreamReportsNilSequenceAndMalformedChunk(t *testing.T) {
 	middleware := mustMiddleware(t, mustSubstring(t, "secret"), safeguard.MiddlewareConfig{})
 	request := mustRequest(t, chat.NewUserMessage(chat.NewTextPart("hello")))
-	nilStreamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] { return nil })
+	nilStreamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] { return nil })
 	var gotErr error
 	for _, err := range middleware.Stream(nilStreamer).Stream(t.Context(), request) {
 		gotErr = err
@@ -267,9 +267,9 @@ func TestStreamReportsNilSequenceAndMalformedChunk(t *testing.T) {
 		t.Fatalf("nil stream error = %v", gotErr)
 	}
 
-	badStreamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-		return func(yield func(*chat.Response, error) bool) {
-			yield(&chat.Response{Output: &chat.Output{}}, nil)
+	badStreamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+		return func(yield func(*chat.ResponseDelta, error) bool) {
+			yield(&chat.ResponseDelta{}, nil)
 		}
 	})
 	gotErr = nil
@@ -285,6 +285,14 @@ func TestUnsafeErrorNilReceiver(t *testing.T) {
 	var unsafe *safeguard.UnsafeError
 	if unsafe.Error() != safeguard.ErrUnsafeContent.Error() || !errors.Is(unsafe, safeguard.ErrUnsafeContent) {
 		t.Fatalf("nil unsafe error = %q", unsafe.Error())
+	}
+	hidden := &safeguard.UnsafeError{Block: safeguard.Block{Scope: safeguard.ScopeOutput}}
+	if got := hidden.Error(); got != "safeguard: unsafe content: output blocked" {
+		t.Fatalf("hidden unsafe error = %q", got)
+	}
+	disclosed := &safeguard.UnsafeError{Block: safeguard.Block{Scope: safeguard.ScopeInput, Term: "secret"}}
+	if got := disclosed.Error(); got != `safeguard: unsafe content: input matched "secret"` {
+		t.Fatalf("disclosed unsafe error = %q", got)
 	}
 }
 
@@ -320,7 +328,6 @@ func response(text string) *chat.Response {
 	return &chat.Response{Output: &chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}}
 }
 
-func chunk(text string) *chat.Response {
-	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	return &chat.Response{Output: &chat.Output{Message: &message}}
+func chunk(text string) *chat.ResponseDelta {
+	return &chat.ResponseDelta{Parts: []chat.PartDelta{chat.NewTextDelta(text)}}
 }

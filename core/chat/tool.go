@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"encoding/json/jsontext"
-	"errors"
 	"fmt"
 	"strings"
 )
@@ -19,9 +18,9 @@ type ToolCall struct {
 	Arguments string `json:"arguments,omitempty"`
 }
 
-// ToolCallDelta is one streaming fragment of a ToolCall. It cannot be placed in
-// a model Request; [ResponseAccumulator] is the boundary that assembles deltas
-// into a complete, still-untrusted ToolCall.
+// ToolCallDelta is one streaming fragment of a ToolCall. It cannot appear in a
+// Request; ResponseAccumulator is the only boundary that promotes fragments to
+// a complete ToolCall.
 type ToolCallDelta struct {
 	ID        string `json:"id"`
 	Name      string `json:"name"`
@@ -44,8 +43,8 @@ func (t ToolCallDelta) Validate() error {
 // fallback only when Content is empty.
 //
 // Content deliberately reuses Part so media has one representation across the
-// chat protocol. Only text and media parts are valid here; nested reasoning,
-// calls, deltas, and results are rejected.
+// chat protocol. Only text and media parts are valid here; reasoning, calls,
+// refusals, and results are rejected.
 type ToolOutput struct {
 	Content []Part          `json:"content,omitempty"`
 	Details json.RawMessage `json:"details,omitempty"`
@@ -81,18 +80,43 @@ func (t ToolOutput) Clone() ToolOutput {
 	return clone
 }
 
+func (t ToolOutput) MarshalJSON() ([]byte, error) {
+	if err := t.Validate(); err != nil {
+		return nil, err
+	}
+	type wireToolOutput ToolOutput
+	return json.Marshal(wireToolOutput(t))
+}
+
+func (t *ToolOutput) UnmarshalJSON(data []byte) error {
+	if t == nil {
+		return fmt.Errorf("%w: nil receiver", ErrInvalidToolOutput)
+	}
+	type wireToolOutput ToolOutput
+	var decoded wireToolOutput
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return fmt.Errorf("%w: decode: %w", ErrInvalidToolOutput, err)
+	}
+	candidate := ToolOutput(decoded)
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	*t = candidate
+	return nil
+}
+
 func (t ToolOutput) Validate() error {
 	for index := range t.Content {
 		part := t.Content[index]
 		if part.Kind != PartText && part.Kind != PartMedia {
-			return fmt.Errorf("tool output content[%d]: unsupported part kind %q", index, part.Kind)
+			return fmt.Errorf("%w: content[%d]: unsupported part kind %q", ErrInvalidToolOutput, index, part.Kind)
 		}
 		if err := part.Validate(); err != nil {
-			return fmt.Errorf("tool output content[%d]: %w", index, err)
+			return fmt.Errorf("%w: content[%d]: %w", ErrInvalidToolOutput, index, err)
 		}
 	}
 	if len(t.Details) != 0 && !jsontext.Value(t.Details).IsValid() {
-		return errors.New("tool output details must be one valid RFC 7493 JSON document")
+		return fmt.Errorf("%w: details must be one valid RFC 7493 JSON document", ErrInvalidToolOutput)
 	}
 	return nil
 }

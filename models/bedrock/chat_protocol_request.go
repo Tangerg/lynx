@@ -156,16 +156,12 @@ func (c *Chat) prepareRequest(req *corechat.Request) (*preparedChatRequest, erro
 	if err != nil {
 		return nil, err
 	}
-	tools, err := mapProtocolTools(req.Tools)
+	tools, err := mapProtocolTools(req.Tools, req.ToolChoice)
 	if err != nil {
 		return nil, err
 	}
 	if options.OutputFormat != nil && options.OutputFormat.Type == corechat.OutputFormatJSON {
-		instruction, err := options.OutputFormat.FallbackInstruction()
-		if err != nil {
-			return nil, fmt.Errorf("bedrock: output format fallback: %w", err)
-		}
-		system = append(system, &types.SystemContentBlockMemberText{Value: instruction})
+		return nil, fmt.Errorf("%w: bedrock Converse does not support %q", corechat.ErrUnsupportedOutputFormat, options.OutputFormat.Type)
 	}
 	return &preparedChatRequest{
 		model:        options.Model,
@@ -180,8 +176,8 @@ func (c *Chat) prepareRequest(req *corechat.Request) (*preparedChatRequest, erro
 
 func mapInferenceOptions(options corechat.Options) *types.InferenceConfiguration {
 	configuration := &types.InferenceConfiguration{StopSequences: slices.Clone(options.Stop)}
-	if options.MaxTokens != nil {
-		value := int32(*options.MaxTokens)
+	if options.MaxOutputTokens != nil {
+		value := int32(*options.MaxOutputTokens)
 		configuration.MaxTokens = &value
 	}
 	if options.Temperature != nil {
@@ -233,6 +229,8 @@ func mapProtocolPart(part corechat.Part) (types.ContentBlock, bool, error) {
 	switch part.Kind {
 	case corechat.PartText:
 		return &types.ContentBlockMemberText{Value: part.Text}, true, nil
+	case corechat.PartRefusal:
+		return &types.ContentBlockMemberText{Value: part.Text}, true, nil
 	case corechat.PartMedia:
 		block, err := mediaToBlock(part.Media)
 		if err != nil {
@@ -251,16 +249,16 @@ func mapProtocolPart(part corechat.Part) (types.ContentBlock, bool, error) {
 		}
 		switch kind {
 		case chatReasoningText:
-			if part.Text == "" || len(part.Signature) == 0 {
+			if part.Text == "" || len(part.ReasoningState) == 0 {
 				return nil, false, errors.New("bedrock reasoning text requires text and its unmodified signature")
 			}
-			reasoning := types.ReasoningTextBlock{Text: aws.String(part.Text), Signature: aws.String(string(part.Signature))}
+			reasoning := types.ReasoningTextBlock{Text: aws.String(part.Text), Signature: aws.String(string(part.ReasoningState))}
 			return &types.ContentBlockMemberReasoningContent{Value: &types.ReasoningContentBlockMemberReasoningText{Value: reasoning}}, true, nil
 		case chatReasoningRedacted:
-			if len(part.Signature) == 0 {
+			if len(part.ReasoningState) == 0 {
 				return nil, false, errors.New("bedrock redacted reasoning requires opaque content")
 			}
-			return &types.ContentBlockMemberReasoningContent{Value: &types.ReasoningContentBlockMemberRedactedContent{Value: slices.Clone(part.Signature)}}, true, nil
+			return &types.ContentBlockMemberReasoningContent{Value: &types.ReasoningContentBlockMemberRedactedContent{Value: slices.Clone(part.ReasoningState)}}, true, nil
 		default:
 			return nil, false, fmt.Errorf("unknown Bedrock reasoning kind %q", kind)
 		}
@@ -336,9 +334,15 @@ func mapToolResultContent(output corechat.ToolOutput) ([]types.ToolResultContent
 	return content, nil
 }
 
-func mapProtocolTools(definitions []corechat.ToolDefinition) (*types.ToolConfiguration, error) {
+func mapProtocolTools(definitions []corechat.ToolDefinition, choice *corechat.ToolChoice) (*types.ToolConfiguration, error) {
 	if len(definitions) == 0 {
 		return nil, nil
+	}
+	if choice != nil && choice.Mode == corechat.ToolChoiceNone {
+		return nil, nil
+	}
+	if choice != nil && choice.Parallelism == corechat.ToolParallelismSingle {
+		return nil, errors.New("bedrock: single tool-call parallelism is not supported by Converse")
 	}
 	tools := make([]types.Tool, 0, len(definitions))
 	for index := range definitions {
@@ -352,5 +356,19 @@ func mapProtocolTools(definitions []corechat.ToolDefinition) (*types.ToolConfigu
 			InputSchema: &types.ToolInputSchemaMemberJson{Value: toBedrockDocument(schema)},
 		}})
 	}
-	return &types.ToolConfiguration{Tools: tools}, nil
+	configuration := &types.ToolConfiguration{Tools: tools}
+	if choice == nil {
+		return configuration, nil
+	}
+	switch choice.Mode {
+	case corechat.ToolChoiceAuto:
+		configuration.ToolChoice = &types.ToolChoiceMemberAuto{}
+	case corechat.ToolChoiceRequired:
+		configuration.ToolChoice = &types.ToolChoiceMemberAny{}
+	case corechat.ToolChoiceNamed:
+		configuration.ToolChoice = &types.ToolChoiceMemberTool{Value: types.SpecificToolChoice{Name: aws.String(choice.Name)}}
+	default:
+		return nil, fmt.Errorf("bedrock: unsupported tool choice mode %q", choice.Mode)
+	}
+	return configuration, nil
 }

@@ -30,7 +30,7 @@ func (m ModelFunc) Call(ctx context.Context, request *Request) (*Response, error
 // Model so an implementation is not forced to provide a synthetic synchronous
 // Call path, and a call-only implementation is not forced to fake streaming.
 //
-// Every successful yield is a valid response delta. Usage, when present, is a
+// Every successful yield is a valid ResponseDelta. Usage, when present, is a
 // cumulative snapshot rather than a per-chunk increment. On failure the
 // sequence yields (nil, err) once and terminates. Context errors retain their
 // errors.Is identity. When the caller stops iteration, implementations must
@@ -42,11 +42,11 @@ type Streamer interface {
 	// yielded response is an independently owned delta accepted by
 	// ResponseAccumulator. Stopping iteration releases provider resources before
 	// the iterator returns; a terminal error is yielded at most once.
-	Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error]
+	Stream(ctx context.Context, request *Request) iter.Seq2[*ResponseDelta, error]
 }
 
-type StreamerFunc func(ctx context.Context, request *Request) iter.Seq2[*Response, error]
+type StreamerFunc func(ctx context.Context, request *Request) iter.Seq2[*ResponseDelta, error]
 
-func (s StreamerFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*Response, error] {
+func (s StreamerFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*ResponseDelta, error] {
 	return s(ctx, request)
 }

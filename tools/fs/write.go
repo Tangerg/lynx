@@ -27,12 +27,12 @@ type WriteTool struct {
 	typed    toolcontract.Func[WriteRequest, WriteResponse]
 }
 
-func NewWriteTool(executor Writer) *WriteTool {
+func NewWriteTool(executor Writer) (*WriteTool, error) {
 	if lo.IsNil(executor) {
-		executor = NewLocalExecutor("")
+		return nil, ErrNilExecutor
 	}
 	t := &WriteTool{executor: executor}
-	t.typed = mustTypedTool(
+	typed, err := toolcontract.NewFunc(
 		toolcontract.FuncConfig{
 			Name: "write",
 			Description: "Create a file or replace the complete contents of an existing file. " +
@@ -40,7 +40,11 @@ func NewWriteTool(executor Writer) *WriteTool {
 		},
 		t.write,
 	)
-	return t
+	if err != nil {
+		return nil, fmt.Errorf("fs.NewWriteTool: %w", err)
+	}
+	t.typed = typed
+	return t, nil
 }
 
 func (w *WriteTool) Definition() chat.ToolDefinition {
@@ -62,7 +66,7 @@ func (w *WriteTool) Call(ctx context.Context, invocation toolcontract.Invocation
 }
 
 func (w *WriteTool) write(ctx context.Context, req WriteRequest) (WriteResponse, error) {
-	res, err := w.executor.Write(ctx, WriteInput(req))
+	res, err := w.executor.Write(ctx, req)
 	if err != nil {
 		return WriteResponse{}, fmt.Errorf("fs.write: %w", err)
 	}

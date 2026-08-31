@@ -3,9 +3,9 @@
 //
 // Modalities exposed:
 //
-//   - chat (Chat Completions) via [NewChat] — tool calling, streaming,
+//   - chat (Chat Completions) via [NewChatCompletions] — tool calling, streaming,
 //     native request extensions, vision input, audio input/output;
-//   - chat (Responses) via [NewResponsesChat] — ordered reasoning and tool
+//   - chat (Responses) via [NewResponses] — ordered reasoning and tool
 //     replay, streaming, multimodal input, and complete-request input-token
 //     counting through the native Responses endpoint;
 //   - embedding via [NewEmbeddingModel] — text-embedding-3-small/large
@@ -28,7 +28,7 @@
 // same namespace, so compatible endpoints never leak OpenAI provider metadata.
 //
 // Provider packages with an OpenAI-compatible endpoint reuse the protocol
-// through [NewCompatibleChat] and select one typed [Dialect]. This keeps
-// provider-only fields such as reasoning_content out of OpenAI's native
+// through [NewCompatibleChatCompletions] and select one typed [Dialect]. This
+// keeps provider-only fields such as reasoning_content out of OpenAI's native
 // behavior while sharing the standard wire mapping.
 package openai

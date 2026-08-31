@@ -22,7 +22,7 @@ type topologyCase struct {
 	kind          workflow.StageKind
 	bindings      []expectedTopologyBinding
 	windowSize    uint32
-	itemLimit     uint32
+	maxItems      uint32
 	maxIterations uint32
 }
 
@@ -90,7 +90,7 @@ func TestDefinitionTopologyProjectsEverySealedStageKind(t *testing.T) {
 	}
 	mapper, err := workflow.Map[numberInput, numberOutput](workflow.MapConfig[numberInput, numberOutput]{
 		ID: "map", Deployment: numberChild, Budget: budget, Capabilities: capabilities,
-		WindowSize: 2, ItemLimit: 4,
+		WindowSize: 2, MaxItems: 4,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -118,7 +118,7 @@ func TestDefinitionTopologyProjectsEverySealedStageKind(t *testing.T) {
 		}, windowSize: 1},
 		{name: "map", stage: mapper, kind: workflow.StageKindMap, bindings: []expectedTopologyBinding{
 			{role: workflow.BindingRoleItem, deployment: numberChild},
-		}, windowSize: 2, itemLimit: 4},
+		}, windowSize: 2, maxItems: 4},
 		{name: "loop", stage: loop, kind: workflow.StageKindLoop, bindings: []expectedTopologyBinding{
 			{role: workflow.BindingRoleBody, deployment: identityChild},
 		}, maxIterations: 3},
@@ -144,7 +144,7 @@ func assertTopologyCase(
 	}
 	stage := topology.Stages[0]
 	if stage.Kind != test.kind || stage.WindowSize != test.windowSize ||
-		stage.ItemLimit != test.itemLimit || stage.MaxIterations != test.maxIterations {
+		stage.MaxItems != test.maxItems || stage.MaxIterations != test.maxIterations {
 		t.Fatalf("stage=%+v", stage)
 	}
 	if stage.ID != test.name || !stage.InputSchema.Valid() ||
@@ -154,8 +154,22 @@ func assertTopologyCase(
 	for index, want := range test.bindings {
 		assertTopologyBinding(t, index, stage.Bindings[index], want, budget, capabilities)
 	}
-	if _, err := json.Marshal(topology); err != nil {
+	wire, err := json.Marshal(topology)
+	if err != nil {
 		t.Fatalf("marshal Topology: %v", err)
+	}
+	if test.kind == workflow.StageKindMap {
+		var projection struct {
+			Stages []struct {
+				MaxItems uint32 `json:"max_items"`
+			} `json:"stages"`
+		}
+		if err := json.Unmarshal(wire, &projection); err != nil {
+			t.Fatalf("unmarshal Topology projection: %v", err)
+		}
+		if len(projection.Stages) != 1 || projection.Stages[0].MaxItems != test.maxItems {
+			t.Fatalf("wire Map maximum=%+v", projection.Stages)
+		}
 	}
 }
 

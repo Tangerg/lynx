@@ -35,12 +35,12 @@ type EditTool struct {
 	typed    toolcontract.Func[EditRequest, EditResponse]
 }
 
-func NewEditTool(executor Editor) *EditTool {
+func NewEditTool(executor Editor) (*EditTool, error) {
 	if lo.IsNil(executor) {
-		executor = NewLocalExecutor("")
+		return nil, ErrNilExecutor
 	}
 	t := &EditTool{executor: executor}
-	t.typed = mustTypedTool(
+	typed, err := toolcontract.NewFunc(
 		toolcontract.FuncConfig{
 			Name: "edit",
 			Description: "Replace exact text in one file. Read the file first so old_string reflects its current contents. " +
@@ -49,7 +49,11 @@ func NewEditTool(executor Editor) *EditTool {
 		},
 		t.edit,
 	)
-	return t
+	if err != nil {
+		return nil, fmt.Errorf("fs.NewEditTool: %w", err)
+	}
+	t.typed = typed
+	return t, nil
 }
 
 func (e *EditTool) Definition() chat.ToolDefinition {

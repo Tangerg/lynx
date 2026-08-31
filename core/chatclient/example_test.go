@@ -13,7 +13,7 @@ func Example() {
 	model := chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
 		return textResponse("Hello from the model"), nil
 	})
-	client, err := chatclient.New(model, chatclient.Config{Defaults: chat.Options{Model: "example"}})
+	client, err := chatclient.New(model, chatclient.Config{})
 	if err != nil {
 		panic(err)
 	}
@@ -21,6 +21,7 @@ func Example() {
 	if err != nil {
 		panic(err)
 	}
+	request.Options.Model = "example"
 	response, err := client.Call(context.Background(), request)
 	if err != nil {
 		panic(err)
@@ -33,12 +34,12 @@ func ExampleClient_Stream() {
 	model := chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
 		return textResponse("fallback"), nil
 	})
-	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.Response, error] {
-		return func(yield func(*chat.Response, error) bool) {
-			if !yield(response("Hello ", ""), nil) {
+	streamer := chat.StreamerFunc(func(context.Context, *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
+		return func(yield func(*chat.ResponseDelta, error) bool) {
+			if !yield(delta("Hello ", ""), nil) {
 				return
 			}
-			yield(response("stream", chat.FinishReasonStop), nil)
+			yield(delta("stream", chat.FinishReasonStop), nil)
 		}
 	})
 	client, err := chatclient.New(model, chatclient.Config{Streamer: streamer})
@@ -87,9 +88,7 @@ func ExampleClient_Output() {
 	if err != nil {
 		panic(err)
 	}
-	result, err := client.
-		Output(chatclient.JSON[answer]()).
-		Call(context.Background(), request)
+	result, err := client.Output(context.Background(), request, chatclient.JSON[answer]())
 	if err != nil {
 		panic(err)
 	}
@@ -98,13 +97,13 @@ func ExampleClient_Output() {
 }
 
 func textResponse(text string) *chat.Response {
-	return response(text, chat.FinishReasonStop)
-}
-
-func response(text string, reason chat.FinishReason) *chat.Response {
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
 	return &chat.Response{Output: &chat.Output{
 		Message:      &message,
-		FinishReason: reason,
+		FinishReason: chat.FinishReasonStop,
 	}}
+}
+
+func delta(text string, reason chat.FinishReason) *chat.ResponseDelta {
+	return &chat.ResponseDelta{Parts: []chat.PartDelta{chat.NewTextDelta(text)}, FinishReason: reason}
 }

@@ -119,7 +119,9 @@ func newManagedWorkflow() (agent.Deployment, deploymentResolver, error) {
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}
-	budget, err := agent.NewBudget(workflowChildBudgetUnits, workflowChildBudgetUnits, workflowChildBudgetUnits)
+	budget, err := agent.NewBudget(agent.BudgetConfig{
+		Steps: workflowChildBudgetUnits, Effects: workflowChildBudgetUnits, Signals: workflowChildBudgetUnits,
+	})
 	if err != nil {
 		return agent.Deployment{}, nil, err
 	}

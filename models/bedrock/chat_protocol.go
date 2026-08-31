@@ -105,8 +105,8 @@ func (c *Chat) Call(ctx context.Context, req *corechat.Request) (*corechat.Respo
 
 // Stream performs one Bedrock ConverseStream request and yields validated
 // provider deltas with cumulative usage snapshots.
-func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	return func(yield func(*corechat.Response, error) bool) {
+func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.ResponseDelta, error] {
+	return func(yield func(*corechat.ResponseDelta, error) bool) {
 		input, model, err := c.buildConverseStreamInput(req)
 		if err != nil {
 			yield(nil, err)

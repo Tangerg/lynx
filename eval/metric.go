@@ -39,11 +39,11 @@ func (d Direction) Validate() error {
 // decision rules. Unit and Direction describe optional raw measurements;
 // normalized scores are always unitless and higher-is-better.
 type Metric struct {
-	Namespace  string       `json:"namespace,omitzero"`
-	Name       MetricName   `json:"name"`
-	Unit       string       `json:"unit,omitzero"`
-	Direction  Direction    `json:"direction,omitzero"`
-	Parameters metadata.Map `json:"parameters,omitzero"`
+	namespace  string
+	name       MetricName
+	unit       string
+	direction  Direction
+	parameters metadata.Map
 }
 
 type MetricConfig struct {
@@ -56,11 +56,11 @@ type MetricConfig struct {
 
 func NewMetric(config MetricConfig) (Metric, error) {
 	metric := Metric{
-		Namespace:  config.Namespace,
-		Name:       config.Name,
-		Unit:       config.Unit,
-		Direction:  config.Direction,
-		Parameters: config.Parameters.Clone(),
+		namespace:  config.Namespace,
+		name:       config.Name,
+		unit:       config.Unit,
+		direction:  config.Direction,
+		parameters: config.Parameters.Clone(),
 	}
 	if err := metric.Validate(); err != nil {
 		return Metric{}, err
@@ -69,33 +69,73 @@ func NewMetric(config MetricConfig) (Metric, error) {
 }
 
 func (m Metric) Clone() Metric {
-	m.Parameters = m.Parameters.Clone()
+	m.parameters = m.parameters.Clone()
 	return m
 }
 
+func (m Metric) Namespace() string        { return m.namespace }
+func (m Metric) Name() MetricName         { return m.name }
+func (m Metric) Unit() string             { return m.unit }
+func (m Metric) Direction() Direction     { return m.direction }
+func (m Metric) Parameters() metadata.Map { return m.parameters.Clone() }
+
 func (m Metric) String() string {
-	if m.Namespace == "" {
-		return string(m.Name)
+	if m.namespace == "" {
+		return string(m.name)
 	}
-	return m.Namespace + "/" + string(m.Name)
+	return m.namespace + "/" + string(m.name)
 }
 
 func (m Metric) Validate() error {
-	if err := validateMetricPart("namespace", m.Namespace, true); err != nil {
+	if err := validateMetricPart("namespace", m.namespace, true); err != nil {
 		return err
 	}
-	if err := validateMetricPart("name", string(m.Name), false); err != nil {
+	if err := validateMetricPart("name", string(m.name), false); err != nil {
 		return err
 	}
-	if m.Unit != strings.TrimSpace(m.Unit) {
+	if m.unit != strings.TrimSpace(m.unit) {
 		return fmt.Errorf("%w: unit must not contain surrounding whitespace", ErrInvalidMetric)
 	}
-	if err := m.Direction.Validate(); err != nil {
+	if err := m.direction.Validate(); err != nil {
 		return err
 	}
-	if err := m.Parameters.Validate(); err != nil {
+	if err := m.parameters.Validate(); err != nil {
 		return fmt.Errorf("%w: parameters: %w", ErrInvalidMetric, err)
 	}
+	return nil
+}
+
+type metricWire struct {
+	Namespace  string       `json:"namespace,omitzero"`
+	Name       MetricName   `json:"name"`
+	Unit       string       `json:"unit,omitzero"`
+	Direction  Direction    `json:"direction,omitzero"`
+	Parameters metadata.Map `json:"parameters,omitzero"`
+}
+
+func (m Metric) MarshalJSON() ([]byte, error) {
+	if err := m.Validate(); err != nil {
+		return nil, err
+	}
+	return json.Marshal(metricWire{
+		Namespace: m.namespace, Name: m.name, Unit: m.unit,
+		Direction: m.direction, Parameters: m.parameters,
+	})
+}
+
+func (m *Metric) UnmarshalJSON(data []byte) error {
+	if m == nil {
+		return fmt.Errorf("%w: nil receiver", ErrInvalidMetric)
+	}
+	var wire metricWire
+	if err := json.Unmarshal(data, &wire); err != nil {
+		return fmt.Errorf("%w: decode: %w", ErrInvalidMetric, err)
+	}
+	value, err := NewMetric(MetricConfig(wire))
+	if err != nil {
+		return err
+	}
+	*m = value
 	return nil
 }
 

@@ -35,12 +35,12 @@ type ReadTool struct {
 	typed    toolcontract.Func[ReadRequest, ReadResponse]
 }
 
-func NewReadTool(executor Reader) *ReadTool {
+func NewReadTool(executor Reader) (*ReadTool, error) {
 	if lo.IsNil(executor) {
-		executor = NewLocalExecutor("")
+		return nil, ErrNilExecutor
 	}
 	t := &ReadTool{executor: executor}
-	t.typed = mustTypedTool(
+	typed, err := toolcontract.NewFunc(
 		toolcontract.FuncConfig{
 			Name: "read",
 			Description: "Read a text file from the filesystem. Returns the requested line range with the total line count and a truncation flag. " +
@@ -50,7 +50,11 @@ func NewReadTool(executor Reader) *ReadTool {
 		},
 		t.read,
 	)
-	return t
+	if err != nil {
+		return nil, fmt.Errorf("fs.NewReadTool: %w", err)
+	}
+	t.typed = typed
+	return t, nil
 }
 
 func (r *ReadTool) Definition() chat.ToolDefinition {

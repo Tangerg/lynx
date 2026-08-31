@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/scope/core/media"
 	"github.com/Tangerg/scope/core/metadata"
@@ -79,9 +80,9 @@ func TestResponseRoundTrip(t *testing.T) {
 		t.Fatal(err)
 	}
 	response, err := transcription.NewResponse(output, &transcription.ResponseMetadata{
-		Model:   "whisper-1",
-		Created: 1700000000,
-		Extra:   metadata.Map{"provider/region": json.RawMessage(`"eu"`)},
+		Model:     "whisper-1",
+		CreatedAt: time.Unix(1700000000, 0).UTC(),
+		Extra:     metadata.Map{"provider/region": json.RawMessage(`"eu"`)},
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -102,7 +103,7 @@ func TestResponseRoundTrip(t *testing.T) {
 	if !decoded.Output.Metadata.Equal(output.Metadata) {
 		t.Fatalf("Response round trip lost segment metadata: %#v", decoded.Output.Metadata)
 	}
-	if decoded.Metadata == nil || decoded.Metadata.Model != "whisper-1" || decoded.Metadata.Created != 1700000000 {
+	if decoded.Metadata == nil || decoded.Metadata.Model != "whisper-1" || !decoded.Metadata.CreatedAt.Equal(time.Unix(1700000000, 0)) {
 		t.Fatalf("Response round trip lost metadata: %#v", decoded.Metadata)
 	}
 }
@@ -124,7 +125,7 @@ func TestOutputAndResponseMetadataRoundTrip(t *testing.T) {
 		t.Fatalf("Output round trip = %#v", decodedOutput)
 	}
 
-	responseMetadata := transcription.ResponseMetadata{Model: "whisper-1", Created: 7}
+	responseMetadata := transcription.ResponseMetadata{Model: "whisper-1", CreatedAt: time.Unix(7, 0).UTC()}
 	encoded, err = json.Marshal(responseMetadata)
 	if err != nil {
 		t.Fatal(err)
@@ -133,7 +134,7 @@ func TestOutputAndResponseMetadataRoundTrip(t *testing.T) {
 	if err := json.Unmarshal(encoded, &decodedMetadata); err != nil {
 		t.Fatal(err)
 	}
-	if decodedMetadata.Model != responseMetadata.Model || decodedMetadata.Created != responseMetadata.Created {
+	if decodedMetadata.Model != responseMetadata.Model || decodedMetadata.CreatedAt != responseMetadata.CreatedAt {
 		t.Fatalf("ResponseMetadata round trip = %#v, want %#v", decodedMetadata, responseMetadata)
 	}
 }
@@ -213,7 +214,7 @@ func TestDecodedValuesAreValidatedBeforeAssignment(t *testing.T) {
 	}
 
 	responseMetadata := transcription.ResponseMetadata{Model: "keep"}
-	if err := json.Unmarshal([]byte(`{"created":-1}`), &responseMetadata); !errors.Is(err, transcription.ErrInvalidResponse) {
+	if err := json.Unmarshal([]byte(`{"created_at":"not-a-time"}`), &responseMetadata); !errors.Is(err, transcription.ErrInvalidResponse) {
 		t.Fatalf("ResponseMetadata decode error = %v", err)
 	}
 	if responseMetadata.Model != "keep" {
@@ -241,7 +242,6 @@ func TestInvalidValuesFailToMarshal(t *testing.T) {
 		"missing audio":           {value: transcription.Request{}, want: transcription.ErrInvalidRequest},
 		"invalid output metadata": {value: transcription.Output{Metadata: brokenExtra}, want: transcription.ErrInvalidResponse},
 		"padded metadata model":   {value: transcription.ResponseMetadata{Model: " padded "}, want: transcription.ErrInvalidResponse},
-		"negative created":        {value: transcription.ResponseMetadata{Created: -1}, want: transcription.ErrInvalidResponse},
 		"invalid extra":           {value: transcription.ResponseMetadata{Extra: brokenExtra}, want: transcription.ErrInvalidResponse},
 		"missing response output": {value: transcription.Response{}, want: transcription.ErrInvalidResponse},
 	}

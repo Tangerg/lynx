@@ -11,7 +11,20 @@ import (
 	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
-func TestOpenAIChatUsesCurrentKimiWireContract(t *testing.T) {
+func TestAnthropicChatConstructorValidatesCredential(t *testing.T) {
+	if _, err := moonshot.NewMessages(moonshot.MessagesConfig{}); err == nil {
+		t.Fatal("NewMessages() accepted an absent credential")
+	}
+	model, err := moonshot.NewMessages(moonshot.MessagesConfig{APIKey: "test-key"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if model == nil {
+		t.Fatal("NewMessages() = nil")
+	}
+}
+
+func TestChatUsesCurrentKimiWireContract(t *testing.T) {
 	var body map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
@@ -25,16 +38,16 @@ func TestOpenAIChatUsesCurrentKimiWireContract(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	maxTokens := int64(4096)
-	model, err := moonshot.NewOpenAIChat(moonshot.OpenAIChatConfig{
+	model, err := moonshot.NewChat(moonshot.ChatConfig{
 		APIKey:  "test-key",
 		BaseURL: server.URL,
 		DefaultOptions: corechat.Options{
-			Model:     moonshot.ModelK3,
-			MaxTokens: &maxTokens,
+			Model:           moonshot.ModelK3,
+			MaxOutputTokens: &maxTokens,
 		},
 	})
 	if err != nil {
-		t.Fatalf("NewOpenAIChat: %v", err)
+		t.Fatalf("NewChat: %v", err)
 	}
 	previousThinking, err := openai.NewTextReasoningPart("moonshot", openai.TextReasoningContent, "previous thinking")
 	if err != nil {
@@ -71,18 +84,18 @@ func TestOpenAIChatUsesCurrentKimiWireContract(t *testing.T) {
 	}
 }
 
-func TestOpenAIChatRejectsK2ThinkingOptionsForK3(t *testing.T) {
+func TestChatRejectsK2ThinkingOptionsForK3(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Fatal("request must fail before transport")
 	}))
 	t.Cleanup(server.Close)
-	model, err := moonshot.NewOpenAIChat(moonshot.OpenAIChatConfig{
+	model, err := moonshot.NewChat(moonshot.ChatConfig{
 		APIKey:         "test-key",
 		BaseURL:        server.URL,
 		DefaultOptions: corechat.Options{Model: moonshot.ModelK3},
 	})
 	if err != nil {
-		t.Fatalf("NewOpenAIChat: %v", err)
+		t.Fatalf("NewChat: %v", err)
 	}
 	request := &corechat.Request{Messages: []corechat.Message{corechat.NewUserMessage(corechat.NewTextPart("hello"))}}
 	if err := request.Options.Extensions.Set(moonshot.RequestExtensionKey, moonshot.ChatRequestOptions{

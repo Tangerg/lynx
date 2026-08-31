@@ -122,7 +122,9 @@ func newDeployments() (agent.Deployment, agent.Deployment, error) {
 	if err != nil {
 		return agent.Deployment{}, agent.Deployment{}, err
 	}
-	budget, err := agent.NewBudget(managedWorkerBudgetUnits, managedWorkerBudgetUnits, managedWorkerBudgetUnits)
+	budget, err := agent.NewBudget(agent.BudgetConfig{
+		Steps: managedWorkerBudgetUnits, Effects: managedWorkerBudgetUnits, Signals: managedWorkerBudgetUnits,
+	})
 	if err != nil {
 		return agent.Deployment{}, agent.Deployment{}, err
 	}

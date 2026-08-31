@@ -68,23 +68,27 @@ func TestNewMiddlewareRequiresSystem(t *testing.T) {
 	}
 }
 
-func TestMiddlewarePreservesMissingCapabilities(t *testing.T) {
+func TestMiddlewareDecoratorsPreserveOptionalCapabilities(t *testing.T) {
 	middleware, _ := newVectorStoreMiddleware(t)
 	var indexer indexerFunc
 	var searcher searcherFunc
 	var idDeleter vectorstore.IDDeleter
 	var filterDeleter vectorstore.FilterDeleter
-	if middleware.Index(indexer) != nil {
-		t.Fatal("Index synthesized an indexer capability")
+	if wrapped := middleware.Index(indexer); wrapped != nil {
+		t.Fatalf("Index(typed nil) = %#v", wrapped)
 	}
-	if middleware.Search(searcher) != nil {
-		t.Fatal("Search synthesized a searcher capability")
+	if wrapped := middleware.Search(searcher); wrapped != nil {
+		t.Fatalf("Search(typed nil) = %#v", wrapped)
 	}
-	if middleware.DeleteIDs(idDeleter) != nil {
-		t.Fatal("DeleteIDs synthesized an ID-deleter capability")
+	if wrapped := middleware.DeleteIDs(idDeleter); wrapped != nil {
+		t.Fatalf("DeleteIDs(nil) = %#v", wrapped)
 	}
-	if middleware.DeleteWhere(filterDeleter) != nil {
-		t.Fatal("DeleteWhere synthesized a filter-deleter capability")
+	if wrapped := middleware.DeleteWhere(filterDeleter); wrapped != nil {
+		t.Fatalf("DeleteWhere(nil) = %#v", wrapped)
+	}
+	var zero vectorotel.Middleware
+	if err := zero.Index(indexerFunc(func(context.Context, *vectorstore.IndexRequest) error { return nil })).Index(t.Context(), nil); !errors.Is(err, vectorotel.ErrInvalidConfig) {
+		t.Fatalf("zero Middleware Index error = %v, want ErrInvalidConfig", err)
 	}
 }
 

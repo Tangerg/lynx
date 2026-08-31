@@ -2,10 +2,33 @@ package openai
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"iter"
+	"net/http"
 
 	corechat "github.com/Tangerg/scope/core/chat"
 )
+
+// ResponsesConfig configures an OpenAI Responses adapter. DefaultOptions are
+// copied during construction; callers may select the model per request.
+type ResponsesConfig struct {
+	APIKey         string
+	DefaultOptions corechat.Options
+	BaseURL        string
+	HTTPClient     *http.Client
+	Headers        http.Header
+}
+
+func (r ResponsesConfig) Validate() error {
+	if r.APIKey == "" {
+		return errors.New("openai responses: API key is required")
+	}
+	if err := r.DefaultOptions.Validate(); err != nil {
+		return fmt.Errorf("openai responses: default options: %w", err)
+	}
+	return nil
+}
 
 const (
 	// ResponsesRequestExtensionKey stores official Responses API parameters in
@@ -18,23 +41,24 @@ const (
 	responsesItemTypeReasoning    = "reasoning"
 	responsesItemTypeFunctionCall = "function_call"
 	responsesContentTypeText      = "output_text"
+	responsesContentTypeRefusal   = "refusal"
 	responsesIncompleteMaxTokens  = "max_output_tokens"
 	responsesIncompleteFiltered   = "content_filter"
 )
 
-// ResponsesChat adapts OpenAI's ordered Responses API output to the minimal
+// Responses adapts OpenAI's ordered Responses API output to the minimal
 // Core chat Model and Streamer capabilities.
-type ResponsesChat struct {
+type Responses struct {
 	api      *api
 	defaults corechat.Options
 }
 
 var (
-	_ corechat.Model    = (*ResponsesChat)(nil)
-	_ corechat.Streamer = (*ResponsesChat)(nil)
+	_ corechat.Model    = (*Responses)(nil)
+	_ corechat.Streamer = (*Responses)(nil)
 )
 
-func NewResponsesChat(config ChatConfig) (*ResponsesChat, error) {
+func NewResponses(config ResponsesConfig) (*Responses, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
@@ -42,10 +66,10 @@ func NewResponsesChat(config ChatConfig) (*ResponsesChat, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ResponsesChat{api: api, defaults: config.DefaultOptions.Clone()}, nil
+	return &Responses{api: api, defaults: config.DefaultOptions.Clone()}, nil
 }
 
-func (r *ResponsesChat) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
+func (r *Responses) Call(ctx context.Context, req *corechat.Request) (*corechat.Response, error) {
 	params, err := r.buildResponsesRequest(req)
 	if err != nil {
 		return nil, err
@@ -57,7 +81,9 @@ func (r *ResponsesChat) Call(ctx context.Context, req *corechat.Request) (*corec
 	return mapResponsesResponse(response)
 }
 
-func (r *ResponsesChat) CountInputTokens(ctx context.Context, req *corechat.Request) (int64, error) {
+// CountInputTokens calls the provider's Responses input-token endpoint with
+// the same provider request projection used by Call.
+func (r *Responses) CountInputTokens(ctx context.Context, req *corechat.Request) (int64, error) {
 	params, err := r.buildResponsesRequest(req)
 	if err != nil {
 		return 0, err
@@ -75,8 +101,8 @@ func (r *ResponsesChat) CountInputTokens(ctx context.Context, req *corechat.Requ
 
 // Stream performs one streaming Responses API request and yields ordered Core
 // response deltas.
-func (r *ResponsesChat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.Response, error] {
-	return func(yield func(*corechat.Response, error) bool) {
+func (r *Responses) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*corechat.ResponseDelta, error] {
+	return func(yield func(*corechat.ResponseDelta, error) bool) {
 		params, err := r.buildResponsesRequest(req)
 		if err != nil {
 			yield(nil, err)

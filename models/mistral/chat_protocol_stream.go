@@ -20,8 +20,8 @@ func newChatStreamState() *chatStreamState {
 	return &chatStreamState{tools: make(map[int]chatStreamTool)}
 }
 
-func (c *chatStreamState) mapChunk(chunk chatCompletionChunk) (*corechat.Response, error) {
-	response := &corechat.Response{
+func (c *chatStreamState) mapChunk(chunk chatCompletionChunk) (*corechat.ResponseDelta, error) {
+	response := &corechat.ResponseDelta{
 		Metadata: &corechat.ResponseMetadata{
 			ID: chunk.ID, Model: chunk.Model, Usage: mapMistralUsage(chunk.Usage),
 		},
@@ -37,7 +37,7 @@ func (c *chatStreamState) mapChunk(chunk chatCompletionChunk) (*corechat.Respons
 		if wireChoice.Index != firstChoiceIndex {
 			return nil, fmt.Errorf("mistral: stream choice index is %d, want %d", wireChoice.Index, firstChoiceIndex)
 		}
-		parts, err := mapMistralContent(wireChoice.Delta.Content)
+		parts, err := mapMistralContentDeltas(wireChoice.Delta.Content)
 		if err != nil {
 			return nil, fmt.Errorf("mistral: stream output content: %w", err)
 		}
@@ -46,11 +46,13 @@ func (c *chatStreamState) mapChunk(chunk chatCompletionChunk) (*corechat.Respons
 			return nil, fmt.Errorf("mistral: stream output tool calls: %w", err)
 		}
 		parts = append(parts, toolParts...)
-		response.Output = &corechat.Output{
-			FinishReason: normalizeMistralFinishReason(wireChoice.FinishReason),
-		}
-		if len(parts) > 0 {
-			response.Output.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
+		response.Parts = parts
+		response.FinishReason = normalizeMistralFinishReason(wireChoice.FinishReason)
+		if response.FinishReason == corechat.FinishReasonOther {
+			response.OutputMetadata = &corechat.OutputMetadata{}
+			if err := response.OutputMetadata.Extra.Set(nativeFinishReasonKey, wireChoice.FinishReason); err != nil {
+				return nil, err
+			}
 		}
 	}
 	if err := response.Validate(); err != nil {
@@ -59,8 +61,8 @@ func (c *chatStreamState) mapChunk(chunk chatCompletionChunk) (*corechat.Respons
 	return response, nil
 }
 
-func (c *chatStreamState) mapToolDeltas(calls []chatToolCall) ([]corechat.Part, error) {
-	parts := make([]corechat.Part, 0, len(calls))
+func (c *chatStreamState) mapToolDeltas(calls []chatToolCall) ([]corechat.PartDelta, error) {
+	parts := make([]corechat.PartDelta, 0, len(calls))
 	for position := range calls {
 		call := calls[position]
 		index := call.Index
@@ -83,7 +85,7 @@ func (c *chatStreamState) mapToolDeltas(calls []chatToolCall) ([]corechat.Part, 
 		deltaArguments := tool.pendingArguments
 		tool.pendingArguments = ""
 		c.tools[index] = tool
-		parts = append(parts, corechat.NewToolCallDeltaPart(corechat.ToolCallDelta{
+		parts = append(parts, corechat.NewToolCallDelta(corechat.ToolCallDelta{
 			ID: tool.id, Name: tool.name, Arguments: deltaArguments,
 		}))
 	}

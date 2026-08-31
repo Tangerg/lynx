@@ -34,7 +34,7 @@
         {
           "kind": "reasoning",
           "text": "I should inspect the image.",
-          "signature": "b3BhcXVlLXNpZ25hdHVyZQ=="
+          "reasoning_state": "b3BhcXVlLXNpZ25hdHVyZQ=="
         },
         {
           "kind": "tool_call",
@@ -86,7 +86,7 @@
     "output_format": {
       "type": "text"
     },
-    "max_tokens": 256,
+    "max_output_tokens": 256,
     "temperature": 0.2
   }
 }

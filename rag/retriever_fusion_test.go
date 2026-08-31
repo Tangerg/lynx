@@ -35,7 +35,7 @@ func TestReciprocalRankFusionUsesRanksInsteadOfRawScores(t *testing.T) {
 		t.Fatalf("top candidate = %#v, want first representative of identity a", got[0].Document)
 	}
 	want := 2.0 / float64(rag.DefaultReciprocalRankConstant+1)
-	if math.Abs(got[0].Score-want) > 1e-12 {
+	if math.Abs(got[0].Score.Float64()-want) > 1e-12 {
 		t.Fatalf("fused score = %v, want %v", got[0].Score, want)
 	}
 	if got[1].Document.ID != b.ID || got[2].Document.ID != c.ID {
@@ -65,7 +65,7 @@ func TestReciprocalRankFusionDoesNotRewardDuplicateIdentityWithinOneRanking(t *t
 		t.Fatalf("fused order = %#v, want b then the first a", got)
 	}
 	wantA := 1.0 / 11.0
-	if math.Abs(got[1].Score-wantA) > 1e-12 {
+	if math.Abs(got[1].Score.Float64()-wantA) > 1e-12 {
 		t.Fatalf("duplicate identity changed score: got %v, want %v", got[1].Score, wantA)
 	}
 }
@@ -127,7 +127,7 @@ func TestReciprocalRankFusionDoesNotOverflowLargeRankConstant(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(got) != 1 || got[0].Score <= 0 || math.IsNaN(got[0].Score) || math.IsInf(got[0].Score, 0) {
+	if len(got) != 1 || got[0].Score <= 0 || math.IsNaN(got[0].Score.Float64()) || math.IsInf(got[0].Score.Float64(), 0) {
 		t.Fatalf("fused result = %#v", got)
 	}
 }

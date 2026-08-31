@@ -16,8 +16,8 @@ func TestConstructorsRejectAnAbsentCredential(t *testing.T) {
 			_, err := anthropic.NewChat(anthropic.ChatConfig{})
 			return err
 		},
-		"NewOpenAIChat": func() error {
-			_, err := anthropic.NewOpenAIChat(anthropic.OpenAIChatConfig{})
+		"NewChatCompletions": func() error {
+			_, err := anthropic.NewChatCompletions(anthropic.ChatCompletionsConfig{})
 			return err
 		},
 	}

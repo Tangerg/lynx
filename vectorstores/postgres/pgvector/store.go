@@ -10,7 +10,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"github.com/Tangerg/scope/core/embedding"
-	"github.com/Tangerg/scope/core/embeddingclient"
 	"github.com/Tangerg/scope/core/vectorstore"
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 	"github.com/Tangerg/scope/vectorstores/postgres/internal/pgstore"
@@ -174,16 +173,6 @@ func initialize(ctx context.Context, config StoreConfig) error {
 	}
 
 	dimensions := config.Dimensions
-	if dimensions <= 0 {
-		client, err := embeddingclient.New(config.EmbeddingModel)
-		if err != nil {
-			return fmt.Errorf("create embedding client: %w", err)
-		}
-		dimensions, err = client.Dimensions(ctx)
-		if err != nil {
-			return fmt.Errorf("resolve embedding dimensions: %w", err)
-		}
-	}
 	if dimensions <= 0 {
 		return errors.New("dimensions must be > 0")
 	}

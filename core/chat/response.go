@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Tangerg/scope/core/metadata"
 )
@@ -13,10 +14,11 @@ var ErrInvalidResponse = errors.New("chat: invalid response")
 
 // ResponseMetadata holds provider identity, usage, and response-scoped extras.
 type ResponseMetadata struct {
-	ID    string       `json:"id,omitempty"`
-	Model string       `json:"model,omitempty"`
-	Usage Usage        `json:"usage,omitzero"`
-	Extra metadata.Map `json:"extra,omitzero"`
+	ID        string       `json:"id,omitempty"`
+	Model     string       `json:"model,omitempty"`
+	Usage     Usage        `json:"usage,omitzero"`
+	CreatedAt time.Time    `json:"created_at,omitzero"`
+	Extra     metadata.Map `json:"extra,omitzero"`
 }
 
 func (r *ResponseMetadata) validate() error {
@@ -47,6 +49,9 @@ func (r *ResponseMetadata) merge(src ResponseMetadata) error {
 	}
 	if !src.Usage.isZero() {
 		r.Usage = src.Usage.clone()
+	}
+	if !src.CreatedAt.IsZero() {
+		r.CreatedAt = src.CreatedAt
 	}
 	if err := r.Extra.Merge(src.Extra); err != nil {
 		return fmt.Errorf("merge extras: %w", err)
@@ -86,8 +91,7 @@ func (r *ResponseMetadata) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
-// Response is provider output with at most one generation output. Its zero
-// value is valid so a stream can represent an empty or metadata-only chunk.
+// Response is one complete provider output with exactly one generation output.
 type Response struct {
 	Output   *Output           `json:"output,omitempty"`
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
@@ -129,10 +133,11 @@ func (r *Response) Validate() error {
 	if r == nil {
 		return fmt.Errorf("%w: nil response", ErrInvalidResponse)
 	}
-	if r.Output != nil {
-		if err := r.Output.Validate(); err != nil {
-			return fmt.Errorf("%w: output: %w", ErrInvalidResponse, err)
-		}
+	if r.Output == nil {
+		return fmt.Errorf("%w: output must not be nil", ErrInvalidResponse)
+	}
+	if err := r.Output.Validate(); err != nil {
+		return fmt.Errorf("%w: output: %w", ErrInvalidResponse, err)
 	}
 	if err := r.Metadata.validate(); err != nil {
 		return fmt.Errorf("%w: metadata: %w", ErrInvalidResponse, err)

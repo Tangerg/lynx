@@ -50,12 +50,12 @@ type GrepTool struct {
 	typed    toolcontract.Func[GrepRequest, GrepResponse]
 }
 
-func NewGrepTool(executor Grepper) *GrepTool {
+func NewGrepTool(executor Grepper) (*GrepTool, error) {
 	if lo.IsNil(executor) {
-		executor = NewLocalExecutor("")
+		return nil, ErrNilExecutor
 	}
 	t := &GrepTool{executor: executor}
-	t.typed = mustTypedTool(
+	typed, err := toolcontract.NewFunc(
 		toolcontract.FuncConfig{
 			Name: "grep",
 			Description: "Search file contents with a ripgrep regular expression. Use this instead of running grep or rg through shell. " +
@@ -64,7 +64,11 @@ func NewGrepTool(executor Grepper) *GrepTool {
 		},
 		t.grep,
 	)
-	return t
+	if err != nil {
+		return nil, fmt.Errorf("fs.NewGrepTool: %w", err)
+	}
+	t.typed = typed
+	return t, nil
 }
 
 func (g *GrepTool) Definition() chat.ToolDefinition {

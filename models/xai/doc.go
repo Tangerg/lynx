@@ -1,6 +1,6 @@
 // Package xai wraps xAI's (Grok) OpenAI-compatible API.
 //
-// [NewOpenAIChat] returns xAI's provider-local [OpenAIChat], backed by the
+// [NewChat] returns xAI's provider-local [Chat], backed by the
 // shared OpenAI Chat Completions protocol.
 //
 // Current Grok models support text, image input, structured outputs, reasoning

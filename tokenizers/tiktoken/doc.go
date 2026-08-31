@@ -19,6 +19,4 @@
 // This module owns no provider request, no model-to-encoding routing, no text
 // splitting, and no cache. Splitting belongs to etl; routing belongs to
 // whatever knows the model.
-//
-// See README.md for usage and ARCHITECTURE.md for the boundaries this rests on.
 package tiktoken

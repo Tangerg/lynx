@@ -1,7 +1,6 @@
 package fs
 
 import (
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -29,23 +28,22 @@ const (
 //   - Read normalises CRLF→LF and strips UTF-8 BOM; Write and Edit
 //     restore both when the existing file uses them.
 type LocalExecutor struct {
-	root    string
-	rootErr error
+	root string
 
 	pathLocksMu sync.Mutex
 	pathLocks   map[string]*pathLock
 }
 
-func NewLocalExecutor(root string) *LocalExecutor {
+func NewLocalExecutor(root string) (*LocalExecutor, error) {
 	if root == "" {
-		root = "."
+		return nil, ErrInvalidRoot
 	}
 	root = expandHome(root)
 	absolute, err := filepath.Abs(root)
 	if err != nil {
-		err = fmt.Errorf("fs.NewLocalExecutor: resolve root %q: %w", root, err)
+		return nil, fmt.Errorf("fs.NewLocalExecutor: resolve root %q: %w", root, err)
 	}
-	return &LocalExecutor{root: filepath.Clean(absolute), rootErr: err}
+	return &LocalExecutor{root: filepath.Clean(absolute)}, nil
 }
 
 // authorize returns a root-relative path accepted by os.Root. Relative inputs
@@ -53,10 +51,7 @@ func NewLocalExecutor(root string) *LocalExecutor {
 // beneath the immutable root, then reduced to the same relative identity.
 func (l *LocalExecutor) authorize(path string, allowRoot bool) (string, error) {
 	if l == nil {
-		return "", errors.New("fs: nil LocalExecutor")
-	}
-	if l.rootErr != nil {
-		return "", l.rootErr
+		return "", ErrNilExecutor
 	}
 	if path == "" {
 		if allowRoot {
@@ -81,10 +76,7 @@ func (l *LocalExecutor) authorize(path string, allowRoot bool) (string, error) {
 
 func (l *LocalExecutor) openRoot() (*os.Root, error) {
 	if l == nil {
-		return nil, errors.New("fs: nil LocalExecutor")
-	}
-	if l.rootErr != nil {
-		return nil, l.rootErr
+		return nil, ErrNilExecutor
 	}
 	root, err := os.OpenRoot(l.root)
 	if err != nil {

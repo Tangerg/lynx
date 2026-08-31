@@ -11,12 +11,12 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
-func TestNewReasoningPartCopiesSignature(t *testing.T) {
-	signature := []byte("signature")
-	reasoning := chat.NewReasoningPart("thinking", signature)
-	signature[0] = 'X'
-	if string(reasoning.Signature) != "signature" {
-		t.Fatalf("reasoning signature = %q", reasoning.Signature)
+func TestNewReasoningPartCopiesState(t *testing.T) {
+	state := []byte("state")
+	reasoning := chat.NewReasoningPart("thinking", state)
+	state[0] = 'X'
+	if string(reasoning.ReasoningState) != "state" {
+		t.Fatalf("reasoning state = %q", reasoning.ReasoningState)
 	}
 }
 
@@ -28,8 +28,8 @@ func TestPartValidate(t *testing.T) {
 		chat.NewReasoningPart("thinking", nil),
 		chat.NewReasoningPart("", []byte("opaque")),
 		chat.NewToolCallPart(validToolCall()),
-		chat.NewToolCallDeltaPart(chat.ToolCallDelta{ID: "call-1", Name: "weather", Arguments: "{"}),
 		chat.NewToolResultPart(validToolResult()),
+		chat.NewRefusalPart("cannot help"),
 	}
 	for _, part := range valid {
 		if err := part.Validate(); err != nil {
@@ -43,15 +43,14 @@ func TestPartValidateRejectsInvalidAndAmbiguousValues(t *testing.T) {
 		{},
 		{Kind: "future", Text: "x"},
 		{Kind: chat.PartText},
-		{Kind: chat.PartText, Text: "x", Signature: []byte("extra")},
+		{Kind: chat.PartText, Text: "x", ReasoningState: []byte("extra")},
 		{Kind: chat.PartMedia},
 		{Kind: chat.PartReasoning},
 		{Kind: chat.PartToolCall},
 		{Kind: chat.PartToolCall, ToolCall: &chat.ToolCall{Name: "tool", Arguments: `[]`}},
-		{Kind: chat.PartToolCallDelta},
-		{Kind: chat.PartToolCallDelta, ToolCallDelta: &chat.ToolCallDelta{Name: "tool"}},
 		{Kind: chat.PartToolResult},
 		{Kind: chat.PartToolResult, ToolResult: &chat.ToolResult{ID: "call"}},
+		{Kind: chat.PartRefusal},
 	}
 	for _, part := range tests {
 		if err := part.Validate(); !errors.Is(err, chat.ErrInvalidPart) {
@@ -73,8 +72,8 @@ func TestPartJSONRoundTrip(t *testing.T) {
 		chat.NewMediaPart(mustImage(t)),
 		chat.NewReasoningPart("thinking", []byte("signature")),
 		chat.NewToolCallPart(validToolCall()),
-		chat.NewToolCallDeltaPart(chat.ToolCallDelta{ID: "call-1", Name: "weather", Arguments: "{"}),
 		chat.NewToolResultPart(validToolResult()),
+		chat.NewRefusalPart("cannot help"),
 	}
 	for _, part := range parts {
 		encoded, err := json.Marshal(part)
@@ -116,7 +115,7 @@ func TestPartNilUnmarshalReceiver(t *testing.T) {
 }
 
 func TestPartKindValid(t *testing.T) {
-	for _, kind := range []chat.PartKind{chat.PartText, chat.PartMedia, chat.PartReasoning, chat.PartToolCall, chat.PartToolCallDelta, chat.PartToolResult} {
+	for _, kind := range []chat.PartKind{chat.PartText, chat.PartMedia, chat.PartReasoning, chat.PartToolCall, chat.PartToolResult, chat.PartRefusal} {
 		if !kind.Valid() {
 			t.Errorf("%q must be valid", kind)
 		}
@@ -126,23 +125,40 @@ func TestPartKindValid(t *testing.T) {
 	}
 }
 
-func TestPartAllowsMetadataOnlyTextCarrier(t *testing.T) {
+func TestPartRejectsMetadataOnlyTextCarrier(t *testing.T) {
 	part := chat.Part{Kind: chat.PartText}
 	if err := part.Metadata.Set("google/native_part", map[string]any{"thoughtSignature": "opaque"}); err != nil {
 		t.Fatalf("set metadata: %v", err)
 	}
-	if err := part.Validate(); err != nil {
-		t.Fatalf("Validate: %v", err)
+	if err := part.Validate(); !errors.Is(err, chat.ErrInvalidPart) {
+		t.Fatalf("Validate error = %v, want ErrInvalidPart", err)
 	}
 
-	clone := part.Clone()
-	clone.Metadata["google/native_part"][0] = '['
-	if err := part.Metadata.Validate(); err != nil {
-		t.Fatalf("Clone aliased metadata: %v", err)
-	}
-
-	invalid := chat.Part{Kind: chat.PartText, Metadata: metadata.Map{"bad": json.RawMessage(`{`)}}
+	invalid := chat.Part{Kind: chat.PartText, Text: "text", Metadata: metadata.Map{"bad": json.RawMessage(`{`)}}
 	if err := invalid.Validate(); !errors.Is(err, metadata.ErrInvalidValue) {
 		t.Fatalf("invalid metadata error = %v, want ErrInvalidValue", err)
+	}
+}
+
+func TestCitationValidate(t *testing.T) {
+	valid := []chat.Citation{
+		{Source: chat.CitationSource{Kind: chat.CitationSourceURI, Value: "https://example.com/source"}},
+		{Source: chat.CitationSource{Kind: chat.CitationSourceReference, Value: "document-7"}, Quote: "evidence"},
+	}
+	for _, citation := range valid {
+		if err := citation.Validate(); err != nil {
+			t.Errorf("Validate(%+v): %v", citation, err)
+		}
+	}
+	invalid := []chat.Citation{
+		{},
+		{Source: chat.CitationSource{Kind: chat.CitationSourceURI, Value: "/relative"}},
+		{Source: chat.CitationSource{Kind: chat.CitationSourceReference, Value: " reference "}},
+		{Source: chat.CitationSource{Kind: chat.CitationSourceReference, Value: "reference"}, Title: " title "},
+	}
+	for _, citation := range invalid {
+		if err := citation.Validate(); !errors.Is(err, chat.ErrInvalidCitation) {
+			t.Errorf("Validate(%+v) error = %v, want ErrInvalidCitation", citation, err)
+		}
 	}
 }

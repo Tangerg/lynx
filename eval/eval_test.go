@@ -14,7 +14,11 @@ import (
 )
 
 func testMetric(name string) eval.Metric {
-	return eval.Metric{Name: eval.MetricName(name)}
+	metric, err := eval.NewMetric(eval.MetricConfig{Name: eval.MetricName(name)})
+	if err != nil {
+		panic(err)
+	}
+	return metric
 }
 
 func scoredReport(name string, verdict eval.Verdict, score eval.Score) eval.Report {
@@ -30,8 +34,8 @@ func TestReportBoundsRecursiveDetails(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Clone() within limit error = %v", err)
 	}
-	clone.Details[0].Metric.Name = "changed"
-	if withinLimit.Details[0].Metric.Name == "changed" {
+	clone.Details[0].Feedback = "changed"
+	if withinLimit.Details[0].Feedback == "changed" {
 		t.Fatal("Clone() aliases detail tree")
 	}
 
@@ -86,7 +90,7 @@ func TestCompositeUsesExplicitWeightsAndPassPolicy(t *testing.T) {
 	if result.Verdict != eval.VerdictPass || result.Score == nil || *result.Score != 0.875 || result.Feedback != "good\n\nweak" {
 		t.Fatalf("result = %#v", result)
 	}
-	if result.Metric.Name != eval.MetricNameComposite || len(result.Details) != 2 {
+	if result.Metric.Name() != eval.MetricNameComposite || len(result.Details) != 2 {
 		t.Fatalf("composite identity/details = %#v", result)
 	}
 	type componentIdentity struct {
@@ -99,8 +103,8 @@ func TestCompositeUsesExplicitWeightsAndPassPolicy(t *testing.T) {
 		PassPolicy    eval.PassPolicy     `json:"pass_policy"`
 		MinimumPassed int                 `json:"minimum_passed"`
 	}
-	identity, found, err := result.Metric.Parameters.Decode[compositeIdentity]("configuration")
-	if err != nil || !found || len(identity.Components) != 2 || identity.Components[0].Metric.Name != "quality" ||
+	identity, found, err := result.Metric.Parameters().Decode[compositeIdentity]("configuration")
+	if err != nil || !found || len(identity.Components) != 2 || identity.Components[0].Metric.Name() != "quality" ||
 		identity.Components[0].Weight != 3 || !identity.Components[0].Required ||
 		identity.PassPolicy != eval.PassAtLeast || identity.MinimumPassed != 1 {
 		t.Fatalf("component identity = (%#v, %v, %v)", identity, found, err)
@@ -372,8 +376,8 @@ func TestSuitePreservesHeterogeneousResultsAndExperimentSummarizesEachMetric(t *
 	type suiteIdentity struct {
 		Metrics []eval.Metric `json:"metrics"`
 	}
-	identity, found, err := report.Metric.Parameters.Decode[suiteIdentity]("configuration")
-	if err != nil || !found || len(identity.Metrics) != 2 || identity.Metrics[0].Name != "quality" || identity.Metrics[1].Name != "latency" {
+	identity, found, err := report.Metric.Parameters().Decode[suiteIdentity]("configuration")
+	if err != nil || !found || len(identity.Metrics) != 2 || identity.Metrics[0].Name() != "quality" || identity.Metrics[1].Name() != "latency" {
 		t.Fatalf("suite metric identity = (%#v, %v, %v)", identity, found, err)
 	}
 
@@ -397,7 +401,7 @@ func TestSuitePreservesHeterogeneousResultsAndExperimentSummarizesEachMetric(t *
 	}
 	quality := summary.Metrics[1]
 	latency := summary.Metrics[2]
-	if quality.Metric.Name != "quality" || quality.Scores.Count != 1 || quality.Scores.Mean != 0.8 {
+	if quality.Metric.Name() != "quality" || quality.Scores.Count != 1 || quality.Scores.Mean != 0.8 {
 		t.Fatalf("quality summary = %#v", quality)
 	}
 	if !reflect.DeepEqual(latency.Metric, latencyMetric) || latency.Unjudged != 1 || latency.Measurements.Count != 1 || latency.Measurements.Mean != 125 {
@@ -436,7 +440,7 @@ func TestScoreMetricAndReportValidation(t *testing.T) {
 		t.Fatal(err)
 	}
 	parameters["rubric"][1] = 'X'
-	if metric.String() != "custom/quality" || string(metric.Parameters["rubric"]) != `"strict"` {
+	if metric.String() != "custom/quality" || string(metric.Parameters()["rubric"]) != `"strict"` {
 		t.Fatalf("metric = %#v", metric)
 	}
 	for _, score := range []float64{-0.1, 1.1, math.NaN(), math.Inf(1)} {
@@ -458,6 +462,13 @@ func TestScoreMetricAndReportValidation(t *testing.T) {
 	}
 	if err := (eval.Report{Metric: testMetric("quality"), Verdict: "maybe"}).Validate(); !errors.Is(err, eval.ErrInvalidReport) {
 		t.Fatalf("invalid verdict error = %v", err)
+	}
+	metadataOnly := metadata.Map{}
+	if err := metadataOnly.Set("trace", "present"); err != nil {
+		t.Fatal(err)
+	}
+	if err := (eval.Report{Metric: testMetric("quality"), Metadata: metadataOnly}).Validate(); !errors.Is(err, eval.ErrInvalidReport) {
+		t.Fatalf("metadata-only report error = %v, want ErrInvalidReport", err)
 	}
 	if err := (eval.Report{Metric: testMetric("empty")}).Validate(); !errors.Is(err, eval.ErrInvalidReport) {
 		t.Fatalf("empty report error = %v", err)
@@ -586,13 +597,15 @@ func TestExperimentReportDoesNotExposeOwnedMetadata(t *testing.T) {
 		t.Fatal(err)
 	}
 	cases := report.Cases()
-	cases[0].Report.Metric.Parameters["rubric"][1] = 'X'
+	caseParameters := cases[0].Report.Metric.Parameters()
+	caseParameters["rubric"][1] = 'X'
 	summary := report.Summary()
-	summary.Metrics[0].Metric.Parameters["rubric"][1] = 'Y'
-	if got := string(report.Cases()[0].Report.Metric.Parameters["rubric"]); got != `"strict"` {
+	summaryParameters := summary.Metrics[0].Metric.Parameters()
+	summaryParameters["rubric"][1] = 'Y'
+	if got := string(report.Cases()[0].Report.Metric.Parameters()["rubric"]); got != `"strict"` {
 		t.Fatalf("case metric parameters = %s", got)
 	}
-	if got := string(report.Summary().Metrics[0].Metric.Parameters["rubric"]); got != `"strict"` {
+	if got := string(report.Summary().Metrics[0].Metric.Parameters()["rubric"]); got != `"strict"` {
 		t.Fatalf("summary metric parameters = %s", got)
 	}
 }

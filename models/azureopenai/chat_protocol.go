@@ -19,7 +19,7 @@ var (
 )
 
 // Chat implements Azure OpenAI's Chat Completions protocol.
-type Chat = openai.Chat
+type Chat = openai.ChatCompletions
 
 type ChatConfig struct {
 	Config
@@ -40,7 +40,7 @@ func NewChat(config ChatConfig) (*Chat, error) {
 	if err != nil {
 		return nil, err
 	}
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: endpoint.apiKey, DefaultOptions: config.DefaultOptions, BaseURL: endpoint.baseURL, HTTPClient: endpoint.httpClient}, openai.Dialect{Provider: protocolProvider, TokenLimitField: openai.TokenLimitMaxTokens})
+	protocol, err := openai.NewCompatibleChatCompletions(openai.ChatCompletionsConfig{APIKey: endpoint.apiKey, DefaultOptions: config.DefaultOptions, BaseURL: endpoint.baseURL, HTTPClient: endpoint.httpClient}, openai.Dialect{Provider: protocolProvider, TokenLimitField: openai.TokenLimitMaxTokens})
 	if err != nil {
 		return nil, fmt.Errorf("azureopenai: construct chat: %w", err)
 	}

@@ -46,29 +46,11 @@ func (t ThinkingConfig) Validate() error {
 	}
 }
 
-// ToolChoiceMode controls whether DeepSeek may select a tool. To force one
-// function, set [ToolChoice.FunctionName] instead of Mode.
-type ToolChoiceMode string
-
-const (
-	ToolChoiceNone     ToolChoiceMode = "none"
-	ToolChoiceAuto     ToolChoiceMode = "auto"
-	ToolChoiceRequired ToolChoiceMode = "required"
-)
-
-// ToolChoice represents DeepSeek's string-or-named-function tool_choice
-// union without exposing the OpenAI SDK type through this provider package.
-type ToolChoice struct {
-	Mode         ToolChoiceMode `json:"mode,omitempty"`
-	FunctionName string         `json:"function_name,omitempty"`
-}
-
 // RequestOptions contains documented DeepSeek Chat Completions fields that
 // have no provider-neutral Core equivalent. Store it in
 // [chat.Options.Extensions] under [RequestExtensionKey].
 type RequestOptions struct {
 	Thinking     *ThinkingConfig `json:"thinking,omitempty"`
-	ToolChoice   *ToolChoice     `json:"tool_choice,omitempty"`
 	LogProbs     *bool           `json:"logprobs,omitempty"`
 	TopLogProbs  *int64          `json:"top_logprobs,omitempty"`
 	IncludeUsage *bool           `json:"include_usage,omitempty"`
@@ -90,6 +72,11 @@ func (r requestDialect) prepareRequest(request *corechat.Request, target *openai
 	if _, exists := fields["reasoning_effort"]; exists {
 		return fmt.Errorf("extension %q field %q is owned by options.reasoning_effort", RequestExtensionKey, "reasoning_effort")
 	}
+	for _, field := range []string{"tool_choice", "parallel_tool_calls"} {
+		if _, exists := fields[field]; exists {
+			return fmt.Errorf("extension %q field %q is owned by options.tool_choice", RequestExtensionKey, field)
+		}
+	}
 	options, _, err := request.Options.Extensions.Decode[RequestOptions](RequestExtensionKey)
 	if err != nil {
 		return fmt.Errorf("extension %q: %w", RequestExtensionKey, err)
@@ -104,20 +91,6 @@ func (r requestDialect) prepareRequest(request *corechat.Request, target *openai
 
 	if options.Thinking != nil {
 		if err := target.SetExtraField("thinking", options.Thinking); err != nil {
-			return err
-		}
-	}
-	if options.ToolChoice != nil {
-		var value any = options.ToolChoice.Mode
-		if options.ToolChoice.FunctionName != "" {
-			value = map[string]any{
-				"type": "function",
-				"function": map[string]string{
-					"name": options.ToolChoice.FunctionName,
-				},
-			}
-		}
-		if err := target.SetExtraField("tool_choice", value); err != nil {
 			return err
 		}
 	}
@@ -180,9 +153,6 @@ func (r RequestOptions) ValidateFor(generation corechat.Options, tools []corecha
 		return fmt.Errorf("tools must contain at most %d functions for DeepSeek", maximumTools)
 	}
 
-	if err := r.ToolChoice.ValidateFor(tools); err != nil {
-		return fmt.Errorf("tool_choice: %w", err)
-	}
 	if r.TopLogProbs != nil {
 		if *r.TopLogProbs < 0 || *r.TopLogProbs > maximumTopLogProbs {
 			return fmt.Errorf("top_logprobs must be between 0 and %d", maximumTopLogProbs)
@@ -203,35 +173,4 @@ func (r RequestOptions) ValidateFor(generation corechat.Options, tools []corecha
 		}
 	}
 	return nil
-}
-
-func (t *ToolChoice) ValidateFor(tools []corechat.ToolDefinition) error {
-	if t == nil {
-		return nil
-	}
-	if t.Mode != "" && t.FunctionName != "" {
-		return errors.New("mode and function_name are mutually exclusive")
-	}
-	if t.Mode == "" && t.FunctionName == "" {
-		return errors.New("mode or function_name is required")
-	}
-	if t.Mode != "" {
-		switch t.Mode {
-		case ToolChoiceNone:
-			return nil
-		case ToolChoiceAuto, ToolChoiceRequired:
-			if len(tools) == 0 {
-				return fmt.Errorf("mode %q requires at least one tool", t.Mode)
-			}
-			return nil
-		default:
-			return fmt.Errorf("mode has unsupported value %q", t.Mode)
-		}
-	}
-	for index := range tools {
-		if tools[index].Name == t.FunctionName {
-			return nil
-		}
-	}
-	return fmt.Errorf("function_name %q does not match a declared tool", t.FunctionName)
 }

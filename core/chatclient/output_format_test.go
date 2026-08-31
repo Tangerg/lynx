@@ -2,7 +2,6 @@ package chatclient
 
 import (
 	"errors"
-	"iter"
 	"reflect"
 	"testing"
 
@@ -23,7 +22,7 @@ func TestOutputFormatContracts(t *testing.T) {
 	if err := jsonFormat.validate(); err != nil || jsonFormat.contract.Type != chat.OutputFormatJSON {
 		t.Fatalf("JSON = (%#v, %v)", jsonFormat.contract, err)
 	}
-	schemaFormat, err := JSONSchema[recipe]("recipe")
+	schemaFormat, err := JSONSchema[recipe](JSONSchemaConfig{Name: "recipe", Description: "A recipe"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -35,10 +34,10 @@ func TestOutputFormatContracts(t *testing.T) {
 	if schemaFormat.contract.Schema[0] != '{' {
 		t.Fatal("Contract returned aliased schema bytes")
 	}
-	if _, err := JSONSchema[recipe](""); !errors.Is(err, ErrInvalidOutputFormat) {
+	if _, err := JSONSchema[recipe](JSONSchemaConfig{}); !errors.Is(err, ErrInvalidOutputFormat) {
 		t.Fatalf("invalid JSONSchema error = %v", err)
 	}
-	if _, err := JSONSchema[chan int]("invalid"); !errors.Is(err, ErrInvalidOutputFormat) {
+	if _, err := JSONSchema[chan int](JSONSchemaConfig{Name: "invalid"}); !errors.Is(err, ErrInvalidOutputFormat) {
 		t.Fatalf("unsupported JSONSchema type error = %v", err)
 	}
 	if err := (OutputFormat[recipe]{}).validate(); !errors.Is(err, ErrInvalidOutputFormat) {
@@ -46,66 +45,29 @@ func TestOutputFormatContracts(t *testing.T) {
 	}
 }
 
-func TestOutputFormatDecodeUsesOneStreamPath(t *testing.T) {
+func TestOutputFormatDecodesCompleteLifecycle(t *testing.T) {
 	format := JSON[recipe]()
 	want := recipe{Name: "tea", Steps: []string{"boil", "steep"}}
 
 	complete := responseWithText(t, `{"name":"tea","steps":["boil","steep"]}`)
-	got, err := format.decode(once(complete, nil))
+	got, err := format.decodeResponse(complete, nil)
 	if err != nil || !reflect.DeepEqual(got, want) {
 		t.Fatalf("Decode complete = (%#v, %v), want %#v", got, err, want)
 	}
 
-	stream := iter.Seq2[*chat.Response, error](func(yield func(*chat.Response, error) bool) {
-		for _, chunk := range []string{"```j", "son\n{\"name\":\"tea\",", "\"steps\":[\"boil\",\"steep\"]}\n", "```"} {
-			if !yield(responseWithText(t, chunk), nil) {
-				return
-			}
-		}
-	})
-	got, err = format.decode(stream)
-	if err != nil || !reflect.DeepEqual(got, want) {
-		t.Fatalf("Decode stream = (%#v, %v), want %#v", got, err, want)
-	}
 }
 
-func TestOutputFormatDecodeIsIndependentOfStreamChunking(t *testing.T) {
-	raw := "```json\n{\"name\":\"龙井\",\"steps\":[\"boil\",\"steep\"]}\n```"
-	want := recipe{Name: "龙井", Steps: []string{"boil", "steep"}}
-	format := JSON[recipe]()
-
-	for split := 0; split <= len(raw); split++ {
-		stream := iter.Seq2[*chat.Response, error](func(yield func(*chat.Response, error) bool) {
-			if split > 0 && !yield(responseWithText(t, raw[:split]), nil) {
-				return
-			}
-			if split < len(raw) {
-				yield(responseWithText(t, raw[split:]), nil)
-			}
-		})
-		got, err := format.decode(stream)
-		if err != nil || !reflect.DeepEqual(got, want) {
-			t.Fatalf("split %d: Decode = (%#v, %v), want %#v", split, got, err, want)
-		}
-	}
-}
-
-func TestOutputFormatDecodeRobustJSON(t *testing.T) {
+func TestOutputFormatDecodeStrictJSON(t *testing.T) {
 	tests := []struct {
 		name string
 		raw  string
 		want recipe
 	}{
 		{name: "plain", raw: `{"name":"tea","steps":[]}`, want: recipe{Name: "tea", Steps: []string{}}},
-		{name: "fenced", raw: "```JSON\n{\"name\":\"tea\",\"steps\":[]}\n```", want: recipe{Name: "tea", Steps: []string{}}},
-		{name: "surrounding prose", raw: `Here: {"name":"tea","steps":[]} done.`, want: recipe{Name: "tea", Steps: []string{}}},
-		{name: "control character", raw: "{\"name\":\"green\ntea\",\"steps\":[]}", want: recipe{Name: "green\ntea", Steps: []string{}}},
-		{name: "truncated", raw: `{"name":"tea","steps":[]`, want: recipe{Name: "tea", Steps: []string{}}},
-		{name: "nested in truncated wrapper", raw: `prefix {"wrapper":{"name":"tea","steps":[]}`, want: recipe{Name: "tea", Steps: []string{}}},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, err := JSON[recipe]().decode(once(responseWithText(t, test.raw), nil))
+			got, err := JSON[recipe]().decodeResponse(responseWithText(t, test.raw), nil)
 			if err != nil || !reflect.DeepEqual(got, test.want) {
 				t.Fatalf("Decode = (%#v, %v), want %#v", got, err, test.want)
 			}
@@ -115,11 +77,14 @@ func TestOutputFormatDecodeRobustJSON(t *testing.T) {
 
 func TestOutputFormatDecodeRejectsLossyOrAmbiguousJSON(t *testing.T) {
 	for _, raw := range []string{
+		"```JSON\n{\"name\":\"tea\",\"steps\":[]}\n```",
+		`Here: {"name":"tea","steps":[]} done.`,
+		`{"name":"tea","steps":[]`,
 		`{"name":"first","steps":[]} {"name":"second","steps":[]}`,
 		`{"name":"tea","name":"coffee","steps":[]}`,
 		string([]byte{'{', '"', 'n', 'a', 'm', 'e', '"', ':', '"', 0xff, '"', ',', '"', 's', 't', 'e', 'p', 's', '"', ':', '[', ']', '}'}),
 	} {
-		if _, err := JSON[recipe]().decode(once(responseWithText(t, raw), nil)); !errors.Is(err, ErrInvalidOutput) {
+		if _, err := JSON[recipe]().decodeResponse(responseWithText(t, raw), nil); !errors.Is(err, ErrInvalidOutput) {
 			t.Fatalf("Decode(%q) error = %v, want ErrInvalidOutput", raw, err)
 		}
 	}
@@ -128,20 +93,13 @@ func TestOutputFormatDecodeRejectsLossyOrAmbiguousJSON(t *testing.T) {
 func TestOutputFormatDecodeBoundaries(t *testing.T) {
 	upstream := errors.New("upstream")
 	format := JSON[recipe]()
-	if _, err := format.decode(nil); !errors.Is(err, ErrInvalidOutputFormat) {
-		t.Fatalf("nil sequence error = %v", err)
-	}
-	if _, err := format.decode(once(nil, nil)); !errors.Is(err, ErrInvalidOutput) {
+	if _, err := format.decodeResponse(nil, nil); !errors.Is(err, ErrInvalidOutput) {
 		t.Fatalf("nil response error = %v", err)
 	}
-	if _, err := format.decode(once(nil, upstream)); !errors.Is(err, upstream) {
+	if _, err := format.decodeResponse(nil, upstream); !errors.Is(err, upstream) {
 		t.Fatalf("upstream error = %v", err)
 	}
-	empty := iter.Seq2[*chat.Response, error](func(func(*chat.Response, error) bool) {})
-	if _, err := format.decode(empty); !errors.Is(err, ErrInvalidOutput) {
-		t.Fatalf("empty sequence error = %v", err)
-	}
-	if got, err := Text().decode(once(responseWithText(t, " exact \n"), nil)); err != nil || got != " exact \n" {
+	if got, err := Text().decodeResponse(responseWithText(t, " exact \n"), nil); err != nil || got != " exact \n" {
 		t.Fatalf("text Decode = (%q, %v)", got, err)
 	}
 }
@@ -149,7 +107,7 @@ func TestOutputFormatDecodeBoundaries(t *testing.T) {
 func responseWithText(t *testing.T, text string) *chat.Response {
 	t.Helper()
 	message := chat.NewAssistantMessage(chat.NewTextPart(text))
-	response, err := chat.NewResponse(&chat.Output{Message: &message}, &chat.ResponseMetadata{})
+	response, err := chat.NewResponse(&chat.Output{Message: &message, FinishReason: chat.FinishReasonStop}, &chat.ResponseMetadata{})
 	if err != nil {
 		t.Fatal(err)
 	}

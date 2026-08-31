@@ -12,20 +12,15 @@ import (
 )
 
 var (
-	ErrNilModel                      = errors.New("chatclient: nil model")
-	ErrNilClient                     = errors.New("chatclient: nil client")
-	ErrStreamingUnsupported          = errors.New("chatclient: streaming unsupported")
-	ErrInputTokenCountingUnsupported = errors.New("chatclient: input token counting unsupported")
+	ErrNilModel             = errors.New("chatclient: nil model")
+	ErrNilClient            = errors.New("chatclient: nil client")
+	ErrStreamingUnsupported = errors.New("chatclient: streaming unsupported")
 )
 
 var errNilStreamSequence = errors.New("chatclient: streamer returned a nil sequence")
 
-type inputTokenCounter interface {
-	CountInputTokens(context.Context, *chat.Request) (int64, error)
-}
-
-// Client is an immutable, concurrency-safe composition of chat capabilities,
-// defaults, and middleware. It does not make an underlying model concurrency
+// Client is an immutable, concurrency-safe composition of chat capabilities
+// and middleware. It does not make an underlying model concurrency
 // safe; callers must still follow the model's concurrency contract.
 //
 // Call and Stream accept ordinary [chat.Request] values directly. Client
@@ -34,10 +29,8 @@ type inputTokenCounter interface {
 // takes precedence; otherwise New discovers the capability on the model. Stream
 // remains lazy and reports unsupported streaming as its single terminal item.
 type Client struct {
-	model             chat.Model
-	streamer          chat.Streamer
-	inputTokenCounter inputTokenCounter
-	defaults          chat.Options
+	model    chat.Model
+	streamer chat.Streamer
 }
 
 func New(model chat.Model, config Config) (Client, error) {
@@ -58,7 +51,6 @@ func New(model chat.Model, config Config) (Client, error) {
 	if lo.IsNil(model) {
 		return Client{}, errors.New("chatclient: call middleware returned a nil model")
 	}
-	tokenCounter, _ := model.(inputTokenCounter)
 	if streamer != nil {
 		streamer = chat.WrapStream(streamer, config.StreamMiddleware...)
 		if lo.IsNil(streamer) {
@@ -67,15 +59,21 @@ func New(model chat.Model, config Config) (Client, error) {
 	}
 
 	return Client{
-		model:             model,
-		streamer:          streamer,
-		inputTokenCounter: tokenCounter,
-		defaults:          config.Defaults,
+		model:    model,
+		streamer: streamer,
 	}, nil
 }
 
-func (c Client) Output[T any](format OutputFormat[T]) Generation[T] {
-	return Generation[T]{client: c, format: format}
+func (c Client) Output[T any](ctx context.Context, req *chat.Request, format OutputFormat[T]) (T, error) {
+	var zero T
+	if !c.valid() {
+		return zero, ErrNilClient
+	}
+	if err := format.validate(); err != nil {
+		return zero, err
+	}
+	response, err := c.call(ctx, req, format.contract.Clone())
+	return format.decodeResponse(response, err)
 }
 
 func (c Client) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
@@ -83,36 +81,6 @@ func (c Client) Call(ctx context.Context, req *chat.Request) (*chat.Response, er
 		return nil, ErrNilClient
 	}
 	return c.call(ctx, req, nil)
-}
-
-// SupportsInputTokenCounting reports whether CountInputTokens observes the same
-// prepared provider request as Call. Middleware must explicitly preserve that
-// capability after any request transformation.
-func (c Client) SupportsInputTokenCounting() bool {
-	return c.valid() && c.inputTokenCounter != nil
-}
-
-// CountInputTokens snapshots and resolves defaults exactly like Call, then asks
-// the model's optional provider-owned counter to measure the complete input.
-func (c Client) CountInputTokens(ctx context.Context, req *chat.Request) (int64, error) {
-	if !c.valid() {
-		return 0, ErrNilClient
-	}
-	prepared, err := c.prepareRequest(req, nil)
-	if err != nil {
-		return 0, err
-	}
-	if c.inputTokenCounter == nil {
-		return 0, ErrInputTokenCountingUnsupported
-	}
-	count, err := c.inputTokenCounter.CountInputTokens(ctx, prepared)
-	if err != nil {
-		return 0, err
-	}
-	if count < 0 {
-		return 0, fmt.Errorf("chatclient: input token counter returned a negative count: %d", count)
-	}
-	return count, nil
 }
 
 func (c Client) call(ctx context.Context, req *chat.Request, format *chat.OutputFormat) (*chat.Response, error) {
@@ -131,10 +99,7 @@ func (c Client) prepareRequest(request *chat.Request, outputFormat *chat.OutputF
 		return nil, fmt.Errorf("%w: request options already define output_format", ErrInvalidOutputFormat)
 	}
 	prepared := request.Clone()
-	effectiveOptions, err := c.defaults.Resolve(request.Options)
-	if err != nil {
-		return nil, err
-	}
+	effectiveOptions := request.Options.Clone()
 	if outputFormat != nil {
 		effectiveOptions.OutputFormat = outputFormat.Clone()
 	}
@@ -145,14 +110,14 @@ func (c Client) prepareRequest(request *chat.Request, outputFormat *chat.OutputF
 	return prepared, nil
 }
 
-func (c Client) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.Response, error] {
+func (c Client) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
 	if !c.valid() {
 		return errorSequence(ErrNilClient)
 	}
 	return c.stream(ctx, req, nil)
 }
 
-func (c Client) stream(ctx context.Context, req *chat.Request, format *chat.OutputFormat) iter.Seq2[*chat.Response, error] {
+func (c Client) stream(ctx context.Context, req *chat.Request, format *chat.OutputFormat) iter.Seq2[*chat.ResponseDelta, error] {
 	prepared, err := c.prepareRequest(req, format)
 	if err != nil {
 		return errorSequence(err)
@@ -161,7 +126,7 @@ func (c Client) stream(ctx context.Context, req *chat.Request, format *chat.Outp
 		return errorSequence(ErrStreamingUnsupported)
 	}
 
-	return func(yield func(*chat.Response, error) bool) {
+	return func(yield func(*chat.ResponseDelta, error) bool) {
 		sequence := c.streamer.Stream(ctx, prepared)
 		if sequence == nil {
 			yield(nil, errNilStreamSequence)
@@ -175,8 +140,8 @@ func (c Client) valid() bool {
 	return !lo.IsNil(c.model)
 }
 
-func errorSequence(err error) iter.Seq2[*chat.Response, error] {
-	return func(yield func(*chat.Response, error) bool) {
+func errorSequence(err error) iter.Seq2[*chat.ResponseDelta, error] {
+	return func(yield func(*chat.ResponseDelta, error) bool) {
 		yield(nil, err)
 	}
 }

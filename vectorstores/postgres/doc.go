@@ -19,7 +19,4 @@
 // index, metadata column — passes SQL identifier validation at construction,
 // because those names reach the query text directly and that is the injection
 // trust boundary.
-//
-// See README.md for usage and ARCHITECTURE.md for the contract both backends
-// obey.
 package postgres

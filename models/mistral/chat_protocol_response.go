@@ -45,6 +45,12 @@ func mapChatCompletion(completion *chatCompletionResponse) (*corechat.Response, 
 	}
 	parts = append(parts, toolParts...)
 	response.Output = &corechat.Output{FinishReason: normalizeMistralFinishReason(wireChoice.FinishReason)}
+	if response.Output.FinishReason == corechat.FinishReasonOther {
+		response.Output.Metadata = &corechat.OutputMetadata{}
+		if err := response.Output.Metadata.Extra.Set(nativeFinishReasonKey, wireChoice.FinishReason); err != nil {
+			return nil, err
+		}
+	}
 	if len(parts) > 0 {
 		response.Output.Message = &corechat.Message{Role: corechat.RoleAssistant, Parts: parts}
 	}
@@ -75,6 +81,14 @@ func mapMistralContent(raw json.RawMessage) ([]corechat.Part, error) {
 	}
 	parts := make([]corechat.Part, 0, len(chunks))
 	for index := range chunks {
+		citations, reference, err := mapMistralReferenceChunk(chunks[index])
+		if err != nil {
+			return nil, fmt.Errorf("chunk[%d]: %w", index, err)
+		}
+		if reference {
+			attachMistralCitations(parts, citations)
+			continue
+		}
 		part, include, err := mapMistralContentChunk(chunks[index])
 		if err != nil {
 			return nil, fmt.Errorf("chunk[%d]: %w", index, err)
@@ -106,12 +120,112 @@ func mapMistralContentChunk(raw json.RawMessage) (corechat.Part, bool, error) {
 	case contentTypeImageURL:
 		part, err := mapMistralImageChunk(raw)
 		return part, err == nil, err
-	case contentTypeReference, contentTypeToolReference:
-		// The complete native response remains available in metadata; Core has
-		// no citation part kind for these references.
-		return corechat.Part{}, false, nil
 	default:
 		return corechat.Part{}, false, fmt.Errorf("unsupported content type %q", discriminator.Type)
+	}
+}
+
+func mapMistralContentDeltas(raw json.RawMessage) ([]corechat.PartDelta, error) {
+	trimmed := bytes.TrimSpace(raw)
+	if len(trimmed) == 0 || bytes.Equal(trimmed, []byte("null")) {
+		return nil, nil
+	}
+	if trimmed[0] == '"' {
+		var text string
+		if err := json.Unmarshal(trimmed, &text); err != nil {
+			return nil, err
+		}
+		if text == "" {
+			return nil, nil
+		}
+		return []corechat.PartDelta{corechat.NewTextDelta(text)}, nil
+	}
+	var chunks []json.RawMessage
+	if err := json.Unmarshal(trimmed, &chunks); err != nil {
+		return nil, err
+	}
+	deltas := make([]corechat.PartDelta, 0, len(chunks))
+	for index := range chunks {
+		citations, reference, err := mapMistralReferenceChunk(chunks[index])
+		if err != nil {
+			return nil, fmt.Errorf("chunk[%d]: %w", index, err)
+		}
+		if reference {
+			for citationIndex := range citations {
+				deltas = append(deltas, corechat.NewCitationDelta(citations[citationIndex]))
+			}
+			continue
+		}
+		part, include, err := mapMistralContentChunk(chunks[index])
+		if err != nil {
+			return nil, fmt.Errorf("chunk[%d]: %w", index, err)
+		}
+		if !include {
+			continue
+		}
+		switch part.Kind {
+		case corechat.PartText:
+			deltas = append(deltas, corechat.NewTextDelta(part.Text))
+		case corechat.PartReasoning:
+			deltas = append(deltas, corechat.NewReasoningDelta(part.Text, part.ReasoningState))
+		case corechat.PartMedia:
+			deltas = append(deltas, corechat.NewMediaDelta(part.Media))
+		default:
+			return nil, fmt.Errorf("chunk[%d]: unsupported stream part %q", index, part.Kind)
+		}
+	}
+	return deltas, nil
+}
+
+func mapMistralReferenceChunk(raw json.RawMessage) ([]corechat.Citation, bool, error) {
+	var chunk struct {
+		Type         contentType       `json:"type"`
+		ReferenceIDs []json.RawMessage `json:"reference_ids"`
+	}
+	if err := json.Unmarshal(raw, &chunk); err != nil {
+		return nil, false, err
+	}
+	if chunk.Type != contentTypeReference && chunk.Type != contentTypeToolReference {
+		return nil, false, nil
+	}
+	citations := make([]corechat.Citation, 0, len(chunk.ReferenceIDs))
+	for index := range chunk.ReferenceIDs {
+		reference, err := mistralReferenceID(chunk.ReferenceIDs[index])
+		if err != nil {
+			return nil, true, fmt.Errorf("reference_ids[%d]: %w", index, err)
+		}
+		citations = append(citations, corechat.Citation{
+			Source: corechat.CitationSource{Kind: corechat.CitationSourceReference, Value: reference},
+		})
+	}
+	return citations, true, nil
+}
+
+func mistralReferenceID(raw json.RawMessage) (string, error) {
+	var text string
+	if err := json.Unmarshal(raw, &text); err == nil {
+		if text == "" {
+			return "", errors.New("reference ID is empty")
+		}
+		return text, nil
+	}
+	trimmed := bytes.TrimSpace(raw)
+	var number json.Number
+	if err := json.Unmarshal(trimmed, &number); err != nil || number.String() == "" {
+		return "", errors.New("reference ID must be a string or number")
+	}
+	return number.String(), nil
+}
+
+func attachMistralCitations(parts []corechat.Part, citations []corechat.Citation) {
+	if len(citations) == 0 {
+		return
+	}
+	for index := len(parts) - 1; index >= 0; index-- {
+		if parts[index].Kind == corechat.PartText {
+			parts[index].Citations = append(parts[index].Citations, citations...)
+			return
+		}
 	}
 }
 

@@ -95,7 +95,7 @@ func (r *Reranker) Refine(ctx context.Context, query Query, candidates Candidate
 	ranked := make(Candidates, len(response.Results))
 	for position, result := range response.Results {
 		ranked[position] = candidates[result.Index].Clone()
-		ranked[position].Score = result.Score.Float64()
+		ranked[position].Score = Score(result.Score.Float64())
 	}
 	return ranked, nil
 }

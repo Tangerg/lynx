@@ -21,71 +21,71 @@ const (
 )
 
 var (
-	_ corechat.Model    = (*OpenAIChat)(nil)
-	_ corechat.Streamer = (*OpenAIChat)(nil)
-	_ corechat.Model    = (*AnthropicChat)(nil)
-	_ corechat.Streamer = (*AnthropicChat)(nil)
+	_ corechat.Model    = (*Chat)(nil)
+	_ corechat.Streamer = (*Chat)(nil)
+	_ corechat.Model    = (*Messages)(nil)
+	_ corechat.Streamer = (*Messages)(nil)
 )
 
-// OpenAIChat implements Moonshot's OpenAI-compatible endpoint.
-type OpenAIChat = openai.Chat
+// Chat implements Moonshot's OpenAI-compatible endpoint.
+type Chat = openai.ChatCompletions
 
-// AnthropicChat implements Moonshot's Anthropic-compatible endpoint.
-type AnthropicChat = anthropic.Chat
+// Messages implements Moonshot's Anthropic-compatible endpoint.
+type Messages = anthropic.Messages
 
-type OpenAIChatConfig struct {
+type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
 
-func (o OpenAIChatConfig) Validate() error {
-	if o.APIKey == "" {
+func (c ChatConfig) Validate() error {
+	if c.APIKey == "" {
 		return errors.New("moonshot: APIKey is required")
 	}
-	if err := o.DefaultOptions.Validate(); err != nil {
+	if err := c.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("moonshot: DefaultOptions: %w", err)
 	}
 	return nil
 }
 
-func NewOpenAIChat(config OpenAIChatConfig) (*OpenAIChat, error) {
+func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 	dialect := openai.ReasoningContentReplayDialect("moonshot")
 	dialect.PrepareRequest = prepareOpenAIRequest
 	dialect.TokenLimitField = openai.TokenLimitMaxCompletionTokens
-	protocol, err := openai.NewCompatibleChat(openai.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURL), HTTPClient: config.HTTPClient}, dialect)
+	protocol, err := openai.NewCompatibleChatCompletions(openai.ChatCompletionsConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURL), HTTPClient: config.HTTPClient}, dialect)
 	if err != nil {
 		return nil, fmt.Errorf("moonshot: construct OpenAI-compatible chat: %w", err)
 	}
 	return protocol, nil
 }
 
-type AnthropicChatConfig struct {
+type MessagesConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
 	BaseURL        string
 	HTTPClient     *http.Client
 }
 
-func (a AnthropicChatConfig) Validate() error {
-	if a.APIKey == "" {
+func (m MessagesConfig) Validate() error {
+	if m.APIKey == "" {
 		return errors.New("moonshot: APIKey is required")
 	}
-	if err := a.DefaultOptions.Validate(); err != nil {
+	if err := m.DefaultOptions.Validate(); err != nil {
 		return fmt.Errorf("moonshot: DefaultOptions: %w", err)
 	}
 	return nil
 }
 
-func NewAnthropicChat(config AnthropicChatConfig) (*AnthropicChat, error) {
+func NewMessages(config MessagesConfig) (*Messages, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
-	protocol, err := anthropic.NewCompatibleChat(anthropic.ChatConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLAnthropic), HTTPClient: config.HTTPClient}, anthropic.Dialect{Provider: "moonshot"})
+	protocol, err := anthropic.NewCompatibleMessages(anthropic.MessagesConfig{APIKey: config.APIKey, DefaultOptions: config.DefaultOptions, BaseURL: cmp.Or(config.BaseURL, BaseURLAnthropic), HTTPClient: config.HTTPClient}, anthropic.Dialect{Provider: "moonshot"})
 	if err != nil {
 		return nil, fmt.Errorf("moonshot: construct Anthropic-compatible chat: %w", err)
 	}

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/Tangerg/scope/core/embedding"
 	"github.com/Tangerg/scope/core/metadata"
@@ -78,9 +79,9 @@ func TestResponseJSONRoundTripPreservesValidatedMetadata(t *testing.T) {
 	}
 
 	responseMetadata := &embedding.ResponseMetadata{
-		Model:   "embedding-model",
-		Usage:   &embedding.Usage{InputTokens: 7},
-		Created: 42,
+		Model:     "embedding-model",
+		Usage:     &embedding.Usage{InputTokens: 7},
+		CreatedAt: time.Unix(42, 0).UTC(),
 	}
 	if setErr := responseMetadata.Extra.Set("provider/response", "request-id"); setErr != nil {
 		t.Fatal(setErr)
@@ -110,10 +111,6 @@ func TestResponseJSONRejectsInvalidNestedValues(t *testing.T) {
 	if _, err := json.Marshal(embedding.ResponseMetadata{Model: " model "}); !errors.Is(err, embedding.ErrInvalidResponse) {
 		t.Fatalf("invalid ResponseMetadata marshal error = %v", err)
 	}
-	if _, err := json.Marshal(embedding.ResponseMetadata{Created: -1}); !errors.Is(err, embedding.ErrInvalidResponse) {
-		t.Fatalf("negative Created marshal error = %v", err)
-	}
-
 	left, err := embedding.NewOutput([]float64{1}, nil)
 	if err != nil {
 		t.Fatal(err)

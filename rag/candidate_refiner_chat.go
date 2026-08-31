@@ -85,7 +85,7 @@ func (c chatRerankingOutput) rank(candidates Candidates) (Candidates, error) {
 			return nil, fmt.Errorf("%w: scores[%d] must be between 0 and 1", ErrInvalidReranking, position)
 		}
 		seen[item.Index] = true
-		ranked[item.Index].Score = item.Score
+		ranked[item.Index].Score = Score(item.Score)
 	}
 	return ranked.ranked(), nil
 }
@@ -98,7 +98,7 @@ type chatRerankingInput struct {
 var _ Refiner = (*ChatReranker)(nil)
 
 func NewChatReranker(config ChatRerankerConfig) (*ChatReranker, error) {
-	format, err := chatclient.JSONSchema[chatRerankingOutput](chatRerankerOutputName)
+	format, err := chatclient.JSONSchema[chatRerankingOutput](chatclient.JSONSchemaConfig{Name: chatRerankerOutputName})
 	if err != nil {
 		return nil, err
 	}

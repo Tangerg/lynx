@@ -180,7 +180,7 @@ func TestDecodedValuesAreValidatedBeforeAssignment(t *testing.T) {
 	}
 
 	responseMetadata := embedding.ResponseMetadata{Model: "keep"}
-	if err := json.Unmarshal([]byte(`{"created":-1}`), &responseMetadata); !errors.Is(err, embedding.ErrInvalidResponse) {
+	if err := json.Unmarshal([]byte(`{"created_at":"not-a-time"}`), &responseMetadata); !errors.Is(err, embedding.ErrInvalidResponse) {
 		t.Fatalf("ResponseMetadata decode error = %v", err)
 	}
 	if responseMetadata.Model != "keep" {
@@ -201,7 +201,6 @@ func TestInvalidValuesFailToMarshal(t *testing.T) {
 		"invalid output metadata": {value: embedding.Output{Embedding: []float64{1}, Metadata: brokenExtra}, want: embedding.ErrInvalidResponse},
 		"negative input tokens":   {value: embedding.Usage{InputTokens: -1}, want: embedding.ErrInvalidResponse},
 		"padded metadata model":   {value: embedding.ResponseMetadata{Model: " padded "}, want: embedding.ErrInvalidResponse},
-		"negative created":        {value: embedding.ResponseMetadata{Created: -1}, want: embedding.ErrInvalidResponse},
 		"invalid extra":           {value: embedding.ResponseMetadata{Extra: brokenExtra}, want: embedding.ErrInvalidResponse},
 		"negative usage":          {value: embedding.ResponseMetadata{Usage: &embedding.Usage{InputTokens: -1}}, want: embedding.ErrInvalidResponse},
 		"response without output": {value: embedding.Response{}, want: embedding.ErrInvalidResponse},
@@ -246,17 +245,6 @@ func TestResponseRequiresUniformDimensions(t *testing.T) {
 	}
 	if _, err := embedding.NewResponse([]*embedding.Output{wide, wide}, nil); err != nil {
 		t.Fatalf("NewResponse rejected uniform dimensions: %v", err)
-	}
-}
-
-func TestResponseRejectsInvalidMetadata(t *testing.T) {
-	output, err := embedding.NewOutput([]float64{1}, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = embedding.NewResponse([]*embedding.Output{output}, &embedding.ResponseMetadata{Created: -1})
-	if !errors.Is(err, embedding.ErrInvalidResponse) {
-		t.Fatalf("NewResponse error = %v", err)
 	}
 }
 

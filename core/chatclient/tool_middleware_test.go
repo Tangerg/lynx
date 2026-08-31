@@ -121,6 +121,31 @@ func TestToolMiddlewarePropagatesExecutionFailure(t *testing.T) {
 	}
 }
 
+func TestToolMiddlewareExecutesOnlyOneBatch(t *testing.T) {
+	var executions int
+	executable := middlewareTool{name: "lookup", call: func(context.Context, tool.Invocation) (chat.ToolOutput, error) {
+		executions++
+		return chat.NewTextToolOutput("found"), nil
+	}}
+	middleware, err := NewToolMiddleware(executable)
+	if err != nil {
+		t.Fatalf("NewToolMiddleware() error = %v", err)
+	}
+	var calls int
+	model := middleware(chat.ModelFunc(func(context.Context, *chat.Request) (*chat.Response, error) {
+		calls++
+		return toolCallResponse(chat.ToolCall{ID: "call", Name: "lookup", Arguments: `{"value":"again"}`}), nil
+	}))
+	request := &chat.Request{Messages: []chat.Message{chat.NewUserMessage(chat.NewTextPart("search"))}}
+	response, err := model.Call(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 || executions != 1 || response.Output.FinishReason != chat.FinishReasonToolCalls {
+		t.Fatalf("model calls = %d, tool executions = %d, response = %#v", calls, executions, response)
+	}
+}
+
 func toolCallResponse(calls ...chat.ToolCall) *chat.Response {
 	parts := make([]chat.Part, len(calls))
 	for index := range calls {

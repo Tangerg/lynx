@@ -21,7 +21,7 @@ type DeploymentRef struct {
 	digest               Digest
 }
 
-func NewDeploymentRef(descriptor Descriptor, implementationDigest, configurationDigest Digest) (DeploymentRef, error) {
+func newDeploymentRef(descriptor Descriptor, implementationDigest, configurationDigest Digest) (DeploymentRef, error) {
 	if !descriptor.Valid() {
 		return DeploymentRef{}, fmt.Errorf("%w: %w", ErrInvalidDeploymentRef, ErrInvalidDescriptor)
 	}

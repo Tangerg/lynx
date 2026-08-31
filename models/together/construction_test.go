@@ -12,8 +12,8 @@ import (
 // as a transport error the caller cannot distinguish from an outage.
 func TestConstructorsRejectAnAbsentCredential(t *testing.T) {
 	cases := map[string]func() error{
-		"NewOpenAIChat": func() error {
-			_, err := together.NewOpenAIChat(together.OpenAIChatConfig{})
+		"NewChat": func() error {
+			_, err := together.NewChat(together.ChatConfig{})
 			return err
 		},
 	}

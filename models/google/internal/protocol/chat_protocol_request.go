@@ -32,11 +32,11 @@ func mapProtocolRequest(provider string, defaults corechat.Options, req *corecha
 	if options.Model == "" {
 		return "", nil, nil, errors.New("google: model is required in defaults or request options")
 	}
-	if options.MaxTokens != nil {
-		if *options.MaxTokens > math.MaxInt32 {
-			return "", nil, nil, errors.New("google: options.max_tokens exceeds int32")
+	if options.MaxOutputTokens != nil {
+		if *options.MaxOutputTokens > math.MaxInt32 {
+			return "", nil, nil, errors.New("google: options.max_output_tokens exceeds int32")
 		}
-		config.MaxOutputTokens = int32(*options.MaxTokens)
+		config.MaxOutputTokens = int32(*options.MaxOutputTokens)
 	}
 	if options.Temperature != nil {
 		value := float32(*options.Temperature)
@@ -73,6 +73,9 @@ func mapProtocolRequest(provider string, defaults corechat.Options, req *corecha
 	}
 	if mapProtocolOutputFormatErr := mapProtocolOutputFormat(options.OutputFormat, config); mapProtocolOutputFormatErr != nil {
 		return "", nil, nil, mapProtocolOutputFormatErr
+	}
+	if toolChoiceErr := mapProtocolToolChoice(req.ToolChoice, config); toolChoiceErr != nil {
+		return "", nil, nil, toolChoiceErr
 	}
 
 	system, contents, err := mapProtocolMessages(provider, req.Messages)
@@ -149,6 +152,21 @@ func decodeProtocolConfig(provider string, req *corechat.Request) (*genai.Genera
 	for _, name := range []string{"responseMimeType", "response_mime_type", "responseSchema", "response_schema", "responseJsonSchema", "response_json_schema"} {
 		if _, exists := fields[name]; exists {
 			return nil, fmt.Errorf("google: extension %q field %q is owned by options.output_format", extensionKey, name)
+		}
+	}
+	for _, name := range []string{"toolConfig", "tool_config"} {
+		value, exists := fields[name]
+		if !exists {
+			continue
+		}
+		var toolFields map[string]json.RawMessage
+		if err := json.Unmarshal(value, &toolFields); err != nil {
+			return nil, fmt.Errorf("google: extension %q field %q: %w", extensionKey, name, err)
+		}
+		for _, functionName := range []string{"functionCallingConfig", "function_calling_config"} {
+			if _, exists := toolFields[functionName]; exists {
+				return nil, fmt.Errorf("google: extension %q field %q.%s is owned by options.tool_choice", extensionKey, name, functionName)
+			}
 		}
 	}
 	var config genai.GenerateContentConfig
@@ -272,8 +290,10 @@ func mapProtocolAssistantParts(provider string, parts []corechat.Part) ([]*genai
 		switch part.Kind {
 		case corechat.PartText:
 			mapped = append(mapped, genai.NewPartFromText(part.Text))
+		case corechat.PartRefusal:
+			mapped = append(mapped, genai.NewPartFromText(part.Text))
 		case corechat.PartReasoning:
-			mapped = append(mapped, &genai.Part{Text: part.Text, Thought: true, ThoughtSignature: slices.Clone(part.Signature)})
+			mapped = append(mapped, &genai.Part{Text: part.Text, Thought: true, ThoughtSignature: slices.Clone(part.ReasoningState)})
 		case corechat.PartToolCall:
 			var arguments map[string]any
 			if part.ToolCall.Arguments != "" {
@@ -407,4 +427,32 @@ func mapProtocolTools(definitions []corechat.ToolDefinition) ([]*genai.Tool, err
 		})
 	}
 	return []*genai.Tool{{FunctionDeclarations: declarations}}, nil
+}
+
+func mapProtocolToolChoice(choice *corechat.ToolChoice, config *genai.GenerateContentConfig) error {
+	if choice == nil {
+		return nil
+	}
+	if choice.Parallelism == corechat.ToolParallelismSingle {
+		return errors.New("google: single tool-call parallelism is not supported")
+	}
+	functionCalling := &genai.FunctionCallingConfig{}
+	switch choice.Mode {
+	case corechat.ToolChoiceAuto:
+		functionCalling.Mode = genai.FunctionCallingConfigModeAuto
+	case corechat.ToolChoiceNone:
+		functionCalling.Mode = genai.FunctionCallingConfigModeNone
+	case corechat.ToolChoiceRequired:
+		functionCalling.Mode = genai.FunctionCallingConfigModeAny
+	case corechat.ToolChoiceNamed:
+		functionCalling.Mode = genai.FunctionCallingConfigModeAny
+		functionCalling.AllowedFunctionNames = []string{choice.Name}
+	default:
+		return fmt.Errorf("google: unsupported tool choice mode %q", choice.Mode)
+	}
+	if config.ToolConfig == nil {
+		config.ToolConfig = &genai.ToolConfig{}
+	}
+	config.ToolConfig.FunctionCallingConfig = functionCalling
+	return nil
 }

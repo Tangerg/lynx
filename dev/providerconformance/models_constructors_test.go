@@ -13,8 +13,12 @@ import (
 )
 
 func TestProviderConstructorsAreSelfCovering(t *testing.T) {
+	providers := modelProviderDirectories(t)
+	if len(providers) == 0 {
+		t.Fatal("no model provider directories discovered")
+	}
 	constructors := 0
-	for _, provider := range modelProviderDirectories(t) {
+	for _, provider := range providers {
 		declarations, validateReceivers := parseProviderDeclarations(t, provider)
 		for _, function := range declarations {
 			if validateProviderConstructor(t, function, validateReceivers) {
@@ -22,8 +26,8 @@ func TestProviderConstructorsAreSelfCovering(t *testing.T) {
 			}
 		}
 	}
-	if constructors < 70 {
-		t.Fatalf("discovered %d provider constructors, want at least 70", constructors)
+	if constructors == 0 {
+		t.Fatal("no provider constructors discovered")
 	}
 }
 

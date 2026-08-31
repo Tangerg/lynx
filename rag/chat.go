@@ -20,11 +20,12 @@ const (
 
 var ErrEmptyModelOutput = errors.New("rag: model returned empty query text")
 
-// modelPrompt owns the common template and typed generation boundary used by
+// modelPrompt owns the common template and typed output boundary used by
 // every model-backed RAG component.
 type modelPrompt[T any] struct {
-	generation chatclient.Generation[T]
-	template   *chatclient.Template
+	client   chatclient.Client
+	format   chatclient.OutputFormat[T]
+	template *chatclient.Template
 }
 
 type textModelPrompt struct {
@@ -46,7 +47,7 @@ func newModelPrompt[T any](
 	if err != nil {
 		return modelPrompt[T]{}, err
 	}
-	return modelPrompt[T]{generation: client.Output(format), template: template}, nil
+	return modelPrompt[T]{client: client, format: format, template: template}, nil
 }
 
 func newTextModelPrompt(
@@ -82,7 +83,7 @@ func (m modelPrompt[T]) call(ctx context.Context, data any) (T, error) {
 	if err != nil {
 		return zero, err
 	}
-	return m.generation.Call(ctx, &chat.Request{Messages: []chat.Message{message}})
+	return m.client.Output(ctx, &chat.Request{Messages: []chat.Message{message}}, m.format)
 }
 
 func (t textModelPrompt) call(ctx context.Context, data any) (string, error) {

@@ -11,7 +11,20 @@ import (
 	"github.com/Tangerg/scope/models/xiaomi"
 )
 
-func TestOpenAIChatUsesMiMoThinkingAndToolReasoningContract(t *testing.T) {
+func TestAnthropicChatConstructorValidatesCredential(t *testing.T) {
+	if _, err := xiaomi.NewMessages(xiaomi.MessagesConfig{}); err == nil {
+		t.Fatal("NewMessages() accepted an absent credential")
+	}
+	model, err := xiaomi.NewMessages(xiaomi.MessagesConfig{APIKey: "test-key"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if model == nil {
+		t.Fatal("NewMessages() = nil")
+	}
+}
+
+func TestChatUsesMiMoThinkingAndToolReasoningContract(t *testing.T) {
 	var body map[string]any
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
@@ -25,16 +38,16 @@ func TestOpenAIChatUsesMiMoThinkingAndToolReasoningContract(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	maxTokens := int64(4096)
-	model, err := xiaomi.NewOpenAIChat(xiaomi.OpenAIChatConfig{
+	model, err := xiaomi.NewChat(xiaomi.ChatConfig{
 		APIKey:  "test-key",
 		BaseURL: server.URL,
 		DefaultOptions: corechat.Options{
-			Model:     xiaomi.ModelV25Pro,
-			MaxTokens: &maxTokens,
+			Model:           xiaomi.ModelV25Pro,
+			MaxOutputTokens: &maxTokens,
 		},
 	})
 	if err != nil {
-		t.Fatalf("NewOpenAIChat: %v", err)
+		t.Fatalf("NewChat: %v", err)
 	}
 	toolReasoning, err := openai.NewTextReasoningPart("xiaomi", openai.TextReasoningContent, "tool thinking")
 	if err != nil {
@@ -77,18 +90,18 @@ func TestOpenAIChatUsesMiMoThinkingAndToolReasoningContract(t *testing.T) {
 	}
 }
 
-func TestOpenAIChatRejectsTemperatureAboveOfficialMaximum(t *testing.T) {
+func TestChatRejectsTemperatureAboveOfficialMaximum(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
 		t.Fatal("request must fail before transport")
 	}))
 	t.Cleanup(server.Close)
-	model, err := xiaomi.NewOpenAIChat(xiaomi.OpenAIChatConfig{
+	model, err := xiaomi.NewChat(xiaomi.ChatConfig{
 		APIKey:         "test-key",
 		BaseURL:        server.URL,
 		DefaultOptions: corechat.Options{Model: xiaomi.ModelV25Pro},
 	})
 	if err != nil {
-		t.Fatalf("NewOpenAIChat: %v", err)
+		t.Fatalf("NewChat: %v", err)
 	}
 	temperature := 1.6
 	_, err = model.Call(t.Context(), &corechat.Request{

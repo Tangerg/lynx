@@ -148,8 +148,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		}
 	}()
 
-	var query []float64
-	query, err = s.embeddingClient.EmbedText(ctx, req.Query)
+	query, err := s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("inmemory: search: embed query: %w", err)
 	}

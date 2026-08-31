@@ -39,7 +39,7 @@ func TestChatCountsTheSameMultimodalMessageInput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	model, err := anthropic.NewChat(anthropic.ChatConfig{
+	model, err := anthropic.NewMessages(anthropic.MessagesConfig{
 		APIKey:         "test-key",
 		DefaultOptions: chat.Options{Model: "claude-test"},
 		BaseURL:        server.URL,
@@ -57,12 +57,12 @@ func TestChatCountsTheSameMultimodalMessageInput(t *testing.T) {
 			InputSchema: json.RawMessage(`{"type":"object","properties":{}}`),
 		}},
 	}
-	count, err := model.CountMessageInputTokens(t.Context(), request)
+	count, err := model.CountInputTokens(t.Context(), request)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if count != 287 {
-		t.Fatalf("CountMessageInputTokens = %d, want 287", count)
+		t.Fatalf("CountInputTokens = %d, want 287", count)
 	}
 	if captured.Model != "claude-test" || len(captured.Messages) != 1 || len(captured.System) != 1 || len(captured.Tools) != 1 {
 		t.Fatalf("count request = %#v", captured)

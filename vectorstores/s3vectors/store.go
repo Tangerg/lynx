@@ -46,6 +46,10 @@ type StoreConfig struct {
 	// DocumentBatcher batches documents before upload. Required.
 	DocumentBatcher vectorstore.Batcher
 
+	// Dimensions stays explicit because filter deletion needs a placeholder
+	// vector and must not issue a hidden, billable embedding request.
+	Dimensions int
+
 	// DistanceMetric records the metric the index was created with —
 	// the store uses this only to map the raw distance returned by
 	// QueryVectors into a `higher = more similar` [0, 1] score. The
@@ -97,6 +101,9 @@ func (s StoreConfig) Validate() error {
 	if s.DocumentBatcher == nil {
 		return errors.New("s3vectors: DocumentBatcher is required")
 	}
+	if s.Dimensions <= 0 {
+		return errors.New("s3vectors: Dimensions must be > 0")
+	}
 	if !s.DistanceMetric.Valid() {
 		return fmt.Errorf("s3vectors: unsupported DistanceMetric %q", s.DistanceMetric)
 	}
@@ -123,6 +130,7 @@ type Store struct {
 	embeddingClient  embeddingclient.Client
 	documentBatcher  vectorstore.Batcher
 	distanceMetric   DistanceMetric
+	dimensions       int
 }
 
 func NewStore(config StoreConfig) (*Store, error) {
@@ -143,6 +151,7 @@ func NewStore(config StoreConfig) (*Store, error) {
 		embeddingClient:  embeddingClient,
 		documentBatcher:  config.DocumentBatcher,
 		distanceMetric:   config.DistanceMetric,
+		dimensions:       config.Dimensions,
 	}, nil
 }
 
@@ -162,7 +171,11 @@ func (s *Store) Index(ctx context.Context, request *vectorstore.IndexRequest) (e
 
 	for _, batch := range batches {
 		docs := batch.Documents
-		vectors, err := s.embeddingClient.EmbedDocuments(ctx, docs)
+		texts, err := batch.Texts()
+		if err != nil {
+			return fmt.Errorf("vectorstore: project document text: %w", err)
+		}
+		vectors, err := s.embeddingClient.EmbedTexts(ctx, texts)
 		if err != nil {
 			return fmt.Errorf("s3vectors: embed documents: %w", err)
 		}
@@ -218,8 +231,7 @@ func (s *Store) Search(ctx context.Context, req *vectorstore.SearchRequest) (res
 		}
 	}()
 
-	var vector []float64
-	vector, err = s.embeddingClient.EmbedText(ctx, req.Query)
+	vector, err := s.embeddingClient.EmbedText(ctx, req.Query)
 	if err != nil {
 		return nil, fmt.Errorf("s3vectors: embed query: %w", err)
 	}
@@ -284,11 +296,7 @@ func (s *Store) DeleteWhere(ctx context.Context, expr filter.Predicate) (err err
 
 	// Use a placeholder embedding to drive the filter scan — the
 	// vector itself doesn't matter when the distance is discarded.
-	dimensions, err := s.embeddingClient.Dimensions(ctx)
-	if err != nil {
-		return fmt.Errorf("s3vectors: resolve embedding dimensions: %w", err)
-	}
-	probe := make([]float32, dimensions)
+	probe := make([]float32, s.dimensions)
 	const pageSize int32 = 1000
 	for {
 		resp, err := s.client.QueryVectors(ctx, &s3vectors.QueryVectorsInput{

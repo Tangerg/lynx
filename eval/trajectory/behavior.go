@@ -90,15 +90,15 @@ type behaviorToolResult struct {
 }
 
 func (t Trajectory) behavior() (behaviorProjection, error) {
-	paths, err := processPaths(t.RootProcessID, t.Events)
+	paths, err := processPaths(t.rootProcessID, t.events)
 	if err != nil {
 		return behaviorProjection{}, err
 	}
 	projection := behaviorProjection{
-		Termination: behaviorTerminationOf(t.Termination), Output: cloneOutput(t.Output),
+		Termination: behaviorTerminationOf(t.termination), Output: cloneOutput(t.output),
 	}
-	projection.Events = make([]behaviorEvent, 0, len(t.Events))
-	for _, event := range t.Events {
+	projection.Events = make([]behaviorEvent, 0, len(t.events))
+	for _, event := range t.events {
 		step, _ := event.StepSequence()
 		fact := behaviorEvent{
 			ProcessPath: paths[event.ProcessID()], Sequence: event.ProcessSequence(),
@@ -107,15 +107,15 @@ func (t Trajectory) behavior() (behaviorProjection, error) {
 		fact.apply(event)
 		projection.Events = append(projection.Events, fact)
 	}
-	projection.Models = make([]behaviorModel, len(t.ModelCalls))
-	for index, call := range t.ModelCalls {
+	projection.Models = make([]behaviorModel, len(t.modelCalls))
+	for index, call := range t.modelCalls {
 		projection.Models[index] = behaviorModel{
 			ProcessPath: paths[call.ProcessID], Step: call.StepSequence,
 			Sequence: call.CallSequence,
 		}
 	}
-	projection.Tools = make([]behaviorTool, len(t.ToolCalls))
-	for index, call := range t.ToolCalls {
+	projection.Tools = make([]behaviorTool, len(t.toolCalls))
+	for index, call := range t.toolCalls {
 		arguments, err := canonicalArguments(call.Call.Arguments)
 		if err != nil {
 			return behaviorProjection{}, err

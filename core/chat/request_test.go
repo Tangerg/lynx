@@ -56,9 +56,9 @@ func TestRequestClone(t *testing.T) {
 		Messages: []chat.Message{user, assistant, tool},
 		Tools:    []chat.ToolDefinition{validToolDefinition()},
 		Options: chat.Options{
-			MaxTokens:   new(int64(10)),
-			Stop:        []string{"END"},
-			Temperature: new(0.5),
+			MaxOutputTokens: new(int64(10)),
+			Stop:            []string{"END"},
+			Temperature:     new(0.5),
 		},
 	}
 	if setErr := request.Options.Extensions.Set("test/value", "caller"); setErr != nil {
@@ -69,11 +69,11 @@ func TestRequestClone(t *testing.T) {
 	clone.Messages[0].Metadata["turn"][0] = '9'
 	clone.Messages[0].Parts[0].Media.Source.Bytes[0] = 'X'
 	clone.Messages[0].Parts[0].Media.Metadata["origin"][1] = 'X'
-	clone.Messages[1].Parts[0].Signature[0] = 'X'
+	clone.Messages[1].Parts[0].ReasoningState[0] = 'X'
 	clone.Messages[1].Parts[1].ToolCall.Name = "mutated"
 	clone.Messages[2].Parts[0].ToolResult.Output.Details[0] = '['
 	clone.Tools[0].InputSchema[0] = '['
-	*clone.Options.MaxTokens = 20
+	*clone.Options.MaxOutputTokens = 20
 	clone.Options.Stop[0] = "MUTATED"
 	*clone.Options.Temperature = 1
 	if setErr := clone.Options.Extensions.Set("test/value", "changed"); setErr != nil {
@@ -87,11 +87,11 @@ func TestRequestClone(t *testing.T) {
 	if string(request.Messages[0].Metadata["turn"]) != "1" ||
 		string(request.Messages[0].Parts[0].Media.Source.Bytes) != "image" ||
 		string(request.Messages[0].Parts[0].Media.Metadata["origin"]) != `"caller"` ||
-		string(request.Messages[1].Parts[0].Signature) != "signature" ||
+		string(request.Messages[1].Parts[0].ReasoningState) != "signature" ||
 		request.Messages[1].Parts[1].ToolCall.Name != "weather" ||
 		string(request.Messages[2].Parts[0].ToolResult.Output.Details) != `{"temperature":20}` ||
 		request.Tools[0].InputSchema[0] != '{' ||
-		*request.Options.MaxTokens != 10 ||
+		*request.Options.MaxOutputTokens != 10 ||
 		request.Options.Stop[0] != "END" ||
 		*request.Options.Temperature != 0.5 || extension != "caller" {
 		t.Fatalf("clone mutated source request: %#v", request)
@@ -119,15 +119,6 @@ func TestRequestValidate(t *testing.T) {
 	}
 	if err := request.Validate(); err != nil {
 		t.Fatalf("Validate: %v", err)
-	}
-}
-
-func TestRequestRejectsResponseOnlyToolCallDelta(t *testing.T) {
-	request := &chat.Request{Messages: []chat.Message{chat.NewAssistantMessage(
-		chat.NewToolCallDeltaPart(chat.ToolCallDelta{ID: "call", Name: "tool", Arguments: "{"}),
-	)}}
-	if err := request.Validate(); !errors.Is(err, chat.ErrInvalidRequest) {
-		t.Fatalf("Validate error = %v, want ErrInvalidRequest", err)
 	}
 }
 
@@ -190,7 +181,7 @@ func TestRequestJSONRoundTrip(t *testing.T) {
 		chat.NewAssistantMessage(chat.NewToolCallPart(validToolCall())),
 	)
 	request.Tools = []chat.ToolDefinition{validToolDefinition()}
-	request.Options = chat.Options{Model: "model", MaxTokens: new(int64(100))}
+	request.Options = chat.Options{Model: "model", MaxOutputTokens: new(int64(100))}
 	if err := request.Options.Extensions.Set("anthropic/cache_control", map[string]bool{"enabled": true}); err != nil {
 		t.Fatal(err)
 	}
@@ -237,6 +228,38 @@ func TestRequestNilUnmarshalReceiver(t *testing.T) {
 	var request *chat.Request
 	if err := request.UnmarshalJSON([]byte(`{}`)); !errors.Is(err, chat.ErrInvalidRequest) {
 		t.Fatalf("UnmarshalJSON error = %v, want ErrInvalidRequest", err)
+	}
+}
+
+func TestRequestRequiresLeadingSystemPrefix(t *testing.T) {
+	request := &chat.Request{Messages: []chat.Message{
+		chat.NewUserMessage(chat.NewTextPart("hello")),
+		chat.NewSystemMessage("late instruction"),
+	}}
+	if err := request.Validate(); !errors.Is(err, chat.ErrInvalidRequest) || !strings.Contains(err.Error(), "leading prefix") {
+		t.Fatalf("Validate error = %v", err)
+	}
+}
+
+func TestRequestValidatesToolChoiceAgainstDefinitions(t *testing.T) {
+	message := chat.NewUserMessage(chat.NewTextPart("hello"))
+	request := &chat.Request{
+		Messages:   []chat.Message{message},
+		ToolChoice: &chat.ToolChoice{Mode: chat.ToolChoiceAuto},
+	}
+	if err := request.Validate(); !errors.Is(err, chat.ErrInvalidRequest) {
+		t.Fatalf("tool choice without tools error = %v", err)
+	}
+
+	request.Tools = []chat.ToolDefinition{validToolDefinition()}
+	request.ToolChoice = &chat.ToolChoice{Mode: chat.ToolChoiceNamed, Name: "lookup"}
+	if err := request.Validate(); !errors.Is(err, chat.ErrInvalidRequest) || !strings.Contains(err.Error(), "undefined tool") {
+		t.Fatalf("undefined named choice error = %v", err)
+	}
+
+	request.ToolChoice.Name = "weather"
+	if err := request.Validate(); err != nil {
+		t.Fatalf("defined named choice: %v", err)
 	}
 }
 

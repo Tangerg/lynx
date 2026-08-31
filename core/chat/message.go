@@ -14,6 +14,7 @@ var (
 	ErrInvalidMessage    = errors.New("chat: invalid message")
 	ErrInvalidPart       = errors.New("chat: invalid part")
 	ErrInvalidToolCall   = errors.New("chat: invalid tool call")
+	ErrInvalidToolOutput = errors.New("chat: invalid tool output")
 	ErrInvalidToolResult = errors.New("chat: invalid tool result")
 )
 
@@ -126,7 +127,7 @@ func (r Role) allowsPart(kind PartKind) bool {
 	case RoleUser:
 		return kind == PartText || kind == PartMedia
 	case RoleAssistant:
-		return kind == PartText || kind == PartMedia || kind == PartReasoning || kind == PartToolCall || kind == PartToolCallDelta
+		return kind == PartText || kind == PartMedia || kind == PartReasoning || kind == PartToolCall || kind == PartRefusal
 	case RoleTool:
 		return kind == PartToolResult
 	default:

@@ -89,3 +89,23 @@ func TestDocumentJSONRoundTrip(t *testing.T) {
 		t.Fatalf("round trip = %#v", decoded)
 	}
 }
+
+func TestDocumentJSONRejectsInvalidValuesTransactionally(t *testing.T) {
+	if _, err := json.Marshal(document.Document{}); !errors.Is(err, document.ErrInvalidDocument) {
+		t.Fatalf("Marshal error = %v, want ErrInvalidDocument", err)
+	}
+
+	original := document.Document{ID: "stable", Text: "original"}
+	decoded := original
+	if err := json.Unmarshal([]byte(`{"id":"replacement"}`), &decoded); !errors.Is(err, document.ErrInvalidDocument) {
+		t.Fatalf("Unmarshal error = %v, want ErrInvalidDocument", err)
+	}
+	if !reflect.DeepEqual(decoded, original) {
+		t.Fatalf("failed Unmarshal mutated receiver: got %#v, want %#v", decoded, original)
+	}
+
+	var nilDocument *document.Document
+	if err := nilDocument.UnmarshalJSON([]byte(`{"text":"value"}`)); !errors.Is(err, document.ErrInvalidDocument) {
+		t.Fatalf("nil receiver error = %v, want ErrInvalidDocument", err)
+	}
+}

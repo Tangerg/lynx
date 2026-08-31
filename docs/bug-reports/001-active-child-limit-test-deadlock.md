@@ -1,7 +1,7 @@
 # 001 — testActiveChildLimit deadlocks the whole agent package
 
-**Status**: fixed in the test. No implementation change needed — the kernel
-behaves as `agent/ARCHITECTURE.md` §8 specifies.
+**Status**: fixed in the test. No implementation change needed; the kernel
+already enforces explicit child-wait ownership.
 
 **Module / package**: `agent`
 **Symbol**: `testActiveChildLimit`, a subtest of
@@ -44,7 +44,7 @@ with `engine.child.tree_limit`, and completes. Its one still-active child is the
 canceled as a parent cancellation, so the child's leaf effect may never reach the
 blocking dispatcher and nothing is ever sent to `started`.
 
-That is exactly the documented contract in `agent/ARCHITECTURE.md` §8:
+That is the kernel contract:
 
 > A parent terminal state delivers control intent only to direct children still
 > active at that moment […] If a parent result depends on a child, the strategy

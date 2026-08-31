@@ -10,7 +10,7 @@ func TestDeploymentRefBindsContractImplementationAndConfiguration(t *testing.T) 
 	descriptor := testDescriptor(t)
 	implementation := digestBytes([]byte("interaction implementation"))
 	configuration := digestBytes([]byte("model and dispatcher configuration"))
-	reference, err := NewDeploymentRef(descriptor, implementation, configuration)
+	reference, err := newDeploymentRef(descriptor, implementation, configuration)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -22,11 +22,11 @@ func TestDeploymentRefBindsContractImplementationAndConfiguration(t *testing.T) 
 		t.Fatalf("DeploymentRef text = %q, invalid = %q", reference.String(), (DeploymentRef{}).String())
 	}
 
-	changedImplementation, err := NewDeploymentRef(descriptor, digestBytes([]byte("changed interaction implementation")), configuration)
+	changedImplementation, err := newDeploymentRef(descriptor, digestBytes([]byte("changed interaction implementation")), configuration)
 	if err != nil {
 		t.Fatal(err)
 	}
-	changedConfiguration, err := NewDeploymentRef(descriptor, implementation, digestBytes([]byte("changed model and dispatcher configuration")))
+	changedConfiguration, err := newDeploymentRef(descriptor, implementation, digestBytes([]byte("changed model and dispatcher configuration")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -36,7 +36,7 @@ func TestDeploymentRefBindsContractImplementationAndConfiguration(t *testing.T) 
 }
 
 func TestDeploymentRefStrictJSONRejectsTampering(t *testing.T) {
-	reference, err := NewDeploymentRef(testDescriptor(t), digestBytes([]byte("implementation")), digestBytes([]byte("configuration")))
+	reference, err := newDeploymentRef(testDescriptor(t), digestBytes([]byte("implementation")), digestBytes([]byte("configuration")))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestDeploymentRefStrictJSONRejectsTampering(t *testing.T) {
 }
 
 func FuzzDeploymentRefJSONRoundTrip(f *testing.F) {
-	reference, err := NewDeploymentRef(testDescriptorForFuzz(f), ComputeDigest([]byte("implementation")), ComputeDigest([]byte("configuration")))
+	reference, err := newDeploymentRef(testDescriptorForFuzz(f), ComputeDigest([]byte("implementation")), ComputeDigest([]byte("configuration")))
 	if err != nil {
 		f.Fatal(err)
 	}

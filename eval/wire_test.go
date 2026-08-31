@@ -174,8 +174,9 @@ func TestMetricCloneDoesNotAliasParameters(t *testing.T) {
 		t.Fatal(err)
 	}
 	clone := metric.Clone()
-	clone.Parameters["threshold"] = json.RawMessage(`0.9`)
-	if string(metric.Parameters["threshold"]) != "0.5" {
+	cloneParameters := clone.Parameters()
+	cloneParameters["threshold"] = json.RawMessage(`0.9`)
+	if string(metric.Parameters()["threshold"]) != "0.5" {
 		t.Fatal("Clone aliases the metric parameters")
 	}
 }

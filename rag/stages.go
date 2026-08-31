@@ -24,7 +24,20 @@ var (
 // Score is query-specific and therefore does not belong on document.Document.
 type Candidate struct {
 	Document *document.Document `json:"document"`
-	Score    float64            `json:"score"`
+	Score    Score              `json:"score"`
+}
+
+// Score is a finite, query-relative ordering value. Scores are comparable only
+// within the retrieval or fusion result that produced them.
+type Score float64
+
+func (s Score) Float64() float64 { return float64(s) }
+
+func (s Score) Validate() error {
+	if math.IsNaN(float64(s)) || math.IsInf(float64(s), 0) {
+		return fmt.Errorf("%w: score must be finite", ErrInvalidCandidate)
+	}
+	return nil
 }
 
 // Clone returns an independently owned candidate and document.
@@ -99,8 +112,8 @@ func (c Candidate) Validate() error {
 	if err := c.Document.Validate(); err != nil {
 		return fmt.Errorf("%w: document: %w", ErrInvalidCandidate, err)
 	}
-	if math.IsNaN(c.Score) || math.IsInf(c.Score, 0) {
-		return fmt.Errorf("%w: score must be finite", ErrInvalidCandidate)
+	if err := c.Score.Validate(); err != nil {
+		return err
 	}
 	return nil
 }

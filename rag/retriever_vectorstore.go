@@ -117,7 +117,7 @@ func (v *VectorStoreRetriever) Retrieve(ctx context.Context, query Query) (Candi
 	}
 	candidates := make(Candidates, 0, len(response.Results))
 	for _, result := range response.Results {
-		candidates = append(candidates, Candidate{Document: result.Document.Clone(), Score: result.Score.Float64()})
+		candidates = append(candidates, Candidate{Document: result.Document.Clone(), Score: Score(result.Score.Float64())})
 	}
 	return candidates, nil
 }

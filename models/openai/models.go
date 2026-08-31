@@ -40,8 +40,8 @@ type ChatConfig struct {
 
 func (c ChatConfig) Validate() error { return c.protocol().Validate() }
 
-func (c ChatConfig) protocol() openaiprotocol.ChatConfig {
-	return openaiprotocol.ChatConfig{
+func (c ChatConfig) protocol() openaiprotocol.ChatCompletionsConfig {
+	return openaiprotocol.ChatCompletionsConfig{
 		APIKey:         c.APIKey,
 		DefaultOptions: c.DefaultOptions,
 		BaseURL:        c.BaseURL,
@@ -50,17 +50,36 @@ func (c ChatConfig) protocol() openaiprotocol.ChatConfig {
 }
 
 // Chat is the OpenAI Chat Completions protocol model.
-type Chat = openaiprotocol.Chat
+type Chat = openaiprotocol.ChatCompletions
 
 func NewChat(config ChatConfig) (*Chat, error) {
-	return openaiprotocol.NewChat(config.protocol())
+	return openaiprotocol.NewChatCompletions(config.protocol())
 }
 
-// ResponsesChat is the OpenAI Responses API model.
-type ResponsesChat = openaiprotocol.ResponsesChat
+type ResponsesConfig struct {
+	APIKey         string
+	DefaultOptions corechat.Options
+	BaseURL        string
+	HTTPClient     *http.Client
+}
 
-func NewResponsesChat(config ChatConfig) (*ResponsesChat, error) {
-	return openaiprotocol.NewResponsesChat(config.protocol())
+func (r ResponsesConfig) Validate() error { return r.protocol().Validate() }
+
+func (r ResponsesConfig) protocol() openaiprotocol.ResponsesConfig {
+	return openaiprotocol.ResponsesConfig{
+		APIKey:         r.APIKey,
+		DefaultOptions: r.DefaultOptions,
+		BaseURL:        r.BaseURL,
+		HTTPClient:     r.HTTPClient,
+	}
+}
+
+// Responses is the OpenAI Responses API model. It remains distinct from
+// Chat because the endpoints expose different transport capabilities.
+type Responses = openaiprotocol.Responses
+
+func NewResponses(config ResponsesConfig) (*Responses, error) {
+	return openaiprotocol.NewResponses(config.protocol())
 }
 
 type EmbeddingModelConfig struct {

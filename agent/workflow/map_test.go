@@ -18,7 +18,7 @@ func TestMapUsesManagedChildrenAndPreservesItemOrder(t *testing.T) {
 	), "map-child")
 	stage, err := workflow.Map(workflow.MapConfig[forkInput, numberOutput]{
 		ID: "items", Deployment: child, Budget: mustBudget(t),
-		WindowSize: 2, ItemLimit: 3,
+		WindowSize: 2, MaxItems: 3,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -55,7 +55,7 @@ func TestMapEmptyInputProducesNonNilEmptyOutput(t *testing.T) {
 	), "empty-map-child")
 	stage, err := workflow.Map(workflow.MapConfig[forkInput, numberOutput]{
 		ID: "items", Deployment: child, Budget: mustBudget(t),
-		WindowSize: 1, ItemLimit: 4,
+		WindowSize: 1, MaxItems: 4,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -76,7 +76,7 @@ func TestMapEmptyInputProducesNonNilEmptyOutput(t *testing.T) {
 	}
 }
 
-func TestMapRejectsInputAboveItemLimitBeforeStartingChildren(t *testing.T) {
+func TestMapRejectsInputAboveMaxItemsBeforeStartingChildren(t *testing.T) {
 	child := mustDeployment(t, mustDefinition(t, "test.workflow.limited_map_child",
 		mustTransform(t, "identity", func(input forkInput) (numberOutput, error) {
 			return numberOutput(input), nil
@@ -84,7 +84,7 @@ func TestMapRejectsInputAboveItemLimitBeforeStartingChildren(t *testing.T) {
 	), "limited-map-child")
 	stage, err := workflow.Map(workflow.MapConfig[forkInput, numberOutput]{
 		ID: "items", Deployment: child, Budget: mustBudget(t),
-		WindowSize: 2, ItemLimit: 2,
+		WindowSize: 2, MaxItems: 2,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -97,7 +97,7 @@ func TestMapRejectsInputAboveItemLimitBeforeStartingChildren(t *testing.T) {
 		t.Fatal(err)
 	}
 	failure, present := result.Termination().Failure()
-	if result.Status() != agent.StatusFailed || !present || failure.Code() != "workflow.map.item_limit_exceeded" {
+	if result.Status() != agent.StatusFailed || !present || failure.Code() != "workflow.map.max_items_exceeded" {
 		t.Fatalf("Map termination = %#v", result.Termination())
 	}
 	if err := engine.Close(); err != nil {
@@ -120,13 +120,13 @@ func TestMapRequiresExplicitLimitsAndMatchingChildContract(t *testing.T) {
 		ID: "items", Budget: mustBudget(t),
 	}
 	for name, config := range map[string]workflow.MapConfig[forkInput, numberOutput]{
-		"zero window size": {ID: valid.ID, Deployment: child, Budget: valid.Budget, ItemLimit: 2},
-		"zero item limit":  {ID: valid.ID, Deployment: child, Budget: valid.Budget, WindowSize: 1},
+		"zero window size": {ID: valid.ID, Deployment: child, Budget: valid.Budget, MaxItems: 2},
+		"zero max items":   {ID: valid.ID, Deployment: child, Budget: valid.Budget, WindowSize: 1},
 		"oversized window": {
-			ID: valid.ID, Deployment: child, Budget: valid.Budget, WindowSize: 3, ItemLimit: 2,
+			ID: valid.ID, Deployment: child, Budget: valid.Budget, WindowSize: 3, MaxItems: 2,
 		},
 		"schema mismatch": {
-			ID: valid.ID, Deployment: wrong, Budget: valid.Budget, WindowSize: 1, ItemLimit: 2,
+			ID: valid.ID, Deployment: wrong, Budget: valid.Budget, WindowSize: 1, MaxItems: 2,
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

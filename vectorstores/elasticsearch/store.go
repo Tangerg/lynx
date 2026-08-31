@@ -233,13 +233,6 @@ func (s *Store) initialize(ctx context.Context, initSchema bool) error {
 	}
 
 	if s.dimensions <= 0 {
-		dimensions, err := s.embeddingClient.Dimensions(ctx)
-		if err != nil {
-			return fmt.Errorf("elasticsearch: resolve embedding dimensions: %w", err)
-		}
-		s.dimensions = dimensions
-	}
-	if s.dimensions <= 0 {
 		return errors.New("elasticsearch: Dimensions must be > 0")
 	}
 

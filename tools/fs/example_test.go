@@ -7,7 +7,14 @@ import (
 )
 
 func ExampleNewReadTool() {
-	read := toolfs.NewReadTool(nil)
+	executor, err := toolfs.NewLocalExecutor(".")
+	if err != nil {
+		panic(err)
+	}
+	read, err := toolfs.NewReadTool(executor)
+	if err != nil {
+		panic(err)
+	}
 	definition := read.Definition()
 
 	fmt.Println(definition.Name)

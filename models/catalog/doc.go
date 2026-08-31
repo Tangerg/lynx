@@ -43,6 +43,4 @@
 //
 // Rows are generated from models.dev, a community model database. Regeneration
 // is a repository change, which is why a lookup performs no I/O.
-//
-// See README.md for usage and ARCHITECTURE.md for what this module owns.
 package catalog

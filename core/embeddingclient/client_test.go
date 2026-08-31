@@ -5,10 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/Tangerg/scope/core/document"
 	"github.com/Tangerg/scope/core/embedding"
 	"github.com/Tangerg/scope/core/embeddingclient"
-	"github.com/Tangerg/scope/core/metadata"
 )
 
 type pointerModel struct{}
@@ -51,12 +49,6 @@ func TestClientEmbedsIndependentVectors(t *testing.T) {
 	if vector, err := client.EmbedText(t.Context(), "one"); err != nil || len(vector) != 4 {
 		t.Fatalf("EmbedText() = %#v, %v", vector, err)
 	}
-	if dimensions, err := client.Dimensions(t.Context()); err != nil || dimensions != 4 {
-		t.Fatalf("Dimensions() = %d, %v", dimensions, err)
-	}
-	if _, err := client.EmbedDocuments(t.Context(), []*document.Document{{Text: "doc"}}); err != nil {
-		t.Fatal(err)
-	}
 }
 
 func TestClientRejectsInvalidBoundaries(t *testing.T) {
@@ -69,27 +61,27 @@ func TestClientRejectsInvalidBoundaries(t *testing.T) {
 	}
 
 	var zeroClient embeddingclient.Client
-	if _, err := zeroClient.EmbedText(t.Context(), "text"); !errors.Is(err, embeddingclient.ErrNilModel) {
+	if _, err := zeroClient.EmbedTexts(t.Context(), []string{"text"}); !errors.Is(err, embeddingclient.ErrNilModel) {
 		t.Fatalf("zero Client error = %v, want ErrNilModel", err)
 	}
 
 	nilResponse, _ := embeddingclient.New(embedding.ModelFunc(func(context.Context, *embedding.Request) (*embedding.Response, error) {
 		return nil, nil
 	}))
-	if _, err := nilResponse.EmbedText(t.Context(), "text"); err == nil {
-		t.Fatal("EmbedText accepted a nil response")
+	if _, err := nilResponse.EmbedTexts(t.Context(), []string{"text"}); err == nil {
+		t.Fatal("EmbedTexts accepted a nil response")
 	}
 
 	want := errors.New("boom")
 	failed, _ := embeddingclient.New(embedding.ModelFunc(func(context.Context, *embedding.Request) (*embedding.Response, error) {
 		return nil, want
 	}))
-	if _, err := failed.EmbedText(t.Context(), "text"); !errors.Is(err, want) {
-		t.Fatalf("EmbedText error = %v, want %v", err, want)
+	if _, err := failed.EmbedTexts(t.Context(), []string{"text"}); !errors.Is(err, want) {
+		t.Fatalf("EmbedTexts error = %v, want %v", err, want)
 	}
 }
 
-func TestClientValidatesResultsAndDocuments(t *testing.T) {
+func TestClientValidatesResults(t *testing.T) {
 	tests := []struct {
 		name     string
 		response *embedding.Response
@@ -103,8 +95,8 @@ func TestClientValidatesResultsAndDocuments(t *testing.T) {
 			client, _ := embeddingclient.New(embedding.ModelFunc(func(context.Context, *embedding.Request) (*embedding.Response, error) {
 				return tt.response, nil
 			}))
-			if _, err := client.EmbedText(t.Context(), "text"); err == nil {
-				t.Fatal("EmbedText accepted an invalid output")
+			if _, err := client.EmbedTexts(t.Context(), []string{"text"}); err == nil {
+				t.Fatal("EmbedTexts accepted an invalid output")
 			}
 		})
 	}
@@ -114,17 +106,5 @@ func TestClientValidatesResultsAndDocuments(t *testing.T) {
 	}))
 	if _, err := client.EmbedTexts(t.Context(), []string{""}); err == nil {
 		t.Fatal("EmbedTexts accepted empty text")
-	}
-	for _, docs := range [][]*document.Document{nil, {nil}, {{Media: nil}}} {
-		if _, err := client.EmbedDocuments(t.Context(), docs); err == nil {
-			t.Fatalf("EmbedDocuments accepted %#v", docs)
-		}
-	}
-	invalid := &document.Document{
-		Text:     "document",
-		Metadata: metadata.Map{"broken": []byte("{")},
-	}
-	if _, err := client.EmbedDocuments(t.Context(), []*document.Document{invalid}); !errors.Is(err, metadata.ErrInvalidValue) {
-		t.Fatalf("EmbedDocuments error = %v, want ErrInvalidValue", err)
 	}
 }

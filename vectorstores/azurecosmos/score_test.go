@@ -30,3 +30,14 @@ func TestNormalizeScore(t *testing.T) {
 		})
 	}
 }
+
+func TestDistanceFunctionIdentity(t *testing.T) {
+	for _, function := range []DistanceFunction{DistanceCosine, DistanceDotProduct, DistanceEuclidean} {
+		if !function.Valid() || function.String() == "" {
+			t.Fatalf("distance function %q is not self-describing", function)
+		}
+	}
+	if DistanceFunction("invalid").Valid() {
+		t.Fatal("Valid accepted an unknown distance function")
+	}
+}

@@ -36,9 +36,9 @@ type Tool struct {
 	typed    toolcontract.Func[Request, Response]
 }
 
-func NewTool(executor Executor) *Tool {
+func NewTool(executor Executor) (*Tool, error) {
 	if lo.IsNil(executor) {
-		executor = NewLocalExecutor()
+		return nil, ErrNilExecutor
 	}
 	t := &Tool{executor: executor}
 	typed, err := toolcontract.NewFunc[Request, Response](
@@ -51,10 +51,10 @@ func NewTool(executor Executor) *Tool {
 		t.run,
 	)
 	if err != nil {
-		panic(fmt.Sprintf("shell: invalid static tool contract: %v", err))
+		return nil, fmt.Errorf("shell.NewTool: %w", err)
 	}
 	t.typed = typed
-	return t
+	return t, nil
 }
 
 func (t *Tool) Definition() chat.ToolDefinition {

@@ -16,8 +16,8 @@ func TestConstructorsRejectAnAbsentCredential(t *testing.T) {
 			_, err := openai.NewChat(openai.ChatConfig{})
 			return err
 		},
-		"NewResponsesChat": func() error {
-			_, err := openai.NewResponsesChat(openai.ChatConfig{})
+		"NewResponses": func() error {
+			_, err := openai.NewResponses(openai.ResponsesConfig{})
 			return err
 		},
 		"NewEmbeddingModel": func() error {
@@ -49,6 +49,26 @@ func TestConstructorsRejectAnAbsentCredential(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			if err := construct(); err == nil {
 				t.Fatal("an empty config constructed a usable model")
+			}
+		})
+	}
+}
+
+func TestConfigsRejectAnAbsentCredential(t *testing.T) {
+	cases := map[string]func() error{
+		"chat":          func() error { return (openai.ChatConfig{}).Validate() },
+		"responses":     func() error { return (openai.ResponsesConfig{}).Validate() },
+		"embedding":     func() error { return (openai.EmbeddingModelConfig{}).Validate() },
+		"transcription": func() error { return (openai.AudioTranscriptionModelConfig{}).Validate() },
+		"translation":   func() error { return (openai.AudioTranslationModelConfig{}).Validate() },
+		"speech":        func() error { return (openai.AudioTTSModelConfig{}).Validate() },
+		"image":         func() error { return (openai.ImageModelConfig{}).Validate() },
+		"moderation":    func() error { return (openai.ModerationModelConfig{}).Validate() },
+	}
+	for name, validate := range cases {
+		t.Run(name, func(t *testing.T) {
+			if err := validate(); err == nil {
+				t.Fatal("Validate accepted an absent credential")
 			}
 		})
 	}
