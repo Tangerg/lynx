@@ -3,10 +3,10 @@ module github.com/Tangerg/scope/otel
 go 1.27.0
 
 require (
-	github.com/Tangerg/scope/agent v0.12.0
-	github.com/Tangerg/scope/core v0.12.0
-	github.com/Tangerg/scope/eval v0.12.0
-	github.com/Tangerg/scope/rag v0.12.0
+	github.com/Tangerg/scope/agent v0.13.0
+	github.com/Tangerg/scope/core v0.13.0
+	github.com/Tangerg/scope/eval v0.13.0
+	github.com/Tangerg/scope/rag v0.13.0
 	github.com/samber/lo v1.53.0
 	go.opentelemetry.io/otel v1.46.0
 	go.opentelemetry.io/otel/log v0.22.0
@@ -27,7 +27,6 @@ require (
 	github.com/invopop/jsonschema v0.14.0 // indirect
 	github.com/pb33f/ordered-map/v2 v2.3.1 // indirect
 	github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 // indirect
-	github.com/silaswei-io/jsonrepair-go v1.1.2 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.yaml.in/yaml/v4 v4.0.0-rc.6 // indirect
 	golang.org/x/sync v0.22.0 // indirect
