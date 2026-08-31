@@ -22,3 +22,4 @@ preventing the same mistake.
 |---|---|
 | [001 — testActiveChildLimit deadlocks the whole agent package](001-active-child-limit-test-deadlock.md) | Fixed in the test; no implementation change needed |
 | [002 — API consistency and ergonomics audit](002-api-consistency-audit.md) | Open; findings 2 and 3 are non-breaking, the rest need a decision |
+| [003 — Value semantics, pointers, and ownership](003-value-semantics-and-ownership.md) | Open; mostly rulings that the current shapes are correct, plus one documentation gap |
