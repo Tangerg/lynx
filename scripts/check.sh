@@ -87,7 +87,7 @@ run_in_module() {
       (cd "$mod" && GOWORK=off go mod tidy -diff)
       (cd "$mod" && GOWORK=off go test -run '^$' ./...)
       ;;
-    lint)  (cd "$mod" && golangci-lint run --config="$ROOT/.golangci.yml" ./...) ;;
+    lint)  (cd "$mod" && golangci-lint run --allow-parallel-runners --config="$ROOT/.golangci.yml" ./...) ;;
     vuln)  "$ROOT/scripts/check-vulnerabilities.sh" "$mod" ;;
     *) echo "unknown check: $check" >&2; return 2 ;;
   esac
