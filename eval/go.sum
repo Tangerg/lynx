@@ -1,5 +1,5 @@
-github.com/Tangerg/scope/core v0.12.0 h1:P5+5YldQLXtMtat+bTvxPMpgL+V0dOJJKKWD9a3Ff7s=
-github.com/Tangerg/scope/core v0.12.0/go.mod h1:GmtH7T7+Tk3KdWFxg8F/gA7pP7R2BieSoWJrY4qybYY=
+github.com/Tangerg/scope/core v0.13.0 h1:RRfUeUaawJXa+pop7F/Stu+BxIaPO4JfwNBQl+FbypU=
+github.com/Tangerg/scope/core v0.13.0/go.mod h1:2gxlTIUXKEnHXFSX/BZrdciKqagk8Rxhvi7oob8nhSM=
 github.com/bahlo/generic-list-go v0.2.0 h1:5sz/EEAK+ls5wF+NeqDpk5+iNdMDXrh3z3nPnH1Wvgk=
 github.com/bahlo/generic-list-go v0.2.0/go.mod h1:2KvAjgMlE5NNynlg/5iLrrCCZ2+5xWbdbCW3pNTGyYg=
 github.com/buger/jsonparser v1.6.1 h1:I0phFv0PlbLHnM7TZAVjZ2MJ2/eWRTDyuO7GLR98IEs=
@@ -18,8 +18,6 @@ github.com/samber/lo v1.53.0 h1:t975lj2py4kJPQ6haz1QMgtId2gtmfktACxIXArw3HM=
 github.com/samber/lo v1.53.0/go.mod h1:4+MXEGsJzbKGaUEQFKBq2xtfuznW9oz/WrgyzMzRoM0=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.3 h1:1EYB5IzjZawrrnELUi78f9fPu57HuXjmddZPjrls/28=
 github.com/santhosh-tekuri/jsonschema/v6 v6.0.3/go.mod h1:JXeL+ps8p7/KNMjDQk3TCwPpBy0wYklyWTfbkIzdIFU=
-github.com/silaswei-io/jsonrepair-go v1.1.2 h1:kWor7WVehT8oFaeEXVqR7/bqvDtMWPlhoNPnif48l/w=
-github.com/silaswei-io/jsonrepair-go v1.1.2/go.mod h1:7aWsUjQXNlhy0bceyHAYMPbgwmtRhMOCULjUaWWNA+I=
 github.com/stretchr/testify v1.11.1 h1:7s2iGBzp5EwR7/aIZr8ao5+dra3wiQyKjjFuvgVKu7U=
 github.com/stretchr/testify v1.11.1/go.mod h1:wZwfW3scLgRK+23gO65QZefKpKQRnfz6sD981Nm4B6U=
 go.yaml.in/yaml/v4 v4.0.0-rc.6 h1:1h7H1ohdUh93/FyE4YaDa1Zh64K6VVbjF4K6WUxMtH4=

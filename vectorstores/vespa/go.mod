@@ -2,7 +2,7 @@ module github.com/Tangerg/scope/vectorstores/vespa
 
 go 1.27.0
 
-require github.com/Tangerg/scope/core v0.12.0
+require github.com/Tangerg/scope/core v0.13.0
 
 require (
 	github.com/samber/lo v1.53.0 // indirect
