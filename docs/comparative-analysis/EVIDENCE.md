@@ -1,106 +1,113 @@
-# 源码证据索引
+# Source evidence index
 
-本页列出综合结论的主要源码落点。提交基线见 [README](README.md#证据基线)。路径均相对于对应桌面仓库。
+This page lists the primary source locations behind the synthesis. Commit
+baselines are in the [README](README.md#evidence-baseline). Paths are relative
+to each project's own repository.
 
-## Scope 与 Flame
+## Scope and Flame
 
-| 结论 | 证据 |
+| Conclusion | Evidence |
 | --- | --- |
-| 五方法拆分窄腰 | `scope/agent/definition.go`：`Definition`、`Execution` |
-| 九个有效运行状态 | `scope/agent/status.go`：`Status.Valid` |
-| Step 不做 I/O，外部工作由 Effect 表达 | `scope/agent/definition.go`、`scope/agent/effect.go` |
-| 直接调用、普通 flow、受管 workflow 是不同层级 | `scope/agent/doc.go`、`scope/agent/definition.go` |
-| 通用 eval 根内核 | `scope/eval/evaluator.go`、`experiment.go`、`report.go`、`composite.go` |
-| 领域指标已离开根内核 | `scope/eval/text/`、`scope/eval/judge/`、`scope/eval/ranking/` |
-| Flame 单向消费 Scope | `flame/runtime/go.mod` |
+| A five-method waist | `scope/agent/definition.go`: `Definition`, `Execution` |
+| Nine valid run states | `scope/agent/status.go`: `Status.Valid` |
+| A Step performs no I/O; external work is expressed as an Effect | `scope/agent/definition.go`, `scope/agent/effect.go` |
+| Direct calls, ordinary flow, and managed workflow are different layers | `scope/agent/doc.go`, `scope/agent/definition.go` |
+| A general eval root kernel | `scope/eval/evaluator.go`, `experiment.go`, `report.go`, `composite.go` |
+| Domain metrics have left the root kernel | `scope/eval/text/`, `scope/eval/judge/`, `scope/eval/ranking/` |
+| Flame consumes Scope one-way | `flame/runtime/go.mod` |
 
 ## Pi
 
-| 结论 | 证据 |
+| Conclusion | Evidence |
 | --- | --- |
-| 统一多提供商消息与流协议 | `pi/packages/ai/src/types.ts` |
-| provider registry 与动态模型目录 | `pi/packages/ai/src/models.ts` |
-| 注入式 StreamFn、工具和生命周期配置 | `pi/packages/agent/src/types.ts` |
-| 模型—工具循环直接执行 | `pi/packages/agent/src/agent-loop.ts` |
-| 状态型 Agent 与事件 | `pi/packages/agent/src/agent.ts` |
-| Harness 类型、未实现主路径 | `pi/packages/agent/src/harness/agent-harness.ts` |
-| operation log、replay 与 session 存储协议 | `pi/packages/agent/src/harness/session/types.ts` |
-| evals 是私有 Coding Agent harness | `pi/packages/evals/package.json`、`README.md` |
+| A unified multi-provider message and stream protocol | `pi/packages/ai/src/types.ts` |
+| A provider registry and dynamic model catalog | `pi/packages/ai/src/models.ts` |
+| Injected StreamFn, tools, and lifecycle configuration | `pi/packages/agent/src/types.ts` |
+| The model-tool loop executes directly | `pi/packages/agent/src/agent-loop.ts` |
+| A stateful agent and its events | `pi/packages/agent/src/agent.ts` |
+| Harness types with an unimplemented main path | `pi/packages/agent/src/harness/agent-harness.ts` |
+| Operation log, replay, and session store protocol | `pi/packages/agent/src/harness/session/types.ts` |
+| evals is a private coding-agent harness | `pi/packages/evals/package.json`, `README.md` |
 
 ## Eino
 
-| 结论 | 证据 |
+| Conclusion | Evidence |
 | --- | --- |
-| Runnable 四种调用形态 | `eino/compose/runnable.go` |
-| Graph/Workflow 编排 | `eino/compose/graph.go`、`compose/workflow.go` |
-| 图 checkpoint | `eino/compose/checkpoint.go` |
-| 共同消息协议 | `eino/schema/message.go` |
-| Agent callback | `eino/adk/callback.go`、`flow/agent/react/callback.go` |
+| Runnable's four calling shapes | `eino/compose/runnable.go` |
+| Graph and Workflow orchestration | `eino/compose/graph.go`, `compose/workflow.go` |
+| Graph checkpoints | `eino/compose/checkpoint.go` |
+| A shared message protocol | `eino/schema/message.go` |
+| Agent callbacks | `eino/adk/callback.go`, `flow/agent/react/callback.go` |
 
 ## tRPC-Agent-Go
 
-| 结论 | 证据 |
+| Conclusion | Evidence |
 | --- | --- |
-| Invocation 与 Agent 契约 | `trpc-agent-go/agent/invocation.go`、`agent/agent.go` |
+| The Invocation and Agent contracts | `trpc-agent-go/agent/invocation.go`, `agent/agent.go` |
 | Runner | `trpc-agent-go/runner/runner.go` |
-| Graph state 与 checkpoint | `trpc-agent-go/graph/state.go`、`graph/checkpoint.go` |
-| 多条 callback 表面 | `agent/callbacks.go`、`model/callbacks.go`、`tool/callbacks.go`、`graph/callbacks.go` |
-| Agent 绑定的完整 evaluation 服务 | `trpc-agent-go/evaluation/evaluation.go`、`evaluation/service/` |
+| Graph state and checkpoints | `trpc-agent-go/graph/state.go`, `graph/checkpoint.go` |
+| Several callback surfaces | `agent/callbacks.go`, `model/callbacks.go`, `tool/callbacks.go`, `graph/callbacks.go` |
+| A complete agent-bound evaluation service | `trpc-agent-go/evaluation/evaluation.go`, `evaluation/service/` |
 
 ## Google ADK Go
 
-| 结论 | 证据 |
+| Conclusion | Evidence |
 | --- | --- |
-| Agent 契约 | `adk-go/agent/agent.go` |
+| The Agent contract | `adk-go/agent/agent.go` |
 | InvocationContext | `adk-go/internal/context/invocation_context.go` |
-| Session 与事件 | `adk-go/session/session.go` |
+| Sessions and events | `adk-go/session/session.go` |
 | Runner | `adk-go/runner/runner.go` |
-| 工作流 Agent | `adk-go/agent/workflowagents/sequentialagent/agent.go`、`parallelagent/agent.go`、`loopagent/agent.go` |
-| Workflow Node/Edge 与 scheduler | `adk-go/workflow/workflow.go`、`workflow/scheduler.go` |
-| RunState、持久化与恢复 | `adk-go/workflow/state.go`、`workflow/persistence.go`、`workflow/resume.go` |
-| HITL 请求协议 | `adk-go/workflow/request_input.go` |
-| Plugin 生命周期 | `adk-go/plugin/plugin.go` |
-| Eval API 尚未实现 | `adk-go/server/adkrest/internal/routers/eval.go` |
+| Workflow agents | `adk-go/agent/workflowagents/sequentialagent/agent.go`, `parallelagent/agent.go`, `loopagent/agent.go` |
+| Workflow Node, Edge, and scheduler | `adk-go/workflow/workflow.go`, `workflow/scheduler.go` |
+| RunState, persistence, and recovery | `adk-go/workflow/state.go`, `workflow/persistence.go`, `workflow/resume.go` |
+| The HITL request protocol | `adk-go/workflow/request_input.go` |
+| Plugin lifecycle | `adk-go/plugin/plugin.go` |
+| The eval API is not yet implemented | `adk-go/server/adkrest/internal/routers/eval.go` |
 
 ## Microsoft Agent Framework Go
 
-| 结论 | 证据 |
+| Conclusion | Evidence |
 | --- | --- |
-| RunFunc 与 Agent | `agent-framework-go/agent/agent.go` |
-| middleware/context provider | `agent-framework-go/agent/middleware.go`、`agent/context.go` |
+| RunFunc and Agent | `agent-framework-go/agent/agent.go` |
+| Middleware and context provider | `agent-framework-go/agent/middleware.go`, `agent/context.go` |
 | Workflow Executor | `agent-framework-go/workflow/executor.go` |
 | RequestPort | `agent-framework-go/workflow/requestport.go` |
-| PortableValue 与 checkpoint | `agent-framework-go/workflow/portable.go`、`workflow/checkpoint/store.go`、`workflow/checkpoint/manager.go` |
-| loop evaluator 是重入策略 | `agent-framework-go/agent/harness/loop/loop.go` |
+| PortableValue and checkpoints | `agent-framework-go/workflow/portable.go`, `workflow/checkpoint/store.go`, `workflow/checkpoint/manager.go` |
+| The loop evaluator is a re-entry strategy | `agent-framework-go/agent/harness/loop/loop.go` |
 
 ## Spring AI
 
-| 结论 | 证据 |
+| Conclusion | Evidence |
 | --- | --- |
-| Model/StreamingModel/ChatModel | `spring-ai/spring-ai-model/src/main/java/org/springframework/ai/model/Model.java`、`StreamingModel.java`、`chat/model/ChatModel.java` |
+| Model, StreamingModel, ChatModel | `spring-ai/spring-ai-model/src/main/java/org/springframework/ai/model/Model.java`, `StreamingModel.java`, `chat/model/ChatModel.java` |
 | ChatClient | `spring-ai/spring-ai-client-chat/src/main/java/org/springframework/ai/chat/client/ChatClient.java` |
-| Advisor 与工具循环 | `spring-ai/spring-ai-client-chat/src/main/java/org/springframework/ai/chat/client/advisor/api/Advisor.java`、`advisor/ToolCallingAdvisor.java` |
+| Advisors and the tool loop | `spring-ai/spring-ai-client-chat/src/main/java/org/springframework/ai/chat/client/advisor/api/Advisor.java`, `advisor/ToolCallingAdvisor.java` |
 | VectorStore | `spring-ai/spring-ai-vector-store/src/main/java/org/springframework/ai/vectorstore/VectorStore.java` |
-| Chat/RAG 形状的 EvaluationRequest | `spring-ai/spring-ai-commons/src/main/java/org/springframework/ai/evaluation/EvaluationRequest.java` |
+| A chat- and RAG-shaped EvaluationRequest | `spring-ai/spring-ai-commons/src/main/java/org/springframework/ai/evaluation/EvaluationRequest.java` |
 
 ## Embabel Agent
 
-| 结论 | 证据 |
+| Conclusion | Evidence |
 | --- | --- |
 | Action | `embabel-agent/embabel-agent-api/src/main/kotlin/com/embabel/agent/core/Action.kt` |
 | Blackboard | `embabel-agent/embabel-agent-api/src/main/kotlin/com/embabel/agent/core/Blackboard.kt` |
-| AgentProcess/AgentPlatform | `embabel-agent/embabel-agent-api/src/main/kotlin/com/embabel/agent/core/AgentProcess.kt`、`AgentPlatform.kt` |
-| GOAP | `embabel-agent/embabel-agent-api/src/main/kotlin/com/embabel/plan/goap/OptimizingGoapPlanner.kt`、`goap/astar/AStarGoapPlanner.kt` |
+| AgentProcess and AgentPlatform | `embabel-agent/embabel-agent-api/src/main/kotlin/com/embabel/agent/core/AgentProcess.kt`, `AgentPlatform.kt` |
+| GOAP | `embabel-agent/embabel-agent-api/src/main/kotlin/com/embabel/plan/goap/OptimizingGoapPlanner.kt`, `goap/astar/AStarGoapPlanner.kt` |
 
 ## GitNexus
 
-| 结论 | 证据 |
+| Conclusion | Evidence |
 | --- | --- |
-| 代码图协议 | `GitNexus/gitnexus-shared/src/graph/types.ts` |
-| 索引与查询实现 | `GitNexus/gitnexus/src/core/`、`gitnexus/src/storage/` |
-| MCP 工具边界 | `GitNexus/gitnexus/src/mcp/tools.ts`、`mcp/server.ts` |
-| 输出预算与陈旧性 | `GitNexus/gitnexus/src/mcp/output-budget.ts`、`mcp/staleness.ts` |
+| The code graph protocol | `GitNexus/gitnexus-shared/src/graph/types.ts` |
+| Index and query implementation | `GitNexus/gitnexus/src/core/`, `gitnexus/src/storage/` |
+| The MCP tool boundary | `GitNexus/gitnexus/src/mcp/tools.ts`, `mcp/server.ts` |
+| Output budget and staleness | `GitNexus/gitnexus/src/mcp/output-budget.ts`, `mcp/staleness.ts` |
 
-## 解释规则
+## Interpretation rule
 
-源码中出现一个类型，只能证明该协议被声明。只有主执行路径调用它、测试覆盖其语义且实现不返回占位错误时，才按“已实现能力”计入综合结论。Pi Harness 是本轮最重要的反例：类型设计丰富，但主运行方法仍明确返回未实现错误。
+A type appearing in source proves only that a protocol was declared. It counts
+as a delivered capability in the synthesis only when the main execution path
+calls it, tests cover its semantics, and the implementation does not return a
+placeholder error. Pi's harness is this round's most important counterexample:
+a rich type design whose main run methods still return an explicit
+not-implemented error.

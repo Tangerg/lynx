@@ -1,20 +1,37 @@
-# Agent 框架层综合结论
+# Agent framework synthesis
 
-## 结论先行
+## The conclusion first
 
-Scope 不是“在所有维度都领先”的通用 Agent 框架。它在一个更窄、也更难的目标上做得突出：**让多步、可中断、带子执行的 Agent 工作在进程重启后仍能按明确语义恢复**。为此，它把决策与外部工作拆开，并让宿主持有产品会话、历史和基础设施。
+Scope is not a general agent framework that leads on every dimension. It is
+strong at a narrower and harder goal: **letting multi-step, interruptible agent
+work with child executions resume after a process restart with an explicit
+meaning**. To get there it separates decision from external work and leaves
+product sessions, history, and infrastructure to the host.
 
-Pi 则代表另一端的优秀答案：**用很小的嵌入面构建高生产力的模型—工具循环**。它的低层 Agent 运行时直接、灵活、易改造，但低层循环本身不提供 Scope 式的副作用身份与完整恢复。Pi 新增的 Harness 类型已经描述了 operation log、lane、replay 和 snapshot 等能力，不过本次基线中主要运行方法仍返回 `HarnessNotImplemented`，不能按已交付能力计入比较。
+Pi represents the excellent answer at the other end: **a high-productivity
+model-tool loop behind a very small embedding surface**. Its low-level agent
+runtime is direct, flexible, and easy to modify, but the loop itself provides
+neither Scope-style side-effect identity nor complete recovery. Pi's newer
+harness types already describe an operation log, lanes, replay, and snapshots;
+at this baseline, however, the main run methods still return
+`HarnessNotImplemented`, so they cannot count as delivered capability.
 
-其余框架并不是两者之间的简单刻度：Eino 以类型化图组合为中心，ADK 以会话、Agent 树和 Workflow 图为中心，Microsoft Agent Framework 以流式 Agent 和工作流执行器为中心，Spring AI 以 Spring 生态中的模型调用组合为中心，Embabel 以目标驱动动态规划为中心，tRPC-Agent-Go 则覆盖 Agent、图和产品化组件的更宽表面。
+The rest are not points on a scale between those two. Eino centers on typed
+graph composition, ADK on sessions, agent trees, and a workflow graph,
+Microsoft Agent Framework on streaming agents and workflow executors, Spring AI
+on model composition inside the Spring ecosystem, Embabel on goal-driven
+dynamic planning, and tRPC-Agent-Go on a wider surface spanning agents, graphs,
+and productized components.
 
-因此，本轮不产生总排名。正确的问题是：**哪种执行语义适合目标系统，以及为此承担了什么复杂度。**
+This round therefore produces no overall ranking. The right question is: **which
+execution semantics fit the target system, and what complexity is accepted for
+them.**
 
-## 边界先于能力列表
+## Boundaries come before feature lists
 
-### 应用层不参与框架评分
+### The application layer does not score the framework
 
-Flame 的正确角色是 Scope 的外部消费者：
+Flame's correct role is an external consumer of Scope:
 
 ```text
 Flame CLI / Desktop
@@ -24,173 +41,316 @@ Flame runtime
 Scope framework modules
 ```
 
-`flame/runtime/go.mod` 直接依赖 Scope 的 `agent`、`core`、`mcp`、`otel`、`skills`、`tools`、`a2a` 和模型叶子模块；Scope 不依赖 Flame。这个方向说明应用与框架已经形成真实分层，比把演示应用放进框架仓库更有说服力。
+`flame/runtime/go.mod` depends directly on Scope's `agent`, `core`, `mcp`,
+`otel`, `skills`, `tools`, `a2a`, and model leaf modules; Scope does not depend
+on Flame. That direction shows application and framework are genuinely layered,
+which is more convincing than putting a demo application in the framework
+repository.
 
-但 Flame 只能证明 Scope 的复杂执行模型有真实消费者，不能证明每个 Agent 应用都需要同样的执行模型。类似地，Pi Coding Agent 的终端体验、tRPC OpenClaw 的工具数量、ADK 的 Web/CLI 或 Embabel Shell 都不应转化为内核分数。
+But Flame only proves Scope's complex execution model has a real consumer. It
+does not prove every agent application needs the same execution model.
+Likewise, the Pi coding agent's terminal experience, tRPC OpenClaw's tool
+count, ADK's web and CLI, and the Embabel shell must not convert into kernel
+scores.
 
-### GitNexus 不再伪装成同类竞品
+### GitNexus no longer poses as a peer
 
-GitNexus 的核心是代码索引、知识图谱和检索接口。它没有与其他项目同构的 Agent 执行契约、工具循环或恢复模型。将它放入主矩阵会让“检索产品能力”与“Agent 框架语义”混为一谈。
+GitNexus's core is code indexing, a knowledge graph, and a retrieval interface.
+It has no agent execution contract, tool loop, or recovery model comparable to
+the others. Putting it in the primary matrix would conflate retrieval product
+capability with agent framework semantics.
 
-它仍然有一项相邻价值：提醒 Agent 框架的工具协议不要把“查到的上下文”冒充“已验证事实”。这属于证据表达问题，而不是框架排名。
+It keeps one adjacent value: a reminder that an agent framework's tool protocol
+must not pass off "context we found" as "verified fact". That is a question of
+expressing evidence, not a framework ranking.
 
-## 框架形状对比
+## Framework shapes
 
-| 项目 | 核心抽象 | 主要状态所有者 | 外部工作发生位置 | 设计中心 |
+| Project | Core abstraction | Primary state owner | Where external work happens | Design center |
 | --- | --- | --- | --- | --- |
-| Scope | `Definition` + `Execution` | Execution 快照；产品数据由 Host 持有 | `Step` 描述 `Effect`，运行时执行 | 可恢复的受管执行 |
-| Pi | `StreamFn`、`agentLoop`、`Agent` | 可变 `AgentState` 和消息历史 | 循环内直接调用模型和工具 | 紧凑的嵌入式工具循环 |
-| Eino | `Runnable[I,O]`、Graph/Workflow | 图状态、上下文和节点数据 | 节点或组件直接执行 | 类型化组件与图组合 |
-| tRPC-Agent-Go | `Agent`、`Invocation`、Graph | Invocation、Session、Graph State | Agent、Runner 或节点直接执行 | 宽表面的 Agent 运行时 |
-| ADK Go | 密封 `Agent`；Workflow `Node`/`Edge` | Session、InvocationContext 与 Workflow RunState | Agent、节点、工具和回调直接执行 | 会话驱动的 Agent 树与图调度 |
-| Microsoft AF Go | `RunFunc`、Agent、Executor | 会话、工作流状态和 checkpoint store | Agent 或 Executor 直接执行 | 流式 Agent 与工作流 |
-| Spring AI | Model、ChatClient、Advisor | 应用会话、Memory、Spring Bean | Client、Advisor 和 ToolCallback 直接执行 | Spring 生态模型组合 |
-| Embabel | Blackboard、Action、AgentProcess | Blackboard 与 AgentProcess | Action 直接执行 | GOAP 动态规划 |
+| Scope | `Definition` + `Execution` | The Execution snapshot; product data belongs to the host | `Step` describes an `Effect`; the runtime executes it | Recoverable managed execution |
+| Pi | `StreamFn`, `agentLoop`, `Agent` | A mutable `AgentState` and message history | The loop calls models and tools directly | A compact embeddable tool loop |
+| Eino | `Runnable[I,O]`, Graph/Workflow | Graph state, context, and node data | Nodes or components execute directly | Typed component and graph composition |
+| tRPC-Agent-Go | `Agent`, `Invocation`, Graph | Invocation, Session, graph state | Agents, runners, or nodes execute directly | A broad-surface agent runtime |
+| ADK Go | Sealed `Agent`; workflow `Node`/`Edge` | Session, InvocationContext, and workflow run state | Agents, nodes, tools, and callbacks execute directly | Session-driven agent trees and graph scheduling |
+| Microsoft AF Go | `RunFunc`, Agent, Executor | Sessions, workflow state, a checkpoint store | Agents or executors execute directly | Streaming agents and workflows |
+| Spring AI | Model, ChatClient, Advisor | Application sessions, Memory, Spring beans | Clients, advisors, and tool callbacks execute directly | Spring-ecosystem model composition |
+| Embabel | Blackboard, Action, AgentProcess | The blackboard and AgentProcess | Actions execute directly | GOAP dynamic planning |
 
-这个表揭示了一个重要修正：Scope 的差异不在于“也有工作流”，而在于 **决策步骤不直接执行外部工作**。大多数对手选择更直接的调用模型，这在简单路径上更轻，在精确恢复上则需要额外约束。
+The table reveals an important correction: Scope's difference is not that it
+"also has workflows", but that **a decision step does not perform external work
+directly**. Most peers choose a more direct calling model, which is lighter on
+the simple path and needs extra constraints for exact recovery.
 
-## 八个框架层维度
+## The eight framework dimensions
 
-### 1. 协议与提供商边界
+### 1. Protocol and provider boundary
 
-Scope 的 `core.Message`、`Part`、工具和模型契约不依赖特定 SDK，模型实现被拆到叶子模块。这种边界最干净，也把转换成本明确留给适配器。
+Scope's `core.Message`, `Part`, tool, and model contracts depend on no specific
+SDK, and model implementations are split into leaf modules. That boundary is
+the cleanest, and it leaves conversion cost explicitly with the adapter.
 
-Pi 的 `pi-ai` 提供统一的多提供商接口和一致的流事件，实际使用非常顺手；但公共类型中保留了 Google thought signature、OpenAI namespace 等提供商字段，包本身也直接依赖多家 SDK。它追求的是兼容效率，不是最纯的领域内核。
+Pi's `pi-ai` offers a unified multi-provider interface with consistent stream
+events and is very pleasant in practice; but its public types retain
+provider-specific fields such as the Google thought signature and the OpenAI
+namespace, and the package itself depends on several SDKs directly. It pursues
+compatibility efficiency, not the purest domain kernel.
 
-Spring AI、ADK、Microsoft Agent Framework 和 tRPC-Agent-Go 都提供统一模型表面，但会不同程度地让框架类型、生态容器或具体 SDK 进入同一依赖闭包。Eino 的接口和提供商扩展仓库分离较好。Embabel 更关注规划模型，协议纯度不是其首要设计中心。
+Spring AI, ADK, Microsoft Agent Framework, and tRPC-Agent-Go all offer a
+unified model surface, but each to some degree lets framework types, an
+ecosystem container, or a concrete SDK into the same dependency closure. Eino
+separates its interfaces from its provider extension repository fairly well.
+Embabel focuses on the planning model, so protocol purity is not its primary
+design center.
 
-结论不是“越纯越好”：纯内核降低传递依赖和供应商耦合，但会增加适配工作，并面临最低公分母风险。Scope 需要持续证明其公共协议既稳定又能表达提供商特性，而不是只证明它没有 SDK 依赖。
+The conclusion is not "purer is better". A pure kernel lowers transitive
+dependencies and vendor coupling, but it adds adaptation work and faces a
+lowest-common-denominator risk. Scope must keep proving its public protocol is
+both stable and able to express provider features — not merely that it has no
+SDK dependency.
 
-### 2. 最小执行契约
+### 2. The minimal execution contract
 
-Scope 当前窄腰由五个方法组成：
+Scope's current waist is five methods:
 
-- `Definition`：`Descriptor`、`Start`、`Restore`
-- `Execution`：`Step`、`Snapshot`
+- `Definition`: `Descriptor`, `Start`, `Restore`
+- `Execution`: `Step`, `Snapshot`
 
-旧稿称其为“四方法窄腰”，是事实错误。这个拆分把定义、实例和恢复边界表达得很清楚，但每个实现从第一天就必须面对恢复协议。
+An earlier draft called this a "four-method waist", which was factually wrong.
+The split expresses the definition, instance, and recovery boundaries very
+clearly, but every implementation faces the recovery protocol from day one.
 
-Pi 的最低嵌入面更小：注入 `StreamFn` 和工具即可运行 `agentLoop`；状态型 `Agent` 再在上层提供事件和控制。Microsoft Agent Framework 的 `RunFunc`、Eino 的 `Runnable`、Spring 的 `ChatClient` 也都拥有比 Scope 更轻的普通调用路径。
+Pi's minimum embedding surface is smaller: inject a `StreamFn` and tools and
+`agentLoop` runs; the stateful `Agent` then adds events and control on top.
+Microsoft Agent Framework's `RunFunc`, Eino's `Runnable`, and Spring's
+`ChatClient` also have a lighter ordinary calling path than Scope.
 
-因此，Scope 的窄腰是“语义窄”，不是“上手成本最低”。若调用方只需要一次模型调用或短暂工具循环，Scope 的受管执行不应成为强制入口；当前架构文档允许直接使用 `chatclient`，这是必要的双层路径，不应被重新合并。
+Scope's waist is therefore "semantically narrow", not "cheapest to start with".
+When a caller only needs one model call or a short tool loop, managed execution
+must not be the forced entry point. The current architecture allows direct
+`chatclient` use; that two-layer path is necessary and must not be merged back
+together.
 
-### 3. 状态所有权
+### 3. State ownership
 
-Scope 对状态的划分最明确：执行器快照属于框架执行语义；产品会话、聊天历史、凭证和存储属于 Host。它降低了框架变成应用容器的风险。
+Scope draws the clearest state boundary: the execution snapshot belongs to
+framework execution semantics, while product sessions, chat history,
+credentials, and storage belong to the host. That lowers the risk of the
+framework becoming an application container.
 
-Pi 的低层 `AgentState` 同时持有消息、工具和 `isStreaming`、`streamingMessage`、pending tool calls 等运行时/UI 邻近状态。这让状态订阅和交互式应用非常直接，但持久化边界没有像 Scope 那样天然分层。
+Pi's low-level `AgentState` holds messages and tools together with runtime and
+UI-adjacent state such as `isStreaming`, `streamingMessage`, and pending tool
+calls. That makes state subscription and interactive applications very direct,
+but the persistence boundary is not naturally layered the way Scope's is.
 
-ADK 和 tRPC 以 Invocation/Session 上下文集中传递状态，使用方便但容易形成宽上下文。Eino 的图状态和 Embabel 的 Blackboard 对复杂组合很自然，也更依赖运行时约定或动态数据约束。Spring AI 通常把状态所有权交给应用和 Spring 组件。
+ADK and tRPC pass state centrally through an invocation or session context,
+which is convenient but tends toward a wide context. Eino's graph state and
+Embabel's blackboard are natural for complex composition and rely more on
+runtime conventions or dynamic data constraints. Spring AI usually leaves state
+ownership to the application and to Spring components.
 
-### 4. 副作用边界
+### 4. The side-effect boundary
 
-Scope 的 `Step` 只做确定性决策并产出 `Effect`，外部 I/O 由运行时执行；结果通过 Signal 回到下一步。这使副作用拥有可记录身份，也让重试、幂等、取消和恢复能共享一套语义。
+Scope's `Step` makes only a deterministic decision and emits an `Effect`;
+external I/O is executed by the runtime, and the result returns as a Signal on
+the next step. That gives a side effect a recordable identity and lets retry,
+idempotency, cancellation, and recovery share one set of semantics.
 
-Pi、ADK、Eino、Spring AI、Embabel 和多数 tRPC/MAF 路径都在循环、Action、节点、Advisor 或执行器中直接调用模型和工具。直接调用并非坏味道：它减少中间表示和模板代码，调试普通调用也更符合语言直觉。代价是要达到 Scope 同等级别的恢复精度，必须另行记录调用身份、参数、完成结果和重放策略。
+Pi, ADK, Eino, Spring AI, Embabel, and most tRPC and MAF paths call models and
+tools directly inside a loop, action, node, advisor, or executor. Direct calls
+are not a smell: they remove intermediate representation and boilerplate, and
+debugging an ordinary call matches language intuition better. The cost is that
+reaching Scope's level of recovery precision requires separately recording call
+identity, arguments, completion result, and replay policy.
 
-Scope 在这里有最清楚的结构优势，也承担最高的作者成本。任何不能带来中断恢复、审计或严格生命周期收益的流程，都不应为了“统一”而强行 Effect 化。
+Scope has the clearest structural advantage here and pays the highest authoring
+cost. Any flow that cannot show a recovery, audit, or strict-lifecycle benefit
+should not be forced into an Effect for the sake of uniformity.
 
-### 5. 编排与子执行生命周期
+### 5. Orchestration and child execution lifecycle
 
-各框架所谓的“工作流”不是同一种能力：
+What each framework calls a "workflow" is not the same capability:
 
-- Scope 的受管 Workflow 只用于拥有独立 Process 的子执行，子项有标识、预算、取消、快照和树恢复；普通同步数据流可走独立的 `flow` 库。
-- Eino 和 tRPC 的 Graph 更接近节点数据流与执行图，表达任意拓扑更自然。
-- ADK 除了 Sequential/Parallel/Loop Agent，还实现了独立 Workflow 图：Node/Edge、静态与动态调度、并发上限、schema 校验、HITL 和 resume 通过 Session/RunState 协作；两套工作流表面当前并存。
-- Microsoft Agent Framework 的 Executor/Workflow 支持边、事件、checkpoint 和 RequestPort，适合工作流驱动的人机交互。
-- Embabel 的 Action 与目标由 GOAP 动态选择，不要求预先固定整张图。
-- Spring AI 与 Pi 低层运行时不把通用工作流作为核心；编排通常由应用或上层设施承担。
+- Scope's managed Workflow is only for child execution with its own Process, so
+  each item has identity, budget, cancellation, snapshot, and tree recovery.
+  Ordinary synchronous data flow can use the separate `flow` library.
+- Eino's and tRPC's graphs are closer to node data flow and execution graphs,
+  and express arbitrary topology more naturally.
+- Beyond Sequential, Parallel, and Loop agents, ADK also implements an
+  independent workflow graph: nodes and edges, static and dynamic scheduling, a
+  concurrency ceiling, schema validation, HITL, and resume cooperating through
+  session and run state. Two workflow surfaces currently coexist.
+- Microsoft Agent Framework's executors and workflows support edges, events,
+  checkpoints, and RequestPort, which suits workflow-driven human interaction.
+- Embabel's actions and goals are selected dynamically by GOAP, with no
+  requirement to fix the whole graph in advance.
+- Spring AI and Pi's low-level runtime do not treat general workflow as core;
+  orchestration usually belongs to the application or a higher layer.
 
-Scope 的闭合 Stage 词汇换来了稳定的 schema 和恢复语义，也牺牲了任意图组合的自由度。这个取舍适合受管子进程，不应宣传为对所有编排形式的替代。
+Scope's closed stage vocabulary buys a stable schema and recovery semantics at
+the price of arbitrary graph composition. That trade-off suits managed child
+processes and must not be advertised as a replacement for every orchestration
+form.
 
-### 6. 持久化与恢复
+### 6. Persistence and recovery
 
-| 项目 | 本轮可确认的能力 | 不能混同的部分 |
+| Project | Confirmed this round | What must not be conflated |
 | --- | --- | --- |
-| Scope | Execution/TreeSnapshot、Effect 结果回灌、子执行恢复 | Host 的产品数据不由框架快照代管 |
-| Pi | 低层 Agent 保留内存状态；Harness 类型声明 operation log、lane、snapshot、replay | Harness 的 `prompt`、`resume`、`compact`、树导航等主要路径当前仍未实现 |
-| Eino | Graph checkpoint 与 state 序列化 | 节点内部任意外部副作用不自动获得 Effect 身份 |
-| tRPC | Session/Graph checkpoint、父 checkpoint 等机制 | 宽运行时中的所有 Agent 副作用并非统一可重放 |
-| ADK | Workflow RunState 可写入 Session，暂停状态也可由事件历史重建并 resume | 节点内外部调用没有统一 Effect 身份；Workflow 构造处仍明确缺少 graph fingerprint 校验 |
-| Microsoft AF | Checkpoint Store、工作流状态、RequestPort | Agent 内直接外部调用仍需自己的幂等边界 |
-| Spring AI | Chat memory、外部存储集成 | 没有统一执行快照语义 |
-| Embabel | AgentProcess/Blackboard 持久化抽象 | Action 外部工作不自动成为可重放 Effect |
+| Scope | Execution and tree snapshots, effect settlement feedback, child execution recovery | Host product data is not held on its behalf by a framework snapshot |
+| Pi | The low-level agent keeps in-memory state; harness types declare an operation log, lanes, snapshots, and replay | The harness's `prompt`, `resume`, `compact`, and tree navigation paths are still unimplemented |
+| Eino | Graph checkpoints and state serialization | Arbitrary external side effects inside a node gain no effect identity automatically |
+| tRPC | Session and graph checkpoints, parent checkpoints | Not every agent side effect in a wide runtime is uniformly replayable |
+| ADK | Workflow run state can be written into the session, and a paused state can be rebuilt from event history and resumed | External calls in a node have no unified effect identity, and workflow construction still explicitly lacks graph fingerprint validation |
+| Microsoft AF | A checkpoint store, workflow state, RequestPort | Direct external calls inside an agent still need their own idempotency boundary |
+| Spring AI | Chat memory and external storage integration | No unified execution snapshot semantics |
+| Embabel | AgentProcess and blackboard persistence abstractions | External work in an action does not automatically become a replayable effect |
 
-旧稿最大的证据问题之一，是把“有 checkpoint/session 类型”直接等同于“完整可恢复执行”。新口径要求同时回答：保存了什么、外部调用是否有身份、恢复从何处继续、结果是否会被重复提交。
+One of the earlier draft's biggest evidence problems was equating "has
+checkpoint or session types" with "complete recoverable execution". The current
+standard requires answering four questions together: what was saved, whether
+the external call has an identity, where recovery resumes, and whether a result
+can be submitted twice.
 
-### 7. 扩展与可观测性
+### 7. Extension and observability
 
-Scope 用 middleware、listener 和独立 OTel 模块维持内核中立；这个边界清楚，但需要维护跨执行、Effect 和恢复的关联规则。
+Scope keeps the kernel neutral with middleware, listeners, and a separate
+OpenTelemetry module. That boundary is clear, but it requires maintaining
+correlation rules across executions, effects, and recovery.
 
-Pi 的 Agent 事件和具名生命周期回调很容易嵌入应用，`pi-telemetry` 还定义了类型化、供应商中立的遥测 schema。它避免让 Agent 直接依赖 OTel，却形成了一套需要适配到外部遥测系统的自有协议。
+Pi's agent events and named lifecycle callbacks embed easily into an
+application, and `pi-telemetry` defines a typed, vendor-neutral telemetry
+schema. It avoids making the agent depend on OpenTelemetry directly, at the
+price of its own protocol that has to be adapted to external telemetry systems.
 
-Eino 的 callback、ADK 的 callback/plugin、Spring 的 Advisor、Microsoft AF 的 middleware/context provider 都有各自生态优势。tRPC 同时存在多个回调和扩展面，覆盖面大，但统一心智模型的成本更高。Embabel 借助 Spring 事件与注解，生态一致性高，框架独立性较低。
+Eino's callbacks, ADK's callbacks and plugins, Spring's advisors, and Microsoft
+AF's middleware and context providers each carry their own ecosystem advantage.
+tRPC has several callback and extension surfaces at once — broad coverage, but
+a higher cost to unify the mental model. Embabel leans on Spring events and
+annotations for high ecosystem consistency and lower framework independence.
 
-扩展点数量不是质量指标。更关键的是：同一事件是否只有一个权威生命周期，扩展失败是否改变主执行语义，以及恢复后关联信息能否延续。
+The number of extension points is not a quality metric. What matters is whether
+one event has exactly one authoritative lifecycle, whether an extension failure
+changes main execution semantics, and whether correlation survives recovery.
 
-### 8. 依赖与应用边界
+### 8. Dependencies and the application boundary
 
-Scope 的多模块叶子结构给了消费者精细依赖控制，也带来真实成本：版本协调、发现性、跨模块测试和发布管理都更难。旧稿只把模块多当成优势，结论不完整。
+Scope's multi-module leaf structure gives consumers fine dependency control and
+carries a real cost: version coordination, discoverability, cross-module
+testing, and release management all get harder. The earlier draft treated many
+modules purely as an advantage, which was incomplete.
 
-Pi 在 monorepo 内明确拆开 `pi-ai`、`pi-agent-core` 和 `pi-coding-agent`，应用层分离是成立的；但 `pi-agent-core` 的导出面又包含 Harness、session、搜索和代码工具等偏 coding-agent 的能力，框架边界正在变宽。这里应评价的是依赖和导出面，而不是否认 Pi 的应用分层。
+Pi separates `pi-ai`, `pi-agent-core`, and `pi-coding-agent` inside a monorepo,
+so its application-layer separation holds. But `pi-agent-core`'s export surface
+also includes harness, session, search, and code tooling that leans toward a
+coding agent, so the framework boundary is widening. What should be judged here
+is the dependency and export surface, not a denial of Pi's application layering.
 
-Eino 的核心与扩展仓库、Spring AI 的 starter/module 体系、MAF/ADK/tRPC 的模块组织各有生态背景。不能用 Go 多模块数量直接跨语言评分，应看最小消费者是否被迫引入不需要的协议、SDK 或产品能力。
+Eino's core-plus-extension repositories, Spring AI's starter and module system,
+and the module organization of MAF, ADK, and tRPC each have ecosystem context.
+Go module count cannot score across languages directly; the question is whether
+the minimum consumer is forced to pull in protocols, SDKs, or product
+capabilities it does not need.
 
-## 各框架最适合解决的问题
+## What each framework fits best
 
-| 目标问题 | 更自然的候选 | 原因 |
+| Target problem | The more natural candidate | Why |
 | --- | --- | --- |
-| 可中断、可恢复、带子执行的长期任务 | Scope | 副作用、快照和子执行生命周期是同一内核语义 |
-| 快速嵌入高质量模型—工具循环 | Pi | 小型 StreamFn/Agent 表面，消息和工具事件直接 |
-| 类型化组件与复杂图组合 | Eino | Runnable 和 Graph 是一等抽象 |
-| Go 中需要较宽的一站式 Agent 表面 | tRPC-Agent-Go | Agent、Runner、Graph、Session 等覆盖较全 |
-| 会话驱动的 Agent 层级、图工作流与 Google 生态 | ADK Go | Invocation/Session、Agent 树和 Workflow scheduler 协作 |
-| 流式 Agent 与显式工作流执行器结合 | Microsoft Agent Framework Go | RunFunc、Executor、Checkpoint、RequestPort |
-| Spring 应用中的模型调用、Advisor、工具和 RAG | Spring AI | 与 Spring 容器和生态集成自然 |
-| 运行时目标驱动的动态任务规划 | Embabel Agent | Blackboard + GOAP Action 模型 |
+| Interruptible, recoverable long-running tasks with child executions | Scope | Side effects, snapshots, and child lifecycle are one kernel semantics |
+| Quickly embedding a high-quality model-tool loop | Pi | A small StreamFn and Agent surface, with direct message and tool events |
+| Typed components and complex graph composition | Eino | Runnable and Graph are first-class abstractions |
+| A broad one-stop agent surface in Go | tRPC-Agent-Go | Agent, Runner, Graph, and Session cover a lot |
+| Session-driven agent hierarchies, graph workflows, and the Google ecosystem | ADK Go | Invocation, Session, agent trees, and the workflow scheduler cooperate |
+| Streaming agents combined with explicit workflow executors | Microsoft Agent Framework Go | RunFunc, Executor, checkpoints, RequestPort |
+| Model calls, advisors, tools, and RAG in a Spring application | Spring AI | Natural integration with the Spring container and ecosystem |
+| Runtime goal-driven dynamic task planning | Embabel Agent | The blackboard and GOAP action model |
 
-这不是排他选择。同一产品可以在直接模型调用、短工具循环和受管长期执行之间使用不同层级；关键是不要把所有路径压进最重的抽象。
+These are not exclusive choices. One product can use different layers for a
+direct model call, a short tool loop, and managed long-running execution. What
+matters is not compressing every path into the heaviest abstraction.
 
-## Eval 是支持层，不是内核加分项
+## Eval is a support layer, not a kernel bonus
 
-Scope 的 `eval` 根包以 `Evaluator[T]` 为窄腰，已经拥有 Dataset、Experiment、Suite、Composite、Comparison、分位数汇总和结构化 Report。Report 区分 verdict、归一化 score 与带单位/方向的 raw measurement，因此不再把所有指标强压成 `[0,1]` 标量。文本、模型 judge 与排序词汇分别位于 `eval/text`、`eval/judge` 和 `eval/ranking`。
+Scope's `eval` root package uses `Evaluator[T]` as its waist and already has
+datasets, experiments, suites, composites, comparison, quantile summaries, and
+a structured report. The report separates a verdict, a normalized score, and a
+raw measurement carrying its own unit and direction, so it no longer forces
+every metric into a `[0,1]` scalar. Text, model-judge, and ranking vocabularies
+live in `eval/text`, `eval/judge`, and `eval/ranking`.
 
-它仍不是应用级实验平台：持久化数据集、制品、trace 关联、项目目录、仪表盘和发布工作流属于 Flame 或独立 harness。这个维度不能反向决定 Agent 运行时排名，也不能让 `eval` 反向依赖 `agent`。详细边界见 [Eval 支持层边界](EVAL.md)。
+It is still not an application-level experiment platform: persistent datasets,
+artifacts, trace correlation, project catalogs, dashboards, and release
+workflows belong to Flame or a separate harness. This dimension cannot decide
+an agent runtime ranking in reverse, and it must not make `eval` depend on
+`agent`. See [the eval support-layer boundary](EVAL.md) for details.
 
-## 对 Scope 的修正后判断
+## The corrected judgment on Scope
 
-### 已被源码和真实消费者支持的优势
+### Advantages supported by source and a real consumer
 
-1. **可恢复执行是内核语义，不是存储插件。** `Step`、Effect、Signal、Snapshot 和 Restore 共同决定恢复方式。
-2. **宿主边界真实存在。** Flame 通过模块依赖消费 Scope，Scope 没有反向持有应用会话或 UI。
-3. **受管编排与普通数据流已经概念分离。** 这避免 Workflow 退化成第二套通用 DAG。
-4. **提供商依赖隔离得较彻底。** 消费者能按需选择叶子实现。
+1. **Recoverable execution is kernel semantics, not a storage plugin.** `Step`,
+   Effect, Signal, Snapshot, and Restore jointly determine how recovery works.
+2. **The host boundary genuinely exists.** Flame consumes Scope through module
+   dependencies, and Scope holds no application session or UI in reverse.
+3. **Managed orchestration and ordinary data flow are already separated
+   conceptually.** That stops Workflow from degenerating into a second general
+   DAG.
+4. **Provider dependencies are isolated fairly thoroughly.** Consumers select
+   leaf implementations as needed.
 
-### 不能再回避的结构成本
+### Structural costs that can no longer be avoided
 
-1. **普通路径不够显眼。** Scope 允许直接 `chatclient`，但整体叙事容易让使用者误以为每次调用都应进入受管执行。
-2. **Effect 模型提高作者门槛。** 它只有在恢复、审计、取消或幂等收益明确时才值得。
-3. **模块数量增加治理成本。** 边界纯度需要与版本、文档、测试矩阵和发现性一起评估。
-4. **闭合工作流词汇限制表达自由。** 这是稳定协议的代价，不是无条件优势。
-5. **目前主要由 Flame 验证。** 一个强消费者能证明设计并非纸上谈兵，尚不足以证明外部场景的普遍性。
+1. **The ordinary path is not prominent enough.** Scope allows direct
+   `chatclient` use, but the overall narrative can make users think every call
+   should enter managed execution.
+2. **The Effect model raises the authoring bar.** It is worth it only when
+   recovery, audit, cancellation, or idempotency benefits are clear.
+3. **Module count raises governance cost.** Boundary purity has to be evaluated
+   together with versioning, documentation, the test matrix, and
+   discoverability.
+4. **A closed workflow vocabulary limits expressive freedom.** That is the
+   price of a stable protocol, not an unconditional advantage.
+5. **Flame is currently the main validation.** One strong consumer proves the
+   design is not theoretical; it does not yet prove generality across external
+   scenarios.
 
-### 验证项的当前闭环
+### Where the verification items stand
 
-- **普通路径**：根 README 直接展示 `chatclient`；最小 Tool loop 由 `chatclient.NewToolMiddleware` 完成；能力模块的 checked Example 防止文档重新只剩受管执行叙事。
-- **自定义 Execution**：`agenttest.RunDefinitionConformance` 验证 Descriptor、独立 state、snapshot/restore 与隐藏可变输入；仓库不制造第二套 Execution API。
-- **跨进程因果**：durable wire 携带版本、incarnation 与稳定 EffectID；`otel/agent` 的 restore 测试验证 restored activation、父子 span 和 incarnation attribution。
-- **Provider 特性**：Core 的 `metadata.Extensions` 保留 namespaced、JSON-safe 扩展，不把 provider SDK 或任意 parameter map 泄露进协议。
-- **多模块兼容**：CI 对每个 module 执行 `GOWORK=off` 的 tidy 与 compile；workspace 不再能掩盖过期内部版本。
+- **The ordinary path**: the root README shows `chatclient` directly; the
+  minimal tool loop comes from `chatclient.NewToolMiddleware`; checked examples
+  in capability modules stop the documentation from collapsing back into a
+  managed-execution-only narrative.
+- **Custom Execution**: `agenttest.RunDefinitionConformance` verifies the
+  descriptor, independent state, snapshot and restore, and hidden mutable
+  input; the repository does not manufacture a second Execution API.
+- **Cross-process causality**: the durable wire carries version, incarnation,
+  and a stable effect identity; `otel/agent`'s restore tests verify restored
+  activation, parent-child spans, and incarnation attribution.
+- **Provider features**: Core's `metadata.Extensions` preserves namespaced,
+  JSON-safe extensions without leaking a provider SDK or an arbitrary parameter
+  map into the protocol.
+- **Multi-module compatibility**: CI runs `GOWORK=off` tidy and compile per
+  module, so the workspace can no longer mask a stale internal version.
 
-“再找一个真实产品消费者”仍是生态验证，不是 Scope 应在仓库内伪造的应用功能。下一阶段继续优先观察真实 Host 的组合成本与 trace，而不是扩张内置 Agent pattern、provider 数量或 Flame 所属能力。
+"Find another real product consumer" remains ecosystem validation, not an
+application feature Scope should fake inside the repository. The next phase
+keeps prioritizing observation of a real host's composition cost and traces
+over expanding built-in agent patterns, provider count, or capabilities that
+belong to Flame.
 
-## 本轮纠正的具体偏差
+## Specific biases corrected this round
 
-- 剔除 GitNexus 后，旧集合实际只有 7 个框架（含 Scope）；加入 Pi 后，主比较明确为 8 个框架。
-- GitNexus 移出同类矩阵，改为相邻系统证据。
-- Flame、Pi Coding Agent、OpenClaw 等应用能力全部从框架评分剥离。
-- Scope 核心执行契约从错误的“四方法”修正为五方法拆分。
-- Scope 有效状态按当前实现理解为 9 个，不再沿用旧稿互相矛盾的数量。
-- 不再把模块数量、内置工具数量或仓库规模直接当作成熟度。
-- 不再把接口声明、checkpoint 类型或 session 记录自动视为完整恢复能力。
-- 删除总分和“全面领先”式结论，改为设计中心、适用场景和结构成本。
+- After removing GitNexus, the old set actually held 7 frameworks including
+  Scope; adding Pi makes the primary comparison 8 frameworks.
+- GitNexus moved out of the peer matrix and became adjacent-system evidence.
+- Application capabilities such as Flame, the Pi coding agent, and OpenClaw
+  were all stripped from the framework score.
+- Scope's core execution contract was corrected from a wrong "four methods" to
+  the five-method split.
+- Scope's valid states are read as 9 per the current implementation, replacing
+  the earlier draft's self-contradictory counts.
+- Module count, built-in tool count, and repository size are no longer treated
+  as maturity.
+- An interface declaration, a checkpoint type, or a session record is no longer
+  automatically treated as complete recovery capability.
+- Overall scores and "leads across the board" conclusions were removed in
+  favor of design center, fitting scenario, and structural cost.

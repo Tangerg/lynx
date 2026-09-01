@@ -120,4 +120,5 @@ project document keeps verifiable source landmarks and lists what is worth
 learning from and what should not be copied.
 
 The per-project documents in this directory are research notes rather than
-Scope's own contract; several are still in Chinese.
+Scope's own contract. They describe the peer projects as of the baseline
+commits above and are not updated as those projects move.

@@ -1,48 +1,72 @@
-# tRPC-Agent-Go：宽表面的 Agent 运行时
+# tRPC-Agent-Go: a broad-surface agent runtime
 
-证据基线：`trpc-agent-go` 提交 `91bde85eb243333b2b33fe89061f2218ede00c99`。
+Evidence baseline: `trpc-agent-go` commit
+`91bde85eb243333b2b33fe89061f2218ede00c99`.
 
-## 框架层判断
+## Framework-level judgment
 
-tRPC-Agent-Go 同时覆盖 Agent、Runner、Invocation、Session、Graph、模型、工具和多种扩展机制。它追求较完整的一站式 Go Agent 开发面，设计中心比 Scope 更宽。
+tRPC-Agent-Go covers agents, runners, invocations, sessions, graphs, models,
+tools, and several extension mechanisms at once. It pursues a fairly complete
+one-stop Go agent development surface, and its design center is broader than
+Scope's.
 
-旧稿把 OpenClaw 和内置应用能力纳入优劣判断，混淆了框架与产品。本轮只看框架契约；OpenClaw、命令行和预置工具不计分。
+An earlier draft folded OpenClaw and built-in application capabilities into the
+judgment, conflating framework with product. This round looks at framework
+contracts only; OpenClaw, the command line, and prebuilt tools do not score.
 
-## 可复核证据
+## Reviewable evidence
 
-- `agent/invocation.go`：`Invocation` 聚合运行身份、Agent、Session、模型和运行选项。
-- Agent/Runner 路径：Agent 通过 Invocation 与事件流执行。
-- Graph：使用通用 state，支持节点、边和 checkpoint 相关能力。
-- checkpoint 模型包含父 checkpoint 身份，可表达图历史关系。
-- callback、hook、plugin 或 runner 扩展存在多条接入路径。
-- 模型、工具、知识和会话能力分布在主模块与子模块中。
+- `agent/invocation.go`: `Invocation` aggregates run identity, agent, session,
+  model, and run options.
+- The agent and runner path: an agent executes through an invocation and an
+  event stream.
+- Graph: uses general state and supports nodes, edges, and checkpoint-related
+  capabilities.
+- The checkpoint model carries a parent checkpoint identity, so it can express
+  graph history relationships.
+- Callbacks, hooks, plugins, and runner extensions provide several distinct
+  integration paths.
+- Model, tool, knowledge, and session capabilities are spread across the main
+  module and submodules.
 
-## 八维对照
+## The eight dimensions
 
-| 维度 | tRPC-Agent-Go 的实际取舍 | 与 Scope 的关键差异 |
+| Dimension | tRPC-Agent-Go's actual trade-off | Key difference from Scope |
 | --- | --- | --- |
-| 协议边界 | 提供统一模型/消息/工具面，运行时覆盖较宽 | Scope 核心更小，provider 和产品能力隔离更细 |
-| 最小契约 | Agent + Invocation + Runner 协作 | Scope Definition/Execution 更窄但恢复要求更强 |
-| 状态所有权 | Invocation、Session、Graph State 共同持有 | Scope 的 Host/Execution 所有权更明确 |
-| 副作用 | Agent、Runner 或图节点直接执行 | Scope 用 Effect 形成统一外部工作边界 |
-| 编排 | Graph 与 Agent 模式并存 | Scope Workflow 只表示受管子执行 |
-| 恢复 | Session 和 Graph checkpoint 较丰富 | 不代表所有 Agent 外部调用都可幂等重放 |
-| 扩展 | 多套 callback/hook/plugin 表面 | 能力广，但生命周期心智模型更分散 |
-| 依赖 | 一站式能力多，最小依赖面相对更宽 | Scope 可精细按叶子模块选择，维护成本更高 |
+| Protocol boundary | A unified model, message, and tool surface, with broad runtime coverage | Scope's core is smaller and isolates provider and product capabilities more finely |
+| Minimal contract | Agent, Invocation, and Runner cooperate | Scope's Definition and Execution are narrower with stronger recovery requirements |
+| State ownership | Invocation, Session, and graph state hold it jointly | Scope's host and execution ownership is more explicit |
+| Side effects | Agents, runners, or graph nodes execute directly | Scope forms one external-work boundary through Effects |
+| Orchestration | Graph and agent patterns coexist | Scope Workflow represents managed child execution only |
+| Recovery | Session and graph checkpoints are fairly rich | That does not make every external agent call idempotently replayable |
+| Extension | Several callback, hook, and plugin surfaces | Broad capability, but a more scattered lifecycle mental model |
+| Dependencies | Many one-stop capabilities, so a relatively wide minimum dependency surface | Scope can be selected leaf by leaf, at a higher maintenance cost |
 
-## Scope 应该借鉴什么
+## What Scope should learn
 
-1. **图历史和父 checkpoint 表达。** 对分支、回溯和调试有直接价值。
-2. **面向开发者的集成路径。** 宽框架能降低首次接入成本，Scope 应在不污染内核的前提下改善组合文档和发行体验。
-3. **Session/Runner 使用范式。** 即使 Scope 把产品会话留给 Host，也可以让边界协作更容易被发现。
+1. **Graph history and parent checkpoint expression.** Directly valuable for
+   branching, backtracking, and debugging.
+2. **A developer-facing integration path.** A broad framework lowers
+   first-contact cost; Scope should improve composition documentation and the
+   release experience without polluting the kernel.
+3. **The session and runner usage pattern.** Even though Scope leaves product
+   sessions to the host, the boundary collaboration can be easier to discover.
 
-## Scope 不应照搬什么
+## What Scope should not copy
 
-- 不应把模型、会话、知识、工具、Runner 和产品能力重新聚合进宽 Invocation。
-- 不应并存多套无法说明优先级的扩展生命周期。
-- 不应把 Graph checkpoint 宣传成任意外部副作用的恢复保证。
-- 不应因为对方内置应用较多，就把应用层能力搬回 Scope 仓库。
+- Do not re-aggregate models, sessions, knowledge, tools, runners, and product
+  capabilities into a wide invocation.
+- Do not run several extension lifecycles side by side without being able to
+  state their priority.
+- Do not advertise graph checkpoints as a recovery guarantee for arbitrary
+  external side effects.
+- Do not move application-layer capability back into the Scope repository just
+  because a peer ships more built-in applications.
 
-## 最终定位
+## Final placement
 
-tRPC-Agent-Go 更适合需要宽功能面和一站式组合的 Go Agent 项目。Scope 更适合将执行语义做成独立、可恢复内核，并让 Flame 这类应用自行组装产品能力。其差异主要是边界宽度，而不是功能清单多少。
+tRPC-Agent-Go suits Go agent projects that want a wide feature surface and
+one-stop composition. Scope suits making execution semantics an independent,
+recoverable kernel and letting applications such as Flame assemble product
+capability themselves. The difference is mainly boundary width, not feature
+count.

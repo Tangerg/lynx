@@ -1,48 +1,69 @@
-# GitNexus：相邻系统证据，不是 Agent 框架竞品
+# GitNexus: adjacent-system evidence, not an agent framework peer
 
-证据基线：`GitNexus` 提交 `b059ab3541ea68c2ce292955fc367a5de04b39ea`。
+Evidence baseline: `GitNexus` commit
+`b059ab3541ea68c2ce292955fc367a5de04b39ea`.
 
-## 为什么移出主矩阵
+## Why it left the primary matrix
 
-GitNexus 的核心职责是索引代码、构建关系图、执行代码检索并向工具或界面返回上下文。它没有与 Scope、Pi、Eino 等同构的 Agent 执行契约、模型—工具循环、子执行生命周期或恢复内核。
+GitNexus's core responsibility is indexing code, building a relationship graph,
+running code retrieval, and returning context to a tool or an interface. It has
+no agent execution contract, model-tool loop, child execution lifecycle, or
+recovery kernel comparable to Scope, Pi, or Eino.
 
-旧稿一边承认它不是 Agent 框架，一边仍把它放进八维评分，产生了不可解释的比较：例如“没有 Agent 协议”对 GitNexus 来说不是框架缺陷，而是产品边界。
+An earlier draft conceded it was not an agent framework and still scored it on
+the eight dimensions, which produced meaningless comparisons: "no agent
+protocol" is not a defect for GitNexus, it is a product boundary.
 
-## 对 Scope 仍然有用的证据
+## Evidence that remains useful to Scope
 
-### 工具结果需要区分事实层级
+### A tool result needs to distinguish tiers of fact
 
-代码检索返回的内容可能包含：
+What code retrieval returns may include:
 
-- 从语法或索引中直接确认的符号与关系；
-- 通过图路径推导的关联；
-- 由自然语言总结得到的解释；
-- 因索引不完整而缺失的可能关系。
+- symbols and relationships confirmed directly from syntax or an index;
+- associations derived through a graph path;
+- explanations produced by natural-language summarization;
+- relationships missing because the index is incomplete.
 
-Agent 框架的工具结果若把这些都压成普通文本，模型无法可靠区分“已验证事实”和“推断”。Scope 的通用 `Part` 或工具结果扩展应允许宿主保留 provenance、置信来源、索引版本和截断信息，而不是把 GitNexus 特定 schema 写入核心。
+When an agent framework flattens all of these into plain text, the model cannot
+reliably separate a verified fact from an inference. Scope's general `Part` and
+tool-result extensions should let a host preserve provenance, confidence
+source, index version, and truncation information — without writing a
+GitNexus-specific schema into the core.
 
-### 大结果需要显式预算与截断语义
+### A large result needs explicit budget and truncation semantics
 
-代码图查询很容易超过上下文预算。好的工具协议至少应表达：
+A code-graph query easily exceeds a context budget. A good tool protocol should
+at least express:
 
-- 结果是否完整；
-- 使用了什么范围和过滤条件；
-- 是否发生截断或分页；
-- 后续如何继续查询。
+- whether the result is complete;
+- what scope and filters were used;
+- whether truncation or pagination occurred;
+- how to continue the query.
 
-Pi 对截断 tool-call 参数选择拒绝执行，同样体现了这一原则：不完整协议不能伪装成完整输入。
+Pi's choice to refuse execution on a truncated tool-call argument reflects the
+same principle: an incomplete protocol must not masquerade as complete input.
 
-### 索引生命周期属于工具实现
+### Index lifecycle belongs to the tool implementation
 
-索引构建、增量刷新、缓存和图存储不应进入 Agent 执行内核。Scope 只需提供可取消、可观测、有身份的工具 Effect；GitNexus 负责其自身索引一致性。
+Index construction, incremental refresh, caching, and graph storage do not
+belong in an agent execution kernel. Scope only needs to provide a cancellable,
+observable tool Effect with an identity; GitNexus owns its own index
+consistency.
 
-## 不应从 GitNexus 推导什么
+## What must not be inferred from GitNexus
 
-- 不能用仓库规模、UI、MCP 服务或检索数量评价 Agent 框架成熟度。
-- 不能因为 Scope 没有代码知识图谱，就判断其框架能力缺失。
-- 不能把 GitNexus 的存储模型复制成通用 Agent memory。
-- 不能把工具内部 checkpoint 与 Agent Execution snapshot 混为一谈。
+- Repository size, a UI, an MCP server, or a retrieval count does not measure
+  agent framework maturity.
+- Scope lacking a code knowledge graph does not indicate a missing framework
+  capability.
+- GitNexus's storage model must not be copied into a general agent memory.
+- A tool's internal checkpoint must not be conflated with an agent Execution
+  snapshot.
 
-## 最终定位
+## Final placement
 
-GitNexus 应作为 Scope 生态中的潜在工具或相邻基础设施来研究。它对框架最重要的启示是证据真实性、结果截断和 provenance，而不是 Agent 内核设计排名。
+GitNexus is worth studying as a potential tool or adjacent infrastructure in
+the Scope ecosystem. Its most important lesson for the framework is evidence
+truthfulness, result truncation, and provenance — not a ranking of agent kernel
+design.
