@@ -40,3 +40,22 @@ func ExampleExperiment_Run() {
 	// Output:
 	// 1 1
 }
+
+func ExampleScore_Verdict() {
+	score, err := eval.NewScore(0.82)
+	if err != nil {
+		panic(err)
+	}
+	threshold, err := eval.NewScore(0.8)
+	if err != nil {
+		panic(err)
+	}
+	verdict, err := score.Verdict(threshold)
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(verdict, score.Float64())
+	// Output:
+	// pass 0.82
+}

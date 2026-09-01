@@ -25,3 +25,22 @@ func ExampleNewDescriptor() {
 	// Output:
 	// example.echo true
 }
+
+func ExampleEncodeInput() {
+	type request struct {
+		Topic string `json:"topic"`
+	}
+
+	input, err := agent.EncodeInput(request{Topic: "agent runtimes"})
+	if err != nil {
+		panic(err)
+	}
+	decoded, err := input.Decode[request]()
+	if err != nil {
+		panic(err)
+	}
+
+	fmt.Println(decoded.Topic, input.Valid())
+	// Output:
+	// agent runtimes true
+}

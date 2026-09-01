@@ -27,6 +27,24 @@ var documentedCapabilityModules = []string{
 
 var documentationOnlyModuleRoots = []string{"core", "examples", "otel", "tools"}
 
+var primaryAdoptionPackages = []string{"core/chat", "core/chatclient"}
+
+// checkedExampleDeclarationSpan is deliberately coarse because one example
+// explains a cooperating API slice, not one declaration. Sixty-four still
+// forces another path before a module can hide a second package-sized vocabulary
+// behind its original example.
+const checkedExampleDeclarationSpan = 64
+
+type packageDocumentation struct {
+	hasOverview          bool
+	exportedDeclarations int
+}
+
+type moduleDocumentation struct {
+	packages        map[string]packageDocumentation
+	checkedExamples int
+}
+
 func TestWorkspaceModulesKeepDocumentationEntryPoints(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
@@ -144,6 +162,102 @@ func TestRepositoryGuidanceHasOneCanonicalSource(t *testing.T) {
 	}
 }
 
+// TestRootReadmeKeepsDirectChatPath protects the ordinary library entry from
+// being displaced by the more capable managed Agent path.
+func TestRootReadmeKeepsDirectChatPath(t *testing.T) {
+	t.Parallel()
+	readme, err := os.ReadFile(filepath.Join(repositoryRoot(t), "README.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(readme)
+	for _, required := range []string{
+		"```go",
+		"github.com/Tangerg/scope/core/chatclient",
+		"chatclient.New(",
+		"client.Call(",
+	} {
+		if !strings.Contains(content, required) {
+			t.Errorf("README.md is missing direct chat entry %q", required)
+		}
+	}
+}
+
+// TestPrimaryAdoptionPackagesDocumentEntryDeclarations keeps the protocol and
+// ordinary client discoverable on pkg.go.dev. Methods inherit their owning
+// type's contract; package-level nouns, sentinels, and construction paths do
+// not, so every one requires explicit GoDoc.
+func TestPrimaryAdoptionPackagesDocumentEntryDeclarations(t *testing.T) {
+	t.Parallel()
+	root := repositoryRoot(t)
+	for _, relativePackage := range primaryAdoptionPackages {
+		t.Run(relativePackage, func(t *testing.T) {
+			t.Parallel()
+			assertExportedEntryDeclarationsDocumented(
+				t,
+				filepath.Join(root, filepath.FromSlash(relativePackage)),
+			)
+		})
+	}
+}
+
+func assertExportedEntryDeclarationsDocumented(t *testing.T, directory string) {
+	t.Helper()
+	entries, err := os.ReadDir(directory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || filepath.Ext(entry.Name()) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		path := filepath.Join(directory, entry.Name())
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.ParseComments)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, declaration := range file.Decls {
+			switch declaration := declaration.(type) {
+			case *ast.FuncDecl:
+				if declaration.Recv == nil && declaration.Name.IsExported() && declaration.Doc == nil {
+					t.Errorf("%s: exported function %s has no GoDoc", path, declaration.Name)
+				}
+			case *ast.GenDecl:
+				assertExportedSpecificationsDocumented(t, path, declaration)
+			}
+		}
+	}
+}
+
+func assertExportedSpecificationsDocumented(t *testing.T, path string, declaration *ast.GenDecl) {
+	t.Helper()
+	for _, specification := range declaration.Specs {
+		var (
+			exported bool
+			name     string
+			doc      *ast.CommentGroup
+		)
+		switch specification := specification.(type) {
+		case *ast.TypeSpec:
+			exported = specification.Name.IsExported()
+			name = specification.Name.Name
+			doc = specification.Doc
+		case *ast.ValueSpec:
+			for _, identifier := range specification.Names {
+				if identifier.IsExported() {
+					exported = true
+					name = identifier.Name
+					break
+				}
+			}
+			doc = specification.Doc
+		}
+		if exported && declaration.Doc == nil && doc == nil {
+			t.Errorf("%s: exported declaration %s has no GoDoc", path, name)
+		}
+	}
+}
+
 // TestDocumentationOnlyModuleRootsStayDocumentationOnly keeps an overview from
 // becoming the second public entry for capabilities owned by child packages.
 func TestDocumentationOnlyModuleRootsStayDocumentationOnly(t *testing.T) {
@@ -190,7 +304,8 @@ func assertPackageOverview(t *testing.T, path string) *ast.File {
 // TestCapabilityModulesDocumentTheirPublicSurface keeps documentation
 // discovery coupled to package discovery: new public package directories fail
 // until their ownership is stated, and every capability module must retain an
-// executable ordinary-path example.
+// number of executable ordinary-path examples that grows with its public
+// surface.
 func TestCapabilityModulesDocumentTheirPublicSurface(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
@@ -199,26 +314,34 @@ func TestCapabilityModulesDocumentTheirPublicSurface(t *testing.T) {
 		t.Run(relativeModule, func(t *testing.T) {
 			t.Parallel()
 			moduleRoot := filepath.Join(root, filepath.FromSlash(relativeModule))
-			packages, checkedExamples := inspectModuleDocumentation(t, moduleRoot)
-			if len(packages) == 0 {
+			documentation := inspectModuleDocumentation(t, moduleRoot)
+			if len(documentation.packages) == 0 {
 				t.Fatalf("capability module %s has no public packages", relativeModule)
 			}
-			for directory, packageDocumentation := range packages {
-				if !packageDocumentation {
+			exportedDeclarations := 0
+			for directory, packageDocumentation := range documentation.packages {
+				if !packageDocumentation.hasOverview {
 					t.Errorf("public package %s has no Package comment in production code", filepath.ToSlash(directory))
 				}
+				exportedDeclarations += packageDocumentation.exportedDeclarations
 			}
-			if checkedExamples == 0 {
-				t.Errorf("capability module %s has no checked Go example", relativeModule)
+			requiredExamples := requiredCheckedExamples(exportedDeclarations)
+			if documentation.checkedExamples < requiredExamples {
+				t.Errorf(
+					"capability module %s has %d checked Go examples for %d exported declarations; need at least %d",
+					relativeModule,
+					documentation.checkedExamples,
+					exportedDeclarations,
+					requiredExamples,
+				)
 			}
 		})
 	}
 }
 
-func inspectModuleDocumentation(t *testing.T, moduleRoot string) (map[string]bool, int) {
+func inspectModuleDocumentation(t *testing.T, moduleRoot string) moduleDocumentation {
 	t.Helper()
-	packages := make(map[string]bool)
-	checkedExamples := 0
+	documentation := moduleDocumentation{packages: make(map[string]packageDocumentation)}
 	err := filepath.WalkDir(moduleRoot, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
@@ -237,25 +360,87 @@ func inspectModuleDocumentation(t *testing.T, moduleRoot string) (map[string]boo
 			return err
 		}
 		if strings.HasSuffix(entry.Name(), "_test.go") {
-			checkedExamples += countCheckedExamples(file)
+			documentation.checkedExamples += countCheckedExamples(file)
 			return nil
 		}
 		if file.Name.Name == "main" {
 			return nil
 		}
 		directory := filepath.Dir(path)
-		if _, found := packages[directory]; !found {
-			packages[directory] = false
-		}
+		packageDocumentation := documentation.packages[directory]
 		if file.Doc != nil && strings.HasPrefix(strings.TrimSpace(file.Doc.Text()), "Package "+file.Name.Name) {
-			packages[directory] = true
+			packageDocumentation.hasOverview = true
 		}
+		packageDocumentation.exportedDeclarations += countExportedDeclarations(file)
+		documentation.packages[directory] = packageDocumentation
 		return nil
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return packages, checkedExamples
+	return documentation
+}
+
+func requiredCheckedExamples(exportedDeclarations int) int {
+	if exportedDeclarations == 0 {
+		return 0
+	}
+	return (exportedDeclarations + checkedExampleDeclarationSpan - 1) / checkedExampleDeclarationSpan
+}
+
+// countExportedDeclarations measures package-level vocabulary and construction
+// paths. Methods and individual names in one value declaration are deliberately
+// not counted again because a checked example teaches them through their owning
+// type or vocabulary as one cooperating API slice.
+func countExportedDeclarations(file *ast.File) int {
+	count := 0
+	for _, declaration := range file.Decls {
+		switch declaration := declaration.(type) {
+		case *ast.FuncDecl:
+			if declaration.Recv == nil && declaration.Name.IsExported() {
+				count++
+			}
+		case *ast.GenDecl:
+			for _, specification := range declaration.Specs {
+				switch specification := specification.(type) {
+				case *ast.TypeSpec:
+					if specification.Name.IsExported() {
+						count++
+					}
+				case *ast.ValueSpec:
+					exported := false
+					for _, name := range specification.Names {
+						if name.IsExported() {
+							exported = true
+							break
+						}
+					}
+					if exported {
+						count++
+					}
+				}
+			}
+		}
+	}
+	return count
+}
+
+func TestRequiredCheckedExamplesScalesWithPublicSurface(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		declarations int
+		want         int
+	}{
+		{declarations: 0, want: 0},
+		{declarations: 1, want: 1},
+		{declarations: checkedExampleDeclarationSpan, want: 1},
+		{declarations: checkedExampleDeclarationSpan + 1, want: 2},
+	}
+	for _, test := range tests {
+		if got := requiredCheckedExamples(test.declarations); got != test.want {
+			t.Errorf("requiredCheckedExamples(%d) = %d, want %d", test.declarations, got, test.want)
+		}
+	}
 }
 
 func excludedDocumentationDirectory(name string) bool {
