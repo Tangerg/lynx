@@ -44,9 +44,10 @@
 // # Direct clients
 //
 // The chatclient and embeddingclient packages add the ordinary-path
-// conveniences — immutable defaults, a middleware chain, prompt templates, and
-// structured output — without changing the SPI. The chatclient/safeguard
-// package screens input and output as fail-closed middleware.
+// conveniences — a middleware chain, prompt templates, and structured output —
+// without changing the SPI. Option defaults stay with the provider that owns
+// them. The chatclient/safeguard package screens input and output as
+// fail-closed middleware.
 //
 // # Streaming
 //
