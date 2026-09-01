@@ -54,6 +54,57 @@ func TestWorkspaceModulesKeepDocumentationEntryPoints(t *testing.T) {
 	}
 }
 
+// TestNamespaceDirectoriesKeepOneDocumentationEntry gates the directories that
+// group modules without being modules themselves. They cannot carry a package
+// comment, so README.md is their one entry point; a second parallel file would
+// reintroduce exactly the split
+// TestWorkspaceModulesKeepDocumentationEntryPoints removes from every module.
+func TestNamespaceDirectoriesKeepOneDocumentationEntry(t *testing.T) {
+	t.Parallel()
+	root := repositoryRoot(t)
+	namespaces := discoverNamespaceDirectories(t, root)
+	if len(namespaces) == 0 {
+		t.Fatal("discovered no namespace directories; the gate would pass vacuously")
+	}
+	for _, namespace := range namespaces {
+		t.Run(namespace, func(t *testing.T) {
+			t.Parallel()
+			dir := filepath.Join(root, filepath.FromSlash(namespace))
+			info, err := os.Stat(filepath.Join(dir, "README.md"))
+			if err != nil {
+				t.Fatalf("namespace %s is missing README.md: %v", namespace, err)
+			}
+			if !info.Mode().IsRegular() || info.Size() == 0 {
+				t.Fatalf("namespace %s has no readable content in README.md", namespace)
+			}
+			for _, retired := range []string{"ARCHITECTURE.md", "doc.go"} {
+				if _, err := os.Stat(filepath.Join(dir, retired)); !os.IsNotExist(err) {
+					t.Errorf("namespace %s keeps a second documentation entry %s", namespace, retired)
+				}
+			}
+		})
+	}
+}
+
+// discoverNamespaceDirectories returns the top-level directories that group
+// workspace modules but declare no module of their own. Deriving them from the
+// workspace rather than listing them keeps a newly added family from silently
+// escaping the gate.
+func discoverNamespaceDirectories(t *testing.T, root string) []string {
+	t.Helper()
+	namespaces := make(map[string]struct{})
+	for _, module := range discoverModules(t, root) {
+		prefix, _, nested := strings.Cut(filepath.ToSlash(module.dir), "/")
+		if !nested {
+			continue
+		}
+		if _, err := os.Stat(filepath.Join(root, prefix, "go.mod")); os.IsNotExist(err) {
+			namespaces[prefix] = struct{}{}
+		}
+	}
+	return slices.Sorted(maps.Keys(namespaces))
+}
+
 func TestRepositoryGuidanceHasOneCanonicalSource(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
