@@ -31,6 +31,8 @@ type SHA256IDGenerator struct {
 	salt []byte
 }
 
+// NewSHA256IDGenerator snapshots salt so identical documents retain stable IDs
+// without sharing caller-owned bytes.
 func NewSHA256IDGenerator(salt []byte) SHA256IDGenerator {
 	return SHA256IDGenerator{salt: bytes.Clone(salt)}
 }
@@ -71,6 +73,8 @@ func (s SHA256IDGenerator) Generate(ctx context.Context, doc *document.Document)
 	return hex.EncodeToString(hasher.Sum(nil)), nil
 }
 
+// UUIDGenerator creates non-deterministic document identities when stable
+// content identity is not required.
 type UUIDGenerator struct{}
 
 func (UUIDGenerator) Generate(ctx context.Context, doc *document.Document) (string, error) {

@@ -11,8 +11,10 @@ import (
 	corererank "github.com/Tangerg/scope/core/rerank"
 )
 
+// ErrNilRerankModel rejects a dedicated reranker without its sole dependency.
 var ErrNilRerankModel = errors.New("rag: rerank model must not be nil")
 
+// RerankerConfig binds a dedicated rerank model to portable request defaults.
 type RerankerConfig struct {
 	Model     corererank.Model
 	Formatter DocumentFormatter
@@ -40,6 +42,7 @@ type Reranker struct {
 
 var _ Refiner = (*Reranker)(nil)
 
+// NewReranker freezes defaults while leaving query-specific limits on Refine.
 func NewReranker(config RerankerConfig) (*Reranker, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

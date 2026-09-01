@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/scope/eval"
 )
 
+// MetricGroundedness identifies support from supplied evidence.
 const MetricGroundedness eval.MetricName = "groundedness"
 
 const groundednessPrompt = `Evaluate how well the output is supported by the provided evidence.
@@ -31,6 +32,8 @@ type groundednessVariables struct {
 	Evidence string
 }
 
+// NewGroundednessEvaluator binds the evidence-aware prompt to the generic model
+// judge.
 func NewGroundednessEvaluator(config ModelEvaluatorConfig) (*GroundednessEvaluator, error) {
 	metric, err := eval.NewMetric(eval.MetricConfig{Namespace: "text", Name: MetricGroundedness})
 	if err != nil {

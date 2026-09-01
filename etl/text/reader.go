@@ -28,6 +28,7 @@ type ReaderConfig struct {
 	SourceBudget etl.SourceBudget
 }
 
+// NewReader fixes decoding and source-budget policy before extraction.
 func NewReader(source io.Reader, config ReaderConfig) (*Reader, error) {
 	if lo.IsNil(source) {
 		return nil, errors.New("text reader: source must not be nil")

@@ -9,10 +9,12 @@ import (
 	"strings"
 )
 
+// ErrInvalidSample identifies missing generated-text inputs or evidence.
 var ErrInvalidSample = errors.New("eval/text: invalid sample")
 
 const evidenceSeparator = "\n"
 
+// AnswerRelevanceSample relates generated output to the input it should answer.
 type AnswerRelevanceSample struct {
 	Input  string `json:"input"`
 	Output string `json:"output"`
@@ -28,6 +30,8 @@ func (a AnswerRelevanceSample) Validate() error {
 	return nil
 }
 
+// GroundednessSample keeps evidence separate from generated output so support
+// is not conflated with answer relevance.
 type GroundednessSample struct {
 	Output   string   `json:"output"`
 	Evidence []string `json:"evidence"`
@@ -58,6 +62,8 @@ func (g GroundednessSample) Validate() error {
 	return nil
 }
 
+// CorrectnessSample supplies an explicit reference rather than treating
+// retrieved evidence as ground truth.
 type CorrectnessSample struct {
 	Input     string `json:"input"`
 	Output    string `json:"output"`

@@ -27,6 +27,8 @@ const (
 	minimumCodeFenceLength   = 3
 )
 
+// ErrSemanticUnitTooLarge reports a Markdown unit that cannot be split without
+// losing its semantic boundary.
 var ErrSemanticUnitTooLarge = errors.New("markdown splitter: semantic unit exceeds token limit")
 
 // SplitterConfig configures structure-aware Markdown chunking. Zero limits use
@@ -50,6 +52,7 @@ type Splitter struct {
 	base              *etl.Splitter
 }
 
+// NewSplitter validates semantic and output bounds before retaining policy.
 func NewSplitter(config SplitterConfig) (*Splitter, error) {
 	if lo.IsNil(config.Tokenizer) {
 		return nil, errors.New("markdown splitter: tokenizer is required")

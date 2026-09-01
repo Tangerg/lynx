@@ -11,6 +11,8 @@ type DistributionDelta struct {
 	Mean    float64
 }
 
+// MetricComparison keeps exact aggregate deltas attached to one full metric
+// identity.
 type MetricComparison struct {
 	Metric           Metric
 	Baseline         MetricSummary
@@ -23,6 +25,8 @@ type MetricComparison struct {
 	MeasurementDelta DistributionDelta
 }
 
+// Comparison reports candidate-minus-baseline deltas without inventing
+// statistical significance.
 type Comparison struct {
 	Baseline       ExperimentSummary
 	Candidate      ExperimentSummary

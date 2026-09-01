@@ -11,6 +11,8 @@ import (
 	"github.com/Tangerg/scope/core/document"
 )
 
+// IDAssignerConfig binds one deterministic or random identity policy to
+// documents that do not already own an ID.
 type IDAssignerConfig struct {
 	// Generator is required.
 	Generator IDGenerator
@@ -26,6 +28,8 @@ type IDAssigner struct {
 	overwrite bool
 }
 
+// NewIDAssigner rejects a missing generator rather than choosing ambient
+// identity policy.
 func NewIDAssigner(config IDAssignerConfig) (*IDAssigner, error) {
 	if lo.IsNil(config.Generator) {
 		return nil, errors.New("etl: ID generator is required")

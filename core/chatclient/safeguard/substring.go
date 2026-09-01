@@ -28,6 +28,8 @@ type substringTerm struct {
 	match   string
 }
 
+// NewSubstringMatcher normalizes and deduplicates a small term policy once;
+// matching never depends on later caller mutation.
 func NewSubstringMatcher(terms []string, config SubstringConfig) (*SubstringMatcher, error) {
 	cleaned := make([]substringTerm, 0, len(terms))
 	seen := make(map[string]struct{}, len(terms))

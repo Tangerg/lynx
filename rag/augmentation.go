@@ -8,8 +8,11 @@ import (
 )
 
 var (
+	// ErrInvalidAugmentation identifies generation input or citation numbering
+	// that cannot be represented portably.
 	ErrInvalidAugmentation = errors.New("rag: invalid augmentation")
-	ErrNilAugmenter        = errors.New("rag: augmenter must not be nil")
+	// ErrNilAugmenter rejects composition without explicit prompt policy.
+	ErrNilAugmenter = errors.New("rag: augmenter must not be nil")
 )
 
 // Augmentation is the final text handed to a generation model after retrieval.
@@ -60,6 +63,7 @@ func (c Citations) Validate() error {
 	return nil
 }
 
+// NewCitation snapshots a candidate under one positive prompt marker.
 func NewCitation(number int, candidate Candidate) (Citation, error) {
 	citation := Citation{Number: number, Candidate: candidate.Clone()}
 	if err := citation.Validate(); err != nil {
@@ -87,6 +91,7 @@ func (c Citation) Validate() error {
 	return nil
 }
 
+// NewAugmentation validates final generation text before citations are attached.
 func NewAugmentation(text string) (Augmentation, error) {
 	augmentation := Augmentation{text: text}
 	if err := augmentation.Validate(); err != nil {
@@ -133,6 +138,7 @@ type Augmenter interface {
 	Augment(ctx context.Context, query Query, candidates Candidates) (Augmentation, error)
 }
 
+// AugmenterFunc adapts a function to Augmenter without another composition API.
 type AugmenterFunc func(context.Context, Query, Candidates) (Augmentation, error)
 
 func (a AugmenterFunc) Augment(ctx context.Context, query Query, candidates Candidates) (Augmentation, error) {

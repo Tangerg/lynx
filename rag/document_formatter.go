@@ -11,6 +11,7 @@ type DocumentFormatter interface {
 	Format(doc *document.Document) (string, error)
 }
 
+// DocumentFormatterFunc adapts a pure document projection to DocumentFormatter.
 type DocumentFormatterFunc func(*document.Document) (string, error)
 
 func (d DocumentFormatterFunc) Format(doc *document.Document) (string, error) {

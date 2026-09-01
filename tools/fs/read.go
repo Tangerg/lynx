@@ -30,11 +30,13 @@ type ReadResponse struct {
 
 var _ toolcontract.Tool = (*ReadTool)(nil)
 
+// ReadTool is the model-facing adapter for the narrow Reader port.
 type ReadTool struct {
 	executor Reader
 	typed    toolcontract.Func[ReadRequest, ReadResponse]
 }
 
+// NewReadTool requires read authority explicitly and derives one stable schema.
 func NewReadTool(executor Reader) (*ReadTool, error) {
 	if lo.IsNil(executor) {
 		return nil, ErrNilExecutor

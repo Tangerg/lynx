@@ -17,6 +17,8 @@ var vectorStoreFilterValueKey = mustValueKey[filter.Predicate]("vector store fil
 // filter. Parse textual filter DSL with [filter.Parse] before attaching it.
 func VectorStoreFilterValueKey() ValueKey[filter.Predicate] { return vectorStoreFilterValueKey }
 
+// VectorStoreRetrieverConfig binds embedding and search capabilities while
+// leaving route and filter values on each Query.
 type VectorStoreRetrieverConfig struct {
 	// VectorStore performs the actual relevance search. Required.
 	VectorStore corevs.Searcher
@@ -73,6 +75,7 @@ type VectorStoreRetriever struct {
 	filterFunc  func(ctx context.Context, query Query) (filter.Predicate, error)
 }
 
+// NewVectorStoreRetriever validates the complete embedding-to-search boundary.
 func NewVectorStoreRetriever(config VectorStoreRetrieverConfig) (*VectorStoreRetriever, error) {
 	config, err := config.normalized()
 	if err != nil {

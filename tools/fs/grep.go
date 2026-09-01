@@ -45,11 +45,13 @@ type GrepResponse struct {
 
 var _ toolcontract.Tool = (*GrepTool)(nil)
 
+// GrepTool is the model-facing adapter for the narrow Grepper port.
 type GrepTool struct {
 	executor Grepper
 	typed    toolcontract.Func[GrepRequest, GrepResponse]
 }
 
+// NewGrepTool requires content-search authority explicitly.
 func NewGrepTool(executor Grepper) (*GrepTool, error) {
 	if lo.IsNil(executor) {
 		return nil, ErrNilExecutor

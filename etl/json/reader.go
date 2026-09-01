@@ -36,6 +36,8 @@ type ReaderConfig struct {
 	SourceBudget etl.SourceBudget
 }
 
+// NewReader validates the typed JSON projection and source budget before any
+// input is consumed.
 func NewReader(source io.Reader, config ReaderConfig) (*Reader, error) {
 	if lo.IsNil(source) {
 		return nil, errors.New("json reader: source must not be nil")

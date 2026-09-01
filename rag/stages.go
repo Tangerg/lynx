@@ -12,11 +12,17 @@ import (
 )
 
 var (
+	// ErrInvalidCandidate identifies an invalid document or non-finite score.
 	ErrInvalidCandidate = errors.New("rag: invalid retrieval candidate")
-	ErrNilTransformer   = errors.New("rag: transformer must not be nil")
-	ErrNilExpander      = errors.New("rag: expander must not be nil")
-	ErrNilRefiner       = errors.New("rag: refiner must not be nil")
-	ErrEmptyExpansion   = errors.New("rag: expander returned no queries")
+	// ErrNilTransformer rejects a missing query transformation stage.
+	ErrNilTransformer = errors.New("rag: transformer must not be nil")
+	// ErrNilExpander rejects a missing query expansion stage.
+	ErrNilExpander = errors.New("rag: expander must not be nil")
+	// ErrNilRefiner rejects a missing candidate refinement stage.
+	ErrNilRefiner = errors.New("rag: refiner must not be nil")
+	// ErrEmptyExpansion prevents an expander from erasing a query.
+	ErrEmptyExpansion = errors.New("rag: expander returned no queries")
+	// ErrInvalidExpansion identifies invalid or duplicate expanded queries.
 	ErrInvalidExpansion = errors.New("rag: invalid query expansion")
 )
 
@@ -127,6 +133,7 @@ type Transformer interface {
 	Transform(ctx context.Context, query Query) (Query, error)
 }
 
+// TransformerFunc adapts a function to Transformer.
 type TransformerFunc func(context.Context, Query) (Query, error)
 
 func (t TransformerFunc) Transform(ctx context.Context, query Query) (Query, error) {
@@ -142,6 +149,7 @@ type Expander interface {
 	Expand(ctx context.Context, query Query) ([]Query, error)
 }
 
+// ExpanderFunc adapts a function to Expander.
 type ExpanderFunc func(context.Context, Query) ([]Query, error)
 
 func (e ExpanderFunc) Expand(ctx context.Context, query Query) ([]Query, error) {
@@ -156,6 +164,7 @@ type Retriever interface {
 	Retrieve(ctx context.Context, query Query) (Candidates, error)
 }
 
+// RetrieverFunc adapts a function to Retriever.
 type RetrieverFunc func(context.Context, Query) (Candidates, error)
 
 func (r RetrieverFunc) Retrieve(ctx context.Context, query Query) (Candidates, error) {
@@ -170,6 +179,7 @@ type Refiner interface {
 	Refine(ctx context.Context, query Query, candidates Candidates) (Candidates, error)
 }
 
+// RefinerFunc adapts a function to Refiner.
 type RefinerFunc func(context.Context, Query, Candidates) (Candidates, error)
 
 func (r RefinerFunc) Refine(ctx context.Context, query Query, candidates Candidates) (Candidates, error) {

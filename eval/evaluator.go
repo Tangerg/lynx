@@ -10,6 +10,8 @@ type Evaluator[T any] interface {
 	Evaluate(ctx context.Context, subject T) (Report, error)
 }
 
+// EvaluatorFunc adapts a function to Evaluator without introducing another
+// evaluation call path.
 type EvaluatorFunc[T any] func(context.Context, T) (Report, error)
 
 func (e EvaluatorFunc[T]) Evaluate(ctx context.Context, subject T) (Report, error) {

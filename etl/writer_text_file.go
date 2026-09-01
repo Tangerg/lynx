@@ -19,6 +19,8 @@ import (
 // remaining permissions for the caller's environment.
 const createdTextFileMode os.FileMode = 0o666
 
+// TextFileWriterConfig fixes the output authority and filename policy at
+// construction time.
 type TextFileWriterConfig struct {
 	// Path is required. Existing files are replaced unless Append is true.
 	Path string
@@ -49,6 +51,8 @@ type TextFileWriter struct {
 	formatter       Formatter
 }
 
+// NewTextFileWriter validates its filesystem boundary before accepting
+// documents.
 func NewTextFileWriter(config TextFileWriterConfig) (*TextFileWriter, error) {
 	if config.Path == "" {
 		return nil, errors.New("etl: output path is required")

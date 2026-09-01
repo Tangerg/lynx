@@ -7,19 +7,27 @@ import (
 )
 
 var (
-	ErrUnsafeContent           = errors.New("safeguard: unsafe content")
+	// ErrUnsafeContent is the stable policy rejection sentinel unwrapped by
+	// UnsafeError.
+	ErrUnsafeContent = errors.New("safeguard: unsafe content")
+	// ErrInvalidMiddlewareConfig identifies an incomplete screening boundary.
 	ErrInvalidMiddlewareConfig = errors.New("safeguard: invalid middleware config")
-	ErrInvalidSubstringConfig  = errors.New("safeguard: invalid substring matcher config")
-	ErrNilStream               = errors.New("safeguard: nil stream sequence")
+	// ErrInvalidSubstringConfig identifies an empty term policy.
+	ErrInvalidSubstringConfig = errors.New("safeguard: invalid substring matcher config")
+	// ErrNilStream identifies a wrapped streamer that returned no iterator.
+	ErrNilStream = errors.New("safeguard: nil stream sequence")
 )
 
 // Scope selects which side of a model exchange is screened.
 type Scope string
 
 const (
-	ScopeInput  Scope = "input"
+	// ScopeInput screens system and user text before provider I/O.
+	ScopeInput Scope = "input"
+	// ScopeOutput screens assistant text before it reaches the caller.
 	ScopeOutput Scope = "output"
-	ScopeBoth   Scope = "both"
+	// ScopeBoth applies one matcher to both model-boundary directions.
+	ScopeBoth Scope = "both"
 )
 
 func (s Scope) Valid() bool {
@@ -51,6 +59,7 @@ type Matcher interface {
 	Match(ctx context.Context, text string) (Match, error)
 }
 
+// MatcherFunc adapts a screening function to Matcher.
 type MatcherFunc func(ctx context.Context, text string) (Match, error)
 
 func (m MatcherFunc) Match(ctx context.Context, text string) (Match, error) {

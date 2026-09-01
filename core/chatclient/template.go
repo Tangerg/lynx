@@ -13,6 +13,8 @@ import (
 	"github.com/Tangerg/scope/core/media"
 )
 
+// ErrInvalidTemplate identifies a prompt template that cannot render a valid
+// request.
 var ErrInvalidTemplate = errors.New("chatclient: invalid template")
 
 // Template is an immutable, parsed prompt template safe for concurrent use.
@@ -25,6 +27,8 @@ type Template struct {
 	compiled *template.Template
 }
 
+// ParseTemplate rejects templates whose variable paths or functions could make
+// rendering depend on ambient state.
 func ParseTemplate(source string) (*Template, error) {
 	if strings.TrimSpace(source) == "" {
 		return nil, fmt.Errorf("%w: source is empty", ErrInvalidTemplate)

@@ -30,6 +30,8 @@ const multiQueryOutputName = "rag_multi_query"
 // [MultiQueryExpanderConfig.NumberOfQueries] is unset.
 const DefaultMultiQueryCount = 3
 
+// MultiQueryExpanderConfig binds one chat model to a bounded alternative-query
+// policy.
 type MultiQueryExpanderConfig struct {
 	// Model produces the variants. Required.
 	Model chat.Model
@@ -117,6 +119,8 @@ func (m multiQueryOutput) queries(source Query, count int, includeOriginal bool)
 	return append(queries, variants...), nil
 }
 
+// NewMultiQueryExpander validates query-count bounds and freezes model prompt
+// policy.
 func NewMultiQueryExpander(config MultiQueryExpanderConfig) (*MultiQueryExpander, error) {
 	config, err := config.normalized()
 	if err != nil {

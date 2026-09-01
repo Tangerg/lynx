@@ -20,6 +20,7 @@ type Model interface {
 	Call(ctx context.Context, request *Request) (*Response, error)
 }
 
+// ModelFunc adapts a function to Model without introducing a second call API.
 type ModelFunc func(ctx context.Context, request *Request) (*Response, error)
 
 func (m ModelFunc) Call(ctx context.Context, request *Request) (*Response, error) {
@@ -45,6 +46,7 @@ type Streamer interface {
 	Stream(ctx context.Context, request *Request) iter.Seq2[*ResponseDelta, error]
 }
 
+// StreamerFunc adapts a function to Streamer without coupling it to Model.
 type StreamerFunc func(ctx context.Context, request *Request) iter.Seq2[*ResponseDelta, error]
 
 func (s StreamerFunc) Stream(ctx context.Context, request *Request) iter.Seq2[*ResponseDelta, error] {

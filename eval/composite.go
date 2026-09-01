@@ -11,8 +11,11 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
+// PassPolicy controls categorical aggregation independently from score weights.
 type PassPolicy string
 
+// Composite pass policies remain explicit so required components and minimum
+// counts cannot be encoded in magic thresholds.
 const (
 	PassAll     PassPolicy = "all"
 	PassAny     PassPolicy = "any"
@@ -66,6 +69,8 @@ type CompositeConfig[T any] struct {
 	MaxConcurrency int
 }
 
+// CompositeEvaluator combines only scored, decided child reports under one
+// explicit weighting and pass policy.
 type CompositeEvaluator[T any] struct {
 	components     []Component[T]
 	passPolicy     PassPolicy
@@ -73,6 +78,8 @@ type CompositeEvaluator[T any] struct {
 	maxConcurrency int
 }
 
+// NewCompositeEvaluator snapshots components and resolves all zero-value
+// defaults before evaluation begins.
 func NewCompositeEvaluator[T any](config CompositeConfig[T]) (*CompositeEvaluator[T], error) {
 	if len(config.Components) == 0 {
 		return nil, fmt.Errorf("%w: at least one component is required", ErrInvalidEvaluatorConfig)

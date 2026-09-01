@@ -7,6 +7,7 @@ import (
 	"slices"
 )
 
+// ErrInvalidRequest identifies an invalid complete model input.
 var ErrInvalidRequest = errors.New("chat: invalid request")
 
 // Request is the complete provider-neutral input to a chat model. It contains
@@ -40,6 +41,8 @@ func (r *Request) Clone() *Request {
 	return clone
 }
 
+// NewRequest snapshots and validates a complete conversation, including its
+// leading system prefix and tool-call consistency.
 func NewRequest(messages ...Message) (*Request, error) {
 	r := &Request{Messages: slices.Clone(messages)}
 	for index := range r.Messages {

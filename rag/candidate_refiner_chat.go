@@ -14,6 +14,8 @@ import (
 	"github.com/Tangerg/scope/core/chatclient"
 )
 
+// ErrInvalidReranking identifies a chat ranking that loses or duplicates
+// candidate identity.
 var ErrInvalidReranking = errors.New("rag: invalid reranking")
 
 const chatRerankerDefaultTemplate = `Rank every candidate by relevance to the query.
@@ -28,6 +30,8 @@ Candidates (JSON):
 
 const chatRerankerOutputName = "rag_reranking"
 
+// ChatRerankerConfig binds explicit prompt, output, and candidate limits to a
+// provider-neutral chat model.
 type ChatRerankerConfig struct {
 	// Model ranks candidates. Required.
 	Model chat.Model
@@ -97,6 +101,7 @@ type chatRerankingInput struct {
 
 var _ Refiner = (*ChatReranker)(nil)
 
+// NewChatReranker validates ranking policy and freezes model options.
 func NewChatReranker(config ChatRerankerConfig) (*ChatReranker, error) {
 	format, err := chatclient.JSONSchema[chatRerankingOutput](chatclient.JSONSchemaConfig{Name: chatRerankerOutputName})
 	if err != nil {

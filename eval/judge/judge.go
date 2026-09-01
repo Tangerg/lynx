@@ -28,8 +28,11 @@ type aggregation string
 
 const aggregationMedian aggregation = "median"
 
+// Prompt projects a domain subject into one valid judge message.
 type Prompt[T any] func(T) (chat.Message, error)
 
+// Config binds a portable metric and subject prompt to a structured-output
+// model judge. Multiple samples use a deterministic median aggregation.
 type Config[T any] struct {
 	Model   chat.Model
 	Metric  eval.Metric
@@ -52,6 +55,8 @@ type metricConfiguration struct {
 	Threshold   *eval.Score `json:"threshold,omitzero"`
 }
 
+// Evaluator asks a chat model for normalized scores without teaching the eval
+// kernel any domain vocabulary.
 type Evaluator[T any] struct {
 	client    chatclient.Client
 	format    chatclient.OutputFormat[modelReport]
@@ -62,6 +67,7 @@ type Evaluator[T any] struct {
 	samples   int
 }
 
+// NewEvaluator freezes metric identity, options, threshold, and sampling policy.
 func NewEvaluator[T any](config Config[T]) (*Evaluator[T], error) {
 	if lo.IsNil(config.Model) {
 		return nil, fmt.Errorf("%w: model is nil", eval.ErrInvalidEvaluatorConfig)

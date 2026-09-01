@@ -12,8 +12,12 @@ import (
 )
 
 var (
-	ErrNilModel             = errors.New("chatclient: nil model")
-	ErrNilClient            = errors.New("chatclient: nil client")
+	// ErrNilModel rejects a client whose only required capability is absent.
+	ErrNilModel = errors.New("chatclient: nil model")
+	// ErrNilClient identifies use of a zero-value Client.
+	ErrNilClient = errors.New("chatclient: nil client")
+	// ErrStreamingUnsupported reports that no explicit or discovered Streamer is
+	// available.
 	ErrStreamingUnsupported = errors.New("chatclient: streaming unsupported")
 )
 
@@ -33,6 +37,8 @@ type Client struct {
 	streamer chat.Streamer
 }
 
+// New snapshots middleware and discovers streaming only when Config does not
+// provide an explicit Streamer. The returned Client has no mutable defaults.
 func New(model chat.Model, config Config) (Client, error) {
 	if lo.IsNil(model) {
 		return Client{}, ErrNilModel
@@ -64,6 +70,8 @@ func New(model chat.Model, config Config) (Client, error) {
 	}, nil
 }
 
+// Output asks the provider to enforce format, then strictly decodes the terminal
+// text. It never repairs JSON or injects format instructions into the prompt.
 func (c Client) Output[T any](ctx context.Context, req *chat.Request, format OutputFormat[T]) (T, error) {
 	var zero T
 	if !c.valid() {
@@ -76,6 +84,7 @@ func (c Client) Output[T any](ctx context.Context, req *chat.Request, format Out
 	return format.decodeResponse(response, err)
 }
 
+// Call snapshots and validates req before the middleware and model boundary.
 func (c Client) Call(ctx context.Context, req *chat.Request) (*chat.Response, error) {
 	if !c.valid() {
 		return nil, ErrNilClient
@@ -110,6 +119,8 @@ func (c Client) prepareRequest(request *chat.Request, outputFormat *chat.OutputF
 	return prepared, nil
 }
 
+// Stream returns a lazy sequence; lack of streaming support is yielded as its
+// single terminal error rather than hidden behind a capability probe.
 func (c Client) Stream(ctx context.Context, req *chat.Request) iter.Seq2[*chat.ResponseDelta, error] {
 	if !c.valid() {
 		return errorSequence(ErrNilClient)

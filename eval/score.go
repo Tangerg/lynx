@@ -9,6 +9,7 @@ import (
 // higher value is always better.
 type Score float64
 
+// NewScore rejects non-finite and out-of-range values at construction.
 func NewScore(value float64) (Score, error) {
 	score := Score(value)
 	if err := score.Validate(); err != nil {

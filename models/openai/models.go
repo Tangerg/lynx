@@ -31,6 +31,8 @@ const (
 	ModerationRequestExtensionKey    = "openai/moderation_request"
 )
 
+// ChatConfig configures the OpenAI Chat Completions endpoint. Construction does
+// no network I/O; per-call overrides remain in chat.Request.
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -52,10 +54,13 @@ func (c ChatConfig) protocol() openaiprotocol.ChatCompletionsConfig {
 // Chat is the OpenAI Chat Completions protocol model.
 type Chat = openaiprotocol.ChatCompletions
 
+// NewChat validates config and returns the Chat Completions adapter.
 func NewChat(config ChatConfig) (*Chat, error) {
 	return openaiprotocol.NewChatCompletions(config.protocol())
 }
 
+// ResponsesConfig configures the OpenAI Responses endpoint independently from
+// Chat Completions because their transport capabilities differ.
 type ResponsesConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -78,6 +83,7 @@ func (r ResponsesConfig) protocol() openaiprotocol.ResponsesConfig {
 // Chat because the endpoints expose different transport capabilities.
 type Responses = openaiprotocol.Responses
 
+// NewResponses validates config and returns the Responses API adapter.
 func NewResponses(config ResponsesConfig) (*Responses, error) {
 	return openaiprotocol.NewResponses(config.protocol())
 }

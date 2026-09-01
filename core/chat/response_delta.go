@@ -10,8 +10,11 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
+// PartDeltaKind identifies transport increments whose lifecycle differs from a
+// complete Part, including incomplete tool arguments and citation attachment.
 type PartDeltaKind string
 
+// Delta kinds name the only payload shape active in each stream increment.
 const (
 	PartDeltaText      PartDeltaKind = "text"
 	PartDeltaMedia     PartDeltaKind = "media"
@@ -43,26 +46,34 @@ type PartDelta struct {
 	Metadata       metadata.Map   `json:"metadata,omitzero"`
 }
 
+// NewTextDelta carries one non-empty text increment.
 func NewTextDelta(text string) PartDelta {
 	return PartDelta{Kind: PartDeltaText, Text: text}
 }
 
+// NewMediaDelta carries one complete media value delivered by the stream.
 func NewMediaDelta(value *media.Media) PartDelta {
 	return PartDelta{Kind: PartDeltaMedia, Media: value}
 }
 
+// NewReasoningDelta snapshots visible reasoning or opaque replay state.
 func NewReasoningDelta(text string, state []byte) PartDelta {
 	return PartDelta{Kind: PartDeltaReasoning, Text: text, ReasoningState: slices.Clone(state)}
 }
 
+// NewToolCallDelta carries the next identity, name, or argument fragment for a
+// tool call under construction.
 func NewToolCallDelta(delta ToolCallDelta) PartDelta {
 	return PartDelta{Kind: PartDeltaToolCall, ToolCall: new(delta)}
 }
 
+// NewCitationDelta attaches one complete evidence item to streamed text.
 func NewCitationDelta(citation Citation) PartDelta {
 	return PartDelta{Kind: PartDeltaCitation, Citation: new(citation)}
 }
 
+// NewRefusalDelta keeps refusal text distinct from ordinary text while it is
+// streamed.
 func NewRefusalDelta(text string) PartDelta {
 	return PartDelta{Kind: PartDeltaRefusal, Text: text}
 }

@@ -10,6 +10,8 @@ import (
 )
 
 var (
+	// ErrInvalidToolMiddleware identifies an executable set or request that
+	// cannot satisfy the middleware's single-batch ownership contract.
 	ErrInvalidToolMiddleware = errors.New("chatclient: invalid tool middleware")
 )
 

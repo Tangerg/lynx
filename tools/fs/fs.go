@@ -13,22 +13,28 @@ type Reader interface {
 	Read(ctx context.Context, in ReadInput) (ReadOutput, error)
 }
 
+// Writer is the narrow backend port consumed by WriteTool.
 type Writer interface {
 	Write(ctx context.Context, request WriteRequest) (WriteResponse, error)
 }
 
+// Editor keeps read-modify-write atomic inside the filesystem authority owner.
 type Editor interface {
 	Edit(ctx context.Context, request EditRequest) (EditResponse, error)
 }
 
+// PatchApplier keeps coordinated multi-file mutation inside one backend call.
 type PatchApplier interface {
 	ApplyPatch(ctx context.Context, request ApplyPatchRequest) (ApplyPatchResponse, error)
 }
 
+// Globber lets remote backends search paths without exposing directory walking
+// as many tool calls.
 type Globber interface {
 	Glob(ctx context.Context, request GlobRequest) (GlobResponse, error)
 }
 
+// Grepper lets a backend own its content-search engine and filesystem boundary.
 type Grepper interface {
 	Grep(ctx context.Context, in GrepInput) (GrepResponse, error)
 }
@@ -45,6 +51,8 @@ type ReadInput struct {
 	PartialLine    bool  // admit a UTF-8 prefix when the output cap splits a line
 }
 
+// ReadOutput reports the admitted line window and whole-file size without
+// leaking backend implementation details.
 type ReadOutput struct {
 	Content    string
 	StartLine  int
@@ -63,9 +71,12 @@ type editOperation struct {
 type GrepOutputMode string
 
 const (
-	GrepOutputContent          GrepOutputMode = "content"
+	// GrepOutputContent returns structured matching and context lines.
+	GrepOutputContent GrepOutputMode = "content"
+	// GrepOutputFilesWithMatches returns only paths containing a match.
 	GrepOutputFilesWithMatches GrepOutputMode = "files_with_matches"
-	GrepOutputCount            GrepOutputMode = "count"
+	// GrepOutputCount returns per-file match counts.
+	GrepOutputCount GrepOutputMode = "count"
 )
 
 func (g GrepOutputMode) Resolve() GrepOutputMode {
@@ -84,6 +95,8 @@ func (g GrepOutputMode) Valid() bool {
 	}
 }
 
+// GrepInput is the backend search contract after model-facing fields have been
+// normalized.
 type GrepInput struct {
 	Pattern    string // regex
 	Path       string // file or directory below the executor's authority root

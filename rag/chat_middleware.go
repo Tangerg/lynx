@@ -12,9 +12,14 @@ import (
 )
 
 var (
-	ErrNilChatResponse       = errors.New("rag: chat model returned a nil response")
+	// ErrNilChatResponse identifies a successful model call with no response.
+	ErrNilChatResponse = errors.New("rag: chat model returned a nil response")
+	// ErrNilChatStreamSequence identifies a streaming implementation that did
+	// not return the required iterator.
 	ErrNilChatStreamSequence = errors.New("rag: chat streamer returned a nil sequence")
-	ErrNoFinalUserMessage    = errors.New("rag: chat request must end with a user message")
+	// ErrNoFinalUserMessage rejects requests whose active retrieval query is
+	// ambiguous.
+	ErrNoFinalUserMessage = errors.New("rag: chat request must end with a user message")
 )
 
 const (
@@ -28,6 +33,8 @@ var historyValueKey = mustValueKey[[]chat.Message]("chat history")
 // user turn when a query originates from [NewMiddleware].
 func HistoryValueKey() ValueKey[[]chat.Message] { return historyValueKey }
 
+// MiddlewareConfig makes retrieval and augmentation independently replaceable
+// while requiring both policies explicitly.
 type MiddlewareConfig struct {
 	// Retriever fetches documents for the latest user message. Required.
 	Retriever Retriever
@@ -161,6 +168,7 @@ func CitationsFromMetadata(metadata *chat.ResponseMetadata) (Citations, bool, er
 	return citations, found, nil
 }
 
+// NewMiddleware freezes the two-stage RAG policy for both call modes.
 func NewMiddleware(config MiddlewareConfig) (*Middleware, error) {
 	if err := config.validate(); err != nil {
 		return nil, err

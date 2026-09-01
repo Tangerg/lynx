@@ -20,6 +20,8 @@ Original query: {{.Query}}
 
 Translated query:`
 
+// TranslationTransformerConfig binds one model and target language without
+// changing retrieval-scoped query values.
 type TranslationTransformerConfig struct {
 	// Model performs the translation. Required.
 	Model chat.Model
@@ -41,6 +43,7 @@ type TranslationTransformer struct {
 	transformer targetedTextTransformer
 }
 
+// NewTranslationTransformer validates target-language and model policy once.
 func NewTranslationTransformer(config TranslationTransformerConfig) (*TranslationTransformer, error) {
 	transformer, err := newTargetedTextTransformer(
 		config.Model,

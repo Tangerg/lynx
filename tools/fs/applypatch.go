@@ -17,11 +17,13 @@ type ApplyPatchRequest struct {
 	Patch string `json:"patch" jsonschema:"minLength=1" jsonschema_description:"Git-compatible unified diff. Supports create, modify, delete, and rename operations; express moves with Git rename metadata."`
 }
 
+// ApplyPatchResponse reports the complete committed file and hunk set.
 type ApplyPatchResponse struct {
 	Files []PatchFileResponse `json:"files"`
 	Hunks int                 `json:"hunks"`
 }
 
+// PatchFileResponse preserves create, delete, and move identity separately.
 type PatchFileResponse struct {
 	// Path is where the file ended up.
 	Path    string `json:"path"`
@@ -35,11 +37,14 @@ type PatchFileResponse struct {
 
 var _ toolcontract.Tool = (*ApplyPatchTool)(nil)
 
+// ApplyPatchTool is the model-facing adapter for an atomic PatchApplier.
 type ApplyPatchTool struct {
 	executor PatchApplier
 	typed    toolcontract.Func[ApplyPatchRequest, ApplyPatchResponse]
 }
 
+// NewApplyPatchTool requires patch authority explicitly and derives one stable
+// tool schema.
 func NewApplyPatchTool(executor PatchApplier) (*ApplyPatchTool, error) {
 	if lo.IsNil(executor) {
 		return nil, ErrNilExecutor

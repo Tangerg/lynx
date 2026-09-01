@@ -19,6 +19,8 @@ const (
 	metricThresholdKey = "threshold"
 )
 
+// ErrInvalidSample identifies a ranking or judgment set that cannot define one
+// deterministic relevance calculation.
 var ErrInvalidSample = errors.New("eval/ranking: invalid sample")
 
 // Metric selects a ranking-quality calculation evaluated at a configured
@@ -26,13 +28,21 @@ var ErrInvalidSample = errors.New("eval/ranking: invalid sample")
 type Metric string
 
 const (
-	MetricPrecision        Metric = "precision"
-	MetricRecall           Metric = "recall"
-	MetricReciprocalRank   Metric = "reciprocal_rank"
+	// MetricPrecision measures relevant results among the admitted ranking.
+	MetricPrecision Metric = "precision"
+	// MetricRecall measures admitted relevant results among all relevant items.
+	MetricRecall Metric = "recall"
+	// MetricReciprocalRank rewards the rank of the first relevant result.
+	MetricReciprocalRank Metric = "reciprocal_rank"
+	// MetricAveragePrecision averages precision at every relevant result.
 	MetricAveragePrecision Metric = "average_precision"
-	MetricNDCG             Metric = "ndcg"
-	rankingField                  = "ranking"
-	judgmentField                 = "judgments"
+	// MetricNDCG preserves graded relevance while discounting later ranks.
+	MetricNDCG Metric = "ndcg"
+)
+
+const (
+	rankingField  = "ranking"
+	judgmentField = "judgments"
 )
 
 func (m Metric) Validate() error {
@@ -73,6 +83,8 @@ type Sample struct {
 	Judgments []Judgment `json:"judgments"`
 }
 
+// NewSample snapshots identities and judgments before validating their unique
+// correlation.
 func NewSample(ranking []string, judgments []Judgment) (Sample, error) {
 	sample := Sample{Ranking: slices.Clone(ranking), Judgments: slices.Clone(judgments)}
 	if err := sample.Validate(); err != nil {
@@ -278,6 +290,7 @@ type Evaluator struct {
 	reportMetric eval.Metric
 }
 
+// NewEvaluator freezes the metric, cutoff, and optional decision threshold.
 func NewEvaluator(config Config) (*Evaluator, error) {
 	if err := config.validate(); err != nil {
 		return nil, err

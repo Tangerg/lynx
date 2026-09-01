@@ -8,6 +8,7 @@ import (
 	"github.com/Tangerg/scope/core/internal/ptr"
 )
 
+// ErrInvalidUsage identifies impossible token totals or breakdowns.
 var ErrInvalidUsage = errors.New("chat: invalid usage")
 
 // Usage records provider-neutral token counts. Breakdown pointers distinguish
@@ -22,6 +23,8 @@ type Usage struct {
 	CacheWriteInputTokens *int64 `json:"cache_write_input_tokens,omitempty"`
 }
 
+// TotalTokens returns the provider-reported input and output totals without
+// double-counting their optional breakdowns.
 func (u Usage) TotalTokens() int64 {
 	return u.InputTokens + u.OutputTokens
 }

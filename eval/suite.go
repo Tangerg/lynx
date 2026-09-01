@@ -9,6 +9,8 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
+// MetricNameSuite identifies a heterogeneous report that preserves child
+// metrics instead of aggregating unlike scores.
 const MetricNameSuite MetricName = "suite"
 
 // SuiteConfig groups heterogeneous evaluators without collapsing their
@@ -28,6 +30,8 @@ type SuiteEvaluator[T any] struct {
 	maxConcurrency int
 }
 
+// NewSuiteEvaluator snapshots the ordered evaluator set and bounds concurrent
+// child evaluation.
 func NewSuiteEvaluator[T any](config SuiteConfig[T]) (*SuiteEvaluator[T], error) {
 	if len(config.Evaluators) == 0 {
 		return nil, fmt.Errorf("%w: at least one evaluator is required", ErrInvalidEvaluatorConfig)

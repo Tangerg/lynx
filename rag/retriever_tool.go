@@ -38,6 +38,8 @@ type RetrievalTool struct {
 
 var _ tool.Tool = RetrievalTool{}
 
+// NewRetrievalTool exposes a composed Retriever through the ordinary core tool
+// contract without adding Agent-specific retrieval semantics.
 func NewRetrievalTool(config RetrievalToolConfig) (RetrievalTool, error) {
 	if lo.IsNil(config.Retriever) {
 		return RetrievalTool{}, ErrNilRetriever

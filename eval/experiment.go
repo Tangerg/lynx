@@ -8,10 +8,15 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// DefaultMaxConcurrency bounds evaluation fan-out when a host does not choose
+// an explicit limit.
 const DefaultMaxConcurrency = 4
 
+// ErrorPolicy controls whether independent case failures are collected or stop
+// new scheduling.
 type ErrorPolicy string
 
+// Experiment error policies never hide failures from CaseResult.
 const (
 	ErrorCollect  ErrorPolicy = "collect"
 	ErrorFailFast ErrorPolicy = "fail_fast"
@@ -29,6 +34,8 @@ func (e ErrorPolicy) normalized() (ErrorPolicy, error) {
 	}
 }
 
+// ExperimentConfig binds one immutable Dataset to one Evaluator and scheduling
+// policy.
 type ExperimentConfig[T any] struct {
 	Dataset        Dataset[T]
 	Evaluator      Evaluator[T]
@@ -46,6 +53,8 @@ type Experiment[T any] struct {
 	errorPolicy    ErrorPolicy
 }
 
+// NewExperiment snapshots the Dataset and resolves bounded scheduling before a
+// run starts.
 func NewExperiment[T any](config ExperimentConfig[T]) (Experiment[T], error) {
 	if lo.IsNil(config.Evaluator) {
 		return Experiment[T]{}, fmt.Errorf("%w: evaluator is nil", ErrInvalidExperiment)

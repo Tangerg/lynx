@@ -9,6 +9,8 @@ import (
 	"github.com/samber/lo"
 )
 
+// ErrInvalidRankConstant identifies a fusion policy that cannot preserve
+// monotonic rank contribution.
 var ErrInvalidRankConstant = errors.New("rag: reciprocal-rank constant must not be negative")
 
 // DefaultReciprocalRankConstant is the conventional RRF smoothing constant.

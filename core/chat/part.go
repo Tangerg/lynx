@@ -82,26 +82,36 @@ func (p Part) Clone() Part {
 	return clone
 }
 
+// NewTextPart establishes the text payload shape; aggregate validation rejects
+// empty text.
 func NewTextPart(text string) Part {
 	return Part{Kind: PartText, Text: text}
 }
 
+// NewMediaPart keeps media typed instead of encoding it into provider-specific
+// message text.
 func NewMediaPart(value *media.Media) Part {
 	return Part{Kind: PartMedia, Media: value}
 }
 
+// NewReasoningPart snapshots opaque replay state independently from visible
+// reasoning text.
 func NewReasoningPart(text string, state []byte) Part {
 	return Part{Kind: PartReasoning, Text: text, ReasoningState: slices.Clone(state)}
 }
 
+// NewToolCallPart preserves a model-requested invocation as typed assistant
+// output.
 func NewToolCallPart(call ToolCall) Part {
 	return Part{Kind: PartToolCall, ToolCall: new(call)}
 }
 
+// NewToolResultPart preserves tool correlation and output as typed tool content.
 func NewToolResultPart(result ToolResult) Part {
 	return Part{Kind: PartToolResult, ToolResult: new(result)}
 }
 
+// NewRefusalPart keeps a model refusal distinguishable from ordinary output.
 func NewRefusalPart(text string) Part {
 	return Part{Kind: PartRefusal, Text: text}
 }

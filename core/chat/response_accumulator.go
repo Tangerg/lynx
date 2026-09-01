@@ -17,6 +17,8 @@ type ResponseAccumulator struct {
 	seen           bool
 }
 
+// Add validates and applies one delta atomically; a failed merge leaves the
+// accumulated stream unchanged.
 func (r *ResponseAccumulator) Add(delta *ResponseDelta) error {
 	if r == nil {
 		return errors.New("chat: nil response accumulator")

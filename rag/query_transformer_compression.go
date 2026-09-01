@@ -24,6 +24,8 @@ Follow-up query:
 
 Standalone query:`
 
+// CompressionTransformerConfig binds a chat model and token budget to one
+// history-aware query compression policy.
 type CompressionTransformerConfig struct {
 	// Model performs the compression. Required.
 	Model chat.Model
@@ -47,6 +49,8 @@ type compressionPromptVariables struct {
 	Query   string
 }
 
+// NewCompressionTransformer validates and freezes the model-backed compression
+// boundary.
 func NewCompressionTransformer(config CompressionTransformerConfig) (*CompressionTransformer, error) {
 	prompt, err := newTextModelPrompt(
 		config.Model,

@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/scope/eval"
 )
 
+// MetricAnswerRelevance identifies whether output addresses its input.
 const MetricAnswerRelevance eval.MetricName = "answer_relevance"
 
 const answerRelevancePrompt = `Evaluate how directly and completely the output addresses the input.
@@ -31,6 +32,8 @@ type answerRelevanceVariables struct {
 	Output string
 }
 
+// NewAnswerRelevanceEvaluator binds the text-specific prompt to the generic
+// model judge.
 func NewAnswerRelevanceEvaluator(config ModelEvaluatorConfig) (*AnswerRelevanceEvaluator, error) {
 	metric, err := eval.NewMetric(eval.MetricConfig{Namespace: "text", Name: MetricAnswerRelevance})
 	if err != nil {

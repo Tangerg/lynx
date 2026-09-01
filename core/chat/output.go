@@ -12,12 +12,18 @@ import (
 type FinishReason string
 
 const (
-	FinishReasonStop          FinishReason = "stop"
-	FinishReasonLength        FinishReason = "length"
-	FinishReasonToolCalls     FinishReason = "tool_calls"
+	// FinishReasonStop means the model reached a natural stop condition.
+	FinishReasonStop FinishReason = "stop"
+	// FinishReasonLength means a configured or provider limit ended generation.
+	FinishReasonLength FinishReason = "length"
+	// FinishReasonToolCalls means the model stopped to request tool execution.
+	FinishReasonToolCalls FinishReason = "tool_calls"
+	// FinishReasonContentFilter means provider policy stopped generation.
 	FinishReasonContentFilter FinishReason = "content_filter"
-	FinishReasonRefusal       FinishReason = "refusal"
-	FinishReasonOther         FinishReason = "other"
+	// FinishReasonRefusal means the model declined the request.
+	FinishReasonRefusal FinishReason = "refusal"
+	// FinishReasonOther preserves a known terminal state with no portable match.
+	FinishReasonOther FinishReason = "other"
 )
 
 func (f FinishReason) String() string { return string(f) }
@@ -84,6 +90,8 @@ type Output struct {
 	Metadata     *OutputMetadata `json:"metadata,omitempty"`
 }
 
+// NewOutput validates the single stable generation promoted from a provider
+// response or accumulated stream.
 func NewOutput(message *Message, finishReason FinishReason, outputMetadata *OutputMetadata) (*Output, error) {
 	output := &Output{Message: message, FinishReason: finishReason, Metadata: outputMetadata}
 	if err := output.Validate(); err != nil {

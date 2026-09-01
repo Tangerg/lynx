@@ -13,6 +13,8 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
+// SimpleFormatterConfig controls the stable textual projection used before
+// splitting or indexing.
 type SimpleFormatterConfig struct {
 	// ExcludedMetadata lists metadata keys omitted from rendered output.
 	ExcludedMetadata []string
@@ -40,6 +42,7 @@ type SimpleFormatter struct {
 	excludedMetadata map[string]struct{}
 }
 
+// NewSimpleFormatter snapshots formatting policy into an immutable formatter.
 func NewSimpleFormatter(config SimpleFormatterConfig) SimpleFormatter {
 	return SimpleFormatter{excludedMetadata: lo.SliceToMap(config.ExcludedMetadata, func(key string) (string, struct{}) {
 		return key, struct{}{}

@@ -10,8 +10,12 @@ import (
 )
 
 var (
+	// ErrInvalidOutputFormat identifies a format that cannot define one request
+	// contract and terminal decoder.
 	ErrInvalidOutputFormat = errors.New("chatclient: invalid output format")
 
+	// ErrInvalidOutput identifies a response that cannot be decoded under the
+	// requested contract.
 	ErrInvalidOutput = errors.New("chatclient: invalid output")
 )
 
@@ -22,6 +26,7 @@ type OutputFormat[T any] struct {
 	decoder  func([]byte) (T, error)
 }
 
+// Text selects provider-native text output without post-processing.
 func Text() OutputFormat[string] {
 	return OutputFormat[string]{
 		contract: chat.OutputFormat{Type: chat.OutputFormatText},
@@ -29,6 +34,8 @@ func Text() OutputFormat[string] {
 	}
 }
 
+// JSON selects provider-native JSON output and rejects unknown object members
+// when decoding T.
 func JSON[T any]() OutputFormat[T] {
 	return OutputFormat[T]{
 		contract: chat.OutputFormat{Type: chat.OutputFormatJSON},
@@ -36,6 +43,7 @@ func JSON[T any]() OutputFormat[T] {
 	}
 }
 
+// JSONSchemaConfig supplies the stable identity of a schema derived from T.
 type JSONSchemaConfig struct {
 	Name        string
 	Description string

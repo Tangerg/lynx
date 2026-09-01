@@ -8,6 +8,8 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
+// CaseResult preserves Dataset identity whether evaluation produced a report or
+// an error.
 type CaseResult struct {
 	ID       CaseID
 	Metadata metadata.Map
@@ -49,6 +51,8 @@ type MetricSummary struct {
 	Measurements Distribution
 }
 
+// ExperimentSummary aggregates categorical outcomes and homogeneous metric
+// distributions without collapsing unlike metrics.
 type ExperimentSummary struct {
 	Total     int
 	Evaluated int
@@ -59,6 +63,7 @@ type ExperimentSummary struct {
 	Metrics   []MetricSummary
 }
 
+// ExperimentReport owns ordered case results and the summary derived from them.
 type ExperimentReport struct {
 	cases   []CaseResult
 	summary ExperimentSummary

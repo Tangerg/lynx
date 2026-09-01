@@ -11,10 +11,14 @@ import (
 )
 
 var (
-	ErrInvalidQuery         = errors.New("rag: invalid query")
-	ErrNilRetriever         = errors.New("rag: retriever must not be nil")
+	// ErrInvalidQuery identifies blank text or invalid typed values.
+	ErrInvalidQuery = errors.New("rag: invalid query")
+	// ErrNilRetriever rejects retrieval without an explicit source capability.
+	ErrNilRetriever = errors.New("rag: retriever must not be nil")
+	// ErrInvalidQueryValueKey identifies a zero or malformed typed slot.
 	ErrInvalidQueryValueKey = errors.New("rag: invalid query value key")
-	ErrNilQueryValue        = errors.New("rag: query value must not be nil")
+	// ErrNilQueryValue rejects typed slots whose value is absent.
+	ErrNilQueryValue = errors.New("rag: query value must not be nil")
 )
 
 var queryAnyType = reflect.TypeFor[any]()
@@ -33,6 +37,8 @@ type ValueKey[T any] struct {
 	identity *valueKeyIdentity
 }
 
+// NewValueKey creates one typed identity that callers retain across query
+// producers and consumers.
 func NewValueKey[T any](name string) (ValueKey[T], error) {
 	key := ValueKey[T]{identity: &valueKeyIdentity{name: name}}
 	if err := key.validate(); err != nil {

@@ -47,6 +47,8 @@ func (c Case[T]) clone() Case[T] {
 // must not mutate subjects; metadata is owned and cloned by the Dataset.
 type Dataset[T any] struct{ cases []Case[T] }
 
+// NewDataset snapshots cases and rejects duplicate identity before experiment
+// scheduling can make result correlation ambiguous.
 func NewDataset[T any](cases ...Case[T]) (Dataset[T], error) {
 	owned := slices.Clone(cases)
 	seen := make(map[CaseID]struct{}, len(owned))

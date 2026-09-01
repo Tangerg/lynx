@@ -12,6 +12,8 @@ import (
 	"github.com/Tangerg/scope/core/tokenizer"
 )
 
+// TokenCountBatcherConfig binds one tokenizer to hard per-document and
+// per-batch token budgets.
 type TokenCountBatcherConfig struct {
 	// Estimator is required.
 	Estimator tokenizer.TextEstimator
@@ -76,6 +78,8 @@ type sizedDocument struct {
 	tokens   int
 }
 
+// NewTokenCountBatcher validates budgets before any document reaches a load
+// boundary.
 func NewTokenCountBatcher(config TokenCountBatcherConfig) (*TokenCountBatcher, error) {
 	config, err := config.normalized()
 	if err != nil {

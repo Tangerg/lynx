@@ -23,6 +23,8 @@ type Middleware struct {
 	config  MiddlewareConfig
 }
 
+// NewMiddleware freezes screening direction and callback policy around one
+// explicit Matcher.
 func NewMiddleware(matcher Matcher, config MiddlewareConfig) (*Middleware, error) {
 	if lo.IsNil(matcher) {
 		return nil, fmt.Errorf("%w: matcher is nil", ErrInvalidMiddlewareConfig)

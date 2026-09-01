@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/scope/core/tokenizer"
 )
 
+// ErrInvalidContextBudget identifies an unbounded or impossible context window.
 var ErrInvalidContextBudget = errors.New("rag: invalid context token budget")
 
 // Keeping evidence as JSON data and explicitly marking it untrusted reduces
@@ -33,6 +34,8 @@ Answer:`
 const contextualEmptyContextTemplate = `The user query is outside your knowledge base.
 Politely inform the user that you can't answer it.`
 
+// ContextualAugmenterConfig fixes formatting, citation, and token-budget policy
+// for generation context.
 type ContextualAugmenterConfig struct {
 	// PromptTemplate is the augmentation template. Defaults to
 	// [contextualDefaultTemplate]. Custom templates must declare
@@ -115,6 +118,8 @@ type contextualEvidence struct {
 	Content  string `json:"content"`
 }
 
+// NewContextualAugmenter validates the complete context policy before retrieval
+// results are admitted.
 func NewContextualAugmenter(config ContextualAugmenterConfig) (*ContextualAugmenter, error) {
 	budget, err := newContextBudget(config.MaxContextTokens, config.TokenEstimator)
 	if err != nil {

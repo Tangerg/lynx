@@ -5,10 +5,15 @@ import (
 	"fmt"
 )
 
+// ErrInvalidToolChoice identifies contradictory selection or parallelism
+// controls.
 var ErrInvalidToolChoice = errors.New("chat: invalid tool choice")
 
+// ToolChoiceMode states whether the model may choose tools, must choose one, or
+// must invoke one exact named tool.
 type ToolChoiceMode string
 
+// Portable tool selection modes map only controls shared by provider APIs.
 const (
 	ToolChoiceAuto     ToolChoiceMode = "auto"
 	ToolChoiceNone     ToolChoiceMode = "none"
@@ -25,8 +30,12 @@ func (t ToolChoiceMode) Valid() bool {
 	}
 }
 
+// ToolParallelism states whether one response may request multiple calls; the
+// zero value delegates the decision to the provider.
 type ToolParallelism string
 
+// Explicit tool parallelism modes avoid encoding provider booleans into the
+// shared protocol.
 const (
 	ToolParallelismAllow  ToolParallelism = "allow"
 	ToolParallelismSingle ToolParallelism = "single"

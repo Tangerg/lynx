@@ -34,6 +34,8 @@ type LocalExecutor struct {
 	pathLocks   map[string]*pathLock
 }
 
+// NewLocalExecutor fixes one immutable directory-tree authority for every
+// operation performed by the returned backend.
 func NewLocalExecutor(root string) (*LocalExecutor, error) {
 	if root == "" {
 		return nil, ErrInvalidRoot

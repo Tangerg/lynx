@@ -6,6 +6,7 @@ import (
 	"github.com/Tangerg/scope/eval"
 )
 
+// MetricCorrectness identifies agreement with an explicit reference answer.
 const MetricCorrectness eval.MetricName = "correctness"
 
 const correctnessPrompt = `Evaluate whether the output is correct for the input using the reference answer as evidence.
@@ -23,6 +24,7 @@ Output:
 
 Evaluation:`
 
+// CorrectnessEvaluator scores generated output against an explicit reference.
 type CorrectnessEvaluator struct {
 	evaluator eval.Evaluator[CorrectnessSample]
 }
@@ -33,6 +35,8 @@ type correctnessVariables struct {
 	Reference string
 }
 
+// NewCorrectnessEvaluator binds the reference-aware prompt to the generic model
+// judge.
 func NewCorrectnessEvaluator(config ModelEvaluatorConfig) (*CorrectnessEvaluator, error) {
 	metric, err := eval.NewMetric(eval.MetricConfig{Namespace: "text", Name: MetricCorrectness})
 	if err != nil {

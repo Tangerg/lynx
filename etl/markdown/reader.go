@@ -17,6 +17,8 @@ import (
 	"github.com/Tangerg/scope/etl"
 )
 
+// Markdown metadata keys keep structural lineage explicit without changing the
+// core document contract.
 const (
 	MetadataHeading      = "markdown.heading"
 	MetadataHeadingLevel = "markdown.heading.level"
@@ -46,6 +48,7 @@ type Reader struct {
 	sourceBudget      etl.SourceBudget
 }
 
+// NewReader freezes Markdown extraction and source-budget policy.
 func NewReader(source io.Reader, config ReaderConfig) (*Reader, error) {
 	if lo.IsNil(source) {
 		return nil, errors.New("markdown reader: source must not be nil")

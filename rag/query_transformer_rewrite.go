@@ -18,6 +18,7 @@ Original query:
 
 Rewritten query:`
 
+// RewriteTransformerConfig binds one model and prompt policy to query rewriting.
 type RewriteTransformerConfig struct {
 	// Model performs the rewrite. Required.
 	Model chat.Model
@@ -39,6 +40,7 @@ type RewriteTransformer struct {
 	transformer targetedTextTransformer
 }
 
+// NewRewriteTransformer freezes options while preserving query-scoped values.
 func NewRewriteTransformer(config RewriteTransformerConfig) (*RewriteTransformer, error) {
 	transformer, err := newTargetedTextTransformer(
 		config.Model,

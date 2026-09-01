@@ -12,6 +12,8 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
+// ErrInvalidOptions identifies generation overrides that cannot be mapped to
+// the portable request contract.
 var ErrInvalidOptions = errors.New("chat: invalid options")
 
 const (
@@ -57,6 +59,8 @@ func (o Options) Clone() Options {
 	}
 }
 
+// Resolve overlays only explicitly populated override values and returns an
+// independently owned, validated result. Neither input is mutated.
 func (o Options) Resolve(override Options) (Options, error) {
 	effective := o.Clone()
 	if err := effective.applyOverride(override); err != nil {
