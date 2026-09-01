@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+// Provider is the stable backend name for host-side attribution.
 const (
 	Provider = "Pinecone"
 )
@@ -29,6 +30,10 @@ const (
 // Pinecone index. The data-plane connection does not expose index metadata.
 type DistanceMetric string
 
+// The metric is a closed vocabulary because score direction and threshold
+// semantics depend on it: the same raw number means "near" under one metric and
+// "far" under another, so an unrecognized value must be rejected rather than
+// guessed.
 const (
 	DistanceCosine    DistanceMetric = "cosine"
 	DistanceDot       DistanceMetric = "dotproduct"
@@ -116,6 +121,9 @@ var (
 	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
+// Store implements [vectorstore.Store] against a Pinecone index. Pinecone owns
+// index creation and dimensionality, so this type validates against the index
+// it is pointed at rather than provisioning one.
 type Store struct {
 	index           *pinecone.IndexConnection
 	embeddingClient embeddingclient.Client
@@ -123,6 +131,9 @@ type Store struct {
 	distanceMetric  DistanceMetric
 }
 
+// NewStore needs no context because construction performs no I/O; the index is
+// provisioned outside this package, so the store only validates configuration
+// and assembles state.
 func NewStore(config StoreConfig) (*Store, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

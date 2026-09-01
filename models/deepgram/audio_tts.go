@@ -12,11 +12,13 @@ import (
 	tts "github.com/Tangerg/scope/core/speech"
 )
 
+// Exported defaults keep constructor behavior visible and overridable.
 const (
 	DefaultMaxResponseBytes   = int64(32 * 1024 * 1024)
 	maximumErrorResponseBytes = int64(64 * 1024)
 )
 
+// AudioTTSModelConfig binds provider access and defaults shared by every speech call.
 type AudioTTSModelConfig struct {
 	APIKey           string
 	DefaultOptions   tts.Options
@@ -54,6 +56,7 @@ type AudioTTSModel struct {
 	defaultOptions tts.Options
 }
 
+// NewAudioTTSModel rejects an invalid provider binding before the first speech call.
 func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

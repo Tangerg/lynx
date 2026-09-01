@@ -14,6 +14,10 @@ type PlannedAction struct {
 	name string
 }
 
+// NewPlannedAction names a step by action name only. A plan holds names rather
+// than action values so it stays serializable in the Execution snapshot, and so
+// resuming resolves the action from the Definition instead of trusting a stored
+// copy.
 func NewPlannedAction(name string) (PlannedAction, error) {
 	if !validName(name) {
 		return PlannedAction{}, fmt.Errorf("%w: invalid Action name %q", ErrInvalidPlan, name)
@@ -57,6 +61,8 @@ type Plan struct {
 	totalCost float64
 }
 
+// NewPlan carries the total cost alongside the steps so an operator can compare
+// two plans without re-running the search that produced them.
 func NewPlan(actions []PlannedAction, totalCost float64) (Plan, error) {
 	if math.IsNaN(totalCost) || math.IsInf(totalCost, 0) || totalCost < 0 {
 		return Plan{}, fmt.Errorf("%w: invalid total cost %v", ErrInvalidPlan, totalCost)

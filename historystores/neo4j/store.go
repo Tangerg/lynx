@@ -13,6 +13,7 @@ import (
 	"github.com/Tangerg/scope/core/history"
 )
 
+// Exported defaults keep constructor behavior visible and overridable.
 const (
 	DefaultDatabase = "neo4j"
 	DefaultLabel    = "ChatMessage"
@@ -23,6 +24,9 @@ const (
 	parameterRows       = "rows"
 )
 
+// StoreConfig names every dependency explicitly rather than defaulting a
+// client or connection, so a store cannot be built against a service the
+// caller did not choose.
 type StoreConfig struct {
 	// Driver is the live Neo4j driver. Required. Callers own its
 	// lifetime.
@@ -67,6 +71,10 @@ type Store struct {
 	sequence sequenceGenerator
 }
 
+// NewStore performs schema setup during construction, which is why it takes
+// a context: a store returned before its graph schema and index exist would
+// fail on the first index rather than at wiring, where the misconfiguration
+// actually is.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

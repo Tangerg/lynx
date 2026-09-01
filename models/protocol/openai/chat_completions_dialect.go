@@ -22,6 +22,10 @@ const (
 // TextReasoningField identifies a provider's plain-text reasoning property.
 type TextReasoningField string
 
+// The vocabulary is closed because it names which response property a provider
+// puts plain-text reasoning in. OpenAI-compatible vendors disagree on the
+// field name, and reading the wrong one silently yields an empty reasoning
+// part rather than an error.
 const (
 	TextReasoningContent TextReasoningField = reasoningContentField
 	TextReasoning        TextReasoningField = reasoningField
@@ -290,6 +294,8 @@ func prependTextReasoning(fields map[string]respjson.Field, provider, fieldName 
 	return nil
 }
 
+// NewTextReasoningPart records which compatible provider field supplied text
+// reasoning so a later request can reconstruct the same wire shape.
 func NewTextReasoningPart(provider string, field TextReasoningField, text string) (corechat.Part, error) {
 	if strings.TrimSpace(provider) == "" || strings.TrimSpace(provider) != provider {
 		return corechat.Part{}, errors.New("openai: text reasoning provider is required and must not have surrounding whitespace")

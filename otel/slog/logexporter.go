@@ -36,6 +36,9 @@ type LogExporter struct {
 	shutdown atomic.Bool
 }
 
+// NewLogExporter writes records through [log/slog] so telemetry is readable in
+// development without running a collector. The exporter adds no delivery
+// guarantees of its own and is intended for local diagnostics.
 func NewLogExporter(logger *stdslog.Logger) *LogExporter {
 	if logger == nil {
 		logger = stdslog.Default()

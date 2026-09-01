@@ -6,6 +6,10 @@ import "fmt"
 // kinds and is safe for provider adapters to switch on.
 type Operator string
 
+// Operators are a closed set because every backend compiles the same AST into
+// its own dialect. Adding one here is a deliberate act that obliges each
+// compiler to answer for it; leaving the set open would let a filter mean
+// different things on different stores.
 const (
 	OpEqual        Operator = "=="
 	OpNotEqual     Operator = "!="

@@ -8,11 +8,14 @@ import (
 	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
+// Namespacing preserves provider-specific data without promoting it into the
+// shared Core protocol or colliding with another provider.
 const RequestExtensionKey = "xiaomi/request"
 
 // ThinkingType controls MiMo deep thinking.
 type ThinkingType string
 
+// These are the provider values this adapter recognizes.
 const (
 	ThinkingEnabled  ThinkingType = "enabled"
 	ThinkingDisabled ThinkingType = "disabled"

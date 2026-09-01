@@ -5,6 +5,7 @@ import (
 	"github.com/Tangerg/scope/models/google/internal/protocol"
 )
 
+// EmbeddingModelConfig binds provider access and defaults shared by every embedding call.
 type EmbeddingModelConfig struct {
 	Client         ClientConfig
 	DefaultOptions embedding.Options
@@ -24,8 +25,12 @@ func (e EmbeddingModelConfig) protocol() protocol.EmbeddingModelConfig {
 
 var _ embedding.Model = (*EmbeddingModel)(nil)
 
+// EmbeddingModel is the shared protocol type itself rather than a wrapper,
+// so this provider adds no second public surface for callers to choose
+// between.
 type EmbeddingModel = callModel[embedding.Request, embedding.Response]
 
+// NewEmbeddingModel rejects an invalid provider binding before the first embedding call.
 func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
 	return newCallModel[embedding.Request, embedding.Response](protocol.NewEmbeddingModel(config.protocol()))
 }

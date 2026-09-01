@@ -25,6 +25,9 @@ var (
 // than performing semantic JSON normalization.
 type Map map[string]json.RawMessage
 
+// FromValues is the boundary where untyped decoded JSON becomes a validated
+// Map. It exists so provider extensions and stored metadata are checked once
+// on entry rather than trusted and then found unmarshalable at the next hop.
 func FromValues(values map[string]any) (Map, error) {
 	if values == nil {
 		return nil, nil

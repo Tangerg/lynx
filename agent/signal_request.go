@@ -18,6 +18,10 @@ type SignalRequest struct {
 	payload json.RawMessage
 }
 
+// NewSignalRequest requires a caller-chosen signal identity so that
+// resubmitting the same delivery is exactly one logical consumption. Without
+// it, a host retry after an ambiguous network failure would be
+// indistinguishable from a second answer.
 func NewSignalRequest(id SignalID, waitID WaitID, payload json.RawMessage) (SignalRequest, error) {
 	if !id.Valid() {
 		return SignalRequest{}, fmt.Errorf("%w: signal ID: %w", ErrInvalidSignalRequest, ErrInvalidIdentity)

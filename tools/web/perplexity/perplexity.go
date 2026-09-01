@@ -17,18 +17,25 @@ const (
 	baseURL = "https://api.perplexity.ai"
 )
 
+// Config takes an optional [http.Client] so the host keeps ownership of
+// timeouts, proxying, and transport instrumentation instead of inheriting
+// whatever this package would otherwise choose.
 type Config struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
+// Client implements [web.Searcher] against Perplexity's Search API and
+// normalizes its link results into the shared web contract.
 type Client struct {
 	http *resty.Client
 }
 
 var _ web.Searcher = (*Client)(nil)
 
+// NewClient requires the API key at construction so a missing credential fails
+// at wiring rather than as an authorization error on a model's first search.
 func NewClient(config Config) (*Client, error) {
 	if config.APIKey == "" {
 		return nil, errors.New("perplexity: API key is required")

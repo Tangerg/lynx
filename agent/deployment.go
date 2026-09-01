@@ -36,6 +36,10 @@ type Deployment struct {
 	dispatcher Dispatcher
 }
 
+// NewDeployment freezes a Definition and Dispatcher under explicit
+// implementation and configuration digests. That binding lets recovery
+// resolve the exact behavior a snapshot names instead of whatever now answers
+// to the same Definition name.
 func NewDeployment(config DeploymentConfig) (Deployment, error) {
 	if lo.IsNil(config.Definition) {
 		return Deployment{}, fmt.Errorf("%w: definition is required", ErrInvalidDeployment)

@@ -26,6 +26,10 @@ const (
 // SearchMode selects the retrieval evidence used by a search operation.
 type SearchMode string
 
+// Search modes are explicit so a caller can require one and be refused by a
+// store that cannot honor it. Silently downgrading a hybrid request to
+// semantic would return plausible results that answer a different query than
+// the one asked.
 const (
 	SearchModeSemantic SearchMode = "semantic"
 	SearchModeHybrid   SearchMode = "hybrid"
@@ -138,6 +142,9 @@ type SearchRequest struct {
 	Options SearchOptions `json:"options"`
 }
 
+// NewSearchRequest starts from the query alone because everything else — top-k,
+// filters, mode — has a defined default. Requiring them would push the same
+// boilerplate into every call site.
 func NewSearchRequest(query string) (*SearchRequest, error) {
 	request := &SearchRequest{Query: query}
 	if err := request.Validate(); err != nil {
@@ -192,6 +199,9 @@ type SearchResult struct {
 	Score    Score              `json:"score"`
 }
 
+// NewSearchResult pairs a document with a validated [Score], so a backend
+// cannot emit a NaN or out-of-range relevance that would silently corrupt
+// ranking and fusion downstream.
 func NewSearchResult(matched *document.Document, score Score) (*SearchResult, error) {
 	result := &SearchResult{Document: matched, Score: score}
 	if err := result.Validate(); err != nil {
@@ -249,6 +259,9 @@ type SearchResponse struct {
 	Results []*SearchResult `json:"results"`
 }
 
+// NewSearchResponse validates the result set as a whole, which is where an
+// adapter's ordering or scoring mistakes become visible; an individually valid
+// result says nothing about the ranking it sits in.
 func NewSearchResponse(results []*SearchResult) (*SearchResponse, error) {
 	response := &SearchResponse{Results: slices.Clone(results)}
 	if err := response.Validate(); err != nil {

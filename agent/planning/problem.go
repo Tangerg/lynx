@@ -15,6 +15,9 @@ type Problem struct {
 	actions []Action
 }
 
+// NewProblem binds the initial state, the goal, and the actions available to
+// reach it into one value, so a planner cannot be handed a goal without the
+// vocabulary it is expected to search over.
 func NewProblem(initial WorldState, goal Goal, actions ...Action) (Problem, error) {
 	if !initial.Valid() {
 		return Problem{}, fmt.Errorf("%w: initial state", ErrInvalidProblem)

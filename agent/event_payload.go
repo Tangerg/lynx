@@ -6,8 +6,14 @@ import (
 	"time"
 )
 
+// StepStatus reports whether one Step reduction succeeded, and is deliberately
+// narrower than [Status]: a failed Step does not by itself terminate a Process,
+// because the terminal decision also depends on recorded control intent.
 type StepStatus string
 
+// Step status is separate from Process status because a failed Step does not
+// by itself terminate a Process; the terminal decision also weighs recorded
+// control intent.
 const (
 	StepStatusSucceeded StepStatus = "succeeded"
 	StepStatusFailed    StepStatus = "failed"

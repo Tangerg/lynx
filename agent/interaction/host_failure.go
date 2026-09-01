@@ -2,6 +2,7 @@ package interaction
 
 import "errors"
 
+// ErrHostFailure separates host infrastructure failure from model or tool behavior.
 var ErrHostFailure = errors.New("interaction: host failure")
 
 type hostFailureError struct {

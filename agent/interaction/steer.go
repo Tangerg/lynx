@@ -62,6 +62,10 @@ func validateSteerSignalIDs(ids []agent.SignalID) error {
 	return nil
 }
 
+// NewSteerSignal wraps caller messages as a signal instead of mutating the
+// running conversation. Going through the mailbox is what makes steering
+// deduplicated, ordered, and snapshot-visible, so a resumed Process sees the
+// same guidance the original one did.
 func NewSteerSignal(id agent.SignalID, messages ...chat.Message) (agent.SignalRequest, error) {
 	if err := validateSteeringMessages(messages); err != nil {
 		return agent.SignalRequest{}, err

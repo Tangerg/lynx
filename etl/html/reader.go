@@ -17,6 +17,9 @@ import (
 	"github.com/Tangerg/scope/etl"
 )
 
+// These keys name the reader-derived metadata attached to every emitted
+// document, so a downstream splitter or retriever can rely on them being
+// present rather than re-deriving them from content.
 const (
 	MetadataTitle       = "html.title"
 	MetadataDescription = "html.description"
@@ -48,6 +51,10 @@ type Reader struct {
 	sourceBudget    etl.SourceBudget
 }
 
+// NewReader compiles the selector at construction so an invalid one fails
+// where it is configured rather than on every document. Unlike PDF, the budget
+// is enforced while reading because an [io.Reader] cannot report its length in
+// advance.
 func NewReader(source io.Reader, config ReaderConfig) (*Reader, error) {
 	if lo.IsNil(source) {
 		return nil, errors.New("html reader: source must not be nil")

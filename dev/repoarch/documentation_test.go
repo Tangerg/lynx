@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+	"unicode"
+	"unicode/utf8"
 )
 
 var documentedCapabilityModules = []string{
@@ -27,7 +29,12 @@ var documentedCapabilityModules = []string{
 
 var documentationOnlyModuleRoots = []string{"core", "examples", "otel", "tools"}
 
-var primaryAdoptionPackages = []string{"core/chat", "core/chatclient"}
+// primaryAdoptionPackages are the packages a newcomer reads before writing any
+// Scope code: the protocol, the ordinary client, and the suites a provider
+// author must satisfy. modeltest belongs here because it is the only package an
+// external implementor is required to read, and an undocumented fixture there
+// costs every future provider rather than one caller.
+var primaryAdoptionPackages = []string{"core/chat", "core/chatclient", "core/modeltest"}
 
 // checkedExampleDeclarationSpan is deliberately coarse because one example
 // explains a cooperating API slice, not one declaration. Sixty-four still
@@ -185,8 +192,9 @@ func TestRootReadmeKeepsDirectChatPath(t *testing.T) {
 
 // TestPrimaryAdoptionPackagesDocumentEntryDeclarations keeps the protocol and
 // ordinary client discoverable on pkg.go.dev. Methods inherit their owning
-// type's contract; package-level nouns, sentinels, and construction paths do
-// not, so every one requires explicit GoDoc.
+// type's contract. Self-describing error sentinels stay exempt because a
+// mandatory restatement adds no contract; sentinels with recovery or control-
+// flow semantics still require human-authored GoDoc.
 func TestPrimaryAdoptionPackagesDocumentEntryDeclarations(t *testing.T) {
 	t.Parallel()
 	root := repositoryRoot(t)
@@ -199,6 +207,63 @@ func TestPrimaryAdoptionPackagesDocumentEntryDeclarations(t *testing.T) {
 			)
 		})
 	}
+}
+
+// TestWorkspaceModulesDocumentEntryDeclarations extends the primary-adoption
+// rule to every published package. A provider or backend is chosen from
+// pkg.go.dev as often as Core is, so leaving its construction path undocumented
+// costs the reader exactly where the decision is made. Methods stay exempt for
+// the same reason as above, and internal packages are excluded because they are
+// not part of anyone's adoption path.
+func TestWorkspaceModulesDocumentEntryDeclarations(t *testing.T) {
+	t.Parallel()
+	root := repositoryRoot(t)
+	modules := discoverModules(t, root)
+	for _, modulePath := range slices.Sorted(maps.Keys(modules)) {
+		module := modules[modulePath]
+		t.Run(module.dir, func(t *testing.T) {
+			t.Parallel()
+			moduleRoot := filepath.Join(root, filepath.FromSlash(module.dir))
+			for _, directory := range publishedPackageDirectories(t, moduleRoot) {
+				assertExportedEntryDeclarationsDocumented(t, directory)
+			}
+		})
+	}
+}
+
+// publishedPackageDirectories returns the directories a consumer can import.
+// Commands are skipped because a main package declares no contract, and
+// internal trees are skipped because they cannot be imported from outside.
+func publishedPackageDirectories(t *testing.T, moduleRoot string) []string {
+	t.Helper()
+	directories := make(map[string]struct{})
+	err := filepath.WalkDir(moduleRoot, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if entry.IsDir() {
+			if path != moduleRoot && excludedDocumentationDirectory(entry.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if filepath.Ext(path) != ".go" || strings.HasSuffix(entry.Name(), "_test.go") {
+			return nil
+		}
+		file, err := parser.ParseFile(token.NewFileSet(), path, nil, parser.PackageClauseOnly)
+		if err != nil {
+			return err
+		}
+		if file.Name.Name == "main" {
+			return nil
+		}
+		directories[filepath.Dir(path)] = struct{}{}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return slices.Sorted(maps.Keys(directories))
 }
 
 func assertExportedEntryDeclarationsDocumented(t *testing.T, directory string) {
@@ -229,6 +294,19 @@ func assertExportedEntryDeclarationsDocumented(t *testing.T, directory string) {
 	}
 }
 
+// isErrorSentinelName recognizes Go's conventional exported error vocabulary
+// without exempting unrelated names such as ErrorCollect. Requiring every
+// self-describing sentinel to restate its name would reward filler; comments
+// remain necessary when an error carries recovery or control-flow semantics.
+func isErrorSentinelName(name string) bool {
+	rest, found := strings.CutPrefix(name, "Err")
+	if !found || rest == "" {
+		return false
+	}
+	first, _ := utf8.DecodeRuneInString(rest)
+	return unicode.IsUpper(first)
+}
+
 func assertExportedSpecificationsDocumented(t *testing.T, path string, declaration *ast.GenDecl) {
 	t.Helper()
 	for _, specification := range declaration.Specs {
@@ -244,7 +322,7 @@ func assertExportedSpecificationsDocumented(t *testing.T, path string, declarati
 			doc = specification.Doc
 		case *ast.ValueSpec:
 			for _, identifier := range specification.Names {
-				if identifier.IsExported() {
+				if identifier.IsExported() && !isErrorSentinelName(identifier.Name) {
 					exported = true
 					name = identifier.Name
 					break

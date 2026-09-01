@@ -10,6 +10,8 @@ import (
 	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
+// Namespacing preserves provider-specific data without promoting it into the
+// shared Core protocol or colliding with another provider.
 const (
 	OpenAIResponseExtensionKey    = "perplexity/openai_response"
 	OpenAIStreamChunkExtensionKey = "perplexity/openai_stream_chunk"
@@ -23,6 +25,7 @@ var (
 // Chat implements Perplexity's chat endpoint.
 type Chat = openai.ChatCompletions
 
+// ChatConfig binds provider access and defaults shared by every chat call.
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -40,6 +43,7 @@ func (c ChatConfig) Validate() error {
 	return nil
 }
 
+// NewChat rejects an invalid provider binding before the first chat call.
 func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

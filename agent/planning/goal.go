@@ -24,6 +24,9 @@ type Goal struct {
 	conditions  []Condition
 }
 
+// NewGoal states the target as conditions rather than as a procedure, which is
+// what lets the planner decide the route and re-plan when observed facts
+// change.
 func NewGoal(config GoalConfig) (Goal, error) {
 	if !validName(config.Name) {
 		return Goal{}, fmt.Errorf("%w: invalid name %q", ErrInvalidGoal, config.Name)

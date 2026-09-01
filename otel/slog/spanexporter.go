@@ -37,6 +37,9 @@ type SpanExporter struct {
 	shutdown atomic.Bool
 }
 
+// NewSpanExporter writes spans through [log/slog] for the same reason as
+// [NewLogExporter]. Each finished span becomes an independent record, so trace
+// structure remains encoded in its identifiers rather than rendered as a tree.
 func NewSpanExporter(logger *stdslog.Logger) *SpanExporter {
 	if logger == nil {
 		logger = stdslog.Default()

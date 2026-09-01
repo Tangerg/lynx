@@ -1,9 +1,12 @@
 package cohere
 
+// Provider is the stable backend name for host-side attribution.
 const (
 	Provider = "Cohere"
 )
 
+// Namespacing preserves provider-specific data without promoting it into the
+// shared Core protocol or colliding with another provider.
 const (
 	EmbeddingRequestExtensionKey = "cohere/embedding_request"
 	RerankRequestExtensionKey    = "cohere/rerank_request"
@@ -12,4 +15,6 @@ const (
 	RerankSearchUnitsMetadataKey = "cohere/search_units"
 )
 
+// ModelRerankV35 names the rerank model this adapter is verified against, so a
+// caller can pin it without copying a version string that moves.
 const ModelRerankV35 = "rerank-v3.5"

@@ -7,11 +7,14 @@ import (
 	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
+// Namespacing preserves provider-specific data without promoting it into the
+// shared Core protocol or colliding with another provider.
 const RequestExtensionKey = "moonshot/request"
 
 // ThinkingType controls thinking for Kimi K2.x models.
 type ThinkingType string
 
+// These are the provider values this adapter recognizes.
 const (
 	ThinkingEnabled  ThinkingType = "enabled"
 	ThinkingDisabled ThinkingType = "disabled"
@@ -20,11 +23,15 @@ const (
 // ThinkingKeep controls preserved thinking for Kimi K2.x models.
 type ThinkingKeep string
 
+// ThinkingKeepAll is the only preserved-thinking mode Kimi K2.x accepts. It is
+// a named constant so a caller states the intent rather than the vendor's
+// spelling.
 const ThinkingKeepAll ThinkingKeep = "all"
 
 // ReasoningEffort controls Kimi K3 reasoning intensity.
 type ReasoningEffort string
 
+// These are the provider values this adapter recognizes.
 const (
 	ReasoningEffortLow  ReasoningEffort = "low"
 	ReasoningEffortHigh ReasoningEffort = "high"

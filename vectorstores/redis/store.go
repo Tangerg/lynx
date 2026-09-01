@@ -43,6 +43,10 @@ type Store struct {
 	hnswEFRuntime   int
 }
 
+// NewStore performs schema setup during construction, which is why it takes
+// a context: a store returned before its search index exists would fail on
+// the first index rather than at wiring, where the misconfiguration actually
+// is.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	config.applyDefaults()
 	if err := config.Validate(); err != nil {

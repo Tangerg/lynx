@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/scope/models/google/internal/protocol"
 )
 
+// AudioTTSModelConfig binds provider access and defaults shared by every speech call.
 type AudioTTSModelConfig struct {
 	Client         ClientConfig
 	DefaultOptions tts.Options
@@ -31,8 +32,12 @@ var (
 	_ tts.Streamer = (*AudioTTSModel)(nil)
 )
 
+// AudioTTSModel wraps this provider's protocol implementation so the wire
+// type stays unexported. Callers depend on the Core modality contract, which
+// lets the protocol change without breaking this module's public surface.
 type AudioTTSModel protocol.AudioTTSModel
 
+// NewAudioTTSModel rejects an invalid provider binding before the first speech call.
 func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 	adapter, err := protocol.NewAudioTTSModel(config.protocol())
 	if err != nil {

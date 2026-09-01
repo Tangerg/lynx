@@ -29,6 +29,11 @@ type ServerConfig struct {
 	RPCPattern string
 }
 
+// NewHTTPHandler returns a plain [http.Handler] rather than starting a server,
+// so the host keeps ownership of the listener, TLS, timeouts, and middleware.
+// The card is encoded during construction because an AgentCard that cannot be
+// marshaled would otherwise fail at the well-known path, where a peer reads it
+// as an unreachable agent rather than a misconfigured one.
 func NewHTTPHandler(config ServerConfig) (http.Handler, error) {
 	exec, err := newExecutor(config.Agent)
 	if err != nil {
@@ -72,6 +77,10 @@ func registerRPCHandler(mux *http.ServeMux, pattern string, handler http.Handler
 	return nil
 }
 
+// NewJSONRPCInterface builds the interface entry a card must advertise for the
+// endpoint this package mounts. It exists so the transport a peer discovers and
+// the transport actually served cannot drift apart in hand-written card
+// literals.
 func NewJSONRPCInterface(url string) *sdka2a.AgentInterface {
 	return sdka2a.NewAgentInterface(url, sdka2a.TransportProtocolJSONRPC)
 }

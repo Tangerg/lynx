@@ -2,10 +2,12 @@ package gladia
 
 import "time"
 
+// Provider is the stable backend name for host-side attribution.
 const (
 	Provider = "Gladia"
 )
 
+// Exported identifiers keep provider-owned names and defaults out of caller literals.
 const (
 	RequestExtensionKey  = "gladia/request"
 	ResponseExtensionKey = "gladia/response"
@@ -14,6 +16,7 @@ const (
 	DefaultPollTimeout   = 30 * time.Minute
 )
 
+// These are the provider values this adapter recognizes.
 const (
 	ModelSolaria3 = "solaria-3"
 	ModelSolaria1 = "solaria-1"

@@ -26,6 +26,9 @@ type Registry struct {
 	entries map[string]Binding
 }
 
+// NewRegistry is a convenience over the usable zero value for the common case
+// of a fixed tool set. Registration is all-or-nothing, so a duplicate name in
+// the initial batch leaves no partially populated registry behind.
 func NewRegistry(initial ...Tool) (*Registry, error) {
 	registry := &Registry{}
 	if err := registry.Register(initial...); err != nil {

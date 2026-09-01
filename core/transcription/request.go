@@ -105,6 +105,8 @@ type Request struct {
 	Options Options `json:"options,omitzero"`
 }
 
+// NewRequest validates the required input while leaving per-call options at
+// their portable zero defaults.
 func NewRequest(audio *media.Media) (*Request, error) {
 	r := &Request{Audio: audio}
 	if err := r.Validate(); err != nil {

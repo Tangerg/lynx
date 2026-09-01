@@ -15,12 +15,16 @@ import (
 	"github.com/Tangerg/scope/etl"
 )
 
+// These keys name the reader-derived metadata attached to every emitted
+// document, so a downstream splitter or retriever can rely on them being
+// present rather than re-deriving them from content.
 const (
 	MetadataPageIndex  = "pdf.page"
 	MetadataPagesTotal = "pdf.pages.total"
 	MetadataSourceName = "pdf.source"
 )
 
+// ErrPartialRead accompanies usable output when one or more pages could not be read.
 var ErrPartialRead = errors.New("pdf reader: one or more pages could not be read")
 
 // ReaderConfig controls PDF extraction. PerPage emits one document per readable
@@ -45,6 +49,11 @@ type Reader struct {
 	extraMetadata coremetadata.Map
 }
 
+// NewReader rejects an oversized source here instead of while extracting,
+// because the size is known up front and a budget enforced mid-parse would have
+// already allocated the pages it was meant to prevent. The [io.ReaderAt] and
+// explicit size are required by the PDF format itself, which is read by random
+// access from a trailer rather than streamed.
 func NewReader(source io.ReaderAt, size int64, config ReaderConfig) (*Reader, error) {
 	if lo.IsNil(source) {
 		return nil, errors.New("pdf reader: source must not be nil")

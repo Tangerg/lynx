@@ -73,6 +73,10 @@ type Store struct {
 	records map[string]record
 }
 
+// NewStore builds the zero-dependency reference implementation. It exists so
+// the shared conformance suite and callers' tests have a store with no
+// external service, not as a production index: search is a linear scan over
+// in-process state that is lost when the process exits.
 func NewStore(config StoreConfig) (*Store, error) {
 	config.applyDefaults()
 	if err := config.Validate(); err != nil {

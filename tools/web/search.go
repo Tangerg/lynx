@@ -15,6 +15,8 @@ import (
 // their native syntax (e.g. Tavily's time_range, Serper's tbs=qdr:).
 type Recency string
 
+// Recency windows are a closed vocabulary so the same freshness request means
+// the same thing across backends that each spell it differently.
 const (
 	RecencyHour  Recency = "hour"
 	RecencyDay   Recency = "day"

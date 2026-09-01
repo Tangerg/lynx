@@ -140,6 +140,9 @@ type ProcessStartOutcomeAcknowledger interface {
 	AcknowledgeProcessStartOutcome(ctx context.Context, outcome ProcessStartOutcome) error
 }
 
+// ProcessStartOutcomeAcknowledgerFunc adapts a plain function to the
+// acknowledger interface. The function still owes the interface's guarantees —
+// bounded, concurrency-safe, idempotent, and no re-entry into the Engine.
 type ProcessStartOutcomeAcknowledgerFunc func(
 	ctx context.Context,
 	outcome ProcessStartOutcome,

@@ -18,6 +18,7 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+// Provider is the stable backend name for host-side attribution.
 const (
 	Provider = "Milvus"
 )
@@ -103,6 +104,9 @@ var (
 	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
+// Store implements [vectorstore.Store] against a Milvus collection. Milvus
+// requires a loaded collection before search, which is why the collection is
+// resolved once at construction rather than per query.
 type Store struct {
 	client           *milvusclient.Client
 	embeddingClient  embeddingclient.Client
@@ -113,6 +117,9 @@ type Store struct {
 	initializeSchema bool
 }
 
+// NewStore performs schema setup during construction, which is why it takes a
+// context: a store returned before its collection exists would fail on the
+// first index rather than at wiring, where the misconfiguration actually is.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	config.applyDefaults()
 	if err := config.Validate(); err != nil {

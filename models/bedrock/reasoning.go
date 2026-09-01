@@ -10,11 +10,16 @@ import (
 // ReasoningBlockKind identifies a Bedrock Converse reasoning-content variant.
 type ReasoningBlockKind string
 
+// The vocabulary is closed because these kinds classify reasoning blocks the
+// service returns. A redacted block carries no readable text but must still
+// round trip intact, so it cannot be folded into the text kind.
 const (
 	ReasoningBlockText     ReasoningBlockKind = chatReasoningText
 	ReasoningBlockRedacted ReasoningBlockKind = chatReasoningRedacted
 )
 
+// NewReasoningPart preserves the signature Bedrock requires when reasoning is
+// replayed in a later request.
 func NewReasoningPart(text string, signature []byte) (corechat.Part, error) {
 	if text == "" || len(signature) == 0 {
 		return corechat.Part{}, errors.New("bedrock: reasoning text and signature are required")
@@ -26,6 +31,8 @@ func NewReasoningPart(text string, signature []byte) (corechat.Part, error) {
 	return part, nil
 }
 
+// NewRedactedReasoningPart preserves an opaque Bedrock reasoning block without
+// pretending its content is readable text.
 func NewRedactedReasoningPart(content []byte) (corechat.Part, error) {
 	if len(content) == 0 {
 		return corechat.Part{}, errors.New("bedrock: redacted reasoning content is required")

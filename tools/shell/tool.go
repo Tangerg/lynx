@@ -31,11 +31,18 @@ type Response struct {
 
 var _ toolcontract.Tool = (*Tool)(nil)
 
+// Tool exposes shell execution to a model. It holds an [Executor] rather than
+// running commands itself so the dangerous half — where a command runs, under
+// what shell, with what limits — is chosen by the host at construction and
+// cannot be influenced by the model's arguments.
 type Tool struct {
 	executor Executor
 	typed    toolcontract.Func[Request, Response]
 }
 
+// NewTool requires an executor because there is no safe default for running
+// arbitrary commands; a package-level fallback would let a caller obtain shell
+// access without ever stating where it should run.
 func NewTool(executor Executor) (*Tool, error) {
 	if lo.IsNil(executor) {
 		return nil, ErrNilExecutor

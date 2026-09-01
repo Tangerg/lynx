@@ -1,9 +1,11 @@
 package elevenlabs
 
+// Provider is the stable backend name for host-side attribution.
 const (
 	Provider = "ElevenLabs"
 )
 
+// Exported identifiers keep provider-owned names and defaults out of caller literals.
 const (
 	SpeechRequestExtensionKey         = "elevenlabs/speech_request"
 	SpeechResponseExtensionKey        = "elevenlabs/speech_response"
@@ -14,6 +16,7 @@ const (
 	DefaultBaseURL = "https://api.elevenlabs.io/v1"
 )
 
+// These are the provider values this adapter recognizes.
 const (
 	ModelElevenV3       = "eleven_v3"
 	ModelMultilingualV2 = "eleven_multilingual_v2"

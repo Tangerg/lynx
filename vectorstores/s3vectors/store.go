@@ -22,6 +22,7 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+// Provider is the stable backend name for host-side attribution.
 const Provider = "S3Vectors"
 
 const (
@@ -62,6 +63,10 @@ type StoreConfig struct {
 // value here just produces miscalibrated scores.
 type DistanceMetric string
 
+// The metric is a closed vocabulary because score direction and threshold
+// semantics depend on it: the same raw number means "near" under one metric and
+// "far" under another, so an unrecognized value must be rejected rather than
+// guessed.
 const (
 	DistanceCosine    DistanceMetric = "cosine"
 	DistanceEuclidean DistanceMetric = "euclidean"
@@ -133,6 +138,9 @@ type Store struct {
 	dimensions       int
 }
 
+// NewStore needs no context because construction performs no I/O; the vector
+// bucket is provisioned outside this package, so the store only validates
+// configuration and assembles state.
 func NewStore(config StoreConfig) (*Store, error) {
 	config.applyDefaults()
 	if err := config.Validate(); err != nil {

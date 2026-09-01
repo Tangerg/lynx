@@ -56,6 +56,10 @@ type Failure struct {
 	message string
 }
 
+// NewFailure requires a kind and code alongside the message so callers
+// classify failures programmatically. Matching on message text is what makes
+// error handling break on wording changes, and it does not survive the
+// snapshot round trip.
 func NewFailure(kind FailureKind, code, message string) (Failure, error) {
 	if !kind.Valid() {
 		return Failure{}, fmt.Errorf("%w: kind is required", ErrInvalidFailure)

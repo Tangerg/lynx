@@ -43,6 +43,10 @@ type Delegate struct {
 	capabilities  agent.CapabilitySet
 }
 
+// NewDelegate exposes exactly one child Deployment to the model as a tool. The
+// target is fixed at construction so a model cannot choose which agent to
+// invoke: routing is a host decision, and a model-selected Deployment would be
+// an unbounded authority grant.
 func NewDelegate(config DelegateConfig) (Delegate, error) {
 	if !config.Deployment.Valid() || !config.Budget.Valid() || !config.Capabilities.Valid() ||
 		config.Description == "" || strings.TrimSpace(config.Description) != config.Description ||

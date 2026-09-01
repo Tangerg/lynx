@@ -78,6 +78,8 @@ type Middleware struct {
 	firstTokenDuration metric.Float64Histogram
 }
 
+// NewMiddleware fixes instrument identity and provider binding once so every
+// model request contributes to the same telemetry series.
 func NewMiddleware(config MiddlewareConfig) (Middleware, error) {
 	if err := config.Validate(); err != nil {
 		return Middleware{}, err

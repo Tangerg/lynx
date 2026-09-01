@@ -11,8 +11,10 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore"
 )
 
+// Provider is the stable backend name for host-side attribution.
 const Provider = "OpenSearch"
 
+// Exported defaults keep constructor behavior visible and overridable.
 const (
 	DefaultIndexName      = "scope-vector-index"
 	DefaultEmbeddingField = "embedding"
@@ -29,6 +31,10 @@ const (
 // into Core's provider-neutral contract.
 type SpaceType string
 
+// The metric is a closed vocabulary because score direction and threshold
+// semantics depend on it: the same raw number means "near" under one metric and
+// "far" under another, so an unrecognized value must be rejected rather than
+// guessed.
 const (
 	SpaceTypeCosine SpaceType = "cosinesimil"
 	SpaceTypeL2     SpaceType = "l2"
@@ -74,6 +80,7 @@ func (s SpaceType) score(raw float64) vectorstore.Score {
 // not support.
 type Engine string
 
+// These are the provider values this adapter recognizes.
 const (
 	EngineLucene Engine = "lucene"
 	EngineNMSLib Engine = "nmslib"

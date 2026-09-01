@@ -38,6 +38,10 @@ type ToolConcurrencyPolicy func(
 	invocation toolcontract.Invocation,
 ) (key string, concurrent bool)
 
+// PublicToolNameFunc maps a remote tool identity to the name a model sees.
+// Remote servers choose names independently, so two sources can collide or emit
+// characters providers reject; projecting the name here keeps that negotiation
+// out of the tool contract and lets a host resolve collisions its own way.
 type PublicToolNameFunc func(sourceName, remoteName string) string
 
 const maxPublicToolNameLength = 64

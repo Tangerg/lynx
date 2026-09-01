@@ -31,6 +31,9 @@ type MetricExporter struct {
 	shutdown atomic.Bool
 }
 
+// NewMetricExporter writes metrics through [log/slog] for the same reason as
+// [NewLogExporter] — inspecting instrumentation locally without a collector —
+// and carries the same caveat about production volume.
 func NewMetricExporter(logger *stdslog.Logger) *MetricExporter {
 	if logger == nil {
 		logger = stdslog.Default()

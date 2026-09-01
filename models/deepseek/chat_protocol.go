@@ -10,11 +10,14 @@ import (
 	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
+// Namespacing preserves provider-specific data without promoting it into the
+// shared Core protocol or colliding with another provider.
 const (
 	OpenAIResponseExtensionKey    = "deepseek/openai_response"
 	OpenAIStreamChunkExtensionKey = "deepseek/openai_stream_chunk"
 )
 
+// ChatConfig binds provider access and defaults shared by every chat call.
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -43,6 +46,7 @@ var (
 // Chat implements DeepSeek's chat protocol.
 type Chat = openai.ChatCompletions
 
+// NewChat rejects an invalid provider binding before the first chat call.
 func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

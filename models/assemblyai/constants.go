@@ -4,10 +4,12 @@ import (
 	"time"
 )
 
+// Provider is the stable backend name for host-side attribution.
 const (
 	Provider = "AssemblyAI"
 )
 
+// Exported identifiers keep provider-owned names and defaults out of caller literals.
 const (
 	RequestExtensionKey  = "assemblyai/request"
 	ResponseExtensionKey = "assemblyai/response"
@@ -28,6 +30,7 @@ const (
 	DefaultPollTimeout = 30 * time.Minute
 )
 
+// These are the provider values this adapter recognizes.
 const (
 	ModelUniversal3Point5Pro = "universal-3-5-pro"
 	ModelUniversal2          = "universal-2"

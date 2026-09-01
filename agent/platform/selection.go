@@ -50,6 +50,9 @@ type DeploymentSelector interface {
 	Select(ctx context.Context, candidates []DeploymentCandidate) (agent.DeploymentRef, error)
 }
 
+// DeploymentSelectorFunc adapts a plain function to the selector interface.
+// Selection is a host policy — by tenant, cost, or availability — so the
+// platform takes it as a value rather than owning a routing table.
 type DeploymentSelectorFunc func(
 	ctx context.Context,
 	candidates []DeploymentCandidate,

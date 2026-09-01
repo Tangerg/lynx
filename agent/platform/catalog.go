@@ -24,6 +24,10 @@ type Catalog struct {
 	ordered     []agent.Deployment
 }
 
+// NewCatalog indexes Deployments by exact reference so recovery resolves the
+// Deployment a snapshot was taken from. Registration is all-or-nothing, which
+// keeps a duplicate reference from leaving a catalog that resolves the same
+// identity two ways.
 func NewCatalog(deployments ...agent.Deployment) (Catalog, error) {
 	if len(deployments) == 0 {
 		return Catalog{}, nil

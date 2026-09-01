@@ -15,6 +15,9 @@ import (
 	"github.com/Tangerg/scope/core/history"
 )
 
+// DefaultKeyPrefix namespaces history keys so a shared Redis instance does not
+// collide with other applications. Callers that run several environments
+// against one instance should override it rather than rely on this value.
 const DefaultKeyPrefix = "chat:history:"
 
 var scanPatternEscaper = strings.NewReplacer(
@@ -25,6 +28,9 @@ var scanPatternEscaper = strings.NewReplacer(
 	`]`, `\]`,
 )
 
+// StoreConfig names every dependency explicitly rather than defaulting a
+// client or connection, so a store cannot be built against a service the
+// caller did not choose.
 type StoreConfig struct {
 	// Client is the live go-redis client. Required. The store does
 	// not take ownership — callers Close() the client themselves.
@@ -65,6 +71,9 @@ type Store struct {
 	ttl       time.Duration
 }
 
+// NewStore needs no context because construction performs no I/O; the
+// backing resource is provisioned outside this package, so the store only
+// validates configuration and assembles state.
 func NewStore(config StoreConfig) (*Store, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

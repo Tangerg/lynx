@@ -15,6 +15,9 @@ type SearchTool struct {
 	readOnlyTool
 }
 
+// NewSearchTool requires a searcher so the provider, credential, and quota are
+// the caller's explicit choice rather than an implicit dependency on whichever
+// backend happened to be compiled in.
 func NewSearchTool(searcher Searcher) (*SearchTool, error) {
 	inner, err := newProviderReadOnlyTool(
 		"search",

@@ -1,9 +1,11 @@
 package stability
 
+// Provider is the stable backend name for host-side attribution.
 const (
 	Provider = "StabilityAI"
 )
 
+// Exported identifiers keep provider-owned names and defaults out of caller literals.
 const (
 	RequestExtensionKey  = "stability/request"
 	ResponseExtensionKey = "stability/response"
@@ -20,6 +22,7 @@ const (
 	ResponseModeJSON = "application/json"
 )
 
+// These are the provider values this adapter recognizes.
 const (
 	ModelCore                = "stable-image-core"
 	ModelUltra               = "stable-image-ultra"

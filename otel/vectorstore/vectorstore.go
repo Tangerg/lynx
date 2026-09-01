@@ -77,6 +77,8 @@ type Middleware struct {
 	searchRows metric.Int64Histogram
 }
 
+// NewMiddleware fixes instrument identity and provider binding once so index
+// and search operations contribute to stable telemetry series.
 func NewMiddleware(config MiddlewareConfig) (Middleware, error) {
 	if err := config.Validate(); err != nil {
 		return Middleware{}, err

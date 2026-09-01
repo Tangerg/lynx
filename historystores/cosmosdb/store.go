@@ -17,6 +17,9 @@ import (
 	"github.com/Tangerg/scope/core/history"
 )
 
+// StoreConfig names every dependency explicitly rather than defaulting a
+// client or connection, so a store cannot be built against a service the
+// caller did not choose.
 type StoreConfig struct {
 	// Container is the live Cosmos container handle. Required. The
 	// container's partition key MUST be `/conversation_id`.
@@ -44,6 +47,9 @@ type Store struct {
 	sequence  sequenceGenerator
 }
 
+// NewStore needs no context because construction performs no I/O; the
+// backing resource is provisioned outside this package, so the store only
+// validates configuration and assembles state.
 func NewStore(config StoreConfig) (*Store, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

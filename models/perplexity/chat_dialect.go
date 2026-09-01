@@ -11,6 +11,8 @@ import (
 	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
+// Namespacing preserves provider-specific data without promoting it into the
+// shared Core protocol or colliding with another provider.
 const (
 	RequestExtensionKey          = "perplexity/request"
 	maximumSearchDomains         = 20
@@ -19,8 +21,10 @@ const (
 	maximumImageFormatFilters    = 10
 )
 
+// SearchMode selects the corpus Perplexity searches.
 type SearchMode string
 
+// These are the provider values this adapter recognizes.
 const (
 	SearchModeWeb      SearchMode = "web"
 	SearchModeAcademic SearchMode = "academic"
@@ -31,8 +35,10 @@ func (s SearchMode) Valid() bool {
 	return s == SearchModeWeb || s == SearchModeAcademic || s == SearchModeSEC
 }
 
+// SearchRecency limits web results by publication age.
 type SearchRecency string
 
+// These are the provider values this adapter recognizes.
 const (
 	SearchRecencyHour  SearchRecency = "hour"
 	SearchRecencyDay   SearchRecency = "day"
@@ -46,8 +52,10 @@ func (s SearchRecency) Valid() bool {
 		s == SearchRecencyMonth || s == SearchRecencyYear
 }
 
+// SearchContextSize selects how much retrieved context Perplexity may use.
 type SearchContextSize string
 
+// These are the provider values this adapter recognizes.
 const (
 	SearchContextLow    SearchContextSize = "low"
 	SearchContextMedium SearchContextSize = "medium"
@@ -58,8 +66,10 @@ func (s SearchContextSize) Valid() bool {
 	return s == SearchContextLow || s == SearchContextMedium || s == SearchContextHigh
 }
 
+// SearchType selects Perplexity's search execution strategy.
 type SearchType string
 
+// These are the provider values this adapter recognizes.
 const (
 	SearchTypeFast SearchType = "fast"
 	SearchTypeAuto SearchType = "auto"
@@ -70,8 +80,10 @@ func (s SearchType) Valid() bool {
 	return s == SearchTypeFast || s == SearchTypeAuto || s == SearchTypePro
 }
 
+// ReasoningEffort selects Perplexity's native reasoning budget.
 type ReasoningEffort string
 
+// These are the provider values this adapter recognizes.
 const (
 	ReasoningEffortMinimal ReasoningEffort = "minimal"
 	ReasoningEffortLow     ReasoningEffort = "low"
@@ -106,6 +118,7 @@ func (s SearchDate) validate(field string) error {
 // ImageFormat names one image format accepted by Sonar image filtering.
 type ImageFormat string
 
+// These are the provider values this adapter recognizes.
 const (
 	ImageFormatGIF  ImageFormat = "gif"
 	ImageFormatJPG  ImageFormat = "jpg"

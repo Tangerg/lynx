@@ -52,6 +52,10 @@ type Definition struct {
 	maxActionAttempts uint32
 }
 
+// NewDefinition freezes the goal, actions, and planner into one immutable
+// behavior. The planner is chosen here rather than at run time so that a
+// restored Execution searches with the same algorithm that produced the plan
+// it is resuming.
 func NewDefinition(config DefinitionConfig) (*Definition, error) {
 	if !config.InputSchema.Valid() || !config.Goal.Valid() || lo.IsNil(config.Planner) || config.MaxActionAttempts == 0 {
 		return nil, ErrInvalidDefinitionConfig

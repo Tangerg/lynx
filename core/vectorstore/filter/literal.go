@@ -13,6 +13,9 @@ import (
 // LiteralKind is the semantic type of a literal, independent of lexer tokens.
 type LiteralKind string
 
+// Literal kinds are closed so a value's type is decided once, at parse time,
+// rather than re-inferred by each backend compiler from the Go value it
+// happens to hold.
 const (
 	LiteralString LiteralKind = "string"
 	LiteralNumber LiteralKind = "number"

@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/scope/core/embedding"
 )
 
+// EmbeddingModelConfig binds provider access and defaults shared by every embedding call.
 type EmbeddingModelConfig struct {
 	APIKey         string
 	DefaultOptions embedding.Options
@@ -31,11 +32,13 @@ func (e EmbeddingModelConfig) Validate() error {
 
 var _ embedding.Model = (*EmbeddingModel)(nil)
 
+// EmbeddingModel implements the Core embedding contract with Nomic.
 type EmbeddingModel struct {
 	api            *api
 	defaultOptions embedding.Options
 }
 
+// NewEmbeddingModel rejects an invalid provider binding before the first embedding call.
 func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

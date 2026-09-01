@@ -54,6 +54,10 @@ func (s Settlement) clone() Settlement {
 	return s
 }
 
+// NewSettlement binds a result to the exact effect identity it settles, so a
+// dispatcher cannot close an effect other than the one it was given. Ordering
+// by completion time instead would let a slow settlement overwrite a newer
+// one.
 func NewSettlement(effectID EffectID, status SettlementStatus, payload json.RawMessage) (Settlement, error) {
 	if !effectID.Valid() {
 		return Settlement{}, fmt.Errorf("%w: effect ID: %w", ErrInvalidSettlement, ErrInvalidIdentity)

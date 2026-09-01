@@ -26,7 +26,7 @@ func (t TextEstimatorConfig) Validate() error {
 		return errors.New("anthropic: APIKey is required")
 	}
 	if t.Model == "" {
-		return errors.New("anthropic: DefaultOptions is required")
+		return errors.New("anthropic: Model is required")
 	}
 	return nil
 }
@@ -45,6 +45,7 @@ type TextEstimator struct {
 	model string
 }
 
+// NewTextEstimator rejects an invalid provider/model binding before estimation begins.
 func NewTextEstimator(config TextEstimatorConfig) (*TextEstimator, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

@@ -5,6 +5,7 @@ import (
 	"fmt"
 )
 
+// ErrResourceLimitExceeded reports a designed execution bound, not an Engine defect.
 var ErrResourceLimitExceeded = errors.New("agent: resource limit exceeded")
 
 const (
@@ -120,12 +121,19 @@ type Budget struct {
 	Signals uint64 `json:"signals"`
 }
 
+// BudgetConfig names each bound so a call site cannot transpose them. Three
+// positional counts of the same type are indistinguishable to the compiler,
+// and a swapped pair produces a Process that runs far longer or dies far
+// sooner than intended.
 type BudgetConfig struct {
 	Steps   uint64
 	Effects uint64
 	Signals uint64
 }
 
+// NewBudget validates the bounds together, because a budget is attenuated when
+// it passes to a child and an unvalidated zero would read as unlimited at
+// exactly the point authority is meant to narrow.
 func NewBudget(config BudgetConfig) (Budget, error) {
 	budget := Budget(config)
 	if !budget.Valid() {

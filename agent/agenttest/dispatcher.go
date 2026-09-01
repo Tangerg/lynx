@@ -63,6 +63,11 @@ type ScriptedDispatcher struct {
 	requests []agent.EffectRequest
 }
 
+// NewScriptedDispatcher freezes the script at construction so a test cannot
+// mutate expectations while the Engine is running against them. It fails calls
+// that go beyond or contrary to the script rather than returning a zero
+// settlement, because a dispatcher that quietly answers anything turns an
+// ordering bug into a passing test.
 func NewScriptedDispatcher(config ScriptedDispatcherConfig) (*ScriptedDispatcher, error) {
 	if config.ReplayPolicy != agent.ReplayPolicyNever &&
 		config.ReplayPolicy != agent.ReplayPolicySameIdentity {

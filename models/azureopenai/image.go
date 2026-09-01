@@ -5,6 +5,7 @@ import (
 	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
+// ImageModelConfig binds provider access and defaults shared by every image call.
 type ImageModelConfig struct {
 	Config
 	DefaultOptions image.Options
@@ -21,8 +22,11 @@ func (i ImageModelConfig) Validate() error {
 
 var _ image.Model = (*ImageModel)(nil)
 
+// ImageModel is the shared protocol type itself rather than a wrapper, so
+// this provider adds no second public surface for callers to choose between.
 type ImageModel = openai.ImageModel
 
+// NewImageModel rejects an invalid provider binding before the first image call.
 func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 	endpoint, err := config.resolve()
 	if err != nil {

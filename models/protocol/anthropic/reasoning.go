@@ -11,11 +11,17 @@ import (
 // by a Core reasoning part.
 type ReasoningBlockKind string
 
+// The vocabulary is closed because these kinds classify reasoning blocks the
+// service returns. A redacted block carries no readable text but must still
+// round trip intact for a later turn to remain valid, so it cannot be folded
+// into the thinking kind.
 const (
 	ReasoningBlockThinking ReasoningBlockKind = protocolReasoningThinking
 	ReasoningBlockRedacted ReasoningBlockKind = protocolReasoningRedacted
 )
 
+// NewThinkingPart preserves the signature Anthropic requires when thinking is
+// replayed in a later request.
 func NewThinkingPart(text string, signature []byte) (corechat.Part, error) {
 	if len(signature) == 0 {
 		return corechat.Part{}, errors.New("anthropic: thinking signature is required")
@@ -27,6 +33,8 @@ func NewThinkingPart(text string, signature []byte) (corechat.Part, error) {
 	return part, nil
 }
 
+// NewRedactedThinkingPart preserves an opaque Anthropic thinking block without
+// pretending its content is readable text.
 func NewRedactedThinkingPart(data []byte) (corechat.Part, error) {
 	if len(data) == 0 {
 		return corechat.Part{}, errors.New("anthropic: redacted thinking data is required")

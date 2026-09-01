@@ -30,6 +30,9 @@ const (
 	respondWithoutContent = "no-content"
 )
 
+// Config carries separate search and fetch base URLs because Jina serves the
+// two capabilities from different endpoints; one shared base would silently
+// send half the calls to the wrong service.
 type Config struct {
 	APIKey        string
 	SearchBaseURL string
@@ -37,6 +40,10 @@ type Config struct {
 	HTTPClient    *http.Client
 }
 
+// Client implements the web contracts against Jina's reader and search
+// endpoints. It holds two HTTP clients for the two base URLs rather than
+// rewriting the host per call, so each endpoint's configuration stays
+// independent.
 type Client struct {
 	searchHTTP *resty.Client
 	fetchHTTP  *resty.Client
@@ -44,6 +51,8 @@ type Client struct {
 
 var _ web.Searcher = (*Client)(nil)
 
+// NewClient requires the API key at construction so a missing credential fails
+// at wiring rather than as an authorization error on a model's first call.
 func NewClient(config Config) (*Client, error) {
 	if config.APIKey == "" {
 		return nil, errors.New("jina: API key is required")

@@ -30,6 +30,7 @@ const (
 	metadataUtteranceIndex   = "hume/utterance_index"
 )
 
+// AudioTTSModelConfig binds provider access and defaults shared by every speech call.
 type AudioTTSModelConfig struct {
 	APIKey         string
 	DefaultOptions tts.Options
@@ -64,6 +65,7 @@ type AudioTTSModel struct {
 	defaultOptions tts.Options
 }
 
+// NewAudioTTSModel rejects an invalid provider binding before the first speech call.
 func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

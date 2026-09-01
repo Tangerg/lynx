@@ -14,12 +14,23 @@ const integrationRerankTimeout = 30 * time.Second
 
 // RerankContract drives the mock transport contract for a reranking provider.
 type RerankContract struct {
-	ModelID      string
-	Response     string
+	// ModelID is the model id the adapter is expected to put on the wire, so a
+	// silently substituted default is caught rather than accepted.
+	ModelID string
+	// Response is the canned JSON body. It must decode to a result set that is
+	// valid for a three-document query capped at two, because the contract
+	// checks the response against the request it actually sent.
+	Response string
+	// ExpectedPath is the URL path the SDK should reach.
 	ExpectedPath string
-	Build        func(t *testing.T, baseURL string) rerank.Model
+	// Build returns the model wired against the mock server.
+	Build func(t *testing.T, baseURL string) rerank.Model
 }
 
+// RunRerankContract accepts the cap under either top_n or top_k because
+// reranking vendors disagree on the name. What matters is that the portable
+// Options.TopK reaches the wire at all: an adapter that drops it returns a
+// plausible ranking over every document and would otherwise look correct.
 func RunRerankContract(t *testing.T, contract RerankContract) {
 	t.Helper()
 	t.Run("Call_Mock", func(t *testing.T) {
@@ -84,11 +95,16 @@ func RunRerankContract(t *testing.T, contract RerankContract) {
 	})
 }
 
+// IntegrationRerankProbe is the standard real-API rerank smoke probe.
 type IntegrationRerankProbe struct {
 	Provider string
 	Build    func(t *testing.T, key string) rerank.Model
 }
 
+// RunIntegrationRerank leans on ValidateFor rather than on an expected
+// ordering, because a live model may legitimately rank two documents
+// differently between calls while still owing index-addressed, in-range
+// results for the query it was given.
 func RunIntegrationRerank(t *testing.T, probe IntegrationRerankProbe) {
 	t.Helper()
 	key := RequireKey(t, probe.Provider)

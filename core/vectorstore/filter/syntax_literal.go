@@ -62,6 +62,10 @@ func newLiteral(value any) (*Literal, error) {
 	}
 }
 
+// NewLiteral panics instead of returning an error because the type parameter
+// already excludes every unsupported value. An error return would force
+// callers to handle a branch the compiler has proven unreachable, at the cost
+// of readable filter construction.
 func NewLiteral[T LiteralValue](value T) *Literal {
 	lit, err := newLiteral(value)
 	if err != nil {
@@ -71,6 +75,8 @@ func NewLiteral[T LiteralValue](value T) *Literal {
 	return lit
 }
 
+// NewLiterals builds the operand list for membership tests, where the values
+// are homogeneous by construction.
 func NewLiterals[T LiteralValue](values []T) []*Literal {
 	literals := make([]*Literal, 0, len(values))
 	for _, v := range values {
@@ -160,6 +166,8 @@ func newListLiteral(value any) (*ListLiteral, error) {
 	return result, nil
 }
 
+// NewListLiteral panics for the same reason as [NewLiteral]: the constraint
+// makes an unsupported list type impossible to express.
 func NewListLiteral[T ListValue](value T) *ListLiteral {
 	list, err := newListLiteral(value)
 	if err != nil {

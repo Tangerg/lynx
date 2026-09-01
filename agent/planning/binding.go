@@ -14,6 +14,9 @@ const (
 	bindingTargetChild
 )
 
+// ChildInputFunc derives a child Process input from the parent input and the
+// current world state, so a plan step can be parameterized by facts discovered
+// during execution rather than only by what the plan was started with.
 type ChildInputFunc func(processInput agent.Input, worldState WorldState) (agent.Input, error)
 
 // DispatcherBindingConfig binds a predictive Action to the Planning
@@ -51,6 +54,9 @@ type ActionBinding struct {
 	childInput ChildInputFunc
 }
 
+// NewDispatcherBinding attaches an action to an external executor. Binding is
+// separate from the action itself so the same predictive model can be planned
+// against in tests without an executor present.
 func NewDispatcherBinding(config DispatcherBindingConfig) (ActionBinding, error) {
 	if !config.Action.Valid() {
 		return ActionBinding{}, fmt.Errorf("%w: dispatcher binding Action", ErrInvalidAction)
@@ -62,6 +68,9 @@ func NewDispatcherBinding(config DispatcherBindingConfig) (ActionBinding, error)
 	return ActionBinding{action: config.Action, target: bindingTargetDispatcher, required: required}, nil
 }
 
+// NewChildBinding attaches an action to a child Deployment, so a plan step
+// becomes a real Process with its own identity, budget, and recovery instead
+// of an opaque call inside the parent.
 func NewChildBinding(config ChildBindingConfig) (ActionBinding, error) {
 	if !config.Action.Valid() || !config.DeploymentRef.Valid() || !config.Budget.Valid() || !config.Capabilities.Valid() {
 		return ActionBinding{}, fmt.Errorf("%w: invalid child binding", ErrInvalidAction)

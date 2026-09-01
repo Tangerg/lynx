@@ -21,6 +21,9 @@ type EventListener interface {
 	OnEvent(ctx context.Context, event Event)
 }
 
+// EventListenerFunc adapts a plain function to the event listener interface.
+// A listener observes and must not steer execution, so the signature returns
+// nothing to make that boundary hard to violate by accident.
 type EventListenerFunc func(ctx context.Context, event Event)
 
 func (e EventListenerFunc) OnEvent(ctx context.Context, event Event) {
@@ -36,6 +39,9 @@ type DeltaListener interface {
 	OnDelta(ctx context.Context, delta Delta)
 }
 
+// DeltaListenerFunc adapts a plain function to the delta listener interface.
+// It returns nothing for the same reason as [EventListenerFunc], and because a
+// dropped delta must never change execution.
 type DeltaListenerFunc func(ctx context.Context, delta Delta)
 
 func (d DeltaListenerFunc) OnDelta(ctx context.Context, delta Delta) {

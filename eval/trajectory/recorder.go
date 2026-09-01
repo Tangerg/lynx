@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/scope/core/chat"
 )
 
+// ErrIncompleteRecording reports observations that cannot form a trustworthy Trajectory.
 var ErrIncompleteRecording = errors.New("eval/trajectory: incomplete recording")
 
 type modelObservation struct {

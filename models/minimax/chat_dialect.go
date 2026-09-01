@@ -18,6 +18,7 @@ const (
 // always think according to the official protocol.
 type ThinkingType string
 
+// These are the provider values this adapter recognizes.
 const (
 	ThinkingAdaptive ThinkingType = "adaptive"
 	ThinkingDisabled ThinkingType = "disabled"
@@ -26,6 +27,7 @@ const (
 // ServiceTier controls MiniMax request admission priority.
 type ServiceTier string
 
+// These are the provider values this adapter recognizes.
 const (
 	ServiceTierStandard ServiceTier = "standard"
 	ServiceTierPriority ServiceTier = "priority"

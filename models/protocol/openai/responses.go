@@ -58,6 +58,7 @@ var (
 	_ corechat.Streamer = (*Responses)(nil)
 )
 
+// NewResponses rejects an invalid provider binding before the first Responses call.
 func NewResponses(config ResponsesConfig) (*Responses, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

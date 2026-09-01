@@ -25,6 +25,10 @@ import (
 // Search vector field.
 type SimilarityMetric string
 
+// The metric is a closed vocabulary because score direction and threshold
+// semantics depend on it: the same raw number means "near" under one metric and
+// "far" under another, so an unrecognized value must be rejected rather than
+// guessed.
 const (
 	SimilarityCosine    SimilarityMetric = "cosine"
 	SimilarityDot       SimilarityMetric = "dotProduct"
@@ -57,6 +61,7 @@ func (s SimilarityMetric) score(raw float64) vectorstore.Score {
 	}
 }
 
+// Exported identifiers keep provider-owned names and defaults out of caller literals.
 const (
 	Provider = "AzureAISearch"
 
@@ -195,6 +200,9 @@ type Store struct {
 	maxResponseBytes int64
 }
 
+// NewStore needs no context because construction performs no I/O; the index is
+// provisioned outside this package, so the store only validates configuration
+// and assembles state.
 func NewStore(config StoreConfig) (*Store, error) {
 	config.applyDefaults()
 	if err := config.Validate(); err != nil {

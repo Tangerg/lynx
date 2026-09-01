@@ -59,6 +59,8 @@ func (l Limits) IsZero() bool { return l == Limits{} }
 // Modality identifies a model input or output media type.
 type Modality string
 
+// Modalities are closed so a catalog entry cannot claim a capability the rest
+// of the repository has no contract for.
 const (
 	ModalityText  Modality = "text"
 	ModalityImage Modality = "image"

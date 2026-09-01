@@ -34,6 +34,9 @@ type Dispatcher struct {
 	executors  map[string]boundExecutor
 }
 
+// NewDispatcher binds a definition to the executors that carry out its
+// effects. It is constructed against an exact definition so an effect cannot
+// be routed to an executor the planner never planned against.
 func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher, error) {
 	if !definition.valid() || lo.IsNil(config.Observer) {
 		return nil, ErrInvalidDispatcherConfig

@@ -49,6 +49,7 @@ type StreamGuardrailOptions struct {
 	ProcessingMode string `json:"processing_mode,omitempty"`
 }
 
+// ChatConfig binds provider access and defaults shared by every chat call.
 type ChatConfig struct {
 	DefaultOptions corechat.Options
 	Region         string
@@ -75,6 +76,7 @@ type Chat struct {
 	defaults corechat.Options
 }
 
+// NewChat rejects an invalid provider binding before the first chat call.
 func NewChat(ctx context.Context, config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

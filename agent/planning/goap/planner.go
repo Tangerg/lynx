@@ -10,6 +10,7 @@ import (
 
 const defaultMaxExpansions uint32 = 10_000
 
+// ErrExpansionLimitReached distinguishes bounded search from an unsatisfiable goal.
 var ErrExpansionLimitReached = errors.New("goap: expansion limit reached")
 
 // Config contains the bounded search policy for a GOAP Planner.
@@ -25,6 +26,9 @@ type Planner struct {
 	maxExpansions uint32
 }
 
+// New returns a planner whose search is bounded by configuration, because
+// GOAP's state space grows with the action set and an unbounded search inside
+// a Step would block the Process that owns it.
 func New(config Config) *Planner {
 	limit := config.MaxExpansions
 	if limit == 0 {

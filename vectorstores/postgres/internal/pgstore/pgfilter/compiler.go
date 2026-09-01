@@ -33,6 +33,9 @@ import (
 // the comparison happens in the proper type, not lexicographic on text.
 var _ filter.Visitor = (*Compiler)(nil)
 
+// Compiler translates a portable filter AST into a parameterized SQL predicate.
+// It emits placeholders rather than literals so a filter value carried from a
+// model or a request cannot alter the statement it is filtering.
 type Compiler struct {
 	err         error
 	sql         strings.Builder
@@ -40,6 +43,9 @@ type Compiler struct {
 	metadataCol string // SQL identifier — already validated by the caller
 }
 
+// NewCompiler binds the metadata column once, because every path expression in
+// a filter is rooted at that column and repeating it per call would let two
+// statements disagree about where metadata lives.
 func NewCompiler(metadataCol string) *Compiler {
 	if metadataCol == "" {
 		metadataCol = "metadata"

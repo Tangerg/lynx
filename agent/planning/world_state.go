@@ -14,6 +14,10 @@ type WorldState struct {
 	conditions []Condition
 }
 
+// NewWorldState collects the facts a plan is evaluated against. It is a
+// validated set rather than a free-form map because the planner compares
+// states for equality while searching, and duplicate or conflicting conditions
+// would make that comparison meaningless.
 func NewWorldState(conditions ...Condition) (WorldState, error) {
 	values := slices.Clone(conditions)
 	for index, condition := range values {

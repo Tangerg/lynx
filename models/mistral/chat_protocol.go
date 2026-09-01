@@ -15,6 +15,8 @@ import (
 	corechat "github.com/Tangerg/scope/core/chat"
 )
 
+// Namespacing preserves provider-specific data without promoting it into the
+// shared Core protocol or colliding with another provider.
 const (
 	RequestExtensionKey     = "mistral/request"
 	responseExtensionKey    = "mistral/response"
@@ -29,6 +31,7 @@ const (
 // ReasoningEffort controls Mistral's native reasoning mode.
 type ReasoningEffort string
 
+// These are the provider values this adapter recognizes.
 const (
 	ReasoningEffortHigh ReasoningEffort = "high"
 	ReasoningEffortNone ReasoningEffort = "none"
@@ -100,6 +103,7 @@ func (c *ChatRequestOptions) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// ChatConfig binds provider access and defaults shared by every chat call.
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -129,6 +133,7 @@ type Chat struct {
 	defaults corechat.Options
 }
 
+// NewChat rejects an invalid provider binding before the first chat call.
 func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

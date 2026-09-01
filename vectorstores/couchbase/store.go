@@ -26,8 +26,10 @@ const (
 	searchIndexPartitionCount    = 1
 )
 
+// Provider is the stable backend name for host-side attribution.
 const Provider = "Couchbase"
 
+// Exported defaults keep constructor behavior visible and overridable.
 const (
 	DefaultScopeName      = "_default"
 	DefaultCollectionName = "_default"
@@ -72,6 +74,7 @@ func (s Similarity) String() string { return string(s) }
 // recall (default), latency, or memory.
 type IndexOptimization string
 
+// These are the provider values this adapter recognizes.
 const (
 	OptimizeRecall  IndexOptimization = "recall"
 	OptimizeLatency IndexOptimization = "latency"
@@ -205,6 +208,10 @@ type Store struct {
 	indexOptimization IndexOptimization
 }
 
+// NewStore performs schema setup during construction, which is why it takes
+// a context: a store returned before its scope, collection, and search index
+// exist would fail on the first index rather than at wiring, where the
+// misconfiguration actually is.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	config.applyDefaults()
 	if err := config.Validate(); err != nil {

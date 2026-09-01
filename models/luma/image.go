@@ -19,8 +19,12 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
+// DefaultMaxOutputBytes bounds how much generated media is read into memory. A
+// provider that returns an unexpectedly large asset would otherwise be able to
+// exhaust the process before the response is ever validated.
 const DefaultMaxOutputBytes = int64(32 * 1024 * 1024)
 
+// ImageModelConfig binds provider access and defaults shared by every image call.
 type ImageModelConfig struct {
 	APIKey         string
 	DefaultOptions image.Options
@@ -66,6 +70,7 @@ type ImageModel struct {
 	maxOutputBytes int64
 }
 
+// NewImageModel rejects an invalid provider binding before the first image call.
 func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

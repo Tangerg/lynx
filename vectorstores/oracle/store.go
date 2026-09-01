@@ -20,8 +20,10 @@ import (
 
 const firstMetadataFilterBindIndex = 2
 
+// Provider is the stable backend name for host-side attribution.
 const Provider = "Oracle"
 
+// Exported defaults keep constructor behavior visible and overridable.
 const (
 	DefaultTableName       = "VECTOR_STORE"
 	DefaultIDColumn        = "ID"
@@ -192,6 +194,10 @@ type Store struct {
 	distanceMetric  DistanceMetric
 }
 
+// NewStore performs schema setup during construction, which is why it takes
+// a context: a store returned before its table and vector index exist would
+// fail on the first index rather than at wiring, where the misconfiguration
+// actually is.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	config.applyDefaults()
 	if err := config.Validate(); err != nil {

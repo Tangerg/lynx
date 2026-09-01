@@ -14,6 +14,9 @@ type Condition struct {
 	truth Truth
 }
 
+// NewCondition names one fact the planner reasons over. Conditions are keys
+// with a truth value rather than arbitrary predicates, because the planner has
+// to compare and combine them without executing anything.
 func NewCondition(key string, truth Truth) (Condition, error) {
 	condition := Condition{key: key, truth: truth}
 	if !condition.Valid() {

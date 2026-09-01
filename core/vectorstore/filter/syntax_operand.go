@@ -23,6 +23,8 @@ func newIdent(value any) (*Ident, error) {
 	}
 }
 
+// NewIdent panics for the same reason as [NewLiteral]: the constraint admits
+// only a string or an existing identifier.
 func NewIdent[T IdentifierValue](value T) *Ident {
 	ident, err := newIdent(value)
 	if err != nil {

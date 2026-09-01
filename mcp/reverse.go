@@ -7,6 +7,7 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// ErrNoServerSession reports a reverse call made outside an MCP tool invocation.
 var ErrNoServerSession = errors.New("mcp: no active MCP server session on context")
 
 type serverCall struct {

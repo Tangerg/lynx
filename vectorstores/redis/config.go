@@ -12,8 +12,10 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore"
 )
 
+// Provider is the stable backend name for host-side attribution.
 const Provider = "Redis"
 
+// Exported defaults keep constructor behavior visible and overridable.
 const (
 	DefaultIndexName       = "scope-vector-index"
 	DefaultKeyPrefix       = "embedding:"

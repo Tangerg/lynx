@@ -18,8 +18,10 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+// Provider is the stable backend name for host-side attribution.
 const Provider = "AzureCosmosDB"
 
+// Exported defaults keep constructor behavior visible and overridable.
 const (
 	DefaultIDField        = "id"
 	DefaultContentField   = "content"
@@ -34,6 +36,10 @@ const (
 // policy.
 type DistanceFunction string
 
+// The metric is a closed vocabulary because score direction and threshold
+// semantics depend on it: the same raw number means "near" under one metric and
+// "far" under another, so an unrecognized value must be rejected rather than
+// guessed.
 const (
 	DistanceCosine     DistanceFunction = "cosine"
 	DistanceDotProduct DistanceFunction = "dotproduct"
@@ -157,6 +163,9 @@ type Store struct {
 	distanceFunction DistanceFunction
 }
 
+// NewStore needs no context because construction performs no I/O; the
+// container is provisioned outside this package, so the store only validates
+// configuration and assembles state.
 func NewStore(config StoreConfig) (*Store, error) {
 	config.applyDefaults()
 	if err := config.Validate(); err != nil {

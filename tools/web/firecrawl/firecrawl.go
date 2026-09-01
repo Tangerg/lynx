@@ -18,18 +18,25 @@ const (
 	baseURL = "https://api.firecrawl.dev/v2"
 )
 
+// Config takes an optional [http.Client] so the host keeps ownership of
+// timeouts, proxying, and transport instrumentation instead of inheriting
+// whatever this package would otherwise choose.
 type Config struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
+// Client implements the web contracts against Firecrawl, whose fetch path can
+// render a page before extracting content produced by client-side scripts.
 type Client struct {
 	http *resty.Client
 }
 
 var _ web.Searcher = (*Client)(nil)
 
+// NewClient requires the API key at construction so a missing credential fails
+// at wiring rather than as an authorization error on a model's first fetch.
 func NewClient(config Config) (*Client, error) {
 	if config.APIKey == "" {
 		return nil, errors.New("firecrawl: API key is required")

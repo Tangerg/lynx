@@ -30,6 +30,10 @@ type FuncConfig struct {
 	Description string
 }
 
+// NewFunc derives the model-visible JSON Schema from the Go input type, so the
+// advertised contract and the decoded arguments cannot drift apart. Hand-
+// written schemas are the usual source of tools that accept what the model was
+// told to send and then fail to decode it.
 func NewFunc[In, Out any](config FuncConfig, function func(context.Context, In) (Out, error)) (Func[In, Out], error) {
 	var zero Func[In, Out]
 	if function == nil {

@@ -10,6 +10,8 @@ import (
 	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
+// Namespacing preserves provider-specific data without promoting it into the
+// shared Core protocol or colliding with another provider.
 const (
 	OpenAIRequestExtensionKey     = "ollama/openai_request"
 	OpenAIResponseExtensionKey    = "ollama/openai_response"
@@ -24,6 +26,7 @@ var (
 // ChatCompletions implements Ollama's OpenAI-compatible endpoint.
 type ChatCompletions = openai.ChatCompletions
 
+// ChatCompletionsConfig binds provider access and defaults shared by every Chat Completions call.
 type ChatCompletionsConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -38,6 +41,7 @@ func (c ChatCompletionsConfig) Validate() error {
 	return nil
 }
 
+// NewChatCompletions rejects an invalid provider binding before the first Chat Completions call.
 func NewChatCompletions(config ChatCompletionsConfig) (*ChatCompletions, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

@@ -21,10 +21,12 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+// Provider is the stable backend name for host-side attribution.
 const Provider = "Typesense"
 
 var collectionNamePattern = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 
+// Exported defaults keep constructor behavior visible and overridable.
 const (
 	DefaultCollectionName = "scope_vector_store"
 	idField               = "doc_id"
@@ -106,6 +108,9 @@ type Store struct {
 	hybridAlpha     *float32
 }
 
+// NewStore performs schema setup during construction, which is why it takes a
+// context: a store returned before its collection exists would fail on the
+// first index rather than at wiring, where the misconfiguration actually is.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	config.applyDefaults()
 	if err := config.Validate(); err != nil {

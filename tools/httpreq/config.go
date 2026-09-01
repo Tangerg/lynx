@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// Exported defaults keep constructor behavior visible and overridable.
 const (
 	DefaultTimeout          = 30 * time.Second
 	DefaultMaxResponseBytes = int64(256 * 1024)

@@ -18,6 +18,7 @@ import (
 	openaiprotocol "github.com/Tangerg/scope/models/protocol/openai"
 )
 
+// Exported identifiers keep provider-owned names and defaults out of caller literals.
 const (
 	Provider       = "Google"
 	DefaultBaseURL = protocol.DefaultBaseURL
@@ -62,6 +63,7 @@ func protocolClient(apiKey, baseURL string, httpClient *http.Client) protocol.Cl
 	return protocol.ClientConfig{APIKey: apiKey, BaseURL: baseURL, HTTPClient: httpClient}
 }
 
+// ChatConfig binds provider access and defaults shared by every chat call.
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -77,8 +79,12 @@ func (c ChatConfig) protocol() protocol.ChatConfig {
 	}
 }
 
+// Chat wraps this provider's protocol implementation so the wire type stays
+// unexported. Callers depend on the Core modality contract, which lets the
+// protocol change without breaking this module's public surface.
 type Chat struct{ protocol *protocol.Chat }
 
+// NewChat rejects an invalid provider binding before the first chat call.
 func NewChat(config ChatConfig) (*Chat, error) {
 	model, err := protocol.NewChat(config.protocol())
 	if err != nil {
@@ -101,6 +107,7 @@ func (c *Chat) Stream(ctx context.Context, req *corechat.Request) iter.Seq2[*cor
 	return c.protocol.Stream(ctx, req)
 }
 
+// ChatCompletionsConfig binds provider access and defaults shared by every Chat Completions call.
 type ChatCompletionsConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -122,6 +129,7 @@ func (c ChatCompletionsConfig) Validate() error {
 // endpoint from the native Gemini protocol exposed by Chat.
 type ChatCompletions = openaiprotocol.ChatCompletions
 
+// NewChatCompletions rejects an invalid provider binding before the first Chat Completions call.
 func NewChatCompletions(config ChatCompletionsConfig) (*ChatCompletions, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
@@ -132,6 +140,7 @@ func NewChatCompletions(config ChatCompletionsConfig) (*ChatCompletions, error) 
 	)
 }
 
+// EmbeddingModelConfig binds provider access and defaults shared by every embedding call.
 type EmbeddingModelConfig struct {
 	APIKey         string
 	DefaultOptions embedding.Options
@@ -147,10 +156,14 @@ func (e EmbeddingModelConfig) protocol() protocol.EmbeddingModelConfig {
 	}
 }
 
+// EmbeddingModel wraps this provider's protocol implementation so the wire
+// type stays unexported. Callers depend on the Core modality contract, which
+// lets the protocol change without breaking this module's public surface.
 type EmbeddingModel struct {
 	protocol *protocol.EmbeddingModel
 }
 
+// NewEmbeddingModel rejects an invalid provider binding before the first embedding call.
 func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
 	model, err := protocol.NewEmbeddingModel(config.protocol())
 	if err != nil {
@@ -166,6 +179,7 @@ func (e *EmbeddingModel) Call(ctx context.Context, req *embedding.Request) (*emb
 	return e.protocol.Call(ctx, req)
 }
 
+// AudioTTSModelConfig binds provider access and defaults shared by every speech call.
 type AudioTTSModelConfig struct {
 	APIKey         string
 	DefaultOptions tts.Options
@@ -181,8 +195,12 @@ func (a AudioTTSModelConfig) protocol() protocol.AudioTTSModelConfig {
 	}
 }
 
+// AudioTTSModel wraps this provider's protocol implementation so the wire
+// type stays unexported. Callers depend on the Core modality contract, which
+// lets the protocol change without breaking this module's public surface.
 type AudioTTSModel struct{ protocol *protocol.AudioTTSModel }
 
+// NewAudioTTSModel rejects an invalid provider binding before the first speech call.
 func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 	model, err := protocol.NewAudioTTSModel(config.protocol())
 	if err != nil {
@@ -208,6 +226,7 @@ func (a *AudioTTSModel) Stream(ctx context.Context, req *tts.Request) iter.Seq2[
 	return a.protocol.Stream(ctx, req)
 }
 
+// AudioTranscriptionModelConfig binds provider access and defaults shared by every transcription call.
 type AudioTranscriptionModelConfig struct {
 	APIKey         string
 	DefaultOptions transcription.Options
@@ -223,10 +242,15 @@ func (a AudioTranscriptionModelConfig) protocol() protocol.AudioTranscriptionMod
 	}
 }
 
+// AudioTranscriptionModel wraps this provider's protocol implementation so
+// the wire type stays unexported. Callers depend on the Core modality
+// contract, which lets the protocol change without breaking this module's
+// public surface.
 type AudioTranscriptionModel struct {
 	protocol *protocol.AudioTranscriptionModel
 }
 
+// NewAudioTranscriptionModel rejects an invalid provider binding before the first transcription call.
 func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
 	model, err := protocol.NewAudioTranscriptionModel(config.protocol())
 	if err != nil {
@@ -242,6 +266,7 @@ func (a *AudioTranscriptionModel) Call(ctx context.Context, req *transcription.R
 	return a.protocol.Call(ctx, req)
 }
 
+// ImageModelConfig binds provider access and defaults shared by every image call.
 type ImageModelConfig struct {
 	APIKey         string
 	DefaultOptions image.Options
@@ -255,6 +280,8 @@ func (i ImageModelConfig) protocol() protocol.ImageModelConfig {
 	return protocol.ImageModelConfig{Client: protocolClient(i.APIKey, i.BaseURL, i.HTTPClient), DefaultOptions: i.DefaultOptions}
 }
 
+// ImageGenerationOptions carries Gemini Interactions controls that have no
+// provider-neutral image option.
 type ImageGenerationOptions struct {
 	AspectRatio           string                    `json:"aspect_ratio,omitempty"`
 	ImageSize             string                    `json:"image_size,omitempty"`
@@ -270,18 +297,25 @@ type ImageGenerationOptions struct {
 	SafetySettings        []ImageSafetySetting      `json:"safety_settings,omitempty"`
 }
 
+// ImageGoogleSearchOptions selects the Google Search sources available during
+// image generation.
 type ImageGoogleSearchOptions struct {
 	SearchTypes []string `json:"search_types,omitempty"`
 }
 
+// ImageSafetySetting carries one Gemini image-safety threshold.
 type ImageSafetySetting struct {
 	Type      string `json:"type"`
 	Threshold string `json:"threshold"`
 	Method    string `json:"method,omitempty"`
 }
 
+// ImageModel wraps this provider's protocol implementation so the wire type
+// stays unexported. Callers depend on the Core modality contract, which lets
+// the protocol change without breaking this module's public surface.
 type ImageModel struct{ protocol *protocol.ImageModel }
 
+// NewImageModel rejects an invalid provider binding before the first image call.
 func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 	model, err := protocol.NewImageModel(config.protocol())
 	if err != nil {
@@ -297,6 +331,7 @@ func (i *ImageModel) Call(ctx context.Context, req *image.Request) (*image.Respo
 	return i.protocol.Call(ctx, req)
 }
 
+// TextEstimatorConfig binds provider access and the model shared by every estimate.
 type TextEstimatorConfig struct {
 	APIKey     string
 	Model      string
@@ -312,8 +347,12 @@ func (t TextEstimatorConfig) protocol() protocol.TextEstimatorConfig {
 	}
 }
 
+// TextEstimator wraps this provider's protocol implementation so the wire
+// type stays unexported. Callers depend on the Core modality contract, which
+// lets the protocol change without breaking this module's public surface.
 type TextEstimator struct{ protocol *protocol.TextEstimator }
 
+// NewTextEstimator rejects an invalid provider/model binding before estimation begins.
 func NewTextEstimator(config TextEstimatorConfig) (*TextEstimator, error) {
 	estimator, err := protocol.NewTextEstimator(config.protocol())
 	if err != nil {

@@ -49,6 +49,9 @@ type Definition struct {
 	completionValidator CompletionValidator
 }
 
+// NewDefinition freezes the managed contract, delegates, completion policy,
+// and model-call limit for one interaction loop. The provider client and
+// executable tools remain Dispatcher-owned external capabilities.
 func NewDefinition(config DefinitionConfig) (*Definition, error) {
 	if config.MaxModelCalls == 0 {
 		return nil, fmt.Errorf("%w: MaxModelCalls must be positive", ErrInvalidDefinitionConfig)

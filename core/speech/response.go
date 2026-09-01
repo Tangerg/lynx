@@ -22,6 +22,7 @@ type Output struct {
 	Metadata metadata.Map `json:"metadata,omitzero"`
 }
 
+// NewOutput validates and snapshots one provider result before it enters a Response.
 func NewOutput(audio []byte, outputMetadata metadata.Map) (*Output, error) {
 	output := &Output{Audio: slices.Clone(audio), Metadata: outputMetadata.Clone()}
 	if err := output.Validate(); err != nil {
@@ -129,6 +130,7 @@ type Response struct {
 	Metadata *ResponseMetadata `json:"metadata,omitempty"`
 }
 
+// NewResponse validates a complete provider result at the protocol boundary.
 func NewResponse(output *Output, responseMetadata *ResponseMetadata) (*Response, error) {
 	response := &Response{Output: output, Metadata: responseMetadata}
 	if err := response.Validate(); err != nil {

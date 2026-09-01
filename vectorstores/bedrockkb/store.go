@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore"
 )
 
+// Provider is the stable backend name for host-side attribution.
 const Provider = "BedrockKnowledgeBase"
 
 // StoreConfig contains configuration options for the AWS Bedrock
@@ -57,6 +58,9 @@ type Store struct {
 	implicitFilterConfiguration *types.ImplicitFilterConfiguration
 }
 
+// NewStore needs no context because construction performs no I/O; the
+// knowledge base is provisioned outside this package, so the store only
+// validates configuration and assembles state.
 func NewStore(config StoreConfig) (*Store, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

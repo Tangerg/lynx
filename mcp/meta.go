@@ -7,6 +7,9 @@ import (
 	sdkmcp "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
+// RequestMetaFunc resolves per-call MCP metadata from the context rather than
+// from a fixed value, so a caller can forward request-scoped identity such as a
+// trace or tenant without rebuilding the tool for every call.
 type RequestMetaFunc func(ctx context.Context) sdkmcp.Meta
 
 type requestMetaContextKey struct{}

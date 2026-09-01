@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/scope/core/moderation"
 )
 
+// ModerationModelConfig binds provider access and defaults shared by every moderation call.
 type ModerationModelConfig struct {
 	Provider       string
 	APIKey         string
@@ -37,12 +38,14 @@ func (m ModerationModelConfig) Validate() error {
 
 var _ moderation.Model = (*ModerationModel)(nil)
 
+// ModerationModel implements the OpenAI-compatible moderation protocol.
 type ModerationModel struct {
 	api            *api
 	provider       string
 	defaultOptions moderation.Options
 }
 
+// NewModerationModel rejects an invalid provider binding before the first moderation call.
 func NewModerationModel(config ModerationModelConfig) (*ModerationModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

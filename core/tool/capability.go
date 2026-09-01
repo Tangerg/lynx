@@ -7,6 +7,7 @@ import (
 	"github.com/samber/lo"
 )
 
+// ErrInvalidWrappingChain reports a decorator chain too deep to traverse safely.
 var ErrInvalidWrappingChain = errors.New("tool: invalid wrapping chain")
 
 // WrappingTool is implemented by a decorator that stands in for another tool.

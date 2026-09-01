@@ -43,6 +43,10 @@ type Effect struct {
 	requirements CapabilitySet
 }
 
+// NewDispatcherEffect carries an opaque payload plus the capabilities it
+// requires, so the Engine can refuse an effect the Process was never granted
+// without understanding what the effect does. Keeping the payload opaque is
+// what stops model and tool vocabulary from entering the kernel.
 func NewDispatcherEffect(payload json.RawMessage, required ...Capability) (Effect, error) {
 	requirements, err := NewCapabilitySet(required...)
 	if err != nil {

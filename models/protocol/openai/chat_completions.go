@@ -56,10 +56,12 @@ type ChatCompletions struct {
 	dialect  Dialect
 }
 
+// NewChatCompletions rejects an invalid provider binding before the first Chat Completions call.
 func NewChatCompletions(config ChatCompletionsConfig) (*ChatCompletions, error) {
 	return newChatCompletions(config, Dialect{Provider: protocolProvider, TokenLimitField: TokenLimitMaxCompletionTokens})
 }
 
+// NewCompatibleChatCompletions rejects an invalid compatible binding before the first call.
 func NewCompatibleChatCompletions(config ChatCompletionsConfig, dialect Dialect) (*ChatCompletions, error) {
 	return newChatCompletions(config, dialect)
 }

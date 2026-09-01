@@ -17,6 +17,9 @@ type ExecutionState struct {
 	payload json.RawMessage
 }
 
+// NewExecutionState pairs a strategy kind with an opaque payload. The kind
+// exists so a snapshot can be rejected when restored into the wrong strategy;
+// the payload stays opaque so adding a strategy never widens the kernel.
 func NewExecutionState(kind string, payload json.RawMessage) (ExecutionState, error) {
 	if !validQualifiedName(kind) {
 		return ExecutionState{}, fmt.Errorf("%w: kind must be a lowercase qualified name", ErrInvalidExecutionState)

@@ -27,6 +27,9 @@ var (
 // external Effect. The zero value is invalid.
 type EffectBoundaryKind string
 
+// These boundaries name the exact points at which durable state is committed.
+// They are a closed vocabulary because recovery reasons about them directly: a
+// boundary the kernel cannot name is one it cannot resume from.
 const (
 	EffectBoundaryInvalid  EffectBoundaryKind = ""
 	EffectBoundaryPending  EffectBoundaryKind = "pending"
@@ -168,6 +171,9 @@ func sameBoundarySettlement(left, right Settlement) bool {
 // The zero value is invalid.
 type TreeCheckpointKind string
 
+// These boundaries name the exact points at which durable state is committed.
+// They are a closed vocabulary because recovery reasons about them directly: a
+// boundary the kernel cannot name is one it cannot resume from.
 const (
 	TreeCheckpointInvalid  TreeCheckpointKind = ""
 	TreeCheckpointParked   TreeCheckpointKind = "parked"

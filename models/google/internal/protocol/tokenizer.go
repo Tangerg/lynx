@@ -23,7 +23,7 @@ func (t TextEstimatorConfig) Validate() error {
 		return err
 	}
 	if t.Model == "" {
-		return errors.New("google: DefaultOptions is required")
+		return errors.New("google: Model is required")
 	}
 	return nil
 }
@@ -38,6 +38,7 @@ type TextEstimator struct {
 	model string
 }
 
+// NewTextEstimator rejects an invalid provider/model binding before estimation begins.
 func NewTextEstimator(config TextEstimatorConfig) (*TextEstimator, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

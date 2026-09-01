@@ -36,6 +36,10 @@ type LocalExecutor struct {
 	maxOutputBytes int
 }
 
+// NewLocalExecutor resolves the working directory to an absolute path and
+// freezes it, so a command cannot relocate the executor by changing process
+// state. The output cap is set here because a command that writes without
+// bound would otherwise be truncated only after the memory was already spent.
 func NewLocalExecutor(config LocalConfig) (*LocalExecutor, error) {
 	if config.Directory == "" {
 		return nil, fmt.Errorf("%w: directory must not be empty", ErrInvalidConfig)

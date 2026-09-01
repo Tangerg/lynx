@@ -56,6 +56,7 @@ type AudioTranslationModel struct {
 	defaultOptions transcription.Options
 }
 
+// NewAudioTranslationModel rejects an invalid provider binding before the first translation call.
 func NewAudioTranslationModel(config AudioTranslationModelConfig) (*AudioTranslationModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

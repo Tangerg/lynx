@@ -31,6 +31,9 @@ type Definition struct {
 	stages     []Stage
 }
 
+// NewDefinition connects adjacent stage schemas at construction, so a
+// mismatched pipeline fails where it is declared rather than midway through a
+// run that has already started child Processes and spent budget.
 func NewDefinition(config DefinitionConfig) (*Definition, error) {
 	if len(config.Stages) == 0 || uint64(len(config.Stages)) > math.MaxUint32 {
 		return nil, fmt.Errorf("%w: Stages must contain 1 to %d entries", ErrInvalidDefinitionConfig, uint64(math.MaxUint32))

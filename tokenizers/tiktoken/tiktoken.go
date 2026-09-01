@@ -57,6 +57,11 @@ type Tokenizer struct {
 	encoding *tiktokenlib.Tiktoken
 }
 
+// New resolves the vocabulary once at construction rather than per call, so a
+// misspelled encoding fails where it is configured instead of on the first
+// count. The vocabulary must be named explicitly because no single encoding is
+// correct across models, and guessing one silently miscounts every budget
+// derived from it.
 func New(encoding Encoding) (Tokenizer, error) {
 	native, err := encoding.load()
 	if err != nil {

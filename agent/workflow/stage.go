@@ -41,6 +41,10 @@ func (s stageKind) String() string {
 	}
 }
 
+// TransformFunc is the pure reduction a Transform stage applies. It takes no
+// context and returns no stream because a transform runs inside a Step, where
+// external I/O is forbidden; work that needs the outside world belongs in a
+// Call stage that starts a child Process.
 type TransformFunc[I, O any] func(input I) (O, error)
 
 type transformStage func(json.RawMessage) (json.RawMessage, error)

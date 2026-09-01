@@ -43,6 +43,10 @@ type Observer interface {
 	Observe(ctx context.Context, request ObservationRequest) (WorldState, error)
 }
 
+// ObserverFunc adapts a plain function to the observer interface. Observation
+// is an Effect rather than part of a Step, because reading the world is
+// external I/O and its result must arrive as a settlement the Execution can be
+// resumed from.
 type ObserverFunc func(ctx context.Context, request ObservationRequest) (WorldState, error)
 
 func (o ObserverFunc) Observe(
@@ -64,6 +68,8 @@ type ActionExecutor interface {
 	Execute(ctx context.Context, request ActionRequest) (ActionResult, error)
 }
 
+// ActionExecutorFunc adapts a plain function to the executor interface, so a
+// single action does not require a named type to be made runnable.
 type ActionExecutorFunc func(ctx context.Context, request ActionRequest) (ActionResult, error)
 
 func (a ActionExecutorFunc) Execute(
@@ -105,6 +111,10 @@ func (a ActionResult) Valid() bool {
 		!a.succeeded && validDiagnostic(a.diagnostic))
 }
 
+// NewActionSettlement converts an executor result into the kernel settlement
+// that closes the effect. Going through this constructor is what keeps an
+// executor from encoding planning vocabulary into a payload the kernel would
+// then have to understand.
 func NewActionSettlement(effectID agent.EffectID, result ActionResult) (agent.Settlement, error) {
 	if !effectID.Valid() || !result.Valid() {
 		return agent.Settlement{}, ErrInvalidProtocol

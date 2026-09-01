@@ -1,5 +1,5 @@
 // Package vectorstore defines provider-neutral semantic indexing and search.
-// Four independent interfaces split the surface by capability:
+// Five independent interfaces split the surface by capability:
 //
 //   - [Indexer] indexes documents.
 //   - [Searcher] finds similar documents by query + metadata filter.

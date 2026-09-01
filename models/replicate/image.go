@@ -16,6 +16,7 @@ import (
 	"github.com/Tangerg/scope/core/metadata"
 )
 
+// ImageModelConfig binds provider access and defaults shared by every image call.
 type ImageModelConfig struct {
 	APIKey         string
 	DefaultOptions image.Options
@@ -56,6 +57,9 @@ func (i ImageModelConfig) Validate() error {
 // Replicate model version.
 type FileOutputKind string
 
+// The vocabulary is closed because it decides how a prediction's output is
+// read. Guessing between a single URI and a list would either drop results or
+// misreport one as many, so the shape is declared rather than inferred.
 const (
 	FileOutputURI     FileOutputKind = "uri"
 	FileOutputURIList FileOutputKind = "uri_list"
@@ -165,6 +169,7 @@ type ImageModel struct {
 	defaultOptions image.Options
 }
 
+// NewImageModel rejects an invalid provider binding before the first image call.
 func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

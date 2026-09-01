@@ -26,6 +26,10 @@ func (t ToolArguments) Validate() error {
 	return nil
 }
 
+// ToolExpectation asserts that a tool was called, and optionally how. Arguments
+// and Outcome are omissible so a sample can pin the part of the behavior it
+// cares about without freezing the rest; an expectation that had to state every
+// field would break on unrelated prompt or model changes and stop being run.
 type ToolExpectation struct {
 	Name      string         `json:"name"`
 	Arguments *ToolArguments `json:"arguments,omitempty"`

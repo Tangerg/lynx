@@ -94,6 +94,8 @@ type Request struct {
 	Options Options `json:"options,omitzero"`
 }
 
+// NewRequest preserves the provider-neutral batch shape and clones the input,
+// so later caller mutation cannot change a request already in flight.
 func NewRequest(texts []string) (*Request, error) {
 	r := &Request{Texts: slices.Clone(texts)}
 	if err := r.Validate(); err != nil {

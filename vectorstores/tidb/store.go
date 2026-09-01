@@ -17,8 +17,10 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+// Provider is the stable backend name for host-side attribution.
 const Provider = "TiDB"
 
+// Exported defaults keep constructor behavior visible and overridable.
 const (
 	DefaultTableName       = "vector_store"
 	DefaultIDColumn        = "id"
@@ -32,6 +34,10 @@ const (
 // time.
 type DistanceMetric string
 
+// The metric is a closed vocabulary because score direction and threshold
+// semantics depend on it: the same raw number means "near" under one metric and
+// "far" under another, so an unrecognized value must be rejected rather than
+// guessed.
 const (
 	DistanceCosine     DistanceMetric = "COSINE"
 	DistanceL2         DistanceMetric = "L2"
@@ -172,6 +178,10 @@ type Store struct {
 	distanceMetric  DistanceMetric
 }
 
+// NewStore performs schema setup during construction, which is why it takes
+// a context: a store returned before its table and vector index exist would
+// fail on the first index rather than at wiring, where the misconfiguration
+// actually is.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	config.applyDefaults()
 	if err := config.Validate(); err != nil {

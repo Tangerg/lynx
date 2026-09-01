@@ -12,6 +12,7 @@ import (
 	"sync"
 )
 
+// Exported defaults keep constructor behavior visible and overridable.
 const (
 	maxTreeSnapshotBytes                           = 512 << 20
 	CurrentTreeSnapshotVersion TreeSnapshotVersion = 1

@@ -17,6 +17,9 @@ type IndexRequest struct {
 	Documents []*document.Document `json:"documents"`
 }
 
+// NewIndexRequest validates every document up front so a partially valid batch
+// is rejected before any of it reaches the store, where a mid-batch failure
+// would leave the index in a state the caller cannot describe.
 func NewIndexRequest(documents []*document.Document) (*IndexRequest, error) {
 	request := &IndexRequest{Documents: slices.Clone(documents)}
 	if err := request.Validate(); err != nil {

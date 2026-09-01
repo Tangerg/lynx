@@ -15,8 +15,10 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore"
 )
 
+// Provider is the stable backend name for host-side attribution.
 const Provider = "Elasticsearch"
 
+// Exported defaults keep constructor behavior visible and overridable.
 const (
 	DefaultIndexName          = "scope-vector-index"
 	DefaultEmbeddingField     = "embedding"
@@ -189,6 +191,10 @@ type Store struct {
 	numCandidatesMul float64
 }
 
+// NewStore performs schema setup during construction, which is why it takes
+// a context: a store returned before its index mapping exists would fail on
+// the first index rather than at wiring, where the misconfiguration actually
+// is.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	config.applyDefaults()
 	if err := config.Validate(); err != nil {

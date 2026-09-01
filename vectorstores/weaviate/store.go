@@ -22,6 +22,7 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+// Provider is the stable backend name for host-side attribution.
 const (
 	Provider = "Weaviate"
 )
@@ -39,6 +40,10 @@ const (
 // collection.
 type DistanceMetric string
 
+// The metric is a closed vocabulary because score direction and threshold
+// semantics depend on it: the same raw number means "near" under one metric and
+// "far" under another, so an unrecognized value must be rejected rather than
+// guessed.
 const (
 	DistanceCosine    DistanceMetric = "cosine"
 	DistanceDot       DistanceMetric = "dot"
@@ -142,6 +147,9 @@ var (
 	_ vectorstore.IDDeleter     = (*Store)(nil)
 )
 
+// Store implements [vectorstore.Store] against a Weaviate class. Weaviate
+// names properties per class, so the field mapping is fixed at construction
+// and cannot vary per request.
 type Store struct {
 	client           *weaviate.Client
 	embeddingClient  embeddingclient.Client
@@ -152,6 +160,10 @@ type Store struct {
 	initializeSchema bool
 }
 
+// NewStore performs schema setup during construction, which is why it takes
+// a context: a store returned before its class schema exists would fail on
+// the first index rather than at wiring, where the misconfiguration actually
+// is.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	config.applyDefaults()
 	if err := config.Validate(); err != nil {

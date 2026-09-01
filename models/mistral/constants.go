@@ -1,9 +1,11 @@
 package mistral
 
+// Provider is the stable backend name for host-side attribution.
 const (
 	Provider = "Mistral"
 )
 
+// Exported defaults keep constructor behavior visible and overridable.
 const (
 	DefaultBaseURL = "https://api.mistral.ai/v1"
 )

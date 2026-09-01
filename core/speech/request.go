@@ -118,6 +118,8 @@ type Request struct {
 	Options Options `json:"options,omitzero"`
 }
 
+// NewRequest validates the required input while leaving per-call options at
+// their portable zero defaults.
 func NewRequest(text string) (*Request, error) {
 	r := &Request{Text: text}
 	if err := r.Validate(); err != nil {

@@ -15,6 +15,9 @@ type FetchTool struct {
 	readOnlyTool
 }
 
+// NewFetchTool requires a fetcher for the same reason the shell tool requires
+// an executor: retrieving a model-supplied URL is an SSRF boundary, and
+// defaulting it would grant network reach the caller never chose.
 func NewFetchTool(fetcher Fetcher) (*FetchTool, error) {
 	inner, err := newProviderReadOnlyTool(
 		"fetch",

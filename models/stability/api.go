@@ -108,6 +108,7 @@ func buildFormFields(req *generateRequest) map[string]string {
 	return out
 }
 
+// DecodeJSON decodes Stability's JSON image envelope.
 func DecodeJSON(body []byte) (*jsonResponse, error) {
 	var resp jsonResponse
 	if err := json.Unmarshal(body, &resp); err != nil {

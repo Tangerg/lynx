@@ -146,6 +146,10 @@ type Tool struct {
 	typed  toolcontract.Func[Request, *Response]
 }
 
+// New builds a tool whose output is derived from its arguments alone, so an
+// example that calls it produces the same report on every run. A real weather
+// API would make the surrounding examples untestable and would tie them to a
+// credential; the writer exists only to show call activity.
 func New(writer io.Writer) *Tool {
 	if writer == nil {
 		writer = io.Discard

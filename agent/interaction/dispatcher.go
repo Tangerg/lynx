@@ -27,6 +27,9 @@ type ModelClient interface {
 // provider-neutral Response.
 type ModelResponseMode string
 
+// These name the two shapes a model effect can settle with. They are distinct
+// because a streamed response must be accumulated before it satisfies the same
+// contract a complete response already meets.
 const (
 	ModelResponseComplete ModelResponseMode = ""
 	ModelResponseStream   ModelResponseMode = "stream"
@@ -105,6 +108,10 @@ func (d *Dispatcher) ObservationFailures() ObservationFailureCounts {
 	return d.observationFailures.snapshot()
 }
 
+// NewDispatcher binds an interaction definition to the model and tool
+// implementations that execute its effects. The definition supplies the
+// contract and the dispatcher supplies the I/O, which is what keeps a Step
+// free of both.
 func NewDispatcher(definition *Definition, config DispatcherConfig) (*Dispatcher, error) {
 	if !definition.valid() || lo.IsNil(config.Client) {
 		return nil, fmt.Errorf("%w: Definition and Client are required", ErrInvalidDispatcherConfig)

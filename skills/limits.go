@@ -2,6 +2,7 @@ package skills
 
 import "fmt"
 
+// Exported defaults keep constructor behavior visible and overridable.
 const (
 	DefaultMaxRepositoryEntries = 512
 	DefaultMaxFrontmatterBytes  = int64(64 * 1024)

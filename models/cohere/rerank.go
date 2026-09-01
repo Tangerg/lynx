@@ -19,6 +19,7 @@ type RerankRequestOptions struct {
 	Priority             *int `json:"priority,omitempty"`
 }
 
+// RerankModelConfig binds provider access and defaults shared by every reranking call.
 type RerankModelConfig struct {
 	APIKey         string
 	DefaultOptions rerank.Options
@@ -38,11 +39,13 @@ func (r RerankModelConfig) Validate() error {
 
 var _ rerank.Model = (*RerankModel)(nil)
 
+// RerankModel implements the Core reranking contract with Cohere.
 type RerankModel struct {
 	api            *api
 	defaultOptions rerank.Options
 }
 
+// NewRerankModel rejects an invalid provider binding before the first reranking call.
 func NewRerankModel(config RerankModelConfig) (*RerankModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

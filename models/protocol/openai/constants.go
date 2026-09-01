@@ -1,5 +1,7 @@
 package openai
 
+// Namespacing preserves provider-specific data without promoting it into the
+// shared Core protocol or colliding with another provider.
 const (
 	protocolProvider                 = "openai"
 	SpeechRequestExtensionKey        = "openai/speech_request"

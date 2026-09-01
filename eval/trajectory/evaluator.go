@@ -9,6 +9,9 @@ import (
 	"github.com/Tangerg/scope/eval"
 )
 
+// These metric names are constants because a report is aggregated by exact
+// metric identity. A renamed or restated metric silently splits a series that
+// a reader would compare as one.
 const (
 	metricNamespace                       = "agent"
 	metricMaximumKey                      = "maximum"

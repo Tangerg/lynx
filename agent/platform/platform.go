@@ -33,6 +33,10 @@ func slotFor(reference agent.DeploymentRef) deploymentSlot {
 	return deploymentSlot{name: reference.Name()}
 }
 
+// New assembles the optional multi-Deployment container. It is separate from
+// [agent.Engine] because routing, catalog, and governance are not needed to
+// run a Process, and an embedded host should not have to accept them to get
+// execution.
 func New(deployments ...agent.Deployment) (*Platform, error) {
 	state, err := initialDeploymentState(deployments)
 	if err != nil {

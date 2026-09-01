@@ -12,6 +12,7 @@ import (
 	openaiprotocol "github.com/Tangerg/scope/models/protocol/openai"
 )
 
+// Exported identifiers keep provider-owned names and defaults out of caller literals.
 const (
 	Provider         = "OpenAI"
 	protocolProvider = "openai"
@@ -54,7 +55,7 @@ func (c ChatConfig) protocol() openaiprotocol.ChatCompletionsConfig {
 // Chat is the OpenAI Chat Completions protocol model.
 type Chat = openaiprotocol.ChatCompletions
 
-// NewChat validates config and returns the Chat Completions adapter.
+// NewChat rejects an invalid provider binding before the first chat call.
 func NewChat(config ChatConfig) (*Chat, error) {
 	return openaiprotocol.NewChatCompletions(config.protocol())
 }
@@ -83,11 +84,12 @@ func (r ResponsesConfig) protocol() openaiprotocol.ResponsesConfig {
 // Chat because the endpoints expose different transport capabilities.
 type Responses = openaiprotocol.Responses
 
-// NewResponses validates config and returns the Responses API adapter.
+// NewResponses rejects an invalid provider binding before the first Responses call.
 func NewResponses(config ResponsesConfig) (*Responses, error) {
 	return openaiprotocol.NewResponses(config.protocol())
 }
 
+// EmbeddingModelConfig binds provider access and defaults shared by every embedding call.
 type EmbeddingModelConfig struct {
 	APIKey         string
 	DefaultOptions embedding.Options
@@ -104,10 +106,12 @@ func (e EmbeddingModelConfig) protocol() openaiprotocol.EmbeddingModelConfig {
 // EmbeddingModel is the OpenAI-compatible embedding protocol model.
 type EmbeddingModel = openaiprotocol.EmbeddingModel
 
+// NewEmbeddingModel rejects an invalid provider binding before the first embedding call.
 func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
 	return openaiprotocol.NewEmbeddingModel(config.protocol())
 }
 
+// AudioTranscriptionModelConfig binds provider access and defaults shared by every transcription call.
 type AudioTranscriptionModelConfig struct {
 	APIKey         string
 	DefaultOptions transcription.Options
@@ -124,10 +128,12 @@ func (a AudioTranscriptionModelConfig) protocol() openaiprotocol.AudioTranscript
 // AudioTranscriptionModel is the OpenAI-compatible transcription protocol model.
 type AudioTranscriptionModel = openaiprotocol.AudioTranscriptionModel
 
+// NewAudioTranscriptionModel rejects an invalid provider binding before the first transcription call.
 func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
 	return openaiprotocol.NewAudioTranscriptionModel(config.protocol())
 }
 
+// AudioTranslationModelConfig binds provider access and defaults shared by every translation call.
 type AudioTranslationModelConfig struct {
 	APIKey         string
 	DefaultOptions transcription.Options
@@ -144,10 +150,12 @@ func (a AudioTranslationModelConfig) protocol() openaiprotocol.AudioTranslationM
 // AudioTranslationModel is the OpenAI-compatible translation protocol model.
 type AudioTranslationModel = openaiprotocol.AudioTranslationModel
 
+// NewAudioTranslationModel rejects an invalid provider binding before the first translation call.
 func NewAudioTranslationModel(config AudioTranslationModelConfig) (*AudioTranslationModel, error) {
 	return openaiprotocol.NewAudioTranslationModel(config.protocol())
 }
 
+// AudioTTSModelConfig binds provider access and defaults shared by every speech call.
 type AudioTTSModelConfig struct {
 	APIKey           string
 	DefaultOptions   tts.Options
@@ -172,10 +180,12 @@ func (a AudioTTSModelConfig) protocol() openaiprotocol.AudioTTSModelConfig {
 // AudioTTSModel is the OpenAI-compatible speech protocol model.
 type AudioTTSModel = openaiprotocol.AudioTTSModel
 
+// NewAudioTTSModel rejects an invalid provider binding before the first speech call.
 func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 	return openaiprotocol.NewAudioTTSModel(config.protocol())
 }
 
+// ImageModelConfig binds provider access and defaults shared by every image call.
 type ImageModelConfig struct {
 	APIKey         string
 	DefaultOptions image.Options
@@ -192,10 +202,12 @@ func (i ImageModelConfig) protocol() openaiprotocol.ImageModelConfig {
 // ImageModel is the OpenAI-compatible image protocol model.
 type ImageModel = openaiprotocol.ImageModel
 
+// NewImageModel rejects an invalid provider binding before the first image call.
 func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 	return openaiprotocol.NewImageModel(config.protocol())
 }
 
+// ModerationModelConfig binds provider access and defaults shared by every moderation call.
 type ModerationModelConfig struct {
 	APIKey         string
 	DefaultOptions moderation.Options
@@ -212,6 +224,7 @@ func (m ModerationModelConfig) protocol() openaiprotocol.ModerationModelConfig {
 // ModerationModel is the OpenAI-compatible moderation protocol model.
 type ModerationModel = openaiprotocol.ModerationModel
 
+// NewModerationModel rejects an invalid provider binding before the first moderation call.
 func NewModerationModel(config ModerationModelConfig) (*ModerationModel, error) {
 	return openaiprotocol.NewModerationModel(config.protocol())
 }

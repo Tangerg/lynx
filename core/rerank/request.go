@@ -15,6 +15,9 @@ type Request struct {
 	Options   Options  `json:"options,omitzero"`
 }
 
+// NewRequest binds the query and its candidate set together because a rerank
+// result is addressed by position into that exact slice. Accepting them
+// separately would let a caller score one list and index into another.
 func NewRequest(query string, documents []string) (*Request, error) {
 	request := &Request{Query: query, Documents: slices.Clone(documents)}
 	if err := request.Validate(); err != nil {

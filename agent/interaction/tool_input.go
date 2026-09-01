@@ -28,6 +28,11 @@ type ToolInputRequest struct {
 	continuationState json.RawMessage
 }
 
+// NewToolInputRequest lets a tool pause for external input while carrying its
+// own continuation state. The response schema is validated here so an answer
+// can be checked when it arrives; the request holds no Process or wait
+// identity, because those are minted by the Engine and would otherwise be
+// forgeable by a tool.
 func NewToolInputRequest(
 	prompt json.RawMessage,
 	responseSchema json.RawMessage,
@@ -167,6 +172,9 @@ func ToolInputContinuationFromContext(ctx context.Context) (ToolInputContinuatio
 	}, true
 }
 
+// NewToolInputResponseSignal addresses an answer to the exact wait that asked
+// for it. Requiring the wait identity is what prevents a late or duplicated
+// response from satisfying a different pause than the one it was written for.
 func NewToolInputResponseSignal(
 	id agent.SignalID,
 	waitID agent.WaitID,

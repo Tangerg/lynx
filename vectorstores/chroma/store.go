@@ -15,6 +15,7 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+// Provider is the stable backend name for host-side attribution.
 const Provider = "Chroma"
 
 // DistanceMetric defines the distance function used by the HNSW index.
@@ -134,6 +135,9 @@ type Store struct {
 	distanceMetric  DistanceMetric
 }
 
+// NewStore performs schema setup during construction, which is why it takes a
+// context: a store returned before its collection exists would fail on the
+// first index rather than at wiring, where the misconfiguration actually is.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	config.applyDefaults()
 	if err := config.Validate(); err != nil {

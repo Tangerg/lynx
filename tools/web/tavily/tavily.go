@@ -18,18 +18,26 @@ const (
 	baseURL = "https://api.tavily.com"
 )
 
+// Config takes an optional [http.Client] so the host keeps ownership of
+// timeouts, proxying, and transport instrumentation instead of inheriting
+// whatever this package would otherwise choose.
 type Config struct {
 	APIKey     string
 	BaseURL    string
 	HTTPClient *http.Client
 }
 
+// Client implements [web.Searcher] against the Tavily API. It exposes no
+// vendor-specific surface, so a caller can substitute another search backend
+// without touching the tool that consumes it.
 type Client struct {
 	http *resty.Client
 }
 
 var _ web.Searcher = (*Client)(nil)
 
+// NewClient requires the API key at construction so a missing credential fails
+// at wiring rather than as an authorization error on a model's first search.
 func NewClient(config Config) (*Client, error) {
 	if config.APIKey == "" {
 		return nil, errors.New("tavily: API key is required")

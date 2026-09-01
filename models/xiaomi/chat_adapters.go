@@ -11,6 +11,8 @@ import (
 	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
+// Namespacing preserves provider-specific data without promoting it into the
+// shared Core protocol or colliding with another provider.
 const (
 	OpenAIRequestExtensionKey        = "xiaomi/openai_request"
 	OpenAIResponseExtensionKey       = "xiaomi/openai_response"
@@ -33,6 +35,7 @@ type Chat = openai.ChatCompletions
 // Messages implements MiMo's Anthropic-compatible endpoint.
 type Messages = anthropic.Messages
 
+// ChatConfig binds provider access and defaults shared by every chat call.
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -50,6 +53,7 @@ func (c ChatConfig) Validate() error {
 	return nil
 }
 
+// NewChat rejects an invalid provider binding before the first chat call.
 func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
@@ -64,6 +68,7 @@ func NewChat(config ChatConfig) (*Chat, error) {
 	return protocol, nil
 }
 
+// MessagesConfig binds provider access and defaults shared by every Messages call.
 type MessagesConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -81,6 +86,7 @@ func (m MessagesConfig) Validate() error {
 	return nil
 }
 
+// NewMessages rejects an invalid provider binding before the first Messages call.
 func NewMessages(config MessagesConfig) (*Messages, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

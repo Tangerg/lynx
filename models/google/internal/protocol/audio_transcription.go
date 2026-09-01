@@ -11,6 +11,7 @@ import (
 	"github.com/Tangerg/scope/core/transcription"
 )
 
+// AudioTranscriptionModelConfig binds provider access and defaults shared by every transcription call.
 type AudioTranscriptionModelConfig struct {
 	Provider       string
 	Client         ClientConfig
@@ -45,6 +46,7 @@ type AudioTranscriptionModel struct {
 	defaultOptions transcription.Options
 }
 
+// NewAudioTranscriptionModel rejects an invalid provider binding before the first transcription call.
 func NewAudioTranscriptionModel(config AudioTranscriptionModelConfig) (*AudioTranscriptionModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

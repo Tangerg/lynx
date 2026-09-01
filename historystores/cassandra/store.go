@@ -13,11 +13,15 @@ import (
 	"github.com/Tangerg/scope/core/history"
 )
 
+// Exported defaults keep constructor behavior visible and overridable.
 const (
 	DefaultKeyspace  = "scope"
 	DefaultTableName = "chat_history"
 )
 
+// StoreConfig names every dependency explicitly rather than defaulting a
+// client or connection, so a store cannot be built against a service the
+// caller did not choose.
 type StoreConfig struct {
 	// Session is the live gocql session. Required. Callers own
 	// session lifetime.
@@ -71,6 +75,10 @@ type Store struct {
 	createCQL string
 }
 
+// NewStore performs schema setup during construction, which is why it takes
+// a context: a store returned before its keyspace table exists would fail on
+// the first index rather than at wiring, where the misconfiguration actually
+// is.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

@@ -30,6 +30,10 @@ type Trajectory struct {
 	toolCalls     []ToolCall
 }
 
+// New clones every input and then sorts by process path rather than by arrival
+// time. Two runs of the same agent interleave concurrent siblings differently,
+// so wall-clock order would make identical behavior compare as a regression;
+// ordering by structural position is what makes replay comparison meaningful.
 func New(config Config) (Trajectory, error) {
 	trajectory := Trajectory{
 		rootProcessID: config.RootProcessID,

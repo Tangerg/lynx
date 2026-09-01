@@ -1,9 +1,11 @@
 package prodia
 
+// Provider is the stable backend name for host-side attribution.
 const (
 	Provider = "Prodia"
 )
 
+// Exported identifiers keep provider-owned names and defaults out of caller literals.
 const (
 	ImageRequestExtensionKey = "prodia/image_request"
 

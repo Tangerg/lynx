@@ -57,6 +57,9 @@ type Descriptor struct {
 	digest       Digest
 }
 
+// NewDescriptor validates the schemas at construction because they enter the
+// Deployment digest. A schema accepted here and rejected later would change a
+// Deployment's identity after Processes had already been started against it.
 func NewDescriptor(config DescriptorConfig) (Descriptor, error) {
 	if err := config.validate(); err != nil {
 		return Descriptor{}, err

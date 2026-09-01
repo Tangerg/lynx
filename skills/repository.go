@@ -29,6 +29,10 @@ type Repository struct {
 var _ Source = (*Repository)(nil)
 var _ ResourceSource = (*Repository)(nil)
 
+// NewRepository takes an [fs.FS] rather than a path so a skill set can come
+// from an embedded bundle, an archive, or a test fixture without a temporary
+// directory. Limits are resolved here because an unbounded repository would let
+// a malformed skill exhaust memory during discovery, before any skill runs.
 func NewRepository(fsys fs.FS, config RepositoryConfig) (*Repository, error) {
 	if lo.IsNil(fsys) {
 		return nil, ErrNilFilesystem
@@ -40,6 +44,9 @@ func NewRepository(fsys fs.FS, config RepositoryConfig) (*Repository, error) {
 	return &Repository{fsys: fsys, limits: limits}, nil
 }
 
+// NewDirectoryRepository roots the filesystem at a directory so a skill cannot
+// escape it through a relative path, which matters because skill names reach
+// this layer from untrusted bundles.
 func NewDirectoryRepository(root string, config RepositoryConfig) (*Repository, error) {
 	return NewRepository(rootedFS(root), config)
 }

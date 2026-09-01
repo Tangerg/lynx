@@ -14,8 +14,10 @@ import (
 	"github.com/Tangerg/scope/vectorstores/postgres/internal/pgstore"
 )
 
+// Provider is the stable backend name for host-side attribution.
 const Provider = "CockroachDB"
 
+// Exported defaults keep constructor behavior visible and overridable.
 const (
 	DefaultSchemaName     = "public"
 	DefaultTableName      = "vector_store"
@@ -27,6 +29,10 @@ const (
 // native CockroachDB vector-index opclass.
 type DistanceMetric string
 
+// The metric is a closed vocabulary because score direction and threshold
+// semantics depend on it: the same raw number means "near" under one metric and
+// "far" under another, so an unrecognized value must be rejected rather than
+// guessed.
 const (
 	DistanceCosine DistanceMetric = "cosine"
 	DistanceL2     DistanceMetric = "l2"
@@ -55,6 +61,9 @@ func (d DistanceMetric) indexOpClass() string {
 	}
 }
 
+// StoreConfig names every dependency explicitly rather than defaulting a
+// client or connection, so a store cannot be built against a service the
+// caller did not choose.
 type StoreConfig struct {
 	Pool             *pgxpool.Pool
 	SchemaName       string
@@ -124,6 +133,10 @@ type Store struct {
 	engine *pgstore.Store
 }
 
+// NewStore performs schema setup during construction, which is why it takes
+// a context: a store returned before its backing schema exists would fail on
+// the first index rather than at wiring, where the misconfiguration actually
+// is.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	config.applyDefaults()
 	if err := config.Validate(); err != nil {

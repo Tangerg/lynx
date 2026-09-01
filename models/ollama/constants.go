@@ -1,9 +1,11 @@
 package ollama
 
+// Provider is the stable backend name for host-side attribution.
 const (
 	Provider = "Ollama"
 )
 
+// Exported identifiers keep provider-owned names and defaults out of caller literals.
 const (
 	EmbeddingRequestExtensionKey = "ollama/embedding_request"
 

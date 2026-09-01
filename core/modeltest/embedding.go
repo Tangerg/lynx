@@ -27,6 +27,10 @@ type EmbeddingContract struct {
 	Build func(t *testing.T, baseURL string) embedding.Model
 }
 
+// RunEmbeddingContract sends two inputs rather than one because a provider
+// that drops or collapses a batch still satisfies a single-input test. Pairing
+// the output count with the requested path also catches an adapter that
+// reaches the wrong endpoint yet happens to decode a plausible response.
 func RunEmbeddingContract(t *testing.T, contract EmbeddingContract) {
 	t.Helper()
 	t.Run("Call_Mock", func(t *testing.T) {
@@ -75,6 +79,9 @@ type IntegrationEmbeddingProbe struct {
 	Build    func(t *testing.T, key string) embedding.Model
 }
 
+// RunIntegrationEmbedding repeats the mock assertions against the live
+// service, because a canned body cannot reject an adapter whose auth header,
+// path, or request encoding the real vendor would refuse.
 func RunIntegrationEmbedding(t *testing.T, probe IntegrationEmbeddingProbe) {
 	t.Helper()
 	key := RequireKey(t, probe.Provider)

@@ -5,6 +5,7 @@ import (
 	"github.com/Tangerg/scope/models/protocol/openai"
 )
 
+// EmbeddingModelConfig binds provider access and defaults shared by every embedding call.
 type EmbeddingModelConfig struct {
 	Config
 	DefaultOptions embedding.Options
@@ -21,8 +22,12 @@ func (e EmbeddingModelConfig) Validate() error {
 
 var _ embedding.Model = (*EmbeddingModel)(nil)
 
+// EmbeddingModel is the shared protocol type itself rather than a wrapper,
+// so this provider adds no second public surface for callers to choose
+// between.
 type EmbeddingModel = openai.EmbeddingModel
 
+// NewEmbeddingModel rejects an invalid provider binding before the first embedding call.
 func NewEmbeddingModel(config EmbeddingModelConfig) (*EmbeddingModel, error) {
 	endpoint, err := config.resolve()
 	if err != nil {

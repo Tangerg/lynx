@@ -1,5 +1,8 @@
 package protocol
 
+// DefaultBaseURL is the endpoint used when a configuration leaves it empty. It
+// is exported so a deployment can point at a proxy or a regional host by
+// overriding a named value rather than restating the vendor's URL.
 const DefaultBaseURL = "https://generativelanguage.googleapis.com"
 
 const (

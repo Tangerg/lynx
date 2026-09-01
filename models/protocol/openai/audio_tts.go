@@ -15,8 +15,12 @@ import (
 	tts "github.com/Tangerg/scope/core/speech"
 )
 
+// DefaultMaxResponseBytes bounds how much synthesized audio is read into
+// memory. A provider that returns an unexpectedly large asset would otherwise
+// be able to exhaust the process before the response is ever validated.
 const DefaultMaxResponseBytes = int64(32 * 1024 * 1024)
 
+// AudioTTSModelConfig binds provider access and defaults shared by every speech call.
 type AudioTTSModelConfig struct {
 	Provider         string
 	APIKey           string
@@ -48,6 +52,7 @@ func (a AudioTTSModelConfig) Validate() error {
 var _ tts.Model = (*AudioTTSModel)(nil)
 var _ tts.Streamer = (*AudioTTSModel)(nil)
 
+// AudioTTSModel implements the OpenAI-compatible speech protocol.
 type AudioTTSModel struct {
 	api              *api
 	provider         string
@@ -55,6 +60,7 @@ type AudioTTSModel struct {
 	maxResponseBytes int64
 }
 
+// NewAudioTTSModel rejects an invalid provider binding before the first speech call.
 func NewAudioTTSModel(config AudioTTSModelConfig) (*AudioTTSModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

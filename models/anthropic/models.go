@@ -11,6 +11,7 @@ import (
 	openaiprotocol "github.com/Tangerg/scope/models/protocol/openai"
 )
 
+// Exported identifiers keep provider-owned names and defaults out of caller literals.
 const (
 	Provider      = "Anthropic"
 	BaseURLOpenAI = "https://api.anthropic.com/v1"
@@ -20,6 +21,7 @@ const (
 	OpenAIStreamChunkExtensionKey = "anthropic/openai_stream_chunk"
 )
 
+// ChatConfig binds provider access and defaults shared by every chat call.
 type ChatConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -36,10 +38,12 @@ func (c ChatConfig) protocol() anthropicprotocol.MessagesConfig {
 // Chat is the Anthropic Messages protocol model.
 type Chat = anthropicprotocol.Messages
 
+// NewChat rejects an invalid provider binding before the first chat call.
 func NewChat(config ChatConfig) (*Chat, error) {
 	return anthropicprotocol.NewMessages(config.protocol())
 }
 
+// ChatCompletionsConfig binds provider access and defaults shared by every Chat Completions call.
 type ChatCompletionsConfig struct {
 	APIKey         string
 	DefaultOptions corechat.Options
@@ -60,6 +64,7 @@ func (c ChatCompletionsConfig) Validate() error {
 // ChatCompletions implements Anthropic's OpenAI-compatible endpoint.
 type ChatCompletions = openaiprotocol.ChatCompletions
 
+// NewChatCompletions rejects an invalid provider binding before the first Chat Completions call.
 func NewChatCompletions(config ChatCompletionsConfig) (*ChatCompletions, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
@@ -70,6 +75,7 @@ func NewChatCompletions(config ChatCompletionsConfig) (*ChatCompletions, error) 
 	)
 }
 
+// TextEstimatorConfig binds provider access and the model shared by every estimate.
 type TextEstimatorConfig struct {
 	APIKey     string
 	Model      string
@@ -86,6 +92,7 @@ func (t TextEstimatorConfig) protocol() anthropicprotocol.TextEstimatorConfig {
 // TextEstimator is Anthropic's token-counting estimator.
 type TextEstimator = anthropicprotocol.TextEstimator
 
+// NewTextEstimator rejects an invalid provider/model binding before estimation begins.
 func NewTextEstimator(config TextEstimatorConfig) (*TextEstimator, error) {
 	return anthropicprotocol.NewTextEstimator(config.protocol())
 }

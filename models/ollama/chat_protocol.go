@@ -10,6 +10,7 @@ import (
 	corechat "github.com/Tangerg/scope/core/chat"
 )
 
+// ChatConfig binds provider access and defaults shared by every chat call.
 type ChatConfig struct {
 	DefaultOptions corechat.Options
 	BaseURL        string
@@ -34,6 +35,7 @@ type Chat struct {
 	defaults corechat.Options
 }
 
+// NewChat rejects an invalid provider binding before the first chat call.
 func NewChat(config ChatConfig) (*Chat, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

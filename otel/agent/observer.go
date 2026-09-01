@@ -132,6 +132,10 @@ type observerInstruments struct {
 	deltaDrops                metric.Int64Counter
 }
 
+// NewObserver attaches to the kernel's listener boundary rather than living
+// inside it, which is what keeps OpenTelemetry out of the agent module's
+// dependency graph. Observation is best-effort: a telemetry failure records an
+// event and never changes execution.
 func NewObserver(config ObserverConfig) (*Observer, error) {
 	if config.TracerProvider != nil && lo.IsNil(config.TracerProvider) {
 		return nil, fmt.Errorf("%w: tracer provider is typed nil", ErrInvalidObserverConfig)

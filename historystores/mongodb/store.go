@@ -23,6 +23,9 @@ const (
 	fieldCreatedAt      = "created_at"
 )
 
+// StoreConfig names every dependency explicitly rather than defaulting a
+// client or connection, so a store cannot be built against a service the
+// caller did not choose.
 type StoreConfig struct {
 	// Collection is the live MongoDB collection. Required. The store
 	// does not take ownership of the underlying client.
@@ -54,6 +57,10 @@ type Store struct {
 	sequence   sequenceGenerator
 }
 
+// NewStore performs schema setup during construction, which is why it takes
+// a context: a store returned before its collection and search index exist
+// would fail on the first index rather than at wiring, where the
+// misconfiguration actually is.
 func NewStore(ctx context.Context, config StoreConfig) (*Store, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

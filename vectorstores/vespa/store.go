@@ -20,6 +20,7 @@ import (
 	"github.com/Tangerg/scope/core/vectorstore/filter"
 )
 
+// Exported identifiers keep provider-owned names and defaults out of caller literals.
 const (
 	Provider = "Vespa"
 
@@ -179,6 +180,9 @@ type Store struct {
 	maxResponseBytes int64
 }
 
+// NewStore needs no context because construction performs no I/O; the schema is
+// provisioned outside this package, so the store only validates configuration
+// and assembles state.
 func NewStore(config StoreConfig) (*Store, error) {
 	config.applyDefaults()
 	if err := config.Validate(); err != nil {

@@ -9,6 +9,7 @@ import (
 	"github.com/Tangerg/scope/models/google/internal/protocol"
 )
 
+// ChatConfig binds provider access and defaults shared by every chat call.
 type ChatConfig struct {
 	Client         ClientConfig
 	DefaultOptions corechat.Options
@@ -31,8 +32,12 @@ var (
 	_ corechat.Streamer = (*Chat)(nil)
 )
 
+// Chat wraps this provider's protocol implementation so the wire type stays
+// unexported. Callers depend on the Core modality contract, which lets the
+// protocol change without breaking this module's public surface.
 type Chat protocol.Chat
 
+// NewChat rejects an invalid provider binding before the first chat call.
 func NewChat(config ChatConfig) (*Chat, error) {
 	adapter, err := protocol.NewChat(config.protocol())
 	if err != nil {

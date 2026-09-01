@@ -52,6 +52,7 @@ type Messages struct {
 	dialect  Dialect
 }
 
+// NewMessages rejects an invalid provider binding before the first Messages call.
 func NewMessages(config MessagesConfig) (*Messages, error) {
 	return newMessages(config, Dialect{
 		Provider: protocolProvider, MaxTemperature: protocolMaximumTemperature,
@@ -59,6 +60,7 @@ func NewMessages(config MessagesConfig) (*Messages, error) {
 	})
 }
 
+// NewCompatibleMessages rejects an invalid compatible binding before the first call.
 func NewCompatibleMessages(config MessagesConfig, dialect Dialect) (*Messages, error) {
 	return newMessages(config, dialect)
 }

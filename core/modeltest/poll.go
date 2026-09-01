@@ -18,6 +18,10 @@ type Route struct {
 	Handle   http.HandlerFunc
 }
 
+// MuxServer exists because the asynchronous modalities submit work on one path
+// and poll for it on another, so their adapters cannot be exercised by a
+// single-handler fixture. Routes are matched in order, which lets a caller put
+// specific paths first and keep a catch-all last.
 func MuxServer(routes ...Route) *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		for _, route := range routes {

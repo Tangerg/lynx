@@ -1,9 +1,11 @@
 package voyage
 
+// Provider is the stable backend name for host-side attribution.
 const (
 	Provider = "Voyage"
 )
 
+// Exported identifiers keep provider-owned names and defaults out of caller literals.
 const (
 	EmbeddingRequestExtensionKey = "voyage/embedding_request"
 	RerankRequestExtensionKey    = "voyage/rerank_request"

@@ -84,6 +84,9 @@ func (m *Media) Clone() *Media {
 	return &clone
 }
 
+// NewBytes owns the payload: it copies the input so a caller reusing its
+// buffer cannot alter media already attached to a message. Use it when the
+// content must travel with the request.
 func NewBytes(mimeType string, data []byte) (*Media, error) {
 	m := &Media{
 		MIME: mimeType,
@@ -99,6 +102,9 @@ func NewBytes(mimeType string, data []byte) (*Media, error) {
 	return m, nil
 }
 
+// NewURI delegates content resolution instead of copying the payload into the
+// protocol value. The URI must therefore be reachable by the provider or
+// client that resolves it.
 func NewURI(mimeType, uri string) (*Media, error) {
 	m := &Media{
 		MIME: mimeType,
@@ -114,6 +120,9 @@ func NewURI(mimeType, uri string) (*Media, error) {
 	return m, nil
 }
 
+// NewReference names content already held by the provider, such as an uploaded
+// file handle. The reference is opaque to Core, so it stays valid only with the
+// provider that issued it.
 func NewReference(mimeType, reference string) (*Media, error) {
 	m := &Media{
 		MIME: mimeType,

@@ -15,6 +15,10 @@ type Planner interface {
 	Plan(ctx context.Context, problem Problem) (plan Plan, found bool, err error)
 }
 
+// PlannerFunc adapts a plain function to the planner interface. The separate
+// found result distinguishes a completed search that proved no path exists
+// from a search that failed, because the first is a legitimate planning answer
+// and the second is an error.
 type PlannerFunc func(ctx context.Context, problem Problem) (plan Plan, found bool, err error)
 
 func (p PlannerFunc) Plan(

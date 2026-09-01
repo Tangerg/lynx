@@ -72,6 +72,10 @@ type Store struct {
 	distanceMetric  DistanceMetric
 }
 
+// New builds the shared PostgreSQL-dialect store that pgvector, CockroachDB,
+// and other wire-compatible backends delegate to. The provider name is passed
+// in so errors name the module the caller actually imported instead of this
+// internal one.
 func New(config Config) (*Store, error) {
 	if !config.DistanceMetric.Valid() {
 		return nil, fmt.Errorf("%s: unsupported distance metric %q", config.Provider, config.DistanceMetric)

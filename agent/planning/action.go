@@ -7,6 +7,11 @@ import (
 	"strings"
 )
 
+// CostFunc lets an action's cost depend on the world state it would run in,
+// which is what allows a planner to prefer a cheap path under current facts
+// rather than a fixed ordering. Returning an error keeps an uncomputable cost
+// from being silently treated as zero, which would make that action always
+// win.
 type CostFunc func(source WorldState) (float64, error)
 
 // FixedCost returns a CostFunc that always returns value. Validation occurs
@@ -46,6 +51,10 @@ type Action struct {
 	cost          CostFunc
 }
 
+// NewAction builds the predictive half of an action — preconditions, effects,
+// and cost — with no executable body. Keeping execution out means the planner
+// can search over actions without the risk of running one, and the same action
+// can be bound to different executors.
 func NewAction(config ActionConfig) (Action, error) {
 	if !validName(config.Name) {
 		return Action{}, fmt.Errorf("%w: invalid name %q", ErrInvalidAction, config.Name)

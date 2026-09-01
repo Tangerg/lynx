@@ -74,6 +74,10 @@ func AnthropicSSEServer(events []AnthropicEvent) *httptest.Server {
 	return srv
 }
 
+// JSONServer runs every inspection before writing the response so a test can
+// assert on the request the adapter actually sent without racing the client's
+// return. Inspections receive the live request, so a body must be read there
+// or not at all.
 func JSONServer(status int, body string, inspections ...func(request *http.Request)) *httptest.Server {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		for _, inspect := range inspections {
@@ -86,6 +90,9 @@ func JSONServer(status int, body string, inspections ...func(request *http.Reque
 	return server
 }
 
+// BinaryServer serves the modalities whose success path is bytes rather than
+// JSON — synthesized speech and generated images — where forcing the payload
+// through a string fixture would corrupt it.
 func BinaryServer(status int, contentType string, body []byte, inspections ...func(request *http.Request)) *httptest.Server {
 	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		for _, inspect := range inspections {

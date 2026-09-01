@@ -23,6 +23,7 @@ const (
 	mediaTypeJPEG        = "image/jpeg"
 )
 
+// ImageModelConfig binds provider access and defaults shared by every image call.
 type ImageModelConfig struct {
 	Client         ClientConfig
 	DefaultOptions image.Options
@@ -82,6 +83,7 @@ type ImageModel struct {
 	defaultOptions image.Options
 }
 
+// NewImageModel rejects an invalid provider binding before the first image call.
 func NewImageModel(config ImageModelConfig) (*ImageModel, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err

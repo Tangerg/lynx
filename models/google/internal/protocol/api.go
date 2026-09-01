@@ -11,6 +11,7 @@ import (
 	"google.golang.org/genai"
 )
 
+// ClientConfig configures provider transport.
 type ClientConfig struct {
 	APIKey string
 

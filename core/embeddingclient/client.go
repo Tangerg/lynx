@@ -21,6 +21,10 @@ type Client struct {
 	model embedding.Model
 }
 
+// New takes no configuration because this client adds no policy: it projects
+// [embedding.Model] to plain vectors for callers that do not need protocol
+// metadata. Defaults, middleware, and options stay with the model that owns
+// them.
 func New(model embedding.Model) (Client, error) {
 	client := Client{model: model}
 	if err := client.validate(); err != nil {

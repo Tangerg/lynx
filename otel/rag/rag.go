@@ -37,6 +37,11 @@ var (
 	ErrInvalidRetriever = errors.New("otel/rag: invalid retriever")
 )
 
+// MiddlewareConfig takes providers rather than a tracer and meter so the
+// choice of telemetry destination stays with the composition root. A nil
+// provider falls back to the OpenTelemetry global, which is the convenient
+// default for an application and the wrong one for a test that must observe
+// only its own instruments.
 type MiddlewareConfig struct {
 	TracerProvider trace.TracerProvider
 	MeterProvider  metric.MeterProvider
@@ -50,6 +55,8 @@ type Middleware struct {
 	duration metric.Float64Histogram
 }
 
+// NewMiddleware fixes instrument identity and provider binding once so every
+// retrieval contributes to the same telemetry series.
 func NewMiddleware(config MiddlewareConfig) (Middleware, error) {
 	tracerProvider := config.TracerProvider
 	if lo.IsNil(tracerProvider) {

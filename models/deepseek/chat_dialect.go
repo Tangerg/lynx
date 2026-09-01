@@ -19,6 +19,8 @@ const (
 	reasoningEffortMax   = corechat.ReasoningEffort("max")
 )
 
+// Namespacing preserves provider-specific data without promoting it into the
+// shared Core protocol or colliding with another provider.
 const RequestExtensionKey = "deepseek/request"
 
 var userIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
@@ -27,6 +29,7 @@ var userIDPattern = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
 // final answer. The API defaults to enabled when the field is omitted.
 type ThinkingMode string
 
+// These are the provider values this adapter recognizes.
 const (
 	ThinkingEnabled  ThinkingMode = "enabled"
 	ThinkingDisabled ThinkingMode = "disabled"
